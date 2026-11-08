@@ -481,6 +481,20 @@ public class OpenHomeRendererTest {
     }
 
     @Test
+    public void anEditAtThePlayerIsTakenOverBeforeAControlPointEditIsSynced() {
+        long a = add(0, "http://h/a.mp3");
+        long b = add(a, "http://h/b.mp3");
+        add(b, "http://h/c.mp3");
+        renderer.play();
+
+        assertEquals(true, player().removeItem(2)); // the user deletes c at the phone ...
+        add(0, "http://h/d.mp3");                    // ... and a control point adds d at the start, before the poll looked
+
+        assertEquals(Arrays.asList("http://h/d.mp3", "http://h/a.mp3", "http://h/b.mp3"), queueUris());
+        assertEquals(queueUris(), titles(player()));
+    }
+
+    @Test
     public void aTrackAControlPointDeletedIsNotBroughtBackByTheEditCheck() {
         long a = add(0, "http://h/a.mp3");
         long b = add(a, "http://h/b.mp3");

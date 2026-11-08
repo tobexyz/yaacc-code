@@ -352,6 +352,17 @@ public final class OpenHomeRenderer implements OhPlayback {
             return;
         }
         try {
+            // what the user changed at the player comes first: reconcile works by place and must not see a list it did not make
+            adoptPlayerEdits(current, onPlayer(() -> new ArrayList<>(current.getItems())));
+            if (player == null) {
+                return;
+            }
+            wanted = core.queue().snapshot();
+            if (wanted.isEmpty()) {
+                discardPlayer();
+                startId = 0;
+                return;
+            }
             reconcile(current, wanted);
         } catch (RuntimeException e) {
             // a player call failed or timed out: what the player holds is not known any more, so it starts again from the queue
@@ -371,7 +382,7 @@ public final class OpenHomeRenderer implements OhPlayback {
             }
             final int index = i;
             if (onPlayer(() -> current.removeItem(index, true))) {
-                playerIds.remove(i);
+                idByItem.values().remove(playerIds.remove(i));
             } else {
                 long next = 0;
                 for (int j = i + 1; j < playerIds.size(); j++) {

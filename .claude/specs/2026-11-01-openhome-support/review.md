@@ -265,3 +265,89 @@ Reviewing: Group fixes for cycle 2 (commit 22db10c3)
 - [x] Coverage adequate for the change (cancel on timeout, stale start id, thread affinity on the command paths; `AndroidOhThreads` is a thin Android wrapper over the tested `OhCall`).
 
 ### Verdict: PASS
+
+## Cycle 4 - Controller (groups 5-6) and reverse sync
+Reviewing: Groups 5 and 6 (controller: `OhRemote`, `ClingOhControl`, `OpenHomePlayer`, `OpenHomeChoice`, `OpenHomeReceivers`, `OpenHomeVolume`,
+`OpenHomeSettingsSheet`, receiver row, docs) and the latest change set (3603e7e2 reverse sync `adoptPlayerEdits` / `OhQueue.move`, 126670dc drag reorder).
+
+Method: spec read against the code; Cling failure path read in `SendingAction` / `UpnpTransportException` / `ActionCallback`; tests read, no Gradle run
+(the coordinator reports a green build at 3603e7e2: 3112+ tests, lint 0). Code only read, nothing modified.
+
+### Critical
+- none
+
+### Warning
+- [yaacc/src/main/java/de/yaacc/upnp/callback/openhome/ClingOhControl.java:123-132] A device that does not answer is never reported as `NO_ANSWER`. In the
+  real path `SendingAction` sets `new UpnpTransportException("Connection error or no response received")`, which is an `ActionException` with
+  `ErrorCode.ACTION_FAILED` (501), so `invocation.getFailure() != null` and `code[0]` becomes 501; `NO_ANSWER` stays only for a missing sender. Consequences:
+  `OpenHomePlayer.countFailure` (line 164) never counts, so `unreachable` is never set and `ready` is never reset (a device that went to standby or was
+  rebooted is not woken and switched to its playlist again); `OhRemote.readState` (438, 447) and `OpenHomeSettingsSheet.load` (200) treat a dead device like
+  a device that refuses an optional service. The tests (`OhRemoteTest.aDeviceThatDoesNotAnswer...`, `OpenHomePlayerTest`) use a fake `OhControl` that throws
+  `NO_ANSWER` directly, so the mapping is untested. Fix: in `failure()` map `invocation.getFailure() instanceof UpnpTransportException` (and a missing
+  response) to `NO_ANSWER`, keep the device's code otherwise; extract that mapping into a small plain-JVM method and test it.
+- [yaacc/src/main/java/de/yaacc/player/OpenHomePlayer.java:131-145, 540-557, 172] `pendingEdits` is incremented in `moveInPlayOrder` but decremented only
+  inside the job. `command()` runs `ensureReady()` before the job; when it throws (`prepare()` fails: device did not answer, no playlist source, `ready` was
+  reset after failures) the job never runs, the counter stays above 0 and `refresh()` returns at line 172 forever: the screen is frozen (no state, no
+  queue, no unreachable flag) until the player is recreated. The same happens if `post` drops the work (executor shut down). Fix: decrement outside the job
+  (wrap the whole posted runnable in try/finally, or let `command` take an `onDone` hook), and add a test with a control whose `prepare` fails.
+- [yaacc/src/main/java/de/yaacc/player/OpenHomePlayer.java:548-553] The worker computes the move from `ids`, but `ids` is only rebuilt by `refresh()`, which is
+  skipped while `pendingEdits > 0`. Two drags in quick succession (the second posted before the first job finished, so the first job's refresh is skipped)
+  make the second job use the order from before the first move: the target id (`current.get(toPosition - 1)`) and the moved id refer to the wrong tracks
+  and the device queue ends in a different order than the screen shows (the next poll then silently reverts the screen to the device order). Fix: update
+  `ids` (and `deviceIds`) in the job after a successful `moveTrack` (apply the same remove/add, and the new id for the Playlist 1 insert+delete fallback), or
+  serialize edits so the screen order is applied from `ids`. Add a two-drags test.
+- [yaacc/src/main/java/de/yaacc/player/OpenHomePlayer.java:426-441] `feedFiles` sets `fileCurrent` (426) and `fileSent` (433) before `remote.append` (436) has
+  succeeded. If the append fails (timeout, 5xx, full queue), the exception is caught in `refresh`, but the next poll sees `current == fileCurrent` and
+  returns: the next picked file is never given to the device, playback stops after the current file although the screen lists more. Fix: assign
+  `fileSent` and `fileCurrent` after the append (or reset them in a catch) so the next poll retries; test with a control that fails the first append.
+
+### Suggestion
+- [OpenHomeRenderer.java:363-402 and 448-466, reverse sync] Race between the two sync directions: `reconcile` removes and inserts by the index in
+  `playerIds`; if the user edited the list at the player less than one poll (1 s) before a control point edit triggers `sync()`, the indexes no longer match
+  the player and a wrong track is removed or inserted at the wrong place; the following `adoptPlayerEdits` then reads that as a user edit and deletes the
+  control point's track from the queue. Call `adoptPlayerEdits` at the start of `sync()` (same worker thread) before reconciling.
+- [OpenHomeRenderer.java:468-541] The Javadoc says edits of control points not synced yet are left alone, but a track a control point deleted that is still
+  in the player is treated as "added by the user" and re-inserted with a new id when a user edit happens in the same window (queue.indexOf(id) < 0 branch in
+  step 3). Skip items whose id was known (`idByItem`) but is gone from the queue, or fix the comment. Duplicate `PlayableItem` instances in the player make
+  `inQueue.get(i)` throw (caught, the player is discarded); acceptable, but a comment would help.
+- [OpenHomeRenderer.java:394-401] `reconcile` removes items from the player without removing them from `idByItem` (only `takeOverFromPlayer` and discard
+  clean it); stale `PlayableItem` references stay until the player is discarded. Remove them on `playerIds.remove(i)`.
+- [OpenHomePlayerTest.java:233] `moveIsNotOfferedAndNothingIsLocked` is stale since the drag reorder (126670dc): it only asserts on an empty list. Rename
+  ("moveOnAnEmptyListIsRefused") or fold into `positionsOutsideTheListAreNotMoved`.
+- [OpenHomePlayer.java:748-760, 131-145] `onDestroy` calls `stopWorkers()` before `super.onDestroy()`, so the `stop()` in `AbstractPlayer.onDestroy` is dropped
+  ("work dropped" log) and the device keeps playing when the player screen/notification is closed, while `AVTransportPlayer` stops the device. If that is
+  intended (the device owns the playlist) say so in decisions.md and docs; otherwise send the stop before shutting the worker down. Commands that were queued
+  before the shutdown still run and end in `publish()` -> `showNotification()` after `cancelNotification()`; a flag checked in `publish()` would avoid a
+  resurrected notification.
+- [OpenHomePlayer.java:517-541] `adoptDeviceState` is documented "call from one thread only (the player's worker)" but `moveInPlayOrder` calls it on the UI
+  thread. It is `synchronized`, so it is safe; correct the Javadoc of `AbstractPlayer.adoptDeviceState`.
+- [OpenHomePlayer.java:544-546] The `fileQueue` branch of the move job does not re-check `fileSent` on the worker (the UI check used `fileSentForScreen`); if
+  `feedFiles` advanced in between, a file the device already has can be reordered in the local list only. Re-check on the worker.
+- [UpnpClient.java getReceivers / logDevicesOnce] The device summary is built and compared on every `getReceivers()` call (called from UI code); cheap, but
+  logging friendly names at info level for every device change belongs behind debug unless the owner wants it in user logs.
+- Still open from earlier cycles (not blocking): URI normalisation, strict base64, `trackDeleted` index race, Stopped flap after Play.
+
+### What was checked and is fine
+- `OhRemote`: bounded reads (batch 50, MAX_TRACKS, cache budget, unavailable set), `append` room calculation, `insertAfter` stops on 801, `replace`/`deleteAll`
+  cache reset, `moveTrack` falls back to insert+delete only for code 401 (not for a refusal), wake loop is bounded and interruptible, volume max cached.
+- `OhXml`/`OhTrackListParser`/`OhSources`: DTD refused, size and depth limits, only own text nodes read, ids validated against the asked set.
+- `OpenHomePlayer`: one command worker, poll guarded by `pollPending` (no pile-up), `stopWorkers` cancels the poll and shuts both executors; state fields are
+  volatile for the screen; worker-only fields are touched only on the worker (`fileQueue`, `ids`, `itemsById`); http(s)-only tracks; album art restricted
+  to http(s) by `OhUriPolicy`.
+- `OpenHomeSettingsSheet`: single-thread daemon pool that times out, `shutdownNow` on dismiss, results dropped when the dialog is gone, device strings
+  cleaned and shown as plain text.
+- `OpenHomeChoice`/`OpenHomeReceivers`/`OpenHomeVolume`: audio-only rule, per-device AVTransport choice, OpenHome-only devices listed once by UDN, volume only
+  when there is no RenderingControl, all catch OhControlException and RuntimeException.
+- 3603e7e2: `OhQueue.move` keeps the id and bumps the token and rejects unknown ids (800); `adoptPlayerEdits` runs on the worker, compares by identity, discards
+  the player when it cannot take over; refused tracks are removed from the player from the highest index down; the player's items are the same instances
+  that the renderer put in (checked in `PlayerService.createPlayerForLocalDevice`).
+- Docs (`docs/index.md` OpenHome chapter, CHANGELOG): consistent with the code (1000 tracks, Move on Playlist 2 and insert+delete fallback, picked files two at
+  a time, settings sheet, reverse sync); `Playlist2.xml` fixture contains `Move`. English comments, no dead code found in the reviewed files.
+
+### Tests
+- [x] All tests passing: not re-run in this cycle (coordinator: green build at 3603e7e2, 3112+ tests, lint 0).
+- [ ] Coverage adequate for the change: no. Missing: the Cling failure mapping (`ClingOhControl.invoke`, the real unreachable path); `OpenHomePlayer` when
+  `prepare()` fails (pendingEdits), two consecutive drags, a failing append in `feedFiles`, unreachable/recover cycle, `stopWorkers`; reverse sync with
+  edit + control point edit in the same window, user edit + concurrent delete, and a refused playing track.
+
+### Verdict: FAIL

@@ -230,7 +230,7 @@ public class OpenHomePlayerTest {
     }
 
     @Test
-    public void moveIsNotOfferedAndNothingIsLocked() {
+    public void nothingIsLockedAndAMoveNeedsAtLeastTwoTracks() {
         assertFalse(player.moveInPlayOrder(0, 1));
         assertFalse(player.isPlaylistPositionLocked(0));
     }
@@ -309,6 +309,10 @@ public class OpenHomePlayerTest {
     private final List<Integer> released = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     private PlayableItem[] pickFiles(int count, boolean bindWorks) {
+        return pickFiles(player, count, bindWorks);
+    }
+
+    private PlayableItem[] pickFiles(OpenHomePlayer target, int count, boolean bindWorks) {
         PlayableItem[] items = new PlayableItem[count];
         for (int i = 0; i < count; i++) {
             items[i] = placeholder("file" + i);
@@ -322,7 +326,7 @@ public class OpenHomePlayerTest {
             bound.add(index);
             return () -> released.add(index);
         });
-        player.setShareLease(window.newLease());
+        target.setShareLease(window.newLease());
         return items;
     }
 
@@ -472,5 +476,104 @@ public class OpenHomePlayerTest {
 
         assertEquals("file4", player.getItems().get(2).getTitle());
         await(() -> player.getItems().size() == 5 && player.getItems().get(2).getTitle().equals("file4"));
+    }
+
+    // ---- a device that does not answer, a failing append
+
+    /** Lets calls to the device fail while {@code failing} is set. */
+    private final java.util.concurrent.atomic.AtomicBoolean failing = new java.util.concurrent.atomic.AtomicBoolean();
+    private final java.util.concurrent.atomic.AtomicBoolean failingAppend = new java.util.concurrent.atomic.AtomicBoolean();
+
+    private OpenHomePlayer playerWithFailingDevice() throws Exception {
+        CoreControl inner = new CoreControl(core);
+        Context context = mock(Context.class);
+        UpnpClient client = mock(UpnpClient.class);
+        when(client.getContext()).thenReturn(context);
+        Device<?, ?, ?> receiver = mock(Device.class);
+        when(receiver.getIdentity()).thenReturn(new DeviceIdentity(new UDN("receiver-2")));
+        OpenHomePlayer other = new OpenHomePlayer(client, receiver, "name", "short") {
+            @Override
+            protected PlayMode readDefaultPlayMode() {
+                return PlayMode.of(PlayMode.RepeatMode.OFF, false);
+            }
+
+            @Override
+            protected OhControl createControl() {
+                return (service, action, arguments) -> {
+                    if (failing.get() || (failingAppend.get() && "Insert".equals(action))) {
+                        throw new de.yaacc.openhome.OhControlException(de.yaacc.openhome.OhControlException.NO_ANSWER, "no answer");
+                    }
+                    return inner.invoke(service, action, arguments);
+                };
+            }
+        };
+        return other;
+    }
+
+    @Test
+    public void aDragWhoseCommandCouldNotRunDoesNotFreezeThePlayer() throws Exception {
+        long a = core.queue().insert(0, "http://h/a.mp3", "");
+        long b = core.queue().insert(a, "http://h/b.mp3", "");
+        core.queue().insert(b, "http://h/c.mp3", "");
+        OpenHomePlayer other = playerWithFailingDevice();
+        try {
+            other.pause();
+            await(() -> other.getItems().size() == 3);
+
+            failing.set(true); // the device does not answer: after some failures the player prepares the device again first
+            for (int i = 0; i < 4; i++) {
+                other.pause();
+            }
+            Thread.sleep(300);
+            assertTrue(other.moveInPlayOrder(2, 0)); // its job ends in the failed preparation, before it can move anything
+            Thread.sleep(300);
+            failing.set(false);
+
+            core.queue().insert(0, "http://h/d.mp3", ""); // the poll must look at the device again and show this
+            other.pause();
+            await(() -> other.getItems().size() == 4);
+        } finally {
+            other.stopWorkers();
+        }
+    }
+
+    @Test
+    public void twoQuickDragsEachCountFromTheOrderTheFirstOneMade() throws Exception {
+        long a = core.queue().insert(0, "http://h/a.mp3", "");
+        long b = core.queue().insert(a, "http://h/b.mp3", "");
+        long c = core.queue().insert(b, "http://h/c.mp3", "");
+        core.queue().insert(c, "http://h/d.mp3", "");
+        player.pause();
+        await(() -> player.getItems().size() == 4);
+
+        assertTrue(player.moveInPlayOrder(3, 0)); // d a b c
+        assertTrue(player.moveInPlayOrder(3, 1)); // d c a b (the screen's order after the first drag)
+
+        await(() -> core.queue().snapshot().get(0).getUri().equals("http://h/d.mp3")
+                && core.queue().snapshot().get(1).getUri().equals("http://h/c.mp3"));
+        assertEquals("http://h/a.mp3", core.queue().snapshot().get(2).getUri());
+        assertEquals("http://h/b.mp3", core.queue().snapshot().get(3).getUri());
+    }
+
+    @Test
+    public void aFailedAppendOfTheNextPickedFileIsTriedAgainOnTheNextPoll() throws Exception {
+        OpenHomePlayer other = playerWithFailingDevice();
+        try {
+            other.setItems(pickFiles(other, 4, true));
+            await(() -> core.queue().size() == 2);
+
+            failingAppend.set(true);
+            core.setCurrentId(core.queue().snapshot().get(1).getId()); // the device moves on: the third file has to be given to it
+            other.pause();
+            Thread.sleep(300);
+            assertEquals(2, core.queue().size());
+
+            failingAppend.set(false);
+            other.pause();
+            await(() -> core.queue().size() == 3);
+            assertEquals("http://share/2", core.queue().snapshot().get(2).getUri());
+        } finally {
+            other.stopWorkers();
+        }
     }
 }

@@ -119,17 +119,25 @@ public class OpenHomePlayer extends AbstractPlayer {
         void run() throws OhControlException;
     }
 
-    private void post(Runnable runnable) {
+    /** @return false if the player is gone and the work was dropped */
+    private boolean post(Runnable runnable) {
         try {
             commands.execute(runnable);
+            return true;
         } catch (RejectedExecutionException e) {
             YaaccLogger.d(getClass().getName(), "OpenHome player is gone, work dropped");
+            return false;
         }
     }
 
     /** Runs the job on the worker, then asks the device what it does now. */
     private void command(String what, Job job) {
-        post(() -> {
+        command(what, job, null);
+    }
+
+    /** As {@link #command(String, Job)}; {@code always} runs after the job, whatever happened to it (also if it never ran). */
+    private void command(String what, Job job, Runnable always) {
+        boolean posted = post(() -> {
             try {
                 ensureReady();
                 job.run();
@@ -139,9 +147,16 @@ public class OpenHomePlayer extends AbstractPlayer {
                 countFailure(e);
             } catch (RuntimeException e) {
                 YaaccLogger.w(getClass().getName(), "OpenHome " + what + " failed", e);
+            } finally {
+                if (always != null) {
+                    always.run();
+                }
             }
             refresh();
         });
+        if (!posted && always != null) {
+            always.run();
+        }
     }
 
     private void ensureReady() throws OhControlException {
@@ -423,22 +438,24 @@ public class OpenHomePlayer extends AbstractPlayer {
         if (current == null || current == fileCurrent) {
             return;
         }
-        fileCurrent = current;
         PlayableItem next = current + 1 < fileQueue.size() ? fileQueue.get(current + 1) : null;
         if (!getShareLease().moveToItems(fileQueue.get(current), next)) {
             YaaccLogger.w(getClass().getName(), "The share of a file could not be created");
+            fileCurrent = current;
             return;
         }
         if (next != null && fileSent <= current + 1) {
-            fileSent = current + 2;
             List<OhRemote.Track> one = tracks(java.util.Collections.singletonList(next));
             if (!one.isEmpty()) {
+                // a failure leaves fileCurrent and fileSent as they were: the next poll tries again
                 List<Long> ids = remote.append(one);
                 if (!ids.isEmpty()) {
                     fileIndexById.put(ids.get(0), current + 1);
                 }
             }
+            fileSent = current + 2;
         }
+        fileCurrent = current;
     }
 
     @Override
@@ -540,21 +557,20 @@ public class OpenHomePlayer extends AbstractPlayer {
         pendingEdits.incrementAndGet();
         adoptDeviceState(list, Math.max(0, list.indexOf(playing)), isPlaying(), isPaused());
         command("move track", () -> {
-            try {
-                if (fileQueue != null) {
-                    fileQueue.add(toPosition, fileQueue.remove(fromPosition));
-                    return;
-                }
-                List<Long> current = new ArrayList<>(ids);
-                if (fromPosition >= current.size() || toPosition >= current.size()) {
-                    return;
-                }
-                long id = current.remove(fromPosition);
-                remote.moveTrack(id, toPosition == 0 ? 0 : current.get(toPosition - 1));
-            } finally {
-                pendingEdits.decrementAndGet();
+            if (fileQueue != null) {
+                fileQueue.add(toPosition, fileQueue.remove(fromPosition));
+                return;
             }
-        });
+            List<Long> current = new ArrayList<>(ids);
+            if (fromPosition >= current.size() || toPosition >= current.size()) {
+                return;
+            }
+            long id = current.remove(fromPosition);
+            long movedId = remote.moveTrack(id, toPosition == 0 ? 0 : current.get(toPosition - 1));
+            // the next drag, queued before the poll looks again, counts from this order (a device with Playlist 1 gives the track a new id)
+            current.add(toPosition, movedId);
+            ids = current;
+        }, pendingEdits::decrementAndGet);
         return true;
     }
 
@@ -744,6 +760,7 @@ public class OpenHomePlayer extends AbstractPlayer {
     protected void startItem(PlayableItem playableItem, Object loadedItem, int index) {
     }
 
+    /** The playlist belongs to the device: closing the player ends the screen and the poll, the device keeps playing. */
     @Override
     public void onDestroy() {
         stopWorkers();

@@ -783,7 +783,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     /**
      * For a player whose playlist and playback live on a device (OpenHome): takes over what the device reports. The list, the index of
      * the item that plays and the state are replaced as they are, the screen and the notification are told what changed. Nothing is
-     * started or stopped. Call it from one thread only (the player's worker); the state it sets is volatile for the screen.
+     * started or stopped. It is synchronized, so the worker (polling) and the screen thread (an optimistic reorder) may both call it; the state it sets is volatile for the screen.
      *
      * @param deviceItems the playlist of the device; the same objects for the same tracks as before keep the list "unchanged"
      * @param index       the index of the current item (clamped to the list)
