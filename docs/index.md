@@ -428,6 +428,10 @@ offer *All images* / *All videos* and *Galleries*: a gallery is one directory of
 the same name are told apart by a number (*Camera (2)*), files directly in the root of a storage volume are listed in a
 gallery named *(root folder)* (in the language of the app), and the media paths of the server settings apply to the list of
 galleries and to the videos in a gallery.
+The media paths apply to everything the server answers: a client that guesses the id of an image, a video, an album or a
+gallery outside them gets "no such object" (and no thumbnail or cover), and a media path is matched literally (a `_` or `%` in
+the name is no wildcard). A folder you deselect in *SAF content* is no longer listed or sent, also not to a client that
+remembers its ids.
 
 ![server_control](./screenshots/5.1.x/server_control.png){:height="30%" width="30%"}
 

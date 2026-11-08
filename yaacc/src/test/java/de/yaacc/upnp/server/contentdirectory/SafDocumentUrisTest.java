@@ -162,4 +162,120 @@ public class SafDocumentUrisTest {
         }
         assertEquals("malformed escape stays", "100%zz", SafDocumentUris.decode("100%zz"));
     }
+
+    // ---- the selected folders
+
+    private static final String MUSIC_TREE = "content://com.android.externalstorage.documents/tree/primary%3AMusic";
+    private static final String DCIM_TREE = "content://com.android.externalstorage.documents/tree/primary%3ADCIM";
+    /** What the settings store for a whole granted tree: its own document uri. */
+    private static final String MUSIC_SELECTED = MUSIC_TREE + "/document/primary%3AMusic";
+    /** What they store for a ticked folder below the tree. */
+    private static final String CAMERA_SELECTED = DCIM_TREE + "/document/primary%3ADCIM%2FCamera";
+
+    private static boolean in(String uri, String... selected) {
+        return SafDocumentUris.isInSelectedTrees(uri, java.util.Arrays.asList(selected), null);
+    }
+
+    @Test
+    public void aWholeSelectedTreeHoldsEverythingOfIt() {
+        assertTrue(in(MUSIC_TREE + "/document/primary%3AMusic%2FRock%2Fa.mp3", MUSIC_SELECTED));
+        assertTrue(in(MUSIC_TREE + "/document/primary%3AMusic", MUSIC_SELECTED));
+        assertTrue(in(MUSIC_TREE, MUSIC_SELECTED));
+        assertTrue(in(MUSIC_TREE + "/document/primary%3AMusic%2Fa.mp3", MUSIC_TREE)); // a plain tree uri is a whole tree as well
+    }
+
+    @Test
+    public void theEncodingOfTheIdsDoesNotMatter() {
+        assertTrue(in(MUSIC_TREE + "/document/primary%3AMusic%2Fa.mp3", "content://com.android.externalstorage.documents/tree/primary:Music/document/primary:Music"));
+    }
+
+    @Test
+    public void aSelectedFolderBelowATreeHoldsItselfAndWhatIsBelowIt() {
+        assertTrue(in(CAMERA_SELECTED, CAMERA_SELECTED));
+        assertTrue(in(DCIM_TREE + "/document/primary%3ADCIM%2FCamera%2F2026", CAMERA_SELECTED));
+        assertTrue(in(DCIM_TREE + "/document/primary%3ADCIM%2FCamera%2F2026%2FIMG_1.jpg", CAMERA_SELECTED));
+    }
+
+    @Test
+    public void theRestOfTheGrantedTreeIsNotSelectedWhenOnlyAFolderBelowItIs() {
+        // the parent, a sibling, a folder whose name only starts like the selected one, and the tree itself
+        assertFalse(in(DCIM_TREE + "/document/primary%3ADCIM", CAMERA_SELECTED));
+        assertFalse(in(DCIM_TREE, CAMERA_SELECTED));
+        assertFalse(in(DCIM_TREE + "/document/primary%3ADCIM%2FScreenshots%2Fa.png", CAMERA_SELECTED));
+        assertFalse(in(DCIM_TREE + "/document/primary%3ADCIM%2FCamera2%2Fa.jpg", CAMERA_SELECTED));
+        assertFalse(in(DCIM_TREE + "/document/primary%3ADCIM%2FCamera2", CAMERA_SELECTED));
+    }
+
+    @Test
+    public void aDeselectedFolderOfATreeThatStaysSelectedIsNotSelected() {
+        // A and B were selected below the granted tree, B was deselected
+        String a = DCIM_TREE + "/document/primary%3ADCIM%2FA";
+        String b = DCIM_TREE + "/document/primary%3ADCIM%2FB";
+
+        assertTrue(in(a + "%2Fx.jpg", a));
+        assertFalse(in(b + "%2Fx.jpg", a));
+        assertFalse(in(b, a));
+    }
+
+    @Test
+    public void severalSelectedFoldersAreEachChecked() {
+        assertTrue(in(MUSIC_TREE + "/document/primary%3AMusic%2Fa.mp3", CAMERA_SELECTED, MUSIC_SELECTED));
+        assertTrue(in(DCIM_TREE + "/document/primary%3ADCIM%2FCamera%2Fa.jpg", CAMERA_SELECTED, MUSIC_SELECTED));
+        assertFalse(in(DCIM_TREE + "/document/primary%3ADCIM%2FOther%2Fa.jpg", CAMERA_SELECTED, MUSIC_SELECTED));
+    }
+
+    @Test
+    public void aTreeOrAuthorityThatIsNotSelectedIsNotInIt() {
+        assertFalse(in(DCIM_TREE + "/document/primary%3ADCIM%2Fa.jpg", MUSIC_SELECTED));
+        assertFalse(in(DCIM_TREE + "/document/x", java.util.Collections.<String>emptyList().toArray(new String[0])));
+        assertFalse(in("content://com.android.externalstorage.documents/tree/primary%3AMusic2/document/primary%3AMusic2%2Fa.mp3", MUSIC_SELECTED));
+        assertFalse(in("content://other.documents/tree/primary%3AMusic/document/primary%3AMusic%2Fa.mp3", MUSIC_SELECTED));
+    }
+
+    @Test
+    public void idsThatAreNoPathsAreAskedFromTheProvider() {
+        // a media provider style id: nothing in the id says where the document is
+        String selected = "content://com.example.docs/tree/root/document/folder7";
+        String child = "content://com.example.docs/tree/root/document/file12";
+        java.util.List<String> asked = new java.util.ArrayList<>();
+        SafDocumentUris.ChildCheck yes = (parent, uri) -> {
+            asked.add(parent + " > " + uri);
+            return true;
+        };
+
+        assertFalse("without the provider: not found", SafDocumentUris.isInSelectedTrees(child, java.util.Collections.singleton(selected), null));
+        assertTrue(SafDocumentUris.isInSelectedTrees(child, java.util.Collections.singleton(selected), yes));
+        assertEquals(java.util.Collections.singletonList(selected + " > " + child), asked);
+        assertFalse(SafDocumentUris.isInSelectedTrees(child, java.util.Collections.singleton(selected), (parent, uri) -> false));
+    }
+
+    @Test
+    public void theProviderIsNotAskedForAWholeTreeOrAPathLikeChild() {
+        SafDocumentUris.ChildCheck never = (parent, uri) -> {
+            throw new AssertionError("not needed");
+        };
+
+        assertTrue(SafDocumentUris.isInSelectedTrees(MUSIC_TREE + "/document/primary%3AMusic%2Fa.mp3", java.util.Collections.singleton(MUSIC_SELECTED), never));
+        assertTrue(SafDocumentUris.isInSelectedTrees(DCIM_TREE + "/document/primary%3ADCIM%2FCamera%2Fa.jpg", java.util.Collections.singleton(CAMERA_SELECTED), never));
+    }
+
+    @Test
+    public void whatIsNoTreeUriIsNeverInASelectedFolder() {
+        assertFalse(in(null, MUSIC_SELECTED));
+        assertFalse(in("", MUSIC_SELECTED));
+        assertFalse(in("file:///sdcard/Music/a.mp3", MUSIC_SELECTED));
+        assertFalse(in("content://media/external/audio/media/5", MUSIC_SELECTED));
+        assertFalse(SafDocumentUris.isInSelectedTrees(MUSIC_TREE + "/document/x", null, null));
+        assertFalse(in(MUSIC_TREE + "/document/x", (String) null));
+        assertFalse(in(MUSIC_TREE + "/document/x", "garbage"));
+    }
+
+    @Test
+    public void theTopOfASelectionIsFoundByItsUri() {
+        assertTrue(SafDocumentUris.isSelectedFolder(CAMERA_SELECTED, java.util.Arrays.asList(CAMERA_SELECTED, MUSIC_SELECTED)));
+        assertTrue(SafDocumentUris.isSelectedFolder(MUSIC_TREE, java.util.Collections.singleton(MUSIC_SELECTED)));
+        assertFalse(SafDocumentUris.isSelectedFolder(DCIM_TREE + "/document/primary%3ADCIM%2FCamera%2F2026", java.util.Collections.singleton(CAMERA_SELECTED)));
+        assertFalse(SafDocumentUris.isSelectedFolder(DCIM_TREE + "/document/primary%3ADCIM", java.util.Collections.singleton(CAMERA_SELECTED)));
+        assertFalse(SafDocumentUris.isSelectedFolder(null, java.util.Collections.singleton(CAMERA_SELECTED)));
+    }
 }

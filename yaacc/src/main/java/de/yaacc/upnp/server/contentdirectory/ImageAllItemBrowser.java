@@ -56,8 +56,12 @@ public class ImageAllItemBrowser extends ContentBrowser {
                 MediaStore.Images.Media.DISPLAY_NAME,
                 MediaStore.Images.Media.MIME_TYPE, MediaStore.Images.Media.SIZE,
                 MediaStore.Images.Media.DATE_TAKEN};
-        String selection = MediaStore.Images.Media._ID + "= ?";
-        String[] selectionArgs = new String[]{myId.substring(ContentDirectoryIDs.IMAGE_ALL_PREFIX.getId().length())};
+        // only an image in the media paths: the id is a consecutive number any host of the network can count through
+        String selection = MediaStore.Images.Media._ID + "=? and (" + makeLikeClause(MediaStore.Images.Media.DATA, getMediaPathes().size()) + ")";
+        List<String> selectionArgsList = new ArrayList<>();
+        selectionArgsList.add(myId.substring(ContentDirectoryIDs.IMAGE_ALL_PREFIX.getId().length()));
+        selectionArgsList.addAll(getMediaPathesForLikeClause());
+        String[] selectionArgs = selectionArgsList.toArray(new String[0]);
         try (Cursor mImageCursor = contentDirectory
                 .getContext()
                 .getContentResolver()

@@ -80,6 +80,7 @@ public class AlbumArtFallbackTest {
         when(context.getContentResolver()).thenReturn(resolver);
         when(context.getString(R.string.settings_local_server_chkbx)).thenReturn("server");
         when(preferences.getBoolean("server", false)).thenAnswer(invocation -> serverEnabled);
+        when(cursor.getCount()).thenReturn(1); // the album has a track in the media paths
         when(resolver.query(any(), any(), any(), any(), any())).thenReturn(cursor);
         preferenceStatic = mockStatic(PreferenceManager.class);
         preferenceStatic.when(() -> PreferenceManager.getDefaultSharedPreferences(context)).thenReturn(preferences);

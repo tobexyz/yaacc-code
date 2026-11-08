@@ -27,7 +27,6 @@ import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.Item;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -46,7 +45,11 @@ public class VideoItemBrowser extends VideoBrowser {
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         String id = myId.substring(ContentDirectoryIDs.VIDEO_PREFIX.getId().length());
         // a video has one id wherever it is listed: its parent is "All videos"
-        List<Item> found = items(contentDirectory, MediaStore.Video.Media._ID + "=?", Collections.singletonList(id),
+        // only a video in the media paths: the id is a consecutive number any host of the network can count through
+        List<String> args = new ArrayList<>();
+        args.add(id);
+        args.addAll(mediaPathArguments());
+        List<Item> found = items(contentDirectory, MediaStore.Video.Media._ID + "=? AND " + mediaPathSelection(), args,
                 ContentDirectoryIDs.VIDEOS_ALL_FOLDER.getId(), 0, 1, orderby);
         return found.isEmpty() ? null : found.get(0);
     }

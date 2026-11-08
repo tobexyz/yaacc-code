@@ -15,20 +15,30 @@ import de.yaacc.R;
 
 public class MediaPathFilter {
 
+    /**
+     * The condition "the path is one of the media paths": {@code column like ? escape '\' or ...}, one {@code ?} per path. The
+     * arguments come from {@link #getMediaPathesForLikeClause}, which escapes the characters that mean something in a LIKE pattern.
+     */
     public static String makeLikeClause(String column, int len) {
         StringBuilder sb = new StringBuilder();
         sb.append(column);
-        sb.append(" like ?");
+        sb.append(" like ? escape '\\'");
         for (int i = 1; i < len; i++) {
             sb.append(" or ");
             sb.append(column);
-            sb.append(" like ? ");
+            sb.append(" like ? escape '\\' ");
         }
         return sb.toString();
     }
 
+    /** The patterns for {@link #makeLikeClause}: the path anywhere in the column, with {@code %}, {@code _} and {@code \} taken literally. */
     public static List<String> getMediaPathesForLikeClause(Context context) {
-        return getMediaPathes(context).stream().map(it -> "%" + it + "%").collect(Collectors.toList());
+        return getMediaPathes(context).stream().map(it -> "%" + escapeLike(it) + "%").collect(Collectors.toList());
+    }
+
+    /** @return the text with the characters that mean something in a LIKE pattern ({@code %}, {@code _}) and the escape character itself escaped by {@code \} */
+    public static String escapeLike(String text) {
+        return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     public static Set<String> getMediaPathes(Context context) {

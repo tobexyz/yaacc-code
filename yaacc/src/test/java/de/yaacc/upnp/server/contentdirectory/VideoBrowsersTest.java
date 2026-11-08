@@ -212,6 +212,7 @@ public class VideoBrowsersTest {
         assertEquals("41099911", item.getId());
         assertEquals("430999", item.getParentID());
         assertEquals("11", selectionArgs.get(0).get(0));
+        assertTrue(selections.get(0).startsWith("_id=? AND (_data like ?"));
     }
 
     // ---- the galleries
@@ -356,7 +357,7 @@ public class VideoBrowsersTest {
     }
 
     private void assertPathsInSelection(String selection) {
-        assertTrue(selection, selection.startsWith("(_data like ? or _data like ? )"));
+        assertTrue(selection, selection.startsWith("(_data like ? escape '\\' or _data like ? escape '\\' )"));
     }
 
     @Test
@@ -440,5 +441,24 @@ public class VideoBrowsersTest {
         assertEquals(Arrays.asList("Movies", "movies"), titles(all)); // upper case first, then by id
         assertEquals(Arrays.asList("Movies"), titles(first));
         assertEquals(Arrays.asList("movies"), titles(second));
+    }
+
+    @Test
+    public void theMetadataOfAVideoIsOnlyAnsweredForAVideoInTheMediaPaths() {
+        filterOn("/a", "/b");
+        rows(video(11, "a.mp4", 1, "Camera"));
+
+        new VideoItemBrowser(context).browseMeta(directory, "41099911", 0, 1, NO_SORT);
+
+        assertEquals("_id=? AND (_data like ? escape '\\' or _data like ? escape '\\' )", selections.get(0));
+        assertEquals("11", selectionArgs.get(0).get(0));
+        assertTrue(selectionArgs.get(0).subList(1, 3).containsAll(Arrays.asList("%/a%", "%/b%")));
+    }
+
+    @Test
+    public void aVideoOutsideTheMediaPathsHasNoMetadata() {
+        rows(); // the media store finds nothing for the id inside the media paths
+
+        assertNull(new VideoItemBrowser(context).browseMeta(directory, "41099999", 0, 1, NO_SORT));
     }
 }

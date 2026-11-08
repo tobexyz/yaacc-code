@@ -81,12 +81,15 @@ public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
 
     private Integer getBucketNameFolderSize(YaaccContentDirectory contentDirectory, String id) {
 
+        // the images of the bucket in the media paths, as the gallery itself lists them
         String[] projection = {MediaStore.Images.Media.BUCKET_ID};
-        String selection = MediaStore.Images.Media.BUCKET_ID + "=?";
-        String[] selectionArgs = new String[]{id};
+        String selection = MediaStore.Images.Media.BUCKET_ID + "=? and (" + makeLikeClause(MediaStore.Images.Media.DATA, getMediaPathes().size()) + ")";
+        List<String> selectionArgsList = new ArrayList<>();
+        selectionArgsList.add(id);
+        selectionArgsList.addAll(getMediaPathesForLikeClause());
         try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
-                selectionArgs, null)) {
-            return cursor.getCount();
+                selectionArgsList.toArray(new String[0]), null)) {
+            return cursor == null ? 0 : cursor.getCount();
         }
 
     }

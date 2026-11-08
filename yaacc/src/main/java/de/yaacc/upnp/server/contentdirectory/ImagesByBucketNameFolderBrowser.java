@@ -52,7 +52,9 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
 
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-
+        if (getSize(contentDirectory, myId) == 0) {
+            return null; // no such gallery in the media paths
+        }
         return new StorageFolder(myId, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), getName(
                 contentDirectory, myId), "yaacc", getSize(contentDirectory, myId), null);
     }
@@ -61,26 +63,33 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
     public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
 
         String[] projection = {MediaStore.Images.Media.BUCKET_ID};
-        String selection = MediaStore.Images.Media.BUCKET_ID + "=?";
-        String[] selectionArgs = new String[]{myId.substring(myId
-                .indexOf(ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId()))};
-        try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
-                selectionArgs, null)) {
-            return cursor.getCount();
+        try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection,
+                bucketSelection(), bucketSelectionArgs(myId), null)) {
+            return cursor == null ? 0 : cursor.getCount();
         }
 
     }
 
+    /** The images of the bucket in the media paths: a bucket id of a directory outside them lists nothing. */
+    private String bucketSelection() {
+        return MediaStore.Images.Media.BUCKET_ID + "=? and (" + makeLikeClause(MediaStore.Images.Media.DATA, getMediaPathes().size()) + ")";
+    }
+
+    private String[] bucketSelectionArgs(String myId) {
+        List<String> args = new ArrayList<>();
+        args.add(myId.substring(ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId().length()));
+        args.addAll(getMediaPathesForLikeClause());
+        return args.toArray(new String[0]);
+    }
+
     private String getName(YaaccContentDirectory contentDirectory, String myId) {
         String result = "";
-        String[] projection = {MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.BUCKET_DISPLAY_NAME};
-        String selection = MediaStore.Images.Media.BUCKET_ID + "=?";
-        String[] selectionArgs = new String[]{myId.substring(ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId().length())};
+        String[] projection = {MediaStore.Images.Media.BUCKET_DISPLAY_NAME};
         try (Cursor cursor = contentDirectory
                 .getContext()
                 .getContentResolver()
                 .query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                        projection, selection, selectionArgs, null)) {
+                        projection, bucketSelection(), bucketSelectionArgs(myId), null)) {
             if (cursor != null && cursor.getCount() > 0) {
                 cursor.moveToFirst();
                 result = cursor.getString(0);
@@ -103,8 +112,8 @@ public class ImagesByBucketNameFolderBrowser extends ContentBrowser {
         // Query for all images on external storage
         String[] projection = {MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME, MediaStore.Images.Media.MIME_TYPE,
                 MediaStore.Images.Media.SIZE, MediaStore.Images.Media.DATE_TAKEN};
-        String selection = MediaStore.Images.Media.BUCKET_ID + "=?";
-        String[] selectionArgs = new String[]{myId.substring(ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId().length())};
+        String selection = bucketSelection();
+        String[] selectionArgs = bucketSelectionArgs(myId);
         Map<String, String> columnMap = new HashMap<>();
         columnMap.put(SortSupport.PROPERTY_TITLE, MediaStore.Images.Media.DISPLAY_NAME);
         columnMap.put(SortSupport.PROPERTY_DATE, MediaStore.Images.Media.DATE_TAKEN);

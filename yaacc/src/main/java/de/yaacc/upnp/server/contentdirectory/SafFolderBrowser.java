@@ -240,7 +240,7 @@ public class SafFolderBrowser extends ContentBrowser {
                     null);
         }
         String shortId = SafDocumentUris.shortIdOf(myId);
-        String path = shortId == null ? null : SAFCacheManager.getInstance(getContext()).getUriForShortId(shortId);
+        String path = shortId == null ? null : allowedUri(shortId);
         if (path == null) {
             YaaccLogger.w(getClass().getName(), "Meta: short ID not found: " + shortId + " for id: " + myId);
             return null;
@@ -252,7 +252,9 @@ public class SafFolderBrowser extends ContentBrowser {
             return null;
         }
         SafDocumentUris.Parsed parsed = SafDocumentUris.parse(path);
-        String parentId = parentIdOf(parsed, documentUri);
+        // the top of a selection has the SAF folder as parent, not the (not selected) folder around it
+        String parentId = SafDocumentUris.isSelectedFolder(path, getSelectedSafPathes())
+                ? ContentDirectoryIDs.SAF_FOLDER.getId() : parentIdOf(parsed, documentUri);
         DIDLObject result;
         if (entry.isDirectory()) {
             String title = entry.name != null ? entry.name : path;
@@ -269,6 +271,19 @@ public class SafFolderBrowser extends ContentBrowser {
         }
         YaaccLogger.d(getClass().getName(), "SAF meta " + myId + " " + (entry.isDirectory() ? "folder" : "item") + " parent=" + parentId);
         return result;
+    }
+
+    /**
+     * The document uri of a short id, if it is in a tree the user selected for the server (else null, as for an id that does not exist):
+     * a short id outlives the selection of its tree.
+     */
+    private String allowedUri(String shortId) {
+        String uri = SAFCacheManager.getInstance(getContext()).getUriForShortId(shortId);
+        if (uri != null && !SafSelection.contains(getContext(), uri)) {
+            YaaccLogger.d(getClass().getName(), "SAF short id " + shortId + " is not in a selected folder");
+            return null;
+        }
+        return uri;
     }
 
     /**
@@ -310,7 +325,7 @@ public class SafFolderBrowser extends ContentBrowser {
             return getSelectedSafPathes().size();
         } else {
             String shortId = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
-            String path = SAFCacheManager.getInstance(getContext()).getUriForShortId(shortId);
+            String path = allowedUri(shortId);
             if (path != null) {
                 SafDirectory directory = listing(path);
                 if (directory.directory) {
@@ -354,7 +369,7 @@ public class SafFolderBrowser extends ContentBrowser {
         } else {
             // Browse subfolder
             String shortId = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
-            String path = SAFCacheManager.getInstance(getContext()).getUriForShortId(shortId);
+            String path = allowedUri(shortId);
 
             if (path == null) {
                 YaaccLogger.e(getClass().getName(), "Short ID not found: " + shortId);
@@ -483,7 +498,7 @@ public class SafFolderBrowser extends ContentBrowser {
         } else {
             // Browse subfolder items
             String shortId = myId.substring(ContentDirectoryIDs.SAF_PREFIX.getId().length());
-            String path = SAFCacheManager.getInstance(getContext()).getUriForShortId(shortId);
+            String path = allowedUri(shortId);
 
             if (path == null) {
                 YaaccLogger.e(getClass().getName(), "Short ID not found: " + shortId);

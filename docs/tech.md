@@ -550,9 +550,11 @@ decisions in more detail while the share-code consolidation (Phase 4) is open; t
   (`getMetadata`, deprecated `getDuration`) accept a bare value stored by an older version (`SafCacheEntries`, plain JVM) and upgrade it in place without an extraction (D log `CACHE_UPGRADED`); `getDuration` returned the serialized
   metadata as the duration before. Key names and short ids are unchanged. Test seam: `SAFCacheManager.DurationExtractor`. A file the retriever cannot read stays without a duration and is tried again at the next app start (not in the same process).
 
+- **Selection of SAF objects (#318).** Metadata, size, both listings and `/saf/<key>/<name>` only answer for a document in a folder that is selected for the server (`SafSelection.contains` / `SafDocumentUris.isInSelectedTrees`: the selected folder, below it by path-like id, a wholly selected tree, or `DocumentsContract.isChildDocument` for ids that are no paths); a short id of a deselected folder answers like an unknown id.
+
 - **BrowseMetadata of SAF objects.** `SafFolderBrowser.browseMeta` used to Base64-decode the short id of `SAF_PREFIX + shortId` (it is a number mapped by `SAFCacheManager.getUriForShortId`, not an encoding), so a
   sub folder or file got a wrong or no answer, and an item got its own id as parent. Now: id -> uri via the short id (`SafDocumentUris.shortIdOf`), ONE provider query for the document
-  (`SafDirectoryLister.queryDocument`: name, mime, date, size), folder or file from the mime type. Parent: the SAF folder for a granted tree (document id = tree id) and for a uri that is not a tree
+  (`SafDirectoryLister.queryDocument`: name, mime, date, size), folder or file from the mime type. Parent: the SAF folder for a granted tree (document id = tree id), for the top of a selection (a selected folder, `SafDocumentUris.isSelectedFolder`) and for a uri that is not a tree
   document; else the parent document id from the path-like id (`primary:DCIM/Camera` below the tree `primary:DCIM`, no query) or, for opaque ids, from `DocumentsContract.findDocumentPath`
   (API 26, document ids from the top of the tree to the document), written like `buildDocumentUriUsingTree` and mapped to its short id (`getOrCreateShortId`), so it equals the id the listing gave that folder.
   A sub folder is built like in the listing of its parent (`[X] ` prefix and restricted flag from `canRead`), with its child count from the cached listing; a granted tree like in the SAF folder's
