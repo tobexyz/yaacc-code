@@ -141,6 +141,8 @@
     <string name="reset_shared_folders">gedeelde mappen opnieuw instellen</string>
     <string name="shutdown_timer">Uitschakeltimer</string>
     <string name="browser_servers_header">Servers</string>
+    <string name="browser_receivers_header">Ontvangers</string>
+    <string name="browser_receivers_none">Nog geen andere ontvangers gevonden.</string>
     <string name="add_saf_content">bron toevoegen</string>
     <string name="clear_saf_cache">SAF-cache wissen</string>
     <string name="saf_content">gekoppeld</string>

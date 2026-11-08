@@ -22,6 +22,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -33,9 +35,11 @@ import android.widget.Toast;
 import androidx.core.content.res.ResourcesCompat;
 import androidx.core.view.ViewCompat;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.SimpleItemAnimator;
 
 import com.google.android.material.switchmaterial.SwitchMaterial;
 
@@ -43,6 +47,7 @@ import org.fourthline.cling.model.meta.Device;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
@@ -69,6 +74,13 @@ public class ServerListFragment extends Fragment implements
     private ShutdownTimerController.Display shutdownTimerDisplay;
     // true when the host shows the timer in its toolbar: top-level layout, no timer rows
     private boolean hostProvidesShutdownTimer;
+    private static final long RECEIVER_REFRESH_DELAY_MS = 300;
+    // Top-level layout only: the receivers section (the rows of the device sheet), its hint and its live subscriptions.
+    private DeviceSheetAdapter receiverAdapter;
+    private SectionHintAdapter receiversHint;
+    private ReceiverLiveUpdates receiverLive;
+    // device events come in floods: the rows are rebuilt once after a burst
+    private Coalescer receiverRefresh;
 
 
     /**
@@ -103,10 +115,17 @@ public class ServerListFragment extends Fragment implements
         if (shutdownTimerController != null) {
             shutdownTimerController.attach(shutdownTimerDisplay);
         }
+        if (receiverLive != null) {
+            // receivers and players may have come or gone while the page was not shown
+            receiverLive.start(true);
+        }
     }
 
     @Override
     public void onStop() {
+        if (receiverLive != null) {
+            receiverLive.stop();
+        }
         streamingPermissionHelper.unregisterStopCallback();
         if (shutdownTimerController != null) {
             shutdownTimerController.detach();
@@ -118,6 +137,19 @@ public class ServerListFragment extends Fragment implements
     public void onDestroyView() {
         // the display lambda holds this view hierarchy; the fragment instance can outlive it
         shutdownTimerDisplay = null;
+        if (receiverLive != null) {
+            receiverLive.stop();
+            receiverLive = null;
+        }
+        if (receiverAdapter != null) {
+            receiverAdapter.release(); // stops the binder's executor thread
+            receiverAdapter = null;
+        }
+        if (receiverRefresh != null) {
+            receiverRefresh.cancel();
+            receiverRefresh = null;
+        }
+        receiversHint = null;
         // the client lives as long as the application and has no other way to forget us
         if (upnpClient != null) {
             upnpClient.removeUpnpClientListener(this);
@@ -157,14 +189,53 @@ public class ServerListFragment extends Fragment implements
                         });
                     }
                     // the card "Play from this device" comes directly after the last server
-                    deviceList.setAdapter(new androidx.recyclerview.widget.ConcatAdapter(bDeviceAdapter,
-                            new PickCardAdapter(localPick::pickFiles, localPick::pickFolder)));
+                    List<RecyclerView.Adapter<? extends RecyclerView.ViewHolder>> parts = new ArrayList<>();
+                    if (receiverAdapter != null) {
+                        parts.add(new SectionHeaderAdapter(R.string.browser_servers_header, R.drawable.ic_baseline_sensors_32,
+                                this::searchDevices));
+                    }
+                    parts.add(bDeviceAdapter);
+                    parts.add(new PickCardAdapter(localPick::pickFiles, localPick::pickFolder));
+                    if (receiverAdapter != null) {
+                        parts.add(new SectionHeaderAdapter(R.string.browser_receivers_header, R.drawable.ic_baseline_devices_32,
+                                this::searchDevices));
+                        parts.add(receiverAdapter);
+                        parts.add(receiversHint);
+                    }
+                    deviceList.setAdapter(new androidx.recyclerview.widget.ConcatAdapter(parts));
+                    refreshReceivers();
                 } else {
                     bDeviceAdapter.setDevices(new LinkedList<>(upnpClient.getDevicesProvidingContentDirectoryService()));
+                    if (receiverRefresh != null) {
+                        receiverRefresh.trigger();
+                    }
                 }
             });
 
         }
+    }
+
+    /**
+     * The receivers section (top-level layout): rebuilds the rows from the receivers and players known now and tells the live
+     * subscriptions about receivers that came after the page started. Main thread.
+     */
+    private void refreshReceivers() {
+        if (receiverAdapter == null) {
+            return;
+        }
+        receiverAdapter.refresh(); // shows or hides the hint, see init
+        if (receiverLive != null) {
+            receiverLive.devicesChanged();
+        }
+    }
+
+    /** The refresh buttons of the section headers: one search finds servers and receivers. */
+    private void searchDevices() {
+        FragmentActivity activity = getActivity();
+        if (activity != null) {
+            activity.runOnUiThread(() -> Toast.makeText(activity, R.string.search_devices, Toast.LENGTH_LONG).show());
+        }
+        upnpClient.searchDevices();
     }
 
     @androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.Q)
@@ -247,21 +318,32 @@ public class ServerListFragment extends Fragment implements
         contentList.setFocusable(true);
         contentList.setFocusableInTouchMode(false); // Good for D-Pad primary interaction
         contentList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
-        ImageButton refresh = view.findViewById(R.id.serverListRefreshButton);
-        Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_refresh_32, getContext().getTheme()), getContext().getTheme());
-        refresh.setImageDrawable(icon);
-        refresh.setOnClickListener((v) -> {
-            if (getActivity() != null) {
-                getActivity().runOnUiThread(() -> {
-                    Toast.makeText(getActivity(), R.string.search_devices, Toast.LENGTH_LONG).show();
-                });
+        ImageButton refresh = view.findViewById(R.id.serverListRefreshButton); // classic layout; the top-level layout has it in its headers
+        if (refresh != null) {
+            Drawable refreshIcon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_refresh_32, getContext().getTheme()), getContext().getTheme());
+            refresh.setImageDrawable(refreshIcon);
+            refresh.setOnClickListener((v) -> searchDevices());
+        }
+        Drawable icon;
+        if (hostProvidesShutdownTimer) {
+            // servers and receivers in one list: the receivers are the rows of the device sheet
+            RecyclerView.ItemAnimator animator = contentList.getItemAnimator();
+            if (animator instanceof SimpleItemAnimator) {
+                // no cross-fade of a row that is updated live (the sheet has no animator at all; here rows still move smoothly)
+                ((SimpleItemAnimator) animator).setSupportsChangeAnimations(false);
             }
-            upnpClient.searchDevices();
-        });
-        // the top-level layout has the "Servers" header; mark it so screen readers can jump to it
-        View serversHeader = view.findViewById(R.id.serverRootHeader);
-        if (serversHeader != null) {
-            ViewCompat.setAccessibilityHeading(serversHeader, true);
+            receiverAdapter = new DeviceSheetAdapter(requireContext(), upnpClient);
+            receiversHint = new SectionHintAdapter();
+            // after every rebuild of the rows (also those of player events): "none found" while only this phone is listed
+            receiverAdapter.setOnRefreshed(() -> {
+                if (receiversHint != null && receiverAdapter != null) {
+                    receiversHint.setVisible(SectionHintAdapter.noRemoteReceiver(receiverAdapter.receiverIds()));
+                }
+            });
+            Handler mainHandler = new Handler(Looper.getMainLooper());
+            receiverLive = new ReceiverLiveUpdates(ReceiverLiveUpdates.forApp(upnpClient, mainHandler), receiverAdapter);
+            receiverRefresh = new Coalescer(Coalescer.forHandler(mainHandler), this::refreshReceivers, RECEIVER_REFRESH_DELAY_MS);
+            // started by onStart, which always follows the creation of the view
         }
         setLocalServerState(view);
         SwitchMaterial localServerEnabledSwitch = view.findViewById(R.id.serverListLocalServerEnabled);

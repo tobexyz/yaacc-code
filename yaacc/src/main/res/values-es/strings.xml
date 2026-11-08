@@ -140,6 +140,8 @@
     <string name="reset_shared_folders">réinitialiser les dossiers partagés</string>
     <string name="shutdown_timer">Temporizador de apagado</string>
     <string name="browser_servers_header">Servidores</string>
+    <string name="browser_receivers_header">Receptores</string>
+    <string name="browser_receivers_none">Aún no se han encontrado otros receptores.</string>
     <string name="add_saf_content">agregar fuente</string>
     <string name="clear_saf_cache">borrar caché SAF</string>
     <string name="saf_content">vinculado</string>

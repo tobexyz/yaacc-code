@@ -140,6 +140,8 @@
     <string name="reset_shared_folders">repor pastas partilhadas</string>
     <string name="shutdown_timer">Temporizador de desligamento</string>
     <string name="browser_servers_header">Servidores</string>
+    <string name="browser_receivers_header">Receptores</string>
+    <string name="browser_receivers_none">Nenhum outro receptor encontrado ainda.</string>
     <string name="add_saf_content">adicionar fonte</string>
     <string name="clear_saf_cache">limpar cache SAF</string>
     <string name="saf_content">vinculado</string>

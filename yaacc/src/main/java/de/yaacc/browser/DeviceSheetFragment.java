@@ -49,8 +49,6 @@ import java.util.Set;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
-import de.yaacc.player.Player;
-import de.yaacc.player.PlayerListChangeNotifier;
 import de.yaacc.share.PickSheetResult;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
@@ -96,7 +94,6 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
     private static final String ARG_SHARE_NAME = "shareName";
     private static final String ARG_INITIAL_IDS = "initialIds";
     private static final long PICK_REFRESH_DELAY_MS = 300;
-    private static final long LOCAL_POLL_INTERVAL_MS = 2000;
     private static final float HALF_EXPANDED_RATIO = 0.5f;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -104,8 +101,8 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
     // Non-null exactly while the view exists; every callback checks it.
     private DeviceSheetAdapter adapter;
     private boolean sheetStateApplied;
-    // True between startLiveUpdates and stopLiveUpdates; prevents a double subscribe.
-    private boolean liveUpdatesRunning;
+    // The live subscriptions of the rows; non-null exactly while the adapter exists (normal mode only).
+    private ReceiverLiveUpdates live;
     // The list was just built in onViewCreated; the first onStart needn't rebuild it.
     private boolean listFresh;
     // Pick mode: makes "exactly one answer" true; see PickSheetResult.
@@ -142,49 +139,6 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
     private final Runnable pickRefresher = () -> {
         if (pickRefreshRunning && adapter != null) {
             adapter.refresh();
-        }
-    };
-
-    private final RendererStatusMonitor.StatusListener statusListener = status -> {
-        if (adapter != null) {
-            adapter.onStatusChanged(status);
-        }
-    };
-
-    // power, input and group of the receivers that support groups
-    private final YxcRowFeed groupFeed = new YxcRowFeed(udn -> {
-        if (adapter != null) {
-            adapter.onGroupStateChanged(udn);
-        }
-    });
-
-    // An inner class, so it references this fragment; it is unregistered in
-    // onStop (and onDestroyView as a backstop), so PlayerService never keeps
-    // a stopped or dead sheet alive.
-    private final PlayerListChangeNotifier.Listener playerListListener = new PlayerListChangeNotifier.Listener() {
-        @Override
-        public void onPlayerAdded(Player player) {
-            if (adapter != null) {
-                adapter.refresh();
-            }
-        }
-
-        @Override
-        public void onPlayerRemoved(Player player) {
-            if (adapter != null) {
-                adapter.refresh();
-            }
-        }
-    };
-
-    private final Runnable localPoller = new Runnable() {
-        @Override
-        public void run() {
-            if (!liveUpdatesRunning || adapter == null) {
-                return;
-            }
-            adapter.refreshLiveState();
-            handler.postDelayed(this, LOCAL_POLL_INTERVAL_MS);
         }
     };
 
@@ -290,6 +244,9 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
         list.setAdapter(adapter);
         adapter.refresh();
         listFresh = true;
+        if (!isPickMode()) {
+            live = new ReceiverLiveUpdates(ReceiverLiveUpdates.forApp(upnpClient, handler), adapter);
+        }
         if (isPickMode()) {
             setUpPickViews(view);
         }
@@ -435,6 +392,7 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
         stopLiveUpdates(); // backstop; normally already stopped in onStop
         stopPickRefresh();
         pickHint = null;
+        live = null;
         if (adapter != null) {
             adapter.release(); // stops the binder's executor thread
             adapter = null;
@@ -455,34 +413,16 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
      * once first, since players may have started or ended meanwhile.
      */
     private void startLiveUpdates() {
-        if (liveUpdatesRunning || adapter == null || upnpClient == null) {
+        if (live == null || live.isRunning()) {
             return;
         }
-        liveUpdatesRunning = true;
-        if (!listFresh) {
-            adapter.refresh();
-        }
+        live.start(!listFresh);
         listFresh = false;
-        RendererStatusMonitor.getShared().subscribe(statusListener, upnpClient.getDevicesProvidingAvTransportService());
-        groupFeed.start(upnpClient.getDevicesProvidingAvTransportService());
-        upnpClient.addPlayerListChangeListener(playerListListener);
-        adapter.startLiveVolume();
-        handler.postDelayed(localPoller, LOCAL_POLL_INTERVAL_MS);
     }
 
     private void stopLiveUpdates() {
-        if (!liveUpdatesRunning) {
-            return;
-        }
-        liveUpdatesRunning = false;
-        handler.removeCallbacks(localPoller);
-        if (adapter != null) {
-            adapter.stopLiveVolume();
-        }
-        RendererStatusMonitor.getShared().unsubscribe(statusListener);
-        groupFeed.stop();
-        if (upnpClient != null) {
-            upnpClient.removePlayerListChangeListener(playerListListener);
+        if (live != null) {
+            live.stop();
         }
     }
 

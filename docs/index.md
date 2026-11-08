@@ -55,7 +55,7 @@ android device itself.
 Normally senders and receivers will appear automatically.
 If not you can use the refresh button at the bottom of
 the sender and receiver tab to trigger a new search for devices
-(in the new layout: the refresh button in the "Servers" header).
+(in the new layout: the refresh button in the "Servers" or the "Receivers" header).
 
 ## New layout (single screen)
 
@@ -65,10 +65,16 @@ the new layout (also on Android TV, where it has not been checked with a TV
 remote yet); an updated installation without a stored layout starts in the new layout.
 There are no tabs. The screen shows one level at a time:
 
-* **Servers** is the top level. The "Servers" header has the refresh button to
-  search for devices again. Below it all UPnP/DLNA servers in your network are
-  listed; the YAACC entry has the live streaming buttons (see
-  [Live streaming](#live-streaming-android-10)). At the bottom are the YAACC
+* **Servers and receivers** is the top level, one list in two sections. The "Servers"
+  section (broadcast icon in front of the header) lists all UPnP/DLNA servers in
+  your network with the card "Play from this device" below them; the YAACC entry has the live streaming
+  buttons (see [Live streaming](#live-streaming-android-10)). The "Receivers" section (devices icon in
+  front of the header) lists every receiver with the same rows and controls as the
+  device sheet, and under each receiver the YAACC players running on it, see
+  [Receiver controls](#receiver-controls); while only this phone is listed it says that no other receiver was found yet.
+  Both headers have a refresh button to search for devices again (one search finds
+  servers and receivers). The rows update live while this level is shown. The receiver bar and
+  the device sheet at the bottom stay available. At the bottom of the screen are the YAACC
   server switch with the button for the server settings, and the icons showing
   whether the device acts as media provider, media renderer or proxy
   (see [Media server](#media-server)). These bottom controls exist only on
@@ -77,9 +83,9 @@ There are no tabs. The screen shows one level at a time:
   The arrow in front of the path and the system back button go back one step at a
   time: from a folder to the parent folder, from the root of a server to the
   server list, and from the server list the app exits. The server button in the
-  header of the content (next to the sort and the view buttons) shows the server
-  list at once from any folder depth, so you can change the server without going
-  back folder by folder.
+  header of the content (the broadcast icon, the same one as in front of the "Servers"
+  header; a long press shows its name) shows the server list at once from any folder
+  depth, so you can change the server without going back folder by folder.
 * **Toolbar**: the timer symbol is the [shutdown timer](#shutdown-timer) and its
   only entry. While a timer runs, a tap stops it and the remaining time is shown
   under the title of the toolbar. Otherwise a tap opens the duration picker; confirming a
@@ -199,8 +205,8 @@ Each renderer displays:
 You can control playback directly from the receiver tab without opening the player view.
 The controls work for both local playback and remote UPnP devices.
 
-In the new layout there is no receiver tab: tap the receiver bar at the bottom of any
-screen (or select it with the D-pad) to open the device sheet. The classic layout does not
+In the new layout there is no receiver tab: the top level lists the receivers below the servers, and the receiver bar
+at the bottom of any screen (or selected with the D-pad) opens the device sheet. The classic layout does not
 have the sheet; use the receiver tab and the player tab there.
 The sheet is titled "Receivers". It lists every receiver with its status, play/pause/stop, volume and mute controls,
 and under each receiver the YAACC players currently running on it, in the order they were started.

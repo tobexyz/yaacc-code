@@ -1300,10 +1300,24 @@ There is no `ServerRootFragment`. `ServerListFragment` serves both layouts;
 Both layouts use the same ids (`serverList`, `serverListRefreshButton`,
 `serverListLocalServerEnabled`, `serverListLocalServerSettings`, status icons).
 
-`fragment_server_root.xml` (top level of the new layout): a "Servers" header
-(`serverRootHeader`, marked as an accessibility heading) with the refresh
-button, the `serverList` (`BrowseDeviceAdapter`, shared with classic), and a
-footer with the server switch, the gear (opens
+`fragment_server_root.xml` (top level of the new layout): the `serverList`, one
+`ConcatAdapter` with two sections, and a footer. The sections:
+`SectionHeaderAdapter` "Servers" (broadcast icon, refresh), `BrowseDeviceAdapter`
+(shared with classic), `PickCardAdapter`, `SectionHeaderAdapter` "Receivers"
+(devices icon, refresh; the same `searchDevices()`), `DeviceSheetAdapter` (the
+sheet's adapter in normal mode: receivers and their players), `SectionHintAdapter`
+("No other receivers found yet." while only the local device, which is always listed, is a receiver; updated after every `DeviceSheetAdapter.refresh()` through `setOnRefreshed`). The headers carry
+the accessibility heading and the icons are decorative. The receiver rows are
+kept live by `ReceiverLiveUpdates` (status monitor, group feed, player list
+listener, 2 s poll, volume updater), which was extracted from `DeviceSheetFragment`
+and is used by both; the page runs it between `onStart` and `onStop`, refreshes the
+rows when a device is added/removed/updated (coalesced by `Coalescer` into one rebuild 300 ms after the last event; it also calls `devicesChanged()`, because the status monitor and the group feed took the receivers of the start as a snapshot) and releases the adapter in
+`onDestroyView`. Because the sheet's adapter is one part of a `ConcatAdapter` here,
+`DeviceSheetAdapter.visibleReceiverRows()` finds its rows through the holders
+(`AdapterPositions.laidOutRows`: `getBindingAdapter() == this`, `getBindingAdapterPosition()`), not through the
+list's global positions; `BrowseDeviceAdapter` and `ServerListClickListener` use `AdapterPositions.bindingPosition` for the same reason. At most 64 receivers are listed and polled (`ReceiverLiveUpdates.MAX_RECEIVERS`, also in the sheet). The `ConcatAdapter` keeps the default config (no stable
+ids across the parts). The list's change animation is off (no flashing on
+live updates). The footer with the server switch, the gear (opens
 `YaaccUpnpServerControlActivity`) and the provider/renderer/proxy status icons
 (content descriptions from the `settings_local_server_*` strings). The footer
 exists only at this level. The live-stream buttons (audio, video) are on the
