@@ -42,4 +42,12 @@ public class ExoPlaylistSyncTest {
         assertFalse(ExoPlaylistSync.canAppend(2, 3));
         assertFalse(ExoPlaylistSync.canAppend(4, 3));
     }
+
+    @Test
+    public void insertedItemsFollowTheSameRuleAsAppendedOnes() {
+        assertTrue(ExoPlaylistSync.canInsert(3, 3));
+        assertFalse(ExoPlaylistSync.canInsert(0, 0));
+        assertFalse(ExoPlaylistSync.canInsert(2, 3));
+        assertFalse(ExoPlaylistSync.canInsert(4, 3));
+    }
 }

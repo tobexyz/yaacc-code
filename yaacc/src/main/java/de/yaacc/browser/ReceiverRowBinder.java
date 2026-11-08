@@ -113,6 +113,8 @@ final class ReceiverRowBinder {
         final TextView statusText;
         final TextView yxcText;
         final View yxcActions;
+        final View ohActions;
+        final ImageButton ohSettings;
         final View yxcSource;
         final ImageButton yxcSrcPrev;
         final ImageButton yxcSrcNext;
@@ -143,6 +145,8 @@ final class ReceiverRowBinder {
             statusText = itemView.findViewById(R.id.status_text);
             yxcText = itemView.findViewById(R.id.yxc_text);
             yxcActions = itemView.findViewById(R.id.yxc_actions);
+            ohActions = itemView.findViewById(R.id.oh_actions);
+            ohSettings = itemView.findViewById(R.id.oh_btn_settings);
             yxcSource = itemView.findViewById(R.id.yxc_source);
             yxcSrcPrev = itemView.findViewById(R.id.yxc_src_prev);
             yxcSrcNext = itemView.findViewById(R.id.yxc_src_next);
@@ -277,8 +281,30 @@ final class ReceiverRowBinder {
 
         // Set device name (always shown)
         holder.name.setText(device.getDetails().getFriendlyName());
+        bindProtocolChoice(holder, device);
 
         bindStatus(holder, device);
+    }
+
+    // the open OpenHome settings sheet, so that a second tap does not open another one
+    private android.app.Dialog openHomeDialog;
+
+    /**
+     * A device that offers OpenHome gets a settings icon (like a MusicCast device); it opens the sheet with the power, the source
+     * and the playback protocol (OpenHome, the default, or AVTransport; kept per device).
+     */
+    private void bindProtocolChoice(RowViews holder, Device<?, ?, ?> device) {
+        if (holder.ohActions == null || holder.ohSettings == null) {
+            return;
+        }
+        boolean offered = de.yaacc.player.OpenHomeChoice.offersOpenHome(device);
+        holder.ohActions.setVisibility(offered ? View.VISIBLE : View.GONE);
+        holder.ohSettings.setOnClickListener(offered ? v -> {
+            if (openHomeDialog != null && openHomeDialog.isShowing()) {
+                return;
+            }
+            openHomeDialog = OpenHomeSettingsSheet.show(context, upnpClient, device);
+        } : null);
     }
 
     /**
@@ -983,9 +1009,41 @@ final class ReceiverRowBinder {
             return;
         }
         Player player = primaryPlayer(device);
+        if (player == null && !isLocalDevice(device) && de.yaacc.player.OpenHomeChoice.useOpenHome(context, device, true)
+                && !executorService.isShutdown()) {
+            // an OpenHome device keeps its playlist itself: it may play already, started by another controller or before the app
+            // was reinstalled. The player only shows what the device has. The player service may have to be started first: that
+            // waits, so not on the main thread.
+            android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+            attachInBackground(executorService, () -> upnpClient.attachOpenHomePlayer(device),
+                    attached -> main.post(() -> openPlayer(context, attached)));
+            return;
+        }
         if (player != null) {
             openPlayer(context, player);
         }
+    }
+
+    /**
+     * Gets the player of a device that plays already on a background thread and hands it over when there is one.
+     *
+     * @param attach what makes the player (it may take a while)
+     * @param opened gets the player, called on the background thread
+     */
+    static void attachInBackground(java.util.concurrent.Executor background, java.util.function.Supplier<Player> attach,
+                                   java.util.function.Consumer<Player> opened) {
+        background.execute(() -> {
+            try {
+                Player attached = attach.get();
+                if (attached != null) {
+                    opened.accept(attached);
+                } else {
+                    YaaccLogger.w(ReceiverRowBinder.class.getName(), "No player for the OpenHome device: the player service is not there");
+                }
+            } catch (RuntimeException e) {
+                YaaccLogger.w(ReceiverRowBinder.class.getName(), "The OpenHome device could not be opened", e);
+            }
+        });
     }
 
     /**
@@ -1081,6 +1139,30 @@ final class ReceiverRowBinder {
         return text;
     }
 
+    /** Play, pause or stop of the playlist of an OpenHome device (on the worker thread). */
+    private void openHomeTransport(Device<?, ?, ?> device, String action) {
+        try {
+            de.yaacc.openhome.OhRemote remote = new de.yaacc.openhome.OhRemote(
+                    new de.yaacc.upnp.callback.openhome.ClingOhControl(device, upnpClient.getHttpRequestSender()));
+            switch (action) {
+                case ACTION_PLAY:
+                    remote.prepare();
+                    remote.play();
+                    break;
+                case ACTION_PAUSE:
+                    remote.pause();
+                    break;
+                case ACTION_STOP:
+                    remote.stop();
+                    break;
+                default:
+                    break;
+            }
+        } catch (de.yaacc.openhome.OhControlException | RuntimeException e) {
+            YaaccLogger.w(getClass().getName(), "OpenHome " + action + " failed: " + e.getMessage());
+        }
+    }
+
     private void executeAction(Device<?, ?, ?> device, String action) {
         // a device that plays a source of its own (net radio, tuner) and nothing from yaacc: the buttons act on that source
         if (!isLocalDevice(device)) {
@@ -1121,7 +1203,13 @@ final class ReceiverRowBinder {
         // Handle remote UPnP device: talk to its AVTransport service directly,
         // so playback started by another controller can be controlled too.
         org.fourthline.cling.model.meta.Service avTransport = device.findService(new org.fourthline.cling.model.types.UDAServiceId("AVTransport"));
-        if (avTransport == null) return;
+        if (avTransport == null) {
+            // a device that speaks OpenHome only: the buttons go to its playlist
+            if (de.yaacc.player.OpenHomeChoice.offersOpenHome(device)) {
+                executorService.execute(() -> openHomeTransport(device, action));
+            }
+            return;
+        }
 
         HttpRequestSender httpRequestSender = new HttpRequestSender();
 
@@ -1158,7 +1246,13 @@ final class ReceiverRowBinder {
      */
     boolean supportsVolumeControl(Device<?, ?, ?> device) {
         org.fourthline.cling.model.meta.Service renderingControl = device.findService(new org.fourthline.cling.model.types.UDAServiceId("RenderingControl"));
-        return renderingControl != null && renderingControl.getAction("GetVolume") != null;
+        return (renderingControl != null && renderingControl.getAction("GetVolume") != null) || hasOpenHomeVolume(device, renderingControl);
+    }
+
+    /** A device that speaks OpenHome and has no RenderingControl: volume and mute are those of its OpenHome volume service. */
+    private static boolean hasOpenHomeVolume(Device<?, ?, ?> device, org.fourthline.cling.model.meta.Service renderingControl) {
+        return renderingControl == null && de.yaacc.player.OpenHomeChoice.offersOpenHome(device)
+                && de.yaacc.upnp.callback.openhome.ClingOhControl.findService(device, "Volume") != null;
     }
 
     /**
@@ -1166,6 +1260,6 @@ final class ReceiverRowBinder {
      */
     boolean supportsMuteControl(Device<?, ?, ?> device) {
         org.fourthline.cling.model.meta.Service renderingControl = device.findService(new org.fourthline.cling.model.types.UDAServiceId("RenderingControl"));
-        return renderingControl != null && renderingControl.getAction("GetMute") != null;
+        return (renderingControl != null && renderingControl.getAction("GetMute") != null) || hasOpenHomeVolume(device, renderingControl);
     }
 }

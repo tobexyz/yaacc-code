@@ -167,6 +167,22 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
             }
 
             @Override
+            public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
+                // paused or resumed by the media notification, the lock screen, a headset or a phone call: the app's state, its
+                // notification and the transport state of the media renderer follow
+                switch (ExternalPlayState.decide(playWhenReady, reason, isPlaying(), isPaused())) {
+                    case PAUSE:
+                        adoptExternalPause();
+                        break;
+                    case RESUME:
+                        adoptExternalResume();
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            @Override
             public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
                 ExoPlayer player = exoPlayer;
                 if (mediaItem != null && player != null
@@ -179,6 +195,9 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
                         setCurrentIndex(index);
                         List<PlayableItem> items = getItems();
                         if (index >= 0 && index < items.size()) {
+                            // the art of the item that plays now (the end of an item moves on without startItem)
+                            albumArtUri = AlbumArt.of(items.get(index).getItem());
+                            clearEmbeddedArt();
                             firePropertyChange(PROPERTY_ITEM, null, items.get(index));
                         }
                     }
@@ -186,6 +205,17 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
                             + " (reason " + reason + ", play mode " + getPlayMode() + ")");
                 }
                 refreshNextItemIndex();
+            }
+
+            @Override
+            public void onMediaMetadataChanged(androidx.media3.common.MediaMetadata mediaMetadata) {
+                // the tags of the file (ID3 and the like) are read while it plays: a cover in them is shown when the
+                // controller sent no album art address
+                YaaccLogger.d(getClass().getName(), "Tags of the file: cover " + (mediaMetadata.artworkData == null
+                        ? "none" : mediaMetadata.artworkData.length + " bytes") + ", art address " + (albumArtUri == null ? "none" : "set"));
+                if (albumArtUri == null && mediaMetadata.artworkData != null) {
+                    showEmbeddedArt(mediaMetadata.artworkData);
+                }
             }
 
             @Override
@@ -348,9 +378,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
             return;
         }
         
-        DIDLObject.Property<URI> albumArtUriProperty = playableItem.getItem() == null ? null :
-                playableItem.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
-        albumArtUri = (albumArtUriProperty == null) ? null : albumArtUriProperty.getValue();
+        albumArtUri = AlbumArt.of(playableItem.getItem());
+        clearEmbeddedArt();
 
         // Notify listeners that track changed (for UI updates)
         firePropertyChange(PROPERTY_ITEM, null, playableItem);
@@ -403,10 +432,9 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         if (item.getTitle() != null) {
             MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder().setTitle(item.getTitle());
             // Add album art if available
-            DIDLObject.Property<URI> albumArtProp = item.getItem() == null ? null :
-                    item.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
-            if (albumArtProp != null && albumArtProp.getValue() != null) {
-                metadataBuilder.setArtworkUri(android.net.Uri.parse(albumArtProp.getValue().toString()));
+            URI albumArt = AlbumArt.of(item.getItem());
+            if (albumArt != null) {
+                metadataBuilder.setArtworkUri(android.net.Uri.parse(albumArt.toString()));
             }
             builder.setMediaMetadata(metadataBuilder.build());
         }
@@ -435,6 +463,29 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
                 }
                 applyPlayMode(player, order);
                 YaaccLogger.d(getClass().getName(), "Appended " + added.size() + " items to ExoPlayer");
+            }
+        });
+    }
+
+    /**
+     * Items put into the middle of the list reach ExoPlayer at their place; the item that plays keeps playing. With shuffle our play
+     * order, which places the new items behind the current one, is installed again.
+     */
+    @Override
+    protected void onItemsInserted(int index, List<PlayableItem> inserted) {
+        int[] order = getPlayMode().isShuffle() ? getPlayOrder() : null;
+        int sizeBefore = getItems().size() - inserted.size();
+        new Handler(Looper.getMainLooper()).post(() -> {
+            ExoPlayer player = exoPlayer;
+            if (player != null && ExoPlaylistSync.canInsert(player.getMediaItemCount(), sizeBefore)) {
+                List<MediaItem> mediaItems = new java.util.ArrayList<>();
+                for (PlayableItem item : inserted) {
+                    mediaItems.add(toMediaItem(item));
+                }
+                player.addMediaItems(index, mediaItems);
+                applyPlayMode(player, order);
+                refreshNextItemIndex();
+                YaaccLogger.d(getClass().getName(), "Inserted " + inserted.size() + " items into ExoPlayer at " + index);
             }
         });
     }
@@ -603,6 +654,40 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         long minutes = (seconds % 3600) / 60;
         long secs = seconds % 60;
         return String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, secs);
+    }
+
+    /** Whether the icon of this player is a cover that was read from the file that plays. */
+    private volatile boolean embeddedArtShown;
+
+    private void clearEmbeddedArt() {
+        if (embeddedArtShown) {
+            embeddedArtShown = false;
+            setIcon(null);
+        }
+    }
+
+    /** Decodes the cover of the file (off the main thread, scaled down) and shows it as the icon of the player. */
+    private void showEmbeddedArt(byte[] data) {
+        ((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor().execute(() -> {
+            try {
+                android.graphics.BitmapFactory.Options bounds = new android.graphics.BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                android.graphics.BitmapFactory.decodeByteArray(data, 0, data.length, bounds);
+                android.graphics.BitmapFactory.Options decode = new android.graphics.BitmapFactory.Options();
+                decode.inSampleSize = de.yaacc.util.image.BitmapSampling.computeInSampleSizeForMaxDimension(bounds, 512);
+                android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeByteArray(data, 0, data.length, decode);
+                if (bitmap != null && albumArtUri == null) {
+                    embeddedArtShown = true;
+                    setIcon(bitmap);
+                    List<PlayableItem> items = getItems();
+                    int index = getCurrentItemIndex();
+                    firePropertyChange(PROPERTY_ITEM, null, index >= 0 && index < items.size() ? items.get(index) : null);
+                    updateMetadataInternal();
+                }
+            } catch (RuntimeException | OutOfMemoryError e) {
+                YaaccLogger.w(getClass().getName(), "Cover of the file not shown", e);
+            }
+        });
     }
 
     @Override

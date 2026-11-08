@@ -254,4 +254,44 @@
     <string name="pick_skipped_unread">No se pudieron leer algunos archivos.</string>
     <string name="pick_play_failed">No se pudieron reproducir los archivos elegidos.</string>
     <string name="pick_title_files">Archivos: %1$d</string>
+    <string name="openhome_protocol_title">Protocolo de reproducción</string>
+    <string name="openhome_protocol_openhome">OpenHome (el dispositivo guarda la lista de reproducción)</string>
+    <string name="openhome_protocol_avtransport">AVTransport (la aplicación guarda la lista de reproducción)</string>
+    <string name="openhome_source_title">Fuente</string>
+    <string name="openhome_source_failed">No se pudieron leer ni cambiar las fuentes del dispositivo.</string>
+    <string name="openhome_source_none">El dispositivo no indica ninguna fuente.</string>
+    <string name="openhome_action_settings">Ajustes de OpenHome</string>
+    <string name="openhome_files_not_supported">Este dispositivo solo habla OpenHome y solo puede reproducir música.</string>
+    <!-- the notification of the player service -->
+    <string name="player_service_title">Servicio de reproducción</string>
+    <string name="player_service_idle">En ejecución</string>
+    <string name="player_service_status">%1$s (%2$s)</string>
+    <string name="player_service_state_separator">", "</string>
+    <plurals name="player_service_players">
+        <item quantity="one">%d reproductor</item>
+        <item quantity="many">%d reproductores</item>
+        <item quantity="other">%d reproductores</item>
+    </plurals>
+    <plurals name="player_service_playing">
+        <item quantity="one">%d en reproducción</item>
+        <item quantity="many">%d en reproducción</item>
+        <item quantity="other">%d en reproducción</item>
+    </plurals>
+    <plurals name="player_service_paused">
+        <item quantity="one">%d en pausa</item>
+        <item quantity="many">%d en pausa</item>
+        <item quantity="other">%d en pausa</item>
+    </plurals>
+    <plurals name="player_service_stopped">
+        <item quantity="one">%d detenido</item>
+        <item quantity="many">%d detenidos</item>
+        <item quantity="other">%d detenidos</item>
+    </plurals>
+    <!-- texts of the notifications -->
+    <string name="notification_upnp_service_title">Servicio UPnP de Yaacc</string>
+    <string name="notification_no_network_interface">No se encontró ninguna interfaz de red utilizable</string>
+    <string name="notification_indexing">Indexando</string>
+    <string name="notification_player_title">Reproductor de Yaacc</string>
+    <string name="notification_download_title">Descarga de archivo de Yaacc</string>
+    <string name="notification_download_to">Descargando en: %1$s</string>
 </resources>

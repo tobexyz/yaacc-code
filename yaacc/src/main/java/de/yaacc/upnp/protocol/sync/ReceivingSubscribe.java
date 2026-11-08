@@ -79,6 +79,27 @@ import de.yaacc.util.YaaccLogger;
 public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, OutgoingSubscribeResponseMessage> {
 
 
+    /** The most subscribers of all services of this device together, and of one service. */
+    static final int MAX_SUBSCRIPTIONS = 100;
+    static final int MAX_SUBSCRIPTIONS_PER_SERVICE = 30;
+    /** The most subscribers one control point (one host) may have: it subscribes to each service once, and some run several apps. */
+    static final int MAX_SUBSCRIPTIONS_PER_HOST = 25;
+
+    /** The shortest, the longest and the default time of a subscription (the control point renews it). */
+    static final int MIN_TIMEOUT_SECONDS = 60;
+    static final int MAX_TIMEOUT_SECONDS = 1800;
+
+    /**
+     * The time a subscription lasts. The control point asks for it, but a subscription that never ends (infinite, 0) can not be
+     * removed any more and fills the limited number of subscribers for good: the time is between one and thirty minutes.
+     */
+    static Integer clampTimeout(Integer requestedSeconds) {
+        if (requestedSeconds == null || requestedSeconds <= 0) {
+            return MAX_TIMEOUT_SECONDS;
+        }
+        return Math.max(MIN_TIMEOUT_SECONDS, Math.min(MAX_TIMEOUT_SECONDS, requestedSeconds));
+    }
+
     private final Registry registry;
     private final HttpRequestSender httpRequestSender;
     private final ExecutorService executorService;
@@ -127,6 +148,15 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
 
     }
 
+    private boolean tooManyForTheHost(List<URL> callbackURLs) {
+        for (URL callback : callbackURLs) {
+            if (registry.getLocalSubscriptionCountForHost(callback.getHost()) >= MAX_SUBSCRIPTIONS_PER_HOST) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     protected OutgoingSubscribeResponseMessage processRenewal(LocalService service,
                                                               IncomingSubscribeRequestMessage requestMessage) {
 
@@ -139,7 +169,7 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
         }
 
         YaaccLogger.v(getClass().getName(), "Renewing subscription: " + subscription);
-        subscription.setSubscriptionDuration(requestMessage.getRequestedTimeoutSeconds());
+        subscription.setSubscriptionDuration(clampTimeout(requestMessage.getRequestedTimeoutSeconds()));
         if (registry.updateLocalSubscription(subscription)) {
             return new OutgoingSubscribeResponseMessage(subscription);
         } else {
@@ -163,8 +193,16 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
             return new OutgoingSubscribeResponseMessage(UpnpResponse.Status.PRECONDITION_FAILED);
         }
 
+        // every host of the network may subscribe: the number of subscribers is limited, each one costs memory and traffic
+        if (registry.getLocalSubscriptionCount(null) >= MAX_SUBSCRIPTIONS
+                || registry.getLocalSubscriptionCount(service) >= MAX_SUBSCRIPTIONS_PER_SERVICE
+                || tooManyForTheHost(callbackURLs)) {
+            YaaccLogger.w(getClass().getName(), "Too many event subscribers, subscription refused");
+            return new OutgoingSubscribeResponseMessage(UpnpResponse.Status.SERVICE_UNAVAILABLE);
+        }
+
         Integer timeoutSeconds;
-        timeoutSeconds = requestMessage.getRequestedTimeoutSeconds();
+        timeoutSeconds = clampTimeout(requestMessage.getRequestedTimeoutSeconds());
 
 
         try {

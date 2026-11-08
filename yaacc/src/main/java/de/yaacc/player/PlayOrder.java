@@ -113,6 +113,38 @@ public final class PlayOrder {
         order = toArray(indexes);
     }
 
+    /**
+     * Makes room for items that were put into the middle of the list: the items of the order at {@code index} and after it move
+     * up by {@code count}, the new items are {@code index} to {@code index + count - 1}. Without shuffle they take their place in
+     * the list order, with shuffle each one is placed at a random place behind the current item (what has been played stays).
+     *
+     * @param index        where the new items start in the list; clamped to the list
+     * @param count        how many items; nothing happens for zero or less
+     * @param currentIndex the current item, before the insert
+     */
+    public synchronized void insert(int index, int count, int currentIndex) {
+        if (count <= 0) {
+            return;
+        }
+        int at = Math.max(0, Math.min(index, order.length));
+        List<Integer> indexes = new ArrayList<>(order.length + count);
+        for (int existing : order) {
+            indexes.add(existing >= at ? existing + count : existing);
+        }
+        int shiftedCurrent = currentIndex >= at ? currentIndex + count : currentIndex;
+        for (int added = at; added < at + count; added++) {
+            if (shuffle) {
+                int currentPosition = indexes.indexOf(shiftedCurrent);
+                int from = Math.min(currentPosition + 1, indexes.size());
+                indexes.add(from + random.nextInt(indexes.size() - from + 1), added);
+            } else {
+                int place = indexes.indexOf(at + count); // the old item that was at the insert point follows the new ones
+                indexes.add(place < 0 ? indexes.size() : place, added);
+            }
+        }
+        order = toArray(indexes);
+    }
+
     public synchronized boolean isShuffle() {
         return shuffle;
     }

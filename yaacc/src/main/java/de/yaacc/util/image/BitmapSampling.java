@@ -48,10 +48,23 @@ public final class BitmapSampling {
      * versus decoding directly from a live stream, not a cost.
      */
     public static byte[] readAllBytes(InputStream in) throws IOException {
+        return readAllBytes(in, Integer.MAX_VALUE);
+    }
+
+    /**
+     * As {@link #readAllBytes(InputStream)}, but for a source that can not be trusted to end (an address that comes from another
+     * device): reading stops with an exception when the stream is longer than {@code maxBytes}.
+     *
+     * @throws IOException if the stream has more than {@code maxBytes} bytes
+     */
+    public static byte[] readAllBytes(InputStream in, int maxBytes) throws IOException {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         byte[] chunk = new byte[8192];
         int bytesRead;
         while ((bytesRead = in.read(chunk)) != -1) {
+            if (buffer.size() + (long) bytesRead > maxBytes) {
+                throw new IOException("the image is larger than " + maxBytes + " bytes");
+            }
             buffer.write(chunk, 0, bytesRead);
         }
         return buffer.toByteArray();

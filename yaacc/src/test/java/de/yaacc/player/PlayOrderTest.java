@@ -504,4 +504,76 @@ public class PlayOrderTest {
         assertFalse(order.isAtOrBeforeCurrent(3, 1));
         assertFalse(order.isAtOrBeforeCurrent(0, 9)); // a current item that is not in the order locks nothing
     }
+
+    // ---- insert (items put into the middle of the list, issue 301)
+
+    @Test
+    public void withoutShuffleInsertedItemsTakeTheirPlaceInTheListOrder() {
+        PlayOrder order = order(4, false);
+
+        order.insert(2, 2, 1);
+
+        assertArrayEquals(new int[]{0, 1, 2, 3, 4, 5}, order.toArray());
+        assertEquals(6, order.size());
+    }
+
+    @Test
+    public void insertedAtTheEndOrIntoAnEmptyListTheyAreAppended() {
+        PlayOrder order = order(3, false);
+        order.insert(3, 1, 2);
+        assertArrayEquals(new int[]{0, 1, 2, 3}, order.toArray());
+
+        PlayOrder empty = order(0, false);
+        empty.insert(0, 2, 0);
+        assertArrayEquals(new int[]{0, 1}, empty.toArray());
+    }
+
+    @Test
+    public void withShuffleTheOldItemsKeepTheirOrderWithTheirNewIndexesAndTheNewOnesComeBehindTheCurrentItem() {
+        PlayOrder order = order(5, true);
+        int[] before = order.toArray();
+        int current = before[1]; // the second item of the order plays
+
+        order.insert(2, 3, current);
+
+        int[] after = order.toArray();
+        assertEquals(8, after.length);
+        // the old items in their old order, their indexes behind the insert point shifted by 3
+        List<Integer> oldOnes = new ArrayList<>();
+        for (int index : after) {
+            if (index < 2 || index >= 5) {
+                oldOnes.add(index < 2 ? index : index - 3);
+            }
+        }
+        List<Integer> expected = new ArrayList<>();
+        for (int index : before) {
+            expected.add(index);
+        }
+        assertEquals(expected, oldOnes);
+        // everything that was played before the current item stays where it was; the new ones come after it
+        int shiftedCurrent = current >= 2 ? current + 3 : current;
+        int position = order.positionOf(shiftedCurrent);
+        assertEquals(1, position);
+        for (int newIndex = 2; newIndex < 5; newIndex++) {
+            assertTrue(order.positionOf(newIndex) > position);
+        }
+        Set<Integer> all = new HashSet<>();
+        for (int index : after) {
+            all.add(index);
+        }
+        assertEquals(8, all.size());
+    }
+
+    @Test
+    public void anInsertWithoutItemsOrAtAPlaceOutsideTheListIsClamped() {
+        PlayOrder order = order(3, false);
+
+        order.insert(1, 0, 0);
+        assertArrayEquals(new int[]{0, 1, 2}, order.toArray());
+
+        order.insert(99, 1, 0);
+        assertArrayEquals(new int[]{0, 1, 2, 3}, order.toArray());
+        order.insert(-5, 1, 0);
+        assertArrayEquals(new int[]{0, 1, 2, 3, 4}, order.toArray()); // before the first item: the new one comes first
+    }
 }

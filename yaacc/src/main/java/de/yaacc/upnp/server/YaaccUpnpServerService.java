@@ -102,6 +102,11 @@ import de.yaacc.upnp.server.media.CombinedCaptureService;
 import de.yaacc.upnp.server.media.MediaProjectionHelper;
 import de.yaacc.upnp.server.media.ScreenCastCaptureService;
 import de.yaacc.upnp.server.media.SystemAudioCaptureService;
+import de.yaacc.upnp.callback.openhome.ClingOhControl;
+import de.yaacc.upnp.server.openhome.AndroidOhThreads;
+import de.yaacc.upnp.server.openhome.AndroidOpenHomeHost;
+import de.yaacc.upnp.server.openhome.OhRendererCore;
+import de.yaacc.upnp.server.openhome.OpenHomeRenderer;
 import de.yaacc.upnp.server.renderingcontrol.RenderingControlServiceManager;
 import de.yaacc.upnp.server.renderingcontrol.YaaccAudioRenderingControlService;
 import de.yaacc.util.InterfaceResolutionHelper;
@@ -127,13 +132,22 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     public static final String SAF_PATH = "saf";
     public static final int LOCK_TIMEOUT = 5000;
 
+    /** The OpenHome renderer; created with the first device, lives as long as this service. */
+    private OpenHomeRenderer openHomeRenderer;
+
     public static int PORT = 49157;
     public static ServiceType[] EXCLUSIVE_SERVER_TYPES = new ServiceType[]{
             new UDAServiceType("AVTransport"),
             new UDAServiceType("ContentDirectory"),
             new UDAServiceType("ConnectionManager"),
             new UDAServiceType("RenderingControl"),
-            new UDAServiceType("X_MS_MediaReceiverRegistrar")};
+            new UDAServiceType("X_MS_MediaReceiverRegistrar"),
+            // OpenHome: what the OpenHome player needs from a device (the other services of a device are left out)
+            new ServiceType(ClingOhControl.NAMESPACE, "Product", 1),
+            new ServiceType(ClingOhControl.NAMESPACE, "Playlist", 1),
+            new ServiceType(ClingOhControl.NAMESPACE, "Info", 1),
+            new ServiceType(ClingOhControl.NAMESPACE, "Time", 1),
+            new ServiceType(ClingOhControl.NAMESPACE, "Volume", 1)};
 
     public String locaDeviceUuid;
     protected IBinder binder = new YaaccUpnpServerServiceBinder();
@@ -367,6 +381,10 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             registry.removeDevice(localDevice);
             localDevice = null;
         }
+        if (openHomeRenderer != null) {
+            openHomeRenderer.shutdown();
+            openHomeRenderer = null;
+        }
 
         networkDeviceListener.disable();
         if (httpServer != null) {
@@ -425,13 +443,13 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 if (!"0.0.0.0".equals(iface[0])) {
                     statusBuilder.append(" | ").append(iface[1]).append(":").append(iface[0]);
                 } else {
-                    statusBuilder.append(" | No usable network interface found");
+                    statusBuilder.append(" | ").append(getString(R.string.notification_no_network_interface));
                 }
             } catch (Exception e) {
                 YaaccLogger.d(getClass().getName(), "Failed to get network interface info", e);
             }
         } else {
-            statusBuilder.append(" | No usable network interface found");
+            statusBuilder.append(" | ").append(getString(R.string.notification_no_network_interface));
         }
 
         // Server/Renderer status
@@ -461,7 +479,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         YaaccLogger.d(getClass().getName(), "showNotification: isPreloading=" + isPreloading + ", cacheSize=" + cacheManager.getCacheSize() + ", filesIndexed=" + cacheFilesIndexed);
         
         if (isPreloading) {
-            statusBuilder.append(" | ⏳ Indexing: ").append(cacheFilesIndexed);
+            statusBuilder.append(" | ⏳ ").append(getString(R.string.notification_indexing)).append(": ").append(cacheFilesIndexed);
             if (!cacheCurrentFolder.isEmpty()) {
                 statusBuilder.append(" (").append(cacheCurrentFolder).append(")");
             }
@@ -477,7 +495,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 .setOngoing(true)
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setSilent(true)
-                .setContentTitle("Yaacc UPnP Service")
+                .setContentTitle(getString(R.string.notification_upnp_service_title))
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .setContentText(statusBuilder.toString());
         mBuilder.setContentIntent(contentIntent);
@@ -672,6 +690,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 List<LocalService<?>> serverServices = new ArrayList<>();
                 serverServices.addAll(Arrays.asList(createCoreServices()));
                 serverServices.addAll(Arrays.asList(createMediaServerServices()));
+                // OpenHome controllers (Home Assistant among them) only look at the services of the root device
+                serverServices.addAll(createOpenHomeServices());
 
                 LocalDevice serverDevice = new LocalDevice(
                         identity,
@@ -691,6 +711,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 }
                 if (serverEnabled && rendererEnabled) {
                     services.addAll(Arrays.asList(createMediaRendererServices()));
+                    services.addAll(createOpenHomeServices());
                 }
 
                 UDADeviceType deviceType;
@@ -974,6 +995,38 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         services.add(createAVTransportService());
         services.add(createRenderingControl());
         return services.toArray(new LocalService[]{});
+    }
+
+    /** What the OpenHome control points are told the renderer can play. */
+    private static final String OPENHOME_PROTOCOL_INFO = "http-get:*:audio/mpeg:*,http-get:*:audio/mp4:*,"
+            + "http-get:*:audio/aac:*,http-get:*:audio/flac:*,http-get:*:audio/x-flac:*,http-get:*:audio/ogg:*,"
+            + "http-get:*:audio/wav:*,http-get:*:audio/x-wav:*,http-get:*:audio/L16:*";
+
+    /**
+     * The OpenHome services (Product, Playlist, Info, Time, Volume) next to AVTransport and RenderingControl. The renderer behind them
+     * lives as long as this service, so the queue survives a rebuild of the device; the services are built again.
+     */
+    private List<LocalService<?>> createOpenHomeServices() {
+        try {
+            UpnpClient client = ((Yaacc) getApplicationContext()).getUpnpClient();
+            if (openHomeRenderer == null) {
+                AndroidOpenHomeHost host = new AndroidOpenHomeHost(getApplicationContext(), client);
+                String name = getLocalServerName();
+                openHomeRenderer = new OpenHomeRenderer(host, host, new AndroidOhThreads(),
+                        new OhRendererCore.Details("yaacc.de", "https://www.yaacc.de", "YAACC", name, name),
+                        OPENHOME_PROTOCOL_INFO);
+                openHomeRenderer.start();
+            }
+            return openHomeRenderer.core().buildServices(LOCK_TIMEOUT);
+        } catch (ValidationException | RuntimeException e) {
+            // OpenHome is an addition: without it the renderer still works with AVTransport
+            YaaccLogger.e(getClass().getName(), "OpenHome services not available", e);
+            if (openHomeRenderer != null) {
+                openHomeRenderer.shutdown();
+                openHomeRenderer = null;
+            }
+            return new ArrayList<>();
+        }
     }
 
     /**

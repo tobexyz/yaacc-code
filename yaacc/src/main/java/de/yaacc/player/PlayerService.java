@@ -55,6 +55,7 @@ import de.yaacc.share.QueueShareBinder;
 import de.yaacc.share.QueueShareWindow;
 import de.yaacc.share.ShareAddressResolver;
 import de.yaacc.share.ShareService;
+import de.yaacc.upnp.OpenHomeReceivers;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.YaaccLogger;
@@ -126,9 +127,10 @@ public class PlayerService extends MediaSessionService {
         }
         playerListChangeNotifier.putAndNotify(currentActivePlayer, player);
 
-        // Listen for playing state changes
+        // Listen for the state changes: playing, paused, stopped
         player.addPropertyChangeListener(evt -> {
-            if ("playing".equals(evt.getPropertyName())) {
+            String name = evt.getPropertyName();
+            if ("playing".equals(name) || AbstractPlayer.PROPERTY_PAUSED.equals(name) || Player.PROPERTY_STOPPED.equals(name)) {
                 updateForegroundState();
             }
         });
@@ -203,6 +205,37 @@ public class PlayerService extends MediaSessionService {
         }
     }
 
+    /**
+     * The text of the notification of the service: how many players there are and what they do, for example
+     * "3 players (1 playing, 1 paused, 1 stopped)".
+     *
+     * @param idle         the text when there is no player
+     * @param players      the number of players as text ("3 players")
+     * @param states       the states that occur, as text ("1 playing"), in the order they are shown
+     * @param statusFormat puts the two together: {@code %1$s} the players, {@code %2$s} the states
+     * @param separator    between the states
+     */
+    static String statusText(int total, String idle, String players, java.util.List<String> states, String statusFormat,
+                             String separator) {
+        if (total == 0) {
+            return idle;
+        }
+        StringBuilder joined = new StringBuilder();
+        for (String state : states) {
+            if (joined.length() > 0) {
+                joined.append(separator);
+            }
+            joined.append(state);
+        }
+        return String.format(java.util.Locale.getDefault(), statusFormat, players, joined);
+    }
+
+    private void addState(java.util.List<String> states, int plurals, int count) {
+        if (count > 0) {
+            states.add(getResources().getQuantityString(plurals, count, count));
+        }
+    }
+
     private void updateServiceNotification() {
         Intent notificationIntent = new Intent(this, BrowserLauncher.targetClass(this));
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
@@ -211,19 +244,25 @@ public class PlayerService extends MediaSessionService {
         // Build status text
         int totalPlayers = currentActivePlayer.size();
         int playingCount = 0;
+        int pausedCount = 0;
         for (Player player : currentActivePlayer.values()) {
             if (player.isPlaying()) {
                 playingCount++;
+            } else if (player.isPaused()) {
+                pausedCount++;
             }
         }
-
-        String statusText = totalPlayers == 0 ? "running" :
-                totalPlayers + " player" + (totalPlayers > 1 ? "s" : "") +
-                        (playingCount > 0 ? " (" + playingCount + " playing)" : " (paused)");
+        java.util.List<String> states = new java.util.ArrayList<>();
+        addState(states, R.plurals.player_service_playing, playingCount);
+        addState(states, R.plurals.player_service_paused, pausedCount);
+        addState(states, R.plurals.player_service_stopped, totalPlayers - playingCount - pausedCount);
+        String statusText = statusText(totalPlayers, getString(R.string.player_service_idle),
+                getResources().getQuantityString(R.plurals.player_service_players, totalPlayers, totalPlayers), states,
+                getString(R.string.player_service_status), getString(R.string.player_service_state_separator));
 
         Notification notification = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
-                .setContentTitle("Player Service")
+                .setContentTitle(getString(R.string.player_service_title))
                 .setSilent(true)
                 .setContentText(statusText)
                 .setSmallIcon(R.drawable.ic_notification_default)
@@ -395,6 +434,11 @@ public class PlayerService extends MediaSessionService {
             if (built.items().isEmpty()) {
                 continue;
             }
+            if (!local && OpenHomeReceivers.isOpenHomeOnly(device) && !(music && !video && !image)) {
+                // an OpenHome device plays music only, and has no AVTransport for the rest
+                notifyFilesNotSupported(upnpClient);
+                continue;
+            }
             Player player = createPlayer(upnpClient, device, video, image, music);
             if (player == null) {
                 continue;
@@ -415,6 +459,12 @@ public class PlayerService extends MediaSessionService {
             player.setItems(built.items().toArray(new PlayableItem[0]));
             resultList.add(player);
         }
+    }
+
+    private void notifyFilesNotSupported(UpnpClient upnpClient) {
+        android.content.Context context = upnpClient.getContext();
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                android.widget.Toast.makeText(context, R.string.openhome_files_not_supported, android.widget.Toast.LENGTH_LONG).show());
     }
 
     /** The key bookkeeping of the app's registries for the shares of a queue. */
@@ -485,6 +535,31 @@ public class PlayerService extends MediaSessionService {
     }
 
 
+    private OpenHomePlayer newOpenHomePlayer(UpnpClient upnpClient, Device receiverDevice) {
+        String deviceName = receiverDevice.getDetails().getFriendlyName() + " - " + receiverDevice.getDisplayString();
+        return new OpenHomePlayer(upnpClient, receiverDevice, upnpClient.getContext()
+                .getString(R.string.playerNameAvTransport) + "-OpenHome@" + deviceName,
+                receiverDevice.getDetails().getFriendlyName());
+    }
+
+    /**
+     * Gives an OpenHome device that plays already a player that shows its playlist (see {@link OpenHomePlayer#attach()}).
+     *
+     * @return the player of the device: the one it has, else a new one
+     */
+    public Player attachOpenHomePlayer(UpnpClient upnpClient, Device<?, ?, ?> device) {
+        String deviceId = device.getIdentity().getUdn().getIdentifierString();
+        for (Player player : getCurrentPlayersOfType(OpenHomePlayer.class)) {
+            if (((OpenHomePlayer) player).getDeviceId().equals(deviceId)) {
+                return player;
+            }
+        }
+        OpenHomePlayer player = newOpenHomePlayer(upnpClient, device);
+        addPlayer(player);
+        player.attach();
+        return player;
+    }
+
     /**
      * creates a player for the given device
      *
@@ -514,6 +589,14 @@ public class PlayerService extends MediaSessionService {
                 contentType = "image";
             } else if (!video && !image && music) {
                 contentType = "music";
+            }
+            if (OpenHomeChoice.useOpenHome(upnpClient.getContext(), receiverDevice, music && !video && !image)) {
+                for (Player player : getCurrentPlayersOfType(OpenHomePlayer.class)) {
+                    if (((OpenHomePlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())) {
+                        shutdown(player);
+                    }
+                }
+                return newOpenHomePlayer(upnpClient, receiverDevice);
             }
             for (Player player : getCurrentPlayersOfType(AVTransportPlayer.class)) {
                 if (((AVTransportPlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())

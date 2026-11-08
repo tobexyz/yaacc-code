@@ -516,7 +516,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     /**
-     * Returns all registered UpnpDevices with an AVTransport Service.
+     * Returns all registered UpnpDevices with an AVTransport Service, and those that offer an OpenHome playlist without one.
      *
      * @return the upnpDevices
      */
@@ -524,12 +524,43 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         List<Device<?, ?, ?>> result = new ArrayList<>();
         if (isInitialized()) {
             result.addAll(getRegistry().getDevices(new UDAServiceType("AVTransport")));
+            // devices that speak OpenHome only (no AVTransport) are receivers too
+            result.addAll(OpenHomeReceivers.onlyOpenHome(
+                    new ArrayList<>(getRegistry().getDevices(new org.fourthline.cling.model.types.ServiceType(
+                            de.yaacc.upnp.callback.openhome.ClingOhControl.NAMESPACE, "Playlist", 1))), result));
         }
+        logDevicesOnce();
         result = sortDevices(result);
         Collections.reverse(result);
         result.add(getLocalDummyDevice());
         Collections.reverse(result);
         return result;
+    }
+
+    private String lastDeviceSummary = "";
+
+    /**
+     * Writes the devices of the registry to the log (info level) when they change: name, type, and whether the device is listed
+     * as an AVTransport or an OpenHome receiver. Shows why a device is missing from the receiver list.
+     */
+    private void logDevicesOnce() {
+        try {
+            StringBuilder summary = new StringBuilder();
+            for (Device<?, ?, ?> device : getRegistry().getDevices()) {
+                summary.append("\n  ").append(device.getDetails() == null ? "?" : de.yaacc.util.LogText.clean(device.getDetails().getFriendlyName()))
+                        .append(" [").append(device.getType() == null ? "?" : de.yaacc.util.LogText.clean(device.getType().toString())).append("]")
+                        .append(" avTransport=").append(device.findService(new UDAServiceType("AVTransport")) != null)
+                        .append(" openHome=").append(de.yaacc.upnp.callback.openhome.ClingOhControl.offersPlaylist(device))
+                        .append(" services=").append(device.findServiceTypes().length);
+            }
+            String text = summary.toString();
+            if (!text.equals(lastDeviceSummary)) {
+                lastDeviceSummary = text;
+                YaaccLogger.i(getClass().getName(), "Devices in the registry:" + text);
+            }
+        } catch (RuntimeException e) {
+            YaaccLogger.d(getClass().getName(), "Devices not logged: " + e);
+        }
     }
 
     private List<Device<?, ?, ?>> sortDevices(Collection<Device<?, ?, ?>> devices) {
@@ -863,6 +894,23 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @param didlObject the object which describes the content to be played
      * @return the player
      */
+    /**
+     * The player of an OpenHome device that plays already, for its playlist screen: the device keeps its queue, the player only shows it.
+     * Starts the player service when it is not running (it is only started when something is played), and waits for it: not for the
+     * main thread.
+     *
+     * @return the player, null if the player service did not come up
+     */
+    public Player attachOpenHomePlayer(Device<?, ?, ?> device) {
+        if (playerService == null && !startService()) {
+            return null;
+        }
+        if (!waitForPlayerServiceComeUp()) {
+            return null;
+        }
+        return playerService.attachOpenHomePlayer(this, device);
+    }
+
     public List<Player> initializePlayers(DIDLObject didlObject) {
         return initializePlayers(toItemList(didlObject));
     }
@@ -979,6 +1027,22 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         YaaccLogger.d(getClass().getName(), "Current duration: " + positionInfo.getTrackDuration());
         YaaccLogger.d(getClass().getName(), "MimeType: " + playableItem.getMimeType());
         return playerService.createPlayerForLocalDevice(this, items);
+    }
+
+    /**
+     * Creates a player on this device for the items (the OpenHome renderer's queue); not started.
+     *
+     * @return the player, null if the player service is not there
+     */
+    public Player initializeLocalPlayer(List<PlayableItem> items) {
+        if (playerService == null && !startService()) {
+            return null;
+        }
+        if (!waitForPlayerServiceComeUp()) {
+            return null;
+        }
+        List<Player> players = playerService.createPlayerForLocalDevice(this, items);
+        return players.isEmpty() ? null : players.get(0);
     }
 
     /**
@@ -1465,6 +1529,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             Boolean muted = yxcVolume().readMute(udnOf(device));
             return muted != null && muted;
         }
+        if (OpenHomeVolume.handles(device, getRenderingControlService(device) != null)) {
+            return OpenHomeVolume.muted(device, getHttpRequestSender());
+        }
         if (device == null) {
             return false;
         }
@@ -1540,6 +1607,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 && yxcVolume().handles(udnOf(device))) {
             return true; // a device with group support: its own interface is used
         }
+        if (OpenHomeVolume.handles(device, getRenderingControlService(device) != null)) {
+            return true; // the OpenHome volume service
+        }
         if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
             return true;
         }
@@ -1562,6 +1632,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
                 && yxcVolume().handles(udnOf(device))) {
             yxcVolume().setMute(udnOf(device), mute);
+            return;
+        }
+        if (OpenHomeVolume.handles(device, getRenderingControlService(device) != null)) {
+            final HttpRequestSender sender = getHttpRequestSender();
+            executorService.execute(() -> OpenHomeVolume.setMuted(device, sender, mute));
             return;
         }
         if (device == null) {
@@ -1618,6 +1693,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
                 && yxcVolume().handles(udnOf(device))) {
             return Math.max(0, yxcVolume().readPercent(udnOf(device)));
+        }
+        if (OpenHomeVolume.handles(device, getRenderingControlService(device) != null)) {
+            return OpenHomeVolume.percent(device, getHttpRequestSender());
         }
         if (device == null) {
             return 0;
@@ -1686,6 +1764,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 && yxcVolume().handles(udnOf(device))) {
             return true; // a device with group support: its own interface is used
         }
+        if (OpenHomeVolume.handles(device, getRenderingControlService(device) != null)) {
+            return true; // the OpenHome volume service
+        }
         if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
             return true;
         }
@@ -1707,6 +1788,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
                 && yxcVolume().handles(udnOf(device))) {
             yxcVolume().setPercent(udnOf(device), volume);
+            return;
+        }
+        if (OpenHomeVolume.handles(device, getRenderingControlService(device) != null)) {
+            final HttpRequestSender sender = getHttpRequestSender();
+            executorService.execute(() -> OpenHomeVolume.setPercent(device, sender, volume));
             return;
         }
         if (device == null) {

@@ -478,8 +478,7 @@ public class AVTransportPlayerWrapper implements Player {
                 index >= 0 && index < avTransportPlayer.getItems().size()) {
             PlayableItem item = avTransportPlayer.getItems().get(index);
             if (item != null && item.getItem() != null) {
-                DIDLObject.Property<URI> albumArtUriProperty = item.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
-                URI albumArtUri = (albumArtUriProperty == null) ? null : albumArtUriProperty.getValue();
+                URI albumArtUri = AlbumArt.of(item.getItem());
                 return new MediaItem.Builder()
                         .setUri(item.getUri())
                         .setMediaMetadata(new MediaMetadata.Builder()

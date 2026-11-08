@@ -1,0 +1,28 @@
+# A local OpenHome device for testing YAACC (see README.md): MPD plus upmpdcli, which turns MPD into an OpenHome renderer.
+services:
+  mpd:
+    build: .
+    network_mode: host
+    restart: unless-stopped
+    healthcheck:
+      # MPD answers on its port: upmpdcli is started after that
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6610"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  openhome:
+    # community image of upmpdcli, renderer only (https://github.com/GioF71/upmpdcli-docker)
+    image: giof71/upmpdcli:stable-renderer
+    network_mode: host      # the device must be found by SSDP/multicast on the network
+    depends_on:
+      mpd:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      MPD_HOST: 127.0.0.1
+      MPD_PORT: "6610"
+      RENDERER_MODE: OPENHOME
+      UPMPD_FRIENDLY_NAME: "Test OpenHome device"
+      OH_PRODUCT_ROOM: "Test room"
+      # UPNPIFACE: eth0     # set the network interface when the host has several

@@ -441,17 +441,14 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
     // Public methods called by BroadcastReceiver
     public void play() {
         viewModel.play();
-        Toast.makeText(this, R.string.play, Toast.LENGTH_SHORT).show();
     }
 
     public void pause() {
         viewModel.pause();
-        Toast.makeText(this, R.string.pause, Toast.LENGTH_SHORT).show();
     }
 
     public void stop() {
         viewModel.stop();
-        Toast.makeText(this, R.string.stop, Toast.LENGTH_SHORT).show();
     }
 
     public void next() {

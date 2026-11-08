@@ -254,4 +254,44 @@
     <string name="pick_skipped_unread">Alguns ficheiros não puderam ser lidos.</string>
     <string name="pick_play_failed">Não foi possível reproduzir os ficheiros escolhidos.</string>
     <string name="pick_title_files">Ficheiros: %1$d</string>
+    <string name="openhome_protocol_title">Protocolo de reprodução</string>
+    <string name="openhome_protocol_openhome">OpenHome (o dispositivo mantém a lista de reprodução)</string>
+    <string name="openhome_protocol_avtransport">AVTransport (a aplicação mantém a lista de reprodução)</string>
+    <string name="openhome_source_title">Fonte</string>
+    <string name="openhome_source_failed">Não foi possível ler ou mudar as fontes do dispositivo.</string>
+    <string name="openhome_source_none">O dispositivo não indica nenhuma fonte.</string>
+    <string name="openhome_action_settings">Definições do OpenHome</string>
+    <string name="openhome_files_not_supported">Este dispositivo só fala OpenHome e só pode reproduzir música.</string>
+    <!-- the notification of the player service -->
+    <string name="player_service_title">Serviço de reprodução</string>
+    <string name="player_service_idle">Em execução</string>
+    <string name="player_service_status">%1$s (%2$s)</string>
+    <string name="player_service_state_separator">", "</string>
+    <plurals name="player_service_players">
+        <item quantity="one">%d leitor</item>
+        <item quantity="many">%d leitores</item>
+        <item quantity="other">%d leitores</item>
+    </plurals>
+    <plurals name="player_service_playing">
+        <item quantity="one">%d em reprodução</item>
+        <item quantity="many">%d em reprodução</item>
+        <item quantity="other">%d em reprodução</item>
+    </plurals>
+    <plurals name="player_service_paused">
+        <item quantity="one">%d em pausa</item>
+        <item quantity="many">%d em pausa</item>
+        <item quantity="other">%d em pausa</item>
+    </plurals>
+    <plurals name="player_service_stopped">
+        <item quantity="one">%d parado</item>
+        <item quantity="many">%d parados</item>
+        <item quantity="other">%d parados</item>
+    </plurals>
+    <!-- texts of the notifications -->
+    <string name="notification_upnp_service_title">Serviço UPnP do Yaacc</string>
+    <string name="notification_no_network_interface">Nenhuma interface de rede utilizável encontrada</string>
+    <string name="notification_indexing">Indexando</string>
+    <string name="notification_player_title">Leitor do Yaacc</string>
+    <string name="notification_download_title">Download de arquivo do Yaacc</string>
+    <string name="notification_download_to">Download para: %1$s</string>
 </resources>
