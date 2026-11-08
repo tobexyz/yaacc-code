@@ -21,11 +21,14 @@ import org.fourthline.cling.support.model.DIDLObject;
 
 import java.net.URI;
 
-import de.yaacc.openhome.OhUriPolicy;
-
 /** The album art address of a track. */
 final class AlbumArt {
     private AlbumArt() {
+    }
+
+    private static boolean isWebAddress(URI uri) {
+        String scheme = uri.getScheme();
+        return "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
     }
 
     /**
@@ -40,6 +43,6 @@ final class AlbumArt {
         }
         DIDLObject.Property<URI> property = item.getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
         URI uri = property == null ? null : property.getValue();
-        return uri == null || !OhUriPolicy.isAcceptable(uri.toString()) ? null : uri;
+        return uri == null || !isWebAddress(uri) ? null : uri;
     }
 }

@@ -211,7 +211,7 @@ public class OpenHomeRendererTest {
     }
 
     /** Everything runs at once on the calling thread, so a test sees the result of a command right away. */
-    private static final class InlineThreads implements OpenHomeRenderer.Threads {
+    private static class InlineThreads implements OpenHomeRenderer.Threads {
         @Override
         public void work(Runnable work) {
             work.run();
@@ -539,6 +539,42 @@ public class OpenHomeRendererTest {
 
         assertEquals(Arrays.asList("http://h/a.mp3", "http://h/b.mp3", "http://h/x.mp3"), queueUris());
         assertEquals(Arrays.asList("http://h/a.mp3", "http://h/b.mp3", "http://h/x.mp3"), titles(player()));
+    }
+
+    @Test
+    public void aKnownItemTwiceInThePlayerCountsOnceAndTheRepeatIsTakenOut() {
+        long a = add(0, "http://h/a.mp3");
+        add(a, "http://h/b.mp3");
+        renderer.play();
+
+        PlayableItem known = player().getItems().get(0);
+        player().addItems(Collections.singletonList(known)); // a again, the very same object
+        renderer.refresh();
+
+        assertEquals(Arrays.asList("http://h/a.mp3", "http://h/b.mp3"), queueUris());
+        assertEquals(Arrays.asList("http://h/a.mp3", "http://h/b.mp3"), titles(player()));
+    }
+
+    @Test
+    public void theLifeCycleOfTheRendererRunsEvenWhenThreadsDropWork() {
+        List<String> ran = new ArrayList<>();
+        OpenHomeRenderer plain = newRenderer(new InlineThreads() {
+            @Override
+            public void work(Runnable work) {
+                // flooded: dropped
+            }
+
+            @Override
+            public void lifecycle(Runnable work) {
+                ran.add("lifecycle");
+                work.run();
+            }
+        });
+
+        plain.start();
+        plain.shutdown();
+
+        assertEquals(Arrays.asList("lifecycle", "lifecycle"), ran);
     }
 
     @Test

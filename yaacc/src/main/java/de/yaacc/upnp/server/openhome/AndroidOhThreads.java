@@ -56,11 +56,15 @@ public final class AndroidOhThreads implements OpenHomeRenderer.Threads {
     }
 
     private final BoundedWork waiting = new BoundedWork();
+    private final java.util.concurrent.atomic.AtomicInteger dropped = new java.util.concurrent.atomic.AtomicInteger();
 
     @Override
     public void work(Runnable work) {
         if (!waiting.tryAcquire()) {
-            YaaccLogger.w(getClass().getName(), "OpenHome renderer is flooded with work, a task is dropped");
+            // one line for the first and then one for every hundred, a flood must not flood the log as well
+            if (dropped.getAndIncrement() % 100 == 0) {
+                YaaccLogger.w(getClass().getName(), "OpenHome renderer is flooded with work, tasks are dropped");
+            }
             return;
         }
         Runnable guarded = guarded(work);
@@ -74,6 +78,15 @@ public final class AndroidOhThreads implements OpenHomeRenderer.Threads {
             });
         } catch (RejectedExecutionException e) {
             waiting.done();
+            YaaccLogger.d(getClass().getName(), "OpenHome renderer is shut down, work dropped");
+        }
+    }
+
+    @Override
+    public void lifecycle(Runnable work) {
+        try {
+            worker.execute(guarded(work)); // not counted: start and end of the renderer are not to be dropped
+        } catch (RejectedExecutionException e) {
             YaaccLogger.d(getClass().getName(), "OpenHome renderer is shut down, work dropped");
         }
     }

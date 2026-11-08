@@ -58,3 +58,8 @@
 5. A PlayableItem object that appears twice in the player counts once in the reverse sync; the repeat is taken out of the player.
 6. At most 100 event subscribers per device and 30 per service (`SERVICE_UNAVAILABLE` above); `BoundedWork` drops tasks for the renderer's worker beyond 500 waiting ones; the mirror of a device's track keeps its address only if `OhUriPolicy` accepts it.
 **Rationale**: The device is reachable by every host of the network and consumes data from every device on it; every input gets a size, a time or a count limit.
+
+## 2026-11-08 — Review cycle 8 (hardening) answered
+**Context**: The review of the hardening commit found one Warning: the cap on waiting tasks also dropped `start()` and `shutdown()` of the renderer.
+**Decision**: Start and end go through `Threads.lifecycle`, which is never counted or dropped; the cap is 2000 (a full playlist load is 1000 tasks); the log of dropped tasks is one line per hundred. Of the suggestions: album art only needs `http`/`https` as scheme (hosts like `nas_01` are no valid `java.net.URI` hosts but real addresses); images up to 64 MiB and 30 s read timeout. Not done (low value): atomic check-and-add of subscribers, a 413 answer for long request bodies, a total deadline for images, cleaning the other log lines that print device names, import cleanup.
+**Rationale**: The Warning loses the end of the renderer under load; the rest are limits chosen so real use does not meet them.

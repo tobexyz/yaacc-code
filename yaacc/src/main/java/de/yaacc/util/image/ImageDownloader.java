@@ -35,10 +35,10 @@ import java.net.MalformedURLException;
  * @author Christoph Hähnel (eyeless)
  */
 public class ImageDownloader {
-    /** The most bytes of an image that are read (a photo of a camera is some ten megabytes). */
-    static final int MAX_IMAGE_BYTES = 32 * 1024 * 1024;
+    /** The most bytes of an image that are read (a photo of a camera is some ten megabytes, a 200 megapixel one more than thirty). */
+    static final int MAX_IMAGE_BYTES = 64 * 1024 * 1024;
     private static final int CONNECT_TIMEOUT_MILLIS = 5_000;
-    private static final int READ_TIMEOUT_MILLIS = 10_000;
+    private static final int READ_TIMEOUT_MILLIS = 30_000; // a NAS may need a while to open the file
 
     public ImageDownloader() {
     }

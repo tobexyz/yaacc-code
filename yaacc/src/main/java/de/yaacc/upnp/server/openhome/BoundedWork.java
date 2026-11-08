@@ -26,8 +26,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * queued, so a flood can not fill the memory of the phone or keep the player busy for minutes.
  */
 final class BoundedWork {
-    /** A control point sends a handful of actions per second at most; this is minutes of that. */
-    static final int MAX_WAITING = 500;
+    /** A full playlist of 1000 tracks is 1000 tasks; this is twice that, a control point never waits for so many. */
+    static final int MAX_WAITING = 2000;
 
     private final int max;
     private final AtomicInteger waiting = new AtomicInteger();

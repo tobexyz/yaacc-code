@@ -59,5 +59,7 @@ public class AlbumArtTest {
         assertNull(AlbumArt.of(track("content://media/external/images/1")));
         assertNull(AlbumArt.of(track("ftp://h/art.jpg")));
         assertEquals(URI.create("https://h/art.jpg"), AlbumArt.of(track("https://h/art.jpg")));
+        // a host name with an underscore has no host for java.net.URI, but it is an address of the network
+        assertEquals(URI.create("http://nas_01:8200/art.jpg"), AlbumArt.of(track("http://nas_01:8200/art.jpg")));
     }
 }

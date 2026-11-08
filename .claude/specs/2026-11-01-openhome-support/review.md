@@ -485,3 +485,71 @@ Reviewing: commit defd4024 (the one-line fix for the Warning of cycle 6 in `take
 - [x] Coverage adequate for the change: yes, the new test fails on the old code.
 
 ### Verdict: PASS
+
+## Cycle 8 - hardening (six suggestions) — 2026-11-08
+Reviewing: HEAD ade16c7d "size, time and count limits for everything the network sends" (the six suggestions of security review cycle 4)
+
+### Critical
+- none
+
+### Warning
+- [AndroidOhThreads.java:60-77, OpenHomeRenderer.java:148-157 and 163-170, BoundedWork.java] The 500-task cap also drops the life-cycle tasks `start()` and `shutdown()`, which go through the same
+  `work()`. Failure scenario: a host floods the control port (or a control point loads a big playlist, one `Insert` = one task with `sync()` and player round trips) so that 500 tasks wait; the user stops
+  the server (`YaaccUpnpServerService:385/1025` calls `openHomeRenderer.shutdown()`, which does `threads.work(discardPlayer)` and then `threads.close()`): the task is dropped with a warning, `discardPlayer()`
+  never runs, the local player keeps playing without a renderer around it (and with `start()` dropped the poll never starts). Dropped control commands (`play`, `trackDeleted` with the `startId` update) are
+  also lost silently after the SOAP call already answered success. Fix: let `start`/`shutdown` bypass the cap (e.g. `work(Runnable, boolean always)` or a separate `lifecycle()` entry that
+  only checks `RejectedExecutionException`), or at least make `shutdown()` run `discardPlayer` independent of the cap; add a test for it (see Suggestion on `AndroidOhThreads`). Raising the cap
+  (1000 tracks = 1000 `trackInserted` tasks is one legitimate burst that is as large as the cap allows) would also fit "no real use hits the limit" better.
+
+### Suggestion
+- [ImageDownloader.java:85-88, :157-170] Limits a real use can hit: 32 MiB is below the size of a 108/200 MP phone photo, and `IconDownloadTask`/`ImageDownloadTask` (browse thumbnails) fetch the item's own
+  image resource when there is no album art, so such a thumbnail silently becomes "no image" (it did sample down before); the 10 s read timeout is shorter than a NAS or transcoding server (Plex, Serviio) needs for the
+  first byte of a thumbnail. Consider 64 MiB and 20-30 s, or the strict limits only for album-art callers. There is also no total deadline (as `HttpRequestSender.readBounded` has): one byte per 9 s
+  keeps the thread for hours, the byte limit alone does not stop that. No test covers `ImageDownloader` itself (timeouts, closing of the stream, OOM); only `BitmapSampling.readAllBytes(in, max)` is tested.
+- [AlbumArt.java:43, OhUriPolicy] `OhUriPolicy.isAcceptable` is stricter than "http(s)": a host with an underscore (`http://nas_01/art.jpg`: `URI.getHost()` is null) and user info
+  (`http://user:pw@host/art.jpg`) are now "no art" in the AVTransport renderer and controller, although `URL` fetched them before. Rare in a LAN, but a visible regression for those users; a plain
+  scheme check (http/https, not blank) would be enough for album art. Checked and fine: local items' art is `http://<ip>:<port>/...` (ContentBrowser, `*FolderBrowser`/`*ItemBrowser`), the
+  `UpnpClient` enrichment uses the resource address of an image item (http), embedded covers do not go through `AlbumArt.of` (`onMediaMetadataChanged`/`artworkData`), no `content://` or `file://`
+  art source exists. Other art readers stay unfiltered (`AVTransportPlayerWrapper.getMediaItemAt` artwork URI, `BrowseContentItemAdapter.albumArtUri`); only an image is displayed, so low risk.
+- [AndroidOhThreads.java:60-77] The wiring (`done()` in `finally`, in the `RejectedExecutionException` branch) is untested; `BoundedWorkTest` only tests the counter. Also one warning log line per
+  dropped task is itself a flood under attack; log the first and then every Nth drop.
+- [UpnpClient.java:333-406, ReceiverRowBinder.java:263] `LogText.clean` covers the device summary and fault texts only; `remoteDeviceAdded/Updated/Removed/DiscoveryFailed` and others still log
+  `getDisplayString()` (friendly name of a remote device) raw. Same log-forging risk, so clean them too (or say in decisions.md that the summary was the only target).
+- [OpenHomeRendererTest.java:529-542] The duplicate test covers an unknown item twice; the variant "a known item (already in the queue) twice in the player" is what the `orderSet.add(id)` in step 2
+  is for (old code: `order` = [a,b,a] vs `inQueue` of size 2 gives `IndexOutOfBoundsException`, caught as "player is started again"). It is correct by the code but has no test of its own.
+- [ReceivingSubscribe.java:170-175] Check and `addLocalSubscription` are not atomic (two simultaneous SUBSCRIBEs may overshoot by a few; harmless). A single host can take all 100 slots for the
+  subscription timeout (up to 30 min) and so lock out real control points; a per-source-address cap would be better, but this is a hardening step, not a regression.
+- [BoundedEntityConsumer.java:36-42] An over-long body ends in a plain `IOException` (HttpCore answers 500 and the exchange fails); 413 would be the exact answer. A declared `Content-Length` above the limit
+  could be refused in `prepare()` already. Neither test goes through a real server (only the consumer is tested).
+- [OpenHomePlayer.java:747-751, UpnpClient.java:550-551, ClingOhControl.java:118-127] Fully qualified names inside the code (`java.util.Map`, `de.yaacc.util.LogText`, `java.util.Collections`) instead of imports;
+  inconsistent with the rest of the touched files (the repo does it in places, so not blocking).
+
+### Checked and fine
+1. (1) `ClingOhControl.runGuarded`: all `ActionCallback` runs of the class go through it (one call site); `StackOverflowError` is caught only around the action, the error leaves no half state (failure arrays are
+   read after), the checked `OhControlException(NO_ANSWER)` is what the callers already handle. Test calls the real method with a throwing runnable; without the method it does not compile/fails.
+2. (2) `getUriAsStream`: http(s) via `openConnection` with 5 s/10 s; other schemes unchanged (`url.getContent()`), so local `file:`/`content:` thumbnails of the app still work. The stream is now closed (try-with-resources;
+   it leaked before). `OutOfMemoryError` is caught after `Exception` and returns null; the callers already handle a null bitmap. `artMayBeFetched`: synchronized, LinkedHashMap with `removeEldestEntry`, entries
+   are written only on a start; a failed download is retried after 60 s, a success is served from the cache. Tests (two) fail without the method.
+3. (3) `readBounded`: `entity == null` and `getContent() == null` give null as `EntityUtils.toByteArray` did; the content length check, the limit check before the write, the deadline after each read, the stream closed.
+   Gzip is decoded before (limit on the decoded bytes). `createResponse` is the only former `EntityUtils` use. The only `readBounded` weakness is by design: a read that blocks is limited by the socket timeout,
+   not by the deadline. 32 MiB/120 s are above any ContentDirectory answer the app can parse. `BoundedEntityConsumer`: counts before it delegates, both handlers use it. The content handler accepts GET and HEAD only
+   (`YaaccUpnpServerContentHttpHandler:144`), there are no uploads; SOAP/GENA bodies of the OpenHome and AVTransport actions are a few KiB (metadata 16 KiB per track), event NOTIFYs from devices are small; 2 MiB is safe.
+   Tests: the over-limit tests fail without the checks (endless stream runs into the test timeout/OOM, no exception).
+4. (4) `LogText.clean`: null-safe, 200 characters, `\p{Cntrl}` to space; same behaviour as the old private `clean` in `ClingOhControl`. Tests fail without the class.
+5. (5) `takeOverFromPlayer`: identity `seen` set; the repeat goes to `refused` (removed from the player in descending index order) and is not in `newIds`, so `playerIds` stays aligned to the player after the removal;
+   `found` has the same id for both places of a known item, step 1 and `kept` are unaffected. If the repeat is the playing item, `removeItem` fails and the player is rebuilt (`discardPlayer`), acceptable. The new test
+   fails on the old code (x is inserted twice into the queue).
+6. (6) Subscriptions: the check is in `processNewSubscription` only (renewals are not blocked), after the validation of the headers; `getLocalSubscriptionCount` is `synchronized` like the other `RegistryImpl` methods
+   and `maintain()` removes expired subscriptions, so the count shrinks. The service is compared by identity, which matches (`EventSendingSubscription` keeps the instance of the resource model). Tests:
+   both fail without the check (status would be 200/500, not 503). `OhPlayableItems.fromTrack` and `null` Uri: every `getUri()` user reachable from `OpenHomePlayer` items is null safe or guarded:
+   `OpenHomePlayer.tracks()` (`isSendable`), `UpnpClient.discardShareOf`/`shareKeysOf` (null check), `BrowseContentItemAdapter:664` (null check); `PlaylistItemAdapter`, `PlayableItemDiffCallback`,
+   `AbstractPlayer`, `PlayerService`, `FileDownloader` (browse only), `LocalMediaSessionPlayer`, `AVTransportPlayer(Wrapper)` (other players, the renderer side uses `AndroidOpenHomeHost.toPlayableItem`, whose
+   addresses the queue already limited to http(s)) do not see these items. `new PlayableItem()` already had a null Uri before. The mirrored track is still listed (title/id), moves use ids, not addresses.
+7. decisions.md and CHANGELOG match the code (limits, the 500/100/30/2 MiB/32 MiB values).
+
+### Tests
+- [x] All tests passing: not re-run here (coordinator: `assembleDebug`, `testDebugUnitTest` 3221 tests, `lintDebug` 0 at HEAD ade16c7d).
+- [ ] Coverage adequate for the change: for the counters, parsers and limits yes (each new test fails without its fix); not covered: `ImageDownloader` I/O, `AndroidOhThreads.work` wiring, a real server rejecting a long body.
+
+### Verdict: FAIL
+One Warning (life-cycle tasks `start`/`shutdown` fall under the drop cap, so an orphaned player and no poll are possible under a flood or a large playlist load). No Critical. Everything else is a Suggestion.

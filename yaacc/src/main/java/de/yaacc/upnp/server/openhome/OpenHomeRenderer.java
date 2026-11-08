@@ -87,6 +87,14 @@ public final class OpenHomeRenderer implements OhPlayback {
         /** Runs the work on the worker thread, after what was handed over before. Returns at once. */
         void work(Runnable work);
 
+        /**
+         * As {@link #work(Runnable)} for the start and the end of the renderer: it must run even when the worker is flooded with
+         * the work of control points (which may be dropped then).
+         */
+        default void lifecycle(Runnable work) {
+            work(work);
+        }
+
         /** Runs the work on the worker thread again and again; the result stops it. */
         Runnable every(Runnable work, long periodMillis);
 
@@ -146,7 +154,7 @@ public final class OpenHomeRenderer implements OhPlayback {
 
     /** Starts the once-a-second look at the player. */
     public void start() {
-        threads.work(() -> {
+        threads.lifecycle(() -> {
             if (stopPolling == null) {
                 stopPolling = threads.every(this::refreshNow, POLL_MILLIS);
                 refreshNow();
@@ -156,7 +164,7 @@ public final class OpenHomeRenderer implements OhPlayback {
 
     /** Ends the look at the player and the player itself. */
     public void shutdown() {
-        threads.work(() -> {
+        threads.lifecycle(() -> {
             if (stopPolling != null) {
                 stopPolling.run();
                 stopPolling = null;
