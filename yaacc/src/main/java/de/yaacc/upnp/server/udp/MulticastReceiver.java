@@ -61,6 +61,8 @@ public class MulticastReceiver {
     private Context context;
     private ExecutorService receiverExecutor;
     private ExecutorService protocolExecutor;
+    // true from execute() until the receive loop has ended (closed socket, or it died on an error)
+    private volatile boolean receiving;
 
 
     public MulticastReceiver() {
@@ -110,79 +112,97 @@ public class MulticastReceiver {
         }
     }
 
+    /**
+     * @return true while the receive loop runs on an open channel. False after {@link #cancel()},
+     * and also when the loop ended on its own (an error), which nothing else reports.
+     */
+    public boolean isReceiving() {
+        DatagramChannel current = channel;
+        return receiving && current != null && current.isOpen();
+    }
+
     public void execute() {
+        receiving = true;
         receiverExecutor.execute(() -> {
             try {
-                YaaccLogger.v(getClass().getName(), "Entering blocking receiving loop, listening for UDP datagrams on: " + channel.getLocalAddress() /*socket.getLocalAddress()*/);
-            } catch (IOException e) {
-                YaaccLogger.v(getClass().getName(), "Could not get local address: ", e);
+                receiveLoop();
+            } finally {
+                receiving = false;
             }
-            InetAddress receivedOnLocalAddress = InterfaceResolutionHelper.getBindAddresses(context).next();
-            ByteBuffer buffer = ByteBuffer.allocate(1024);
-            while (true) {
-                buffer.clear();
-                try {
-                    //byte[] buf = new byte[640];
-                    //DatagramPacket datagram = new DatagramPacket(buf, buf.length);
+        });
+    }
 
-                    if (!channel.isOpen()) {
-                        initSocket();
-                    }
-                    InetSocketAddress sender = (InetSocketAddress) channel.receive(buffer);
-                    buffer.flip();
-                    byte[] data = new byte[buffer.remaining()];
-                    buffer.get(data);
-
-                    //socket.receive(datagram);
-
-                    YaaccLogger.v(getClass().getName(),
-                            "UDP datagram received from: " + sender.getAddress()//datagram.getAddress().getHostAddress()
-                                    + ":" + sender.getPort()//datagram.getPort()
-                                    + " on local interface: " + channel.getLocalAddress()//multicastInterface.getDisplayName()
-                                    + " and address: " + receivedOnLocalAddress.getHostAddress()
-                    );
-
-                    try {
-                        IncomingDatagramMessage<?> msg = DatagramHelper.read(receivedOnLocalAddress, data, sender.getAddress(), sender.getPort());
-                        ReceivingAsync<?> protocol = protocolHandler.createReceivingAsync(msg);
-                        if (protocol == null) {
-                            YaaccLogger.v(getClass().getName(), "No protocol, ignoring received message: " + msg);
-                            continue;
-                        }
-
-                        YaaccLogger.v(getClass().getName(), "Received asynchronous message: " + msg);
-                        protocolExecutor.execute(protocol);
-                    } catch (ProtocolCreationException ex) {
-                        YaaccLogger.w(getClass().getName(), "Handling received datagram failed - " + Exceptions.unwrap(ex).toString());
-                    }
-
-                } catch (SocketException ex) {
-                    YaaccLogger.v(getClass().getName(), "Socket closed", ex);
-                    break;
-                } catch (java.nio.channels.AsynchronousCloseException ex) {
-                    YaaccLogger.v(getClass().getName(), "Channel closed asynchronously", ex);
-                    break;
-                } catch (UnsupportedDataException ex) {
-                    YaaccLogger.v(getClass().getName(), "Could not read datagram: " + ex.getMessage(), ex);
-                } catch (Exception ex) {
-                    throw new RuntimeException(ex);
-                }
-            }
+    private void receiveLoop() {
+        try {
+            YaaccLogger.v(getClass().getName(), "Entering blocking receiving loop, listening for UDP datagrams on: " + channel.getLocalAddress() /*socket.getLocalAddress()*/);
+        } catch (IOException e) {
+            YaaccLogger.v(getClass().getName(), "Could not get local address: ", e);
+        }
+        InetAddress receivedOnLocalAddress = InterfaceResolutionHelper.getBindAddresses(context).next();
+        ByteBuffer buffer = ByteBuffer.allocate(1024);
+        while (true) {
+            buffer.clear();
             try {
-                if (channel.isOpen()) {
-                    YaaccLogger.v(getClass().getName(), "Closing multicast socket");
-                    channel.close();
+                //byte[] buf = new byte[640];
+                //DatagramPacket datagram = new DatagramPacket(buf, buf.length);
+
+                if (!channel.isOpen()) {
+                    initSocket();
                 }
-                /*
-                if (!socket.isClosed()) {
-                    YaaccLogger.v(getClass().getName(), "Closing multicast socket");
-                    socket.close();
+                InetSocketAddress sender = (InetSocketAddress) channel.receive(buffer);
+                buffer.flip();
+                byte[] data = new byte[buffer.remaining()];
+                buffer.get(data);
+
+                //socket.receive(datagram);
+
+                YaaccLogger.v(getClass().getName(),
+                        "UDP datagram received from: " + sender.getAddress()//datagram.getAddress().getHostAddress()
+                                + ":" + sender.getPort()//datagram.getPort()
+                                + " on local interface: " + channel.getLocalAddress()//multicastInterface.getDisplayName()
+                                + " and address: " + receivedOnLocalAddress.getHostAddress()
+                );
+
+                try {
+                    IncomingDatagramMessage<?> msg = DatagramHelper.read(receivedOnLocalAddress, data, sender.getAddress(), sender.getPort());
+                    ReceivingAsync<?> protocol = protocolHandler.createReceivingAsync(msg);
+                    if (protocol == null) {
+                        YaaccLogger.v(getClass().getName(), "No protocol, ignoring received message: " + msg);
+                        continue;
+                    }
+
+                    YaaccLogger.v(getClass().getName(), "Received asynchronous message: " + msg);
+                    protocolExecutor.execute(protocol);
+                } catch (ProtocolCreationException ex) {
+                    YaaccLogger.w(getClass().getName(), "Handling received datagram failed - " + Exceptions.unwrap(ex).toString());
                 }
-                 */
+
+            } catch (SocketException ex) {
+                YaaccLogger.v(getClass().getName(), "Socket closed", ex);
+                break;
+            } catch (java.nio.channels.AsynchronousCloseException ex) {
+                YaaccLogger.v(getClass().getName(), "Channel closed asynchronously", ex);
+                break;
+            } catch (UnsupportedDataException ex) {
+                YaaccLogger.v(getClass().getName(), "Could not read datagram: " + ex.getMessage(), ex);
             } catch (Exception ex) {
                 throw new RuntimeException(ex);
             }
-        });
+        }
+        try {
+            if (channel.isOpen()) {
+                YaaccLogger.v(getClass().getName(), "Closing multicast socket");
+                channel.close();
+            }
+            /*
+            if (!socket.isClosed()) {
+                YaaccLogger.v(getClass().getName(), "Closing multicast socket");
+                socket.close();
+            }
+             */
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     public void cancel() {

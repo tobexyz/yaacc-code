@@ -23,6 +23,8 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.widget.ImageView;
 
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.ui.PlayerNotificationManager;
 
 /**
@@ -30,6 +32,7 @@ import androidx.media3.ui.PlayerNotificationManager;
  *
  * @author Christoph Hähnel (eyeless)
  */
+@OptIn(markerClass = UnstableApi.class)
 public class ImageDownloadTask extends AsyncTask<Uri, Integer, Bitmap> {
 
 

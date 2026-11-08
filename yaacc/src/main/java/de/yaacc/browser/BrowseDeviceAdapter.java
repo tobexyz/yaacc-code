@@ -28,6 +28,7 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import androidx.core.content.res.ResourcesCompat;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -106,7 +107,6 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
         this.upnpClient = upnpClient;
         this.deviceList = deviceList;
         context = ctx;
-        notifyDataSetChanged();
     }
 
     public void setPermissionCallback(StreamPermissionCallback callback) {
@@ -130,7 +130,8 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
         view.setOnClickListener(new ServerListClickListener(deviceList, this, upnpClient, context));
         view.setOnKeyListener((v, keyCode, event) -> {
             if (event.getAction() != android.view.KeyEvent.ACTION_DOWN) return false;
-            int position = deviceList.getChildAdapterPosition(v);
+            // in the servers adapter, not in the list: other rows may come before the servers (the top-level page has a header)
+            int position = AdapterPositions.bindingPosition(deviceList, v);
             if (position == RecyclerView.NO_POSITION) return false;
             switch (keyCode) {
                 case android.view.KeyEvent.KEYCODE_DPAD_CENTER:
@@ -174,7 +175,7 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
                     }
                 }
             } else {
-                holder.icon.setImageDrawable(ThemeHelper.tintDrawable(context.getResources().getDrawable(R.drawable.ic_baseline_sensors_48, context.getTheme()), context.getTheme()));
+                holder.icon.setImageDrawable(ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(context.getResources(), R.drawable.ic_baseline_sensors_48, context.getTheme()), context.getTheme()));
             }
         } else if (device instanceof LocalDevice) {
             //We know our icon
@@ -186,10 +187,10 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
                 holder.streamVideoButton.setVisibility(View.VISIBLE);
                 // Apply theme tinting like other buttons
                 holder.streamAudioButton.setImageDrawable(ThemeHelper.tintDrawable(
-                        context.getResources().getDrawable(R.drawable.ic_live_audio_stream, context.getTheme()),
+                        ResourcesCompat.getDrawable(context.getResources(), R.drawable.ic_live_audio_stream, context.getTheme()),
                         context.getTheme()));
                 holder.streamVideoButton.setImageDrawable(ThemeHelper.tintDrawable(
-                        context.getResources().getDrawable(R.drawable.ic_live_video_stream, context.getTheme()),
+                        ResourcesCompat.getDrawable(context.getResources(), R.drawable.ic_live_video_stream, context.getTheme()),
                         context.getTheme()));
                 // Restore state from preferences
                 android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context);

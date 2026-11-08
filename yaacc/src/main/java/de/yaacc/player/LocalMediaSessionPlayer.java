@@ -29,13 +29,17 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
+import androidx.media3.common.Timeline;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.source.ShuffleOrder;
 import androidx.media3.session.MediaSession;
 import androidx.media3.ui.PlayerNotificationManager;
 
 import org.fourthline.cling.support.model.DIDLObject;
 
 import java.net.URI;
+import java.util.List;
+import java.util.Locale;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
@@ -56,6 +60,10 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     private PlayableItem pendingItem; // Queue item if service not ready
     private int pendingIndex;
     private volatile boolean pendingPlay;
+    // The item ExoPlayer plays after the current one (it knows the shuffle order); kept for the UI threads
+    private volatile int nextItemIndex = PlayOrder.NONE;
+    // True while applyPlayMode sets the modes of ExoPlayer: their callbacks are our own echo (main thread only)
+    private boolean applyingPlayMode;
 
     public LocalMediaSessionPlayer(UpnpClient upnpClient, String name, String shortName) {
         this(upnpClient);
@@ -68,35 +76,163 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         // Don't initialize ExoPlayer here - wait until service connected
     }
 
+    /**
+     * Gives ExoPlayer the repeat mode of the play mode and its shuffle mode. Main thread.
+     *
+     * @param shuffleOrder the order the items are played in with shuffle (the index of the item at each
+     *                     position, the current item first), null to leave ExoPlayer's order as it is
+     */
+    private void applyPlayMode(ExoPlayer player, int[] shuffleOrder) {
+        PlayMode mode = getPlayMode();
+        applyingPlayMode = true;
+        try {
+            player.setRepeatMode(RepeatPolicy.repeatMode(mode));
+            player.setShuffleModeEnabled(mode.isShuffle());
+            // ExoPlayer's own order is random but starts anywhere; ours starts with the current item, so the
+            // list is played through once with repeat off. It has to have one entry per media item.
+            if (mode.isShuffle() && shuffleOrder != null && shuffleOrder.length > 0
+                    && shuffleOrder.length == player.getMediaItemCount()) {
+                player.setShuffleOrder(new ShuffleOrder.DefaultShuffleOrder(shuffleOrder, System.nanoTime()));
+            }
+        } finally {
+            applyingPlayMode = false;
+        }
+        refreshNextItemIndex();
+    }
+
+    /**
+     * A media controller (system controls, Bluetooth, notification, Wear) changed the repeat mode of
+     * ExoPlayer through the media session: the play mode of this player follows, so the buttons and the
+     * renderer's CurrentPlayMode show it. Main thread (ExoPlayer's listener thread).
+     */
+    private void mirrorExoRepeatMode(int exoRepeatMode) {
+        PlayMode adopted = RepeatPolicy.adoptExoRepeatMode(getPlayMode(), exoRepeatMode, applyingPlayMode);
+        if (adopted != null) {
+            YaaccLogger.d(getClass().getName(), "ExoPlayer repeat mode changed from outside: " + adopted);
+            // Goes the normal way: PROPERTY_PLAY_MODE, and onPlayModeChanged applies the mode again
+            setPlayMode(adopted);
+        }
+    }
+
+    /**
+     * Like {@link #mirrorExoRepeatMode} for the shuffle mode. ExoPlayer has just chosen a random order of
+     * its own; setPlayMode creates ours (current item first) and onPlayModeChanged installs it.
+     */
+    private void mirrorExoShuffleMode(boolean exoShuffleModeEnabled) {
+        PlayMode adopted = RepeatPolicy.adoptExoShuffleMode(getPlayMode(), exoShuffleModeEnabled, applyingPlayMode);
+        if (adopted != null) {
+            YaaccLogger.d(getClass().getName(), "ExoPlayer shuffle mode changed from outside: " + adopted);
+            setPlayMode(adopted);
+        }
+    }
+
+    private void refreshNextItemIndex() {
+        ExoPlayer player = exoPlayer;
+        if (player != null) {
+            nextItemIndex = player.getNextMediaItemIndex();
+        }
+    }
+
     private void initializeExoPlayer() {
         if (exoPlayer != null) {
             return; // Already initialized
         }
         YaaccLogger.d(getClass().getName(), "Initializing ExoPlayer");
         // Create ExoPlayer with audio attributes
-        exoPlayer = new ExoPlayer.Builder(getContext()).build();
+        // A local reference: onDestroy (any thread) sets the field to null, also while this runs
+        final ExoPlayer player = new ExoPlayer.Builder(getContext()).build();
+        exoPlayer = player;
 
         androidx.media3.common.AudioAttributes audioAttributes =
                 new androidx.media3.common.AudioAttributes.Builder()
                         .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC)
                         .setUsage(androidx.media3.common.C.USAGE_MEDIA)
                         .build();
-        exoPlayer.setAudioAttributes(audioAttributes, true);
+        player.setAudioAttributes(audioAttributes, true);
 
-        // Enable repeat mode so next/previous buttons always show
-        exoPlayer.setRepeatMode(androidx.media3.common.Player.REPEAT_MODE_ALL);
+        // The repeat and shuffle mode follow the play mode of this player (applied again before every start).
+        // The repeat mode was always ALL so that next/previous show; that repeated a single song, or a TTS
+        // sentence sent by Home Assistant, for ever although the player was set to play the list once.
+        applyPlayMode(player, null);
 
-        exoPlayer.addListener(new Player.Listener() {
+        player.addListener(new Player.Listener() {
+            @Override
+            public void onPlaybackStateChanged(int playbackState) {
+                if (playbackState == Player.STATE_ENDED && RepeatPolicy.stopsAtEnd(getPlayMode())) {
+                    // The end of the playlist without repeat: report STOPPED (the transport state of the media
+                    // renderer), otherwise a controller waits for ever for the end of the song.
+                    YaaccLogger.d(getClass().getName(), "End of the playlist reached, repeat is off: stopping");
+                    new Handler(Looper.getMainLooper()).post(() -> LocalMediaSessionPlayer.this.stop());
+                }
+            }
+
+            @Override
+            public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
+                // paused or resumed by the media notification, the lock screen, a headset or a phone call: the app's state, its
+                // notification and the transport state of the media renderer follow
+                switch (ExternalPlayState.decide(playWhenReady, reason, isPlaying(), isPaused())) {
+                    case PAUSE:
+                        adoptExternalPause();
+                        break;
+                    case RESUME:
+                        adoptExternalResume();
+                        break;
+                    default:
+                        break;
+                }
+            }
+
             @Override
             public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
-                if (mediaItem != null && reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
-                    if (getCurrentItemIndex() != exoPlayer.getCurrentMediaItemIndex()) {
-
-                        setCurrentIndex(exoPlayer.getCurrentMediaItemIndex());
+                ExoPlayer player = exoPlayer;
+                if (mediaItem != null && player != null
+                        && reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
+                    // Auto, repeat and seek: the end of an item moves on by itself (and in the shuffle
+                    // order), not only a seek, and our index is the media item index (ExoPlayer's list
+                    // is ours). A changed playlist is not a move: its first item is only ExoPlayer's pick
+                    int index = player.getCurrentMediaItemIndex();
+                    if (getCurrentItemIndex() != index) {
+                        setCurrentIndex(index);
+                        List<PlayableItem> items = getItems();
+                        if (index >= 0 && index < items.size()) {
+                            // the art of the item that plays now (the end of an item moves on without startItem)
+                            albumArtUri = AlbumArt.of(items.get(index).getItem());
+                            clearEmbeddedArt();
+                            firePropertyChange(PROPERTY_ITEM, null, items.get(index));
+                        }
                     }
-                    YaaccLogger.d(getClass().getName(), "Media item changed: " + mediaItem.mediaMetadata.title);
-
+                    YaaccLogger.d(getClass().getName(), "Media item changed: " + mediaItem.mediaMetadata.title
+                            + " (reason " + reason + ", play mode " + getPlayMode() + ")");
                 }
+                refreshNextItemIndex();
+            }
+
+            @Override
+            public void onMediaMetadataChanged(androidx.media3.common.MediaMetadata mediaMetadata) {
+                // the tags of the file (ID3 and the like) are read while it plays: a cover in them is shown when the
+                // controller sent no album art address
+                YaaccLogger.d(getClass().getName(), "Tags of the file: cover " + (mediaMetadata.artworkData == null
+                        ? "none" : mediaMetadata.artworkData.length + " bytes") + ", art address " + (albumArtUri == null ? "none" : "set"));
+                if (albumArtUri == null && mediaMetadata.artworkData != null) {
+                    showEmbeddedArt(mediaMetadata.artworkData);
+                }
+            }
+
+            @Override
+            public void onShuffleModeEnabledChanged(boolean shuffleModeEnabled) {
+                mirrorExoShuffleMode(shuffleModeEnabled);
+                refreshNextItemIndex();
+            }
+
+            @Override
+            public void onRepeatModeChanged(int repeatMode) {
+                mirrorExoRepeatMode(repeatMode);
+                refreshNextItemIndex();
+            }
+
+            @Override
+            public void onTimelineChanged(Timeline timeline, int reason) {
+                refreshNextItemIndex();
             }
         });
 
@@ -109,7 +245,13 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
         );
 
-        mediaSession = new MediaSession.Builder(getContext(), exoPlayer)
+        if (exoPlayer != player) {
+            // destroyed while it was being set up: nothing to build a session for
+            YaaccLogger.d(getClass().getName(), "Player destroyed during initialization, ExoPlayer released");
+            player.release();
+            return;
+        }
+        mediaSession = new MediaSession.Builder(getContext(), player)
                 .setId("local_audio_" + getId() + "_" + System.currentTimeMillis())
                 .setSessionActivity(sessionActivity)
                 .build();
@@ -149,7 +291,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         notificationManager.setUseNextActionInCompactView(true);
         notificationManager.setUsePreviousActionInCompactView(true);
 
-        notificationManager.setPlayer(exoPlayer);
+        notificationManager.setPlayer(player);
         notificationManager.setMediaSessionToken(mediaSession.getPlatformToken());
 
         YaaccLogger.d(getClass().getName(), "ExoPlayer, MediaSession and notification initialized");
@@ -173,9 +315,11 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
             // Initialize ExoPlayer now that we have proper ID
             initializeExoPlayer();
 
-            // Register our MediaSession with the service
-            playerService.registerMediaSession(mediaSession);
-            YaaccLogger.d(getClass().getName(), "MediaSession registered with PlayerService");
+            // Register our MediaSession with the service (none if the player was destroyed meanwhile)
+            if (mediaSession != null) {
+                playerService.registerMediaSession(mediaSession);
+                YaaccLogger.d(getClass().getName(), "MediaSession registered with PlayerService");
+            }
 
             // If there's a pending item, play it now
             if (pendingItem != null) {
@@ -211,24 +355,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
                 if (exoPlayer != null) {
                     exoPlayer.clearMediaItems();
                     for (PlayableItem item : playableItems) {
-                        MediaItem.Builder builder = new MediaItem.Builder()
-                                .setUri(item.getUri());
-
-                        if (item.getTitle() != null) {
-                            MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder()
-                                    .setTitle(item.getTitle());
-                            
-                            // Add album art if available
-                            DIDLObject.Property<URI> albumArtProp = item.getItem() == null ? null :
-                                    item.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
-                            if (albumArtProp != null && albumArtProp.getValue() != null) {
-                                metadataBuilder.setArtworkUri(android.net.Uri.parse(albumArtProp.getValue().toString()));
-                            }
-                            
-                            builder.setMediaMetadata(metadataBuilder.build());
-                        }
-
-                        exoPlayer.addMediaItem(builder.build());
+                        exoPlayer.addMediaItem(toMediaItem(item));
                     }
                     if (exoPlayer != null) {
                         exoPlayer.prepare();
@@ -251,9 +378,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
             return;
         }
         
-        DIDLObject.Property<URI> albumArtUriProperty = playableItem.getItem() == null ? null :
-                playableItem.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
-        albumArtUri = (albumArtUriProperty == null) ? null : albumArtUriProperty.getValue();
+        albumArtUri = AlbumArt.of(playableItem.getItem());
+        clearEmbeddedArt();
 
         // Notify listeners that track changed (for UI updates)
         firePropertyChange(PROPERTY_ITEM, null, playableItem);
@@ -267,22 +393,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
                     // Clear and rebuild playlist
                     player.clearMediaItems();
                     for (PlayableItem item : getItems()) {
-                        MediaItem.Builder builder = new MediaItem.Builder()
-                                .setUri(item.getUri());
-                        if (item.getTitle() != null) {
-                            MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder()
-                                    .setTitle(item.getTitle());
-                            
-                            // Add album art if available
-                            DIDLObject.Property<URI> albumArtProp = item.getItem() == null ? null :
-                                    item.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
-                            if (albumArtProp != null && albumArtProp.getValue() != null) {
-                                metadataBuilder.setArtworkUri(android.net.Uri.parse(albumArtProp.getValue().toString()));
-                            }
-                            
-                            builder.setMediaMetadata(metadataBuilder.build());
-                        }
-                        player.addMediaItem(builder.build());
+                        player.addMediaItem(toMediaItem(item));
                     }
                     player.prepare();
                 } else if (player.getPlaybackState() == Player.STATE_IDLE) {
@@ -291,7 +402,9 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
                     YaaccLogger.d(getClass().getName(), "Player in IDLE state, re-preparing before play");
                     player.prepare();
                 }
-                // Now seek and play
+                // Now seek and play: the play order starts with the item that starts
+                resetPlayOrder(index);
+                applyPlayMode(player, getPlayOrder());
                 player.seekTo(index, 0);
                 player.play();
                 setPlaying(true);
@@ -311,6 +424,92 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     protected void doPostLoadItem(PlayableItem playableItem) {
         // ExoPlayer handles track changes automatically, don't start timer
         YaaccLogger.d(getClass().getName(), "doPostLoadItem - ExoPlayer handles track changes");
+    }
+
+    /** The media item of ExoPlayer for a playable item: uri, title and album art. */
+    private MediaItem toMediaItem(PlayableItem item) {
+        MediaItem.Builder builder = new MediaItem.Builder().setUri(item.getUri());
+        if (item.getTitle() != null) {
+            MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder().setTitle(item.getTitle());
+            // Add album art if available
+            URI albumArt = AlbumArt.of(item.getItem());
+            if (albumArt != null) {
+                metadataBuilder.setArtworkUri(android.net.Uri.parse(albumArt.toString()));
+            }
+            builder.setMediaMetadata(metadataBuilder.build());
+        }
+        return builder.build();
+    }
+
+    /**
+     * Items added while ExoPlayer has the playlist (add to playlist during playback) are appended to it at once;
+     * before, they only reached ExoPlayer with the next start of an item, so it never played them. With shuffle
+     * our play order, which places the new items at random behind the current one, is installed again.
+     */
+    @Override
+    public void addItems(List<PlayableItem> playableItems) {
+        int sizeBefore = getItems().size();
+        super.addItems(playableItems);
+        if (playableItems == null || playableItems.isEmpty()) {
+            return;
+        }
+        List<PlayableItem> added = new java.util.ArrayList<>(playableItems);
+        int[] order = getPlayMode().isShuffle() ? getPlayOrder() : null;
+        new Handler(Looper.getMainLooper()).post(() -> {
+            ExoPlayer player = exoPlayer;
+            if (player != null && ExoPlaylistSync.canAppend(player.getMediaItemCount(), sizeBefore)) {
+                for (PlayableItem item : added) {
+                    player.addMediaItem(toMediaItem(item));
+                }
+                applyPlayMode(player, order);
+                YaaccLogger.d(getClass().getName(), "Appended " + added.size() + " items to ExoPlayer");
+            }
+        });
+    }
+
+    /**
+     * Items put into the middle of the list reach ExoPlayer at their place; the item that plays keeps playing. With shuffle our play
+     * order, which places the new items behind the current one, is installed again.
+     */
+    @Override
+    protected void onItemsInserted(int index, List<PlayableItem> inserted) {
+        int[] order = getPlayMode().isShuffle() ? getPlayOrder() : null;
+        int sizeBefore = getItems().size() - inserted.size();
+        new Handler(Looper.getMainLooper()).post(() -> {
+            ExoPlayer player = exoPlayer;
+            if (player != null && ExoPlaylistSync.canInsert(player.getMediaItemCount(), sizeBefore)) {
+                List<MediaItem> mediaItems = new java.util.ArrayList<>();
+                for (PlayableItem item : inserted) {
+                    mediaItems.add(toMediaItem(item));
+                }
+                player.addMediaItems(index, mediaItems);
+                applyPlayMode(player, order);
+                refreshNextItemIndex();
+                YaaccLogger.d(getClass().getName(), "Inserted " + inserted.size() + " items into ExoPlayer at " + index);
+            }
+        });
+    }
+
+    @Override
+    protected void onPlayModeChanged(PlayMode oldMode, PlayMode newMode) {
+        // The order is only handed over when shuffle was switched: it starts with the current item then
+        int[] order = oldMode.isShuffle() != newMode.isShuffle() ? getPlayOrder() : null;
+        new Handler(Looper.getMainLooper()).post(() -> {
+            ExoPlayer player = exoPlayer;
+            if (player != null) {
+                applyPlayMode(player, order);
+            }
+        });
+    }
+
+    @Override
+    public String getNextItemTitle() {
+        if (exoPlayer == null) {
+            return super.getNextItemTitle();
+        }
+        int next = nextItemIndex;
+        List<PlayableItem> items = getItems();
+        return next >= 0 && next < items.size() ? items.get(next).getTitle() : "";
     }
 
     @Override
@@ -340,49 +539,43 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         }
     }
 
-    /**
-     * Sync ExoPlayer playlist with current items list after reordering.
-     * Only updates items after current position (since those can be reordered).
-     */
-    public void syncPlaylistToExoPlayer() {
-        if (exoPlayer == null || getItems().isEmpty()) {
-            return;
-        }
+    // The playlist screen edits the list; ExoPlayer holds the same list (media item index = list index), and
+    // its position of an edited item may be before the current one when shuffle is on, so the media item
+    // itself is moved or removed instead of rebuilding the part behind the current item.
 
+    @Override
+    protected void onItemMoved(int fromIndex, int toIndex) {
         new Handler(Looper.getMainLooper()).post(() -> {
-            if (exoPlayer != null) {
-                int currentIndex = exoPlayer.getCurrentMediaItemIndex();
+            ExoPlayer player = exoPlayer;
+            if (player != null && player.getMediaItemCount() == getItems().size()
+                    && fromIndex < player.getMediaItemCount() && toIndex < player.getMediaItemCount()) {
+                player.moveMediaItem(fromIndex, toIndex);
+                refreshNextItemIndex();
+            }
+        });
+    }
 
-                // Remove all items after current position
-                int itemCount = exoPlayer.getMediaItemCount();
-                for (int i = itemCount - 1; i > currentIndex; i--) {
-                    exoPlayer.removeMediaItem(i);
-                }
+    @Override
+    protected void onItemRemoved(int index) {
+        int[] order = getPlayMode().isShuffle() ? getPlayOrder() : null;
+        new Handler(Looper.getMainLooper()).post(() -> {
+            ExoPlayer player = exoPlayer;
+            if (player != null && index < player.getMediaItemCount()
+                    && player.getMediaItemCount() == getItems().size() + 1) {
+                player.removeMediaItem(index);
+                // ExoPlayer keeps the relative order of the rest; ours is installed to be sure
+                applyPlayMode(player, order);
+            }
+        });
+    }
 
-                // Add updated items from the list
-                for (int i = currentIndex + 1; i < getItems().size(); i++) {
-                    PlayableItem item = getItems().get(i);
-                    MediaItem.Builder builder = new MediaItem.Builder()
-                            .setUri(item.getUri());
-
-                    if (item.getTitle() != null) {
-                        MediaMetadata.Builder metadataBuilder = new MediaMetadata.Builder()
-                                .setTitle(item.getTitle());
-                        
-                        // Add album art if available
-                        DIDLObject.Property<URI> albumArtProp = item.getItem() == null ? null :
-                                item.getItem().getFirstProperty(DIDLObject.Property.UPNP.ALBUM_ART_URI.class);
-                        if (albumArtProp != null && albumArtProp.getValue() != null) {
-                            metadataBuilder.setArtworkUri(android.net.Uri.parse(albumArtProp.getValue().toString()));
-                        }
-                        
-                        builder.setMediaMetadata(metadataBuilder.build());
-                    }
-
-                    exoPlayer.addMediaItem(builder.build());
-                }
-
-                YaaccLogger.d(getClass().getName(), "Synced playlist to ExoPlayer (optimized)");
+    @Override
+    protected void onPlayOrderMoved() {
+        int[] order = getPlayOrder();
+        new Handler(Looper.getMainLooper()).post(() -> {
+            ExoPlayer player = exoPlayer;
+            if (player != null) {
+                applyPlayMode(player, order);
             }
         });
     }
@@ -460,7 +653,41 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         long hours = seconds / 3600;
         long minutes = (seconds % 3600) / 60;
         long secs = seconds % 60;
-        return String.format("%02d:%02d:%02d", hours, minutes, secs);
+        return String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, secs);
+    }
+
+    /** Whether the icon of this player is a cover that was read from the file that plays. */
+    private volatile boolean embeddedArtShown;
+
+    private void clearEmbeddedArt() {
+        if (embeddedArtShown) {
+            embeddedArtShown = false;
+            setIcon(null);
+        }
+    }
+
+    /** Decodes the cover of the file (off the main thread, scaled down) and shows it as the icon of the player. */
+    private void showEmbeddedArt(byte[] data) {
+        ((Yaacc) getContext().getApplicationContext()).getContentLoadExecutor().execute(() -> {
+            try {
+                android.graphics.BitmapFactory.Options bounds = new android.graphics.BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                android.graphics.BitmapFactory.decodeByteArray(data, 0, data.length, bounds);
+                android.graphics.BitmapFactory.Options decode = new android.graphics.BitmapFactory.Options();
+                decode.inSampleSize = de.yaacc.util.image.BitmapSampling.computeInSampleSizeForMaxDimension(bounds, 512);
+                android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeByteArray(data, 0, data.length, decode);
+                if (bitmap != null && albumArtUri == null) {
+                    embeddedArtShown = true;
+                    setIcon(bitmap);
+                    List<PlayableItem> items = getItems();
+                    int index = getCurrentItemIndex();
+                    firePropertyChange(PROPERTY_ITEM, null, index >= 0 && index < items.size() ? items.get(index) : null);
+                    updateMetadataInternal();
+                }
+            } catch (RuntimeException | OutOfMemoryError e) {
+                YaaccLogger.w(getClass().getName(), "Cover of the file not shown", e);
+            }
+        });
     }
 
     @Override

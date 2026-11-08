@@ -31,6 +31,8 @@ public class UdpTransiver {
     private ExecutorService receiverExecutor;
     private ExecutorService protocolExecutor;
     private Context context;
+    // true from execute() until the receive loop has ended (closed socket, or it died on an error)
+    private volatile boolean receiving;
 
     public UdpTransiver() {
         receiverExecutor = Executors.newSingleThreadExecutor();
@@ -84,66 +86,85 @@ public class UdpTransiver {
         });
     }
 
+    /**
+     * @return true while the receive loop runs on an open socket. False after {@link #cancel()},
+     * and also when the loop ended on its own (an error), which nothing else reports; search
+     * answers arrive only through this loop.
+     */
+    public boolean isReceiving() {
+        MulticastSocket current = socket;
+        return receiving && current != null && !current.isClosed();
+    }
+
     public void execute() {
         YaaccLogger.v(getClass().getName(), "execute() called, submitting receiver task");
+        receiving = true;
         receiverExecutor.execute(() -> {
-            YaaccLogger.v(getClass().getName(), "Receiver task started");
             try {
-                YaaccLogger.v(getClass().getName(), "Entering blocking receiving loop, listening for UDP datagrams on: " + socket.getLocalAddress());
-            } catch (Exception e) {
-                YaaccLogger.e(getClass().getName(), "Error getting local address", e);
+                receiveLoop();
+            } finally {
+                receiving = false;
             }
+        });
+    }
 
-            while (true) {
+    private void receiveLoop() {
+        YaaccLogger.v(getClass().getName(), "Receiver task started");
+        try {
+            YaaccLogger.v(getClass().getName(), "Entering blocking receiving loop, listening for UDP datagrams on: " + socket.getLocalAddress());
+        } catch (Exception e) {
+            YaaccLogger.e(getClass().getName(), "Error getting local address", e);
+        }
+
+        while (true) {
+
+            try {
+                byte[] buf = new byte[MAX_DATAGRAM_BYTES];
+                DatagramPacket datagram = new DatagramPacket(buf, buf.length);
+                YaaccLogger.v(getClass().getName(), "UDP before");
+                socket.receive(datagram);
+
+                YaaccLogger.v(getClass().getName(),
+                        "UDP datagram received from: "
+                                + datagram.getAddress().getHostAddress()
+                                + ":" + datagram.getPort()
+                );
 
                 try {
-                    byte[] buf = new byte[MAX_DATAGRAM_BYTES];
-                    DatagramPacket datagram = new DatagramPacket(buf, buf.length);
-                    YaaccLogger.v(getClass().getName(), "UDP before");
-                    socket.receive(datagram);
+                    IncomingDatagramMessage<?> msg = DatagramHelper.read(socket.getInterface(), datagram);
+                    ReceivingAsync<?> protocol = protocolHandler.createReceivingAsync(msg);
+                    if (protocol == null) {
 
-                    YaaccLogger.v(getClass().getName(),
-                            "UDP datagram received from: "
-                                    + datagram.getAddress().getHostAddress()
-                                    + ":" + datagram.getPort()
-                    );
-
-                    try {
-                        IncomingDatagramMessage<?> msg = DatagramHelper.read(socket.getInterface(), datagram);
-                        ReceivingAsync<?> protocol = protocolHandler.createReceivingAsync(msg);
-                        if (protocol == null) {
-
-                            YaaccLogger.v(getClass().getName(), "No protocol, ignoring received message: " + msg);
-                            continue;
-                        }
-
-                        YaaccLogger.v(getClass().getName(), "Received asynchronous message: " + msg);
-                        protocolExecutor.execute(protocol);
-                    } catch (ProtocolCreationException ex) {
-                        YaaccLogger.w(getClass().getName(), "Handling received datagram failed - " + Exceptions.unwrap(ex).toString());
+                        YaaccLogger.v(getClass().getName(), "No protocol, ignoring received message: " + msg);
+                        continue;
                     }
 
-                } catch (SocketException ex) {
-                    YaaccLogger.v(getClass().getName(), "Socket closed", ex);
-                    break;
-                } catch (java.nio.channels.AsynchronousCloseException ex) {
-                    YaaccLogger.v(getClass().getName(), "Socket closed asynchronously", ex);
-                    break;
-                } catch (UnsupportedDataException ex) {
-                    YaaccLogger.v(getClass().getName(), "Could not read datagram: " + ex.getMessage(), ex);
-                } catch (Exception ex) {
-                    throw new RuntimeException(ex);
+                    YaaccLogger.v(getClass().getName(), "Received asynchronous message: " + msg);
+                    protocolExecutor.execute(protocol);
+                } catch (ProtocolCreationException ex) {
+                    YaaccLogger.w(getClass().getName(), "Handling received datagram failed - " + Exceptions.unwrap(ex).toString());
                 }
-            }
-            try {
-                if (!socket.isClosed()) {
-                    YaaccLogger.v(getClass().getName(), "Closing unicast socket");
-                    socket.close();
-                }
+
+            } catch (SocketException ex) {
+                YaaccLogger.v(getClass().getName(), "Socket closed", ex);
+                break;
+            } catch (java.nio.channels.AsynchronousCloseException ex) {
+                YaaccLogger.v(getClass().getName(), "Socket closed asynchronously", ex);
+                break;
+            } catch (UnsupportedDataException ex) {
+                YaaccLogger.v(getClass().getName(), "Could not read datagram: " + ex.getMessage(), ex);
             } catch (Exception ex) {
                 throw new RuntimeException(ex);
             }
-        });
+        }
+        try {
+            if (!socket.isClosed()) {
+                YaaccLogger.v(getClass().getName(), "Closing unicast socket");
+                socket.close();
+            }
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     public void cancel() {

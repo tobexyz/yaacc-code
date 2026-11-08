@@ -51,6 +51,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import de.yaacc.upnp.protocol.UpnpProtocolHandler;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -321,10 +322,15 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
         for (RegistryItem<String, RemoteGENASubscription> item : new HashSet<>(getSubscriptionItems())) {
             remoteSubscriptions.add(item.getItem());
         }
+        UpnpProtocolHandler handler = registry.getUpnpProtocolHandler();
         for (RemoteGENASubscription remoteSubscription : remoteSubscriptions) {
+            if (handler == null) {
+                // the network listener is disabled: nothing can be sent
+                YaaccLogger.v(getClass().getName(), "No protocol handler, unsubscribe of " + remoteSubscription + " not sent");
+                continue;
+            }
             // This will remove the active subscription from the registry!
-            registry.getProtocolHandler()
-                    .createSendingUnsubscribe(remoteSubscription)
+            handler.createSendingUnsubscribe(remoteSubscription)
                     .run();
         }
 
@@ -335,8 +341,13 @@ class RemoteItems extends RegistryItems<RemoteDevice, RemoteGENASubscription> {
     /* ############################################################################################################ */
 
     protected void renewOutgoingSubscription(final RemoteGENASubscription subscription) {
-        registry.executeAsyncProtocol(
-                registry.getProtocolHandler().createSendingRenewal(subscription)
-        );
+        UpnpProtocolHandler handler = registry.getUpnpProtocolHandler();
+        if (handler == null) {
+            // the network listener is disabled (no network): the subscription stays due and is renewed by a later
+            // maintenance run once the listener is enabled again and has set its new handler
+            YaaccLogger.v(getClass().getName(), "No protocol handler, renewal of " + subscription + " postponed");
+            return;
+        }
+        registry.executeAsyncProtocol(handler.createSendingRenewal(subscription));
     }
 }

@@ -16,4 +16,9 @@
     <issue id="AlwaysShowAction" severity="ignore" />
     <issue id="ClickableViewAccessibility" severity="ignore" />
     <issue id="SetTextI18n" severity="ignore" />
+    <!-- The adaptive launcher icon stays in mipmap-anydpi-v26: with the folder merged into mipmap-anydpi a launcher showed the legacy icon -->
+    <issue id="ObsoleteSdkInt">
+        <ignore path="src/main/res/mipmap-anydpi-v26" />
+        <ignore path="**/mipmap-anydpi-v26" />
+    </issue>
 </lint>

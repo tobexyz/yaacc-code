@@ -49,6 +49,7 @@ import org.fourthline.cling.transport.impl.SOAPActionProcessorImpl;
 import java.io.IOException;
 import java.net.URL;
 
+import de.yaacc.upnp.UpnpTransportException;
 import de.yaacc.upnp.protocol.SendingSync;
 import de.yaacc.upnp.server.http.HttpRequestSender;
 import de.yaacc.util.YaaccLogger;
@@ -95,7 +96,7 @@ public class SendingAction extends SendingSync<OutgoingActionRequestMessage, Inc
 
             if (streamResponse == null) {
                 YaaccLogger.v(getClass().getName(), "No connection or no no response received, returning null");
-                actionInvocation.setFailure(new ActionException(ErrorCode.ACTION_FAILED, "Connection error or no response received"));
+                actionInvocation.setFailure(new UpnpTransportException("Connection error or no response received"));
                 return null;
             }
 
@@ -145,7 +146,8 @@ public class SendingAction extends SendingSync<OutgoingActionRequestMessage, Inc
             YaaccLogger.v(getClass().getName(), "Error writing SOAP body: " + ex);
             YaaccLogger.v(getClass().getName(), "Exception root cause: ", unwrap(ex));
 
-            throw new ActionException(ErrorCode.ACTION_FAILED, "Error writing request message. " + ex.getMessage());
+            // no connection / timeout / dropped network: the same request may work a moment later
+            throw new UpnpTransportException("Error writing request message. " + ex.getMessage());
         }
     }
 

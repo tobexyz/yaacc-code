@@ -28,6 +28,7 @@ import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.Toast;
 
+import androidx.core.content.res.ResourcesCompat;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -53,7 +54,19 @@ public class ReceiverListFragment extends Fragment implements
     protected RecyclerView contentList;
     private UpnpClient upnpClient = null;
     private BrowseReceiverDeviceAdapter bDeviceAdapter;
-    private RendererStatusMonitor statusMonitor;
+    // Shared with the device sheet; this tab subscribes only while resumed.
+    private final RendererStatusMonitor.StatusListener statusListener = status -> {
+        if (bDeviceAdapter != null) {
+            bDeviceAdapter.updateStatus(status);
+        }
+    };
+
+    // power, input and group of the receivers that support groups
+    private final YxcRowFeed groupFeed = new YxcRowFeed(udn -> {
+        if (bDeviceAdapter != null) {
+            bDeviceAdapter.onGroupStateChanged(udn);
+        }
+    });
 
     @Override
     public void onResume() {
@@ -68,8 +81,9 @@ public class ReceiverListFragment extends Fragment implements
         thread.start();
         
         // Start monitoring when fragment visible
-        if (statusMonitor != null) {
-            statusMonitor.startMonitoring(new LinkedList<>(upnpClient.getDevicesProvidingAvTransportService()));
+        if (upnpClient != null) {
+            RendererStatusMonitor.getShared().subscribe(statusListener, upnpClient.getDevicesProvidingAvTransportService());
+            groupFeed.start(upnpClient.getDevicesProvidingAvTransportService());
             // Re-sort after a short delay to allow status updates to arrive
             if (bDeviceAdapter != null) {
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
@@ -82,16 +96,22 @@ public class ReceiverListFragment extends Fragment implements
         
         // Poll local device status every 2 seconds
         startLocalDevicePolling();
+        // Volume and mute of the rows follow the receivers; the adapter may only be created a moment later
+        if (bDeviceAdapter != null) {
+            bDeviceAdapter.startLiveVolume();
+        }
     }
     
     @Override
     public void onPause() {
         super.onPause();
         // Stop monitoring when fragment not visible
-        if (statusMonitor != null) {
-            statusMonitor.stopMonitoring();
-        }
+        RendererStatusMonitor.getShared().unsubscribe(statusListener);
+        groupFeed.stop();
         stopLocalDevicePolling();
+        if (bDeviceAdapter != null) {
+            bDeviceAdapter.stopLiveVolume();
+        }
     }
     
     private Handler localDeviceHandler = new Handler(Looper.getMainLooper());
@@ -100,6 +120,7 @@ public class ReceiverListFragment extends Fragment implements
         public void run() {
             if (bDeviceAdapter != null) {
                 bDeviceAdapter.updateLocalDeviceStatus();
+                bDeviceAdapter.tickLiveVolume();
             }
             localDeviceHandler.postDelayed(this, 2000);
         }
@@ -125,16 +146,8 @@ public class ReceiverListFragment extends Fragment implements
         contentList.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         upnpClient.addUpnpClientListener(this);
         
-        // Initialize status monitor
-        statusMonitor = new RendererStatusMonitor();
-        statusMonitor.setListener(status -> {
-            if (bDeviceAdapter != null) {
-                bDeviceAdapter.updateStatus(status);
-            }
-        });
-        
         ImageButton refresh = view.findViewById(R.id.receiverListRefreshButton);
-        Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_refresh_32, getContext().getTheme()), getContext().getTheme());
+        Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_refresh_32, getContext().getTheme()), getContext().getTheme());
         refresh.setImageDrawable(icon);
         refresh.setOnClickListener((v) -> {
             if (getActivity() != null) {
@@ -159,10 +172,6 @@ public class ReceiverListFragment extends Fragment implements
     public boolean onBackPressed() {
 
         YaaccLogger.d(ReceiverListFragment.class.getName(), "onBackPressed() CurrentPosition");
-        if (getActivity().getParent() instanceof TabBrowserActivity) {
-            ((TabBrowserActivity) getActivity().getParent()).setCurrentTab(BrowserTabs.CONTENT);
-        }
-
         return true;
     }
 
@@ -178,8 +187,14 @@ public class ReceiverListFragment extends Fragment implements
                     if (bDeviceAdapter == null) {
                         bDeviceAdapter = new BrowseReceiverDeviceAdapter(getActivity(), upnpClient, contentList, receiverDevices, upnpClient.getReceiverDevices());
                         contentList.setAdapter(bDeviceAdapter);
+                        if (isResumed()) {
+                            bDeviceAdapter.startLiveVolume();
+                        }
                     } else {
                         bDeviceAdapter.setDevices(receiverDevices);
+                    }
+                    if (isResumed()) {
+                        groupFeed.start(receiverDevices); // a receiver that came while the tab is shown is watched too
                     }
                 }
             });

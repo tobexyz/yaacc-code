@@ -18,6 +18,7 @@
  */
 package de.yaacc.upnp.server.avtransport;
 
+import de.yaacc.share.ShareLogRedactor;
 import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.avtransport.impl.state.AbstractState;
@@ -60,6 +61,9 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
     public void onEntry() {
         YaaccLogger.d(this.getClass().getName(), "On Entry");
         super.onEntry();
+        if (getTransport().takePlayersAlreadyStopped()) {
+            return; // the players stopped by themselves (or are gone): the transport only follows
+        }
         List<Player> players = upnpClient.getCurrentPlayers(getTransport());
         for (Player player : players) {
             if (player != null) {
@@ -79,8 +83,8 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
     public Class<? extends AbstractState<?>> setTransportURI(URI uri,
                                                              String metaData) {
         YaaccLogger.d(this.getClass().getName(), "setTransportURI");
-        YaaccLogger.d(this.getClass().getName(), "uri: " + uri);
-        YaaccLogger.d(this.getClass().getName(), "metaData: " + metaData);
+        YaaccLogger.d(this.getClass().getName(), "uri: " + ShareLogRedactor.redact(String.valueOf(uri)));
+        YaaccLogger.d(this.getClass().getName(), "metaData: " + ShareLogRedactor.redact(String.valueOf(metaData)));
         getTransport().setMediaInfo(new MediaInfo(uri.toString(), metaData));
 // If you can, you should find and set the duration of the track here!
         getTransport().setPositionInfo(
@@ -100,6 +104,16 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
         return AvTransportMediaRendererStopped.class;
     }
 
+    /**
+     * Pause when nothing plays (a controller whose cached state is behind, for example after the item ended): the renderer
+     * stays where it is instead of answering UPnP error 701. Cling does not declare {@code pause()} on this state: the
+     * state machine looks a signal up by its name on the current state.
+     */
+    public Class<? extends AbstractState<?>> pause() {
+        YaaccLogger.d(this.getClass().getName(), "pause: nothing plays");
+        return null;
+    }
+
     /*
      * (non-Javadoc)
      *
@@ -111,6 +125,11 @@ public class AvTransportMediaRendererStopped extends Stopped<AvTransport> implem
 // / Same here, if you are stopped already and someone calls STOP,
 // well...
         return AvTransportMediaRendererStopped.class;
+    }
+
+    /** Already stopped: a player that stops changes nothing (the Stop of this transport ends here too). */
+    public Class<? extends AbstractState<?>> playerStopped(Player player) {
+        return null;
     }
 
     /*

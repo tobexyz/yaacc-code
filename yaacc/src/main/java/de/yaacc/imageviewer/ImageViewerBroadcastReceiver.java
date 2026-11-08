@@ -21,6 +21,8 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+
+import androidx.core.content.ContextCompat;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -83,7 +85,7 @@ public class ImageViewerBroadcastReceiver extends BroadcastReceiver {
         intentFilter.addAction(ACTION_NEXT);
         intentFilter.addAction(ACTION_PREVIOUS);
         intentFilter.addAction(ACTION_STOP);
-        imageViewer.registerReceiver(this, intentFilter);
+        ContextCompat.registerReceiver(imageViewer, this, intentFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
 
 
     }

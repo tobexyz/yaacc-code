@@ -17,6 +17,7 @@ package org.seamless.util;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -208,8 +209,8 @@ public class MimeType {
 
     @Override
     public int hashCode() {
-        int result = type.toLowerCase().hashCode();
-        result = 31 * result + subtype.toLowerCase().hashCode();
+        int result = type.toLowerCase(Locale.ROOT).hashCode();
+        result = 31 * result + subtype.toLowerCase(Locale.ROOT).hashCode();
         result = 31 * result + (parameters != null ? parameters.hashCode() : 0);
         return result;
     }

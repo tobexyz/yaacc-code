@@ -70,6 +70,8 @@ import java.util.stream.Collectors;
 
 import de.yaacc.R;
 import de.yaacc.util.InterfaceResolutionHelper;
+import de.yaacc.util.SAFCacheManager;
+import de.yaacc.util.SafBrowseGate;
 
 /**
  * a content directory which uses the content of the MediaStore in order to
@@ -101,11 +103,19 @@ public class YaaccContentDirectory {
     private final Map<String, DIDLObject> content = new HashMap<>();
     private final Context context;
     private final SharedPreferences preferences;
-    @UpnpStateVariable(defaultValue = "0", eventMaximumRateMilliseconds = 200)
-    private final UnsignedIntegerFourBytes systemUpdateID = new UnsignedIntegerFourBytes(
-            0);
+    // No eventMaximumRateMilliseconds: Cling drops (not delays) an event inside that time, and a dropped
+    // SystemUpdateID would leave a control point on an outdated number until the next change.
+    @UpnpStateVariable(defaultValue = "0")
+    private final UnsignedIntegerFourBytes systemUpdateID;
 
+    /** The SystemUpdateID starts with a value that is higher with every start: what changed while the server was stopped is announced. */
     public YaaccContentDirectory(Context context) {
+        this(context, SystemUpdateIds.startValue(System.currentTimeMillis()));
+    }
+
+    /** @param initialSystemUpdateId the SystemUpdateID the service starts with (tests pass 0) */
+    public YaaccContentDirectory(Context context, long initialSystemUpdateId) {
+        this.systemUpdateID = new UnsignedIntegerFourBytes(initialSystemUpdateId);
         this.context = context;
         preferences = PreferenceManager.getDefaultSharedPreferences(context);
 
@@ -276,17 +286,28 @@ public class YaaccContentDirectory {
     }
 
     /**
-     * Call this method after making changes to your content directory.
+     * Call this method after making changes to your content directory (e.g. the shared folders were changed).
      * <p>
-     * This will notify clients that their view of the content directory is
-     * potentially outdated and has to be refreshed.
-     * </p>
+     * Increments the {@code SystemUpdateID} and sends it to the subscribed control points as an event, which tells
+     * them that their view of the content directory is potentially outdated and has to be refreshed. Not
+     * synchronized while the event is sent: the service manager takes its own lock to read the new value, and an
+     * action that holds that lock may need the monitor of this object.
      */
-    synchronized protected void changeSystemUpdateID() {
-        Long oldUpdateID = getSystemUpdateID().getValue();
-        systemUpdateID.increment(true);
-        getPropertyChangeSupport().firePropertyChange("SystemUpdateID",
-                oldUpdateID, getSystemUpdateID().getValue());
+    public void changeSystemUpdateID() {
+        Long oldUpdateID;
+        Long newUpdateID;
+        synchronized (this) {
+            oldUpdateID = systemUpdateID.getValue();
+            systemUpdateID.increment(true);
+            newUpdateID = systemUpdateID.getValue();
+        }
+        try {
+            getPropertyChangeSupport().firePropertyChange("SystemUpdateID", oldUpdateID, newUpdateID);
+        } catch (RuntimeException e) {
+            // the number is changed; a subscriber that fails does not undo that
+            YaaccLogger.w(getClass().getName(), "SystemUpdateID event not accepted by a subscriber", e);
+        }
+        YaaccLogger.d(getClass().getName(), "CDS event: SystemUpdateID=" + newUpdateID);
     }
 
     /**
@@ -344,78 +365,116 @@ public class YaaccContentDirectory {
                 + " browseFlag: " + browseFlag + " filter: " + filter
                 + " firstResult: " + firstResult + " maxResults: " + maxResults
                 + " orderby: " + stream(orderby).map(SortCriterion::toString).collect(Collectors.joining(",")));
-        long childCount;
-        long totalMatches = 1L;
-        DIDLObject didlObject;
-        DIDLContent didl = new DIDLContent();
-        if (isUsingTestContent()) {
-            didlObject = content.get(objectID);
-            if (didlObject == null) {
-                // object not found return root
-                didlObject = content.get("0");
-            }
-            if (browseFlag == BrowseFlag.METADATA) {
-                didl.addObject(didlObject);
-                childCount = 1;
-            } else {
-                if (didlObject instanceof Container) {
-                    Container container = (Container) didlObject;
-                    childCount = container.getChildCount();
-                    List<DIDLObject> allChilds = new ArrayList<>();
-                    allChilds.addAll(container.getItems());
-                    allChilds.addAll(container.getContainers());
-                    for (int i = 0; i < allChilds.size(); i++) {
-                        if (i >= firstResult) {
-                            if (allChilds.get(i) instanceof Item) {
-                                didl.addItem((Item) allChilds.get(i));
-                            } else {
-                                didl.addContainer((Container) allChilds.get(i));
+        // open while a Browse of the SAF content is answered: the duration preload gives way to it
+        SafBrowseGate browseGate = null;
+        try {
+            long computedMaxResults = maxResults == 0 ? Long.MAX_VALUE : maxResults;
+            long childCount;
+            long totalMatches = 1L;
+            DIDLObject didlObject;
+            DIDLContent didl = new DIDLContent();
+            if (isUsingTestContent()) {
+                didlObject = content.get(objectID);
+                if (didlObject == null) {
+                    // object not found return root
+                    didlObject = content.get("0");
+                }
+                if (browseFlag == BrowseFlag.METADATA) {
+                    didl.addObject(didlObject);
+                    childCount = 1;
+                } else {
+                    if (didlObject instanceof Container) {
+                        Container container = (Container) didlObject;
+                        childCount = container.getChildCount();
+                        List<DIDLObject> allChilds = new ArrayList<>();
+                        allChilds.addAll(container.getItems());
+                        allChilds.addAll(container.getContainers());
+                        for (int i = 0; i < allChilds.size(); i++) {
+                            if (i >= firstResult) {
+                                if (allChilds.get(i) instanceof Item) {
+                                    didl.addItem((Item) allChilds.get(i));
+                                } else {
+                                    didl.addContainer((Container) allChilds.get(i));
+                                }
                             }
                         }
+
+                    } else {
+                        didl.addObject(didlObject);
+                        childCount = 1;
                     }
-
-                } else {
-                    didl.addObject(didlObject);
-                    childCount = 1;
-                }
-            }
-
-        } else {
-            childCount = 0;
-            if (findBrowserFor(objectID) != null) {
-                totalMatches = findBrowserFor(objectID).getSize(this, objectID);
-                if (browseFlag == BrowseFlag.METADATA) {
-                    didlObject = findBrowserFor(objectID).browseMeta(this, objectID, firstResult, maxResults, orderby);
-                    didl.addObject(didlObject);
-                    childCount = 1;
-                } else {
-                    List<DIDLObject> children = findBrowserFor(objectID).browseChildren(this, objectID, firstResult, maxResults, orderby);
-                    for (DIDLObject child : children) {
-                        didl.addObject(child);
-                        childCount++;
-
-                    }
-
                 }
 
+            } else {
+                childCount = 0;
+                // one browser for all steps: a browser may carry what it learned in one step (e.g. a folder listing) over to the next
+                ContentBrowser browser = findBrowserFor(objectID);
+                if (browser instanceof SafFolderBrowser) {
+                    browseGate = SAFCacheManager.getInstance(getContext()).browseGate();
+                    browseGate.enter();
+                }
+                if (browser != null) {
+                    if (browseFlag == BrowseFlag.METADATA) {
+                        didlObject = browser.browseMeta(this, objectID, firstResult, computedMaxResults, orderby);
+                        if (didlObject == null) {
+                            // an id that is not known (any more): answering with an empty result would look like an object without data
+                            throw new ContentDirectoryException(ContentDirectoryErrorCode.NO_SUCH_OBJECT, "No such object: " + objectID);
+                        }
+                        didl.addObject(didlObject);
+                        // UPnP ContentDirectory: BrowseMetadata returns exactly the one object, NumberReturned and
+                        // TotalMatches are 1. The child count of a folder is not a match count (and counting it lists the folder).
+                        childCount = 1;
+                        totalMatches = 1;
+                    } else {
+                        // only BrowseDirectChildren: the number of children, so that a client can page
+                        totalMatches = browser.getSize(this, objectID);
+                        List<DIDLObject> children = browser.browseChildren(this, objectID, firstResult, computedMaxResults, orderby);
+                        for (DIDLObject child : children) {
+                            didl.addObject(child);
+                            childCount++;
+
+                        }
+
+                    }
+
+                }
+            }
+            BrowseResult result;
+            try {
+                long didlStart = System.nanoTime();
+                // a big answer (a folder of thousands of files) is written directly, the DOM and the XML transformer of
+                // the platform need seconds for it; anything the direct writer does not know goes the DOM way as before
+                String didlXml = didl.getCount() >= DidlWriter.MIN_OBJECTS ? DidlWriter.write(didl) : null;
+                boolean direct = didlXml != null;
+                if (!direct) {
+                    // Generate output with nested items
+                    didlXml = new DIDLParser().generate(didl, false);
+                }
+                if (YaaccLogger.isDebug()) {
+                    YaaccLogger.d(getClass().getName(), "CDS didl " + didl.getCount() + " items " + DidlWriter.utf8Length(didlXml)
+                            + " bytes in " + (System.nanoTime() - didlStart) / 1_000_000L + " ms (" + (direct ? "direct" : "dom") + ")");
+                }
+                // the full XML of a page of a big folder is long: only at verbose level
+                YaaccLogger.d(getClass().getName(), "CDResponse: " + didlXml.length() + " characters");
+                if (YaaccLogger.isVerbose()) {
+                    YaaccLogger.v(getClass().getName(), "CDResponse: " + didlXml);
+                }
+                result = new BrowseResult(didlXml, childCount, totalMatches);
+            } catch (Exception e) {
+                throw new ContentDirectoryException(
+                        ContentDirectoryErrorCode.CANNOT_PROCESS.getCode(),
+                        "Error while generating BrowseResult", e);
+            }
+            return result;
+        } finally {
+            if (browseGate != null) {
+                browseGate.exit();
             }
         }
-        BrowseResult result;
-        try {
-            // Generate output with nested items
-            String didlXml = new DIDLParser().generate(didl, false);
-            YaaccLogger.d(getClass().getName(), "CDResponse: " + didlXml);
-            result = new BrowseResult(didlXml, childCount, totalMatches);
-        } catch (Exception e) {
-            throw new ContentDirectoryException(
-                    ContentDirectoryErrorCode.CANNOT_PROCESS.getCode(),
-                    "Error while generating BrowseResult", e);
-        }
-        return result;
-
     }
 
-    private ContentBrowser findBrowserFor(String objectID) {
+    /** Package-private: a test replaces the browsers (they need a device). */
+    ContentBrowser findBrowserFor(String objectID) {
         ContentBrowser result;
         if (objectID == null || objectID.equals("") || ContentDirectoryIDs.ROOT.getId().equals(objectID)) {
             result = new RootFolderBrowser(getContext());
@@ -423,6 +482,12 @@ public class YaaccContentDirectory {
             result = new ImagesFolderBrowser(getContext());
         } else if (ContentDirectoryIDs.VIDEOS_FOLDER.getId().equals(objectID)) {
             result = new VideosFolderBrowser(getContext());
+        } else if (ContentDirectoryIDs.VIDEOS_ALL_FOLDER.getId().equals(objectID)) {
+            result = new VideosAllFolderBrowser(getContext());
+        } else if (ContentDirectoryIDs.VIDEOS_BY_BUCKET_NAMES_FOLDER.getId().equals(objectID)) {
+            result = new VideosByBucketNamesFolderBrowser(getContext());
+        } else if (objectID.startsWith(ContentDirectoryIDs.VIDEOS_BY_BUCKET_NAME_PREFIX.getId())) {
+            result = new VideosByBucketNameFolderBrowser(getContext());
         } else if (ContentDirectoryIDs.MUSIC_FOLDER.getId().equals(objectID)) {
             result = new MusicFolderBrowser(getContext());
         } else if (ContentDirectoryIDs.MUSIC_GENRES_FOLDER.getId().equals(objectID)) {

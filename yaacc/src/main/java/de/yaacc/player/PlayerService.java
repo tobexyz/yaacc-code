@@ -17,12 +17,15 @@
  */
 package de.yaacc.player;
 
+import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.os.Binder;
+import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.widget.Toast;
 
@@ -37,14 +40,22 @@ import org.fourthline.cling.model.meta.Device;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
-import de.yaacc.browser.TabBrowserActivity;
+import de.yaacc.browser.BrowserLauncher;
+import de.yaacc.share.ContentDuration;
+import de.yaacc.share.PickedQueue;
+import de.yaacc.share.QueueItems;
+import de.yaacc.share.QueueShareBinder;
+import de.yaacc.share.QueueShareWindow;
+import de.yaacc.share.ShareAddressResolver;
+import de.yaacc.share.ShareService;
+import de.yaacc.upnp.OpenHomeReceivers;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.YaaccLogger;
@@ -56,8 +67,15 @@ public class PlayerService extends MediaSessionService {
 
     private final IBinder binder = new PlayerServiceBinder();
     private PlayerServiceBroadcastReceiver playerServiceBroadcastReceiver;
-    private final Map<Integer, Player> currentActivePlayer = new HashMap<>();
+    // Concurrent: players are added from background threads (ContentItemPlayTask,
+    // AvTransportMediaRendererPlaying) while the UI iterates the live values() view on
+    // the main thread. Also keeps put/remove return values atomic for the change notifier.
+    private final Map<Integer, Player> currentActivePlayer = new ConcurrentHashMap<>();
     private HandlerThread playerHandlerThread;
+    // Map writes can happen off the main thread (createPlayer... runs on the caller's
+    // thread); only the resulting notification is posted to the main thread.
+    private final PlayerListChangeNotifier playerListChangeNotifier =
+            new PlayerListChangeNotifier(new Handler(Looper.getMainLooper())::post);
 
     private PowerManager.WakeLock wakeLock;
 
@@ -94,7 +112,7 @@ public class PlayerService extends MediaSessionService {
     }
 
     private PendingIntent createSessionActivity() {
-        Intent intent = new Intent(this, de.yaacc.browser.TabBrowserActivity.class);
+        Intent intent = new Intent(this, BrowserLauncher.targetClass(this));
         return PendingIntent.getActivity(
                 this,
                 0,
@@ -107,11 +125,12 @@ public class PlayerService extends MediaSessionService {
         if (player.getId() == 0) {
             return;
         }
-        currentActivePlayer.put(player.getId(), player);
+        playerListChangeNotifier.putAndNotify(currentActivePlayer, player);
 
-        // Listen for playing state changes
+        // Listen for the state changes: playing, paused, stopped
         player.addPropertyChangeListener(evt -> {
-            if ("playing".equals(evt.getPropertyName())) {
+            String name = evt.getPropertyName();
+            if ("playing".equals(name) || AbstractPlayer.PROPERTY_PAUSED.equals(name) || Player.PROPERTY_STOPPED.equals(name)) {
                 updateForegroundState();
             }
         });
@@ -120,8 +139,38 @@ public class PlayerService extends MediaSessionService {
     }
 
     public void removePlayer(Player player) {
-        currentActivePlayer.remove(player.getId());
+        playerListChangeNotifier.removeAndNotify(currentActivePlayer, player);
         updateForegroundState();
+    }
+
+    /**
+     * Registers a listener that is told when a player is added to or removed from
+     * the active players. Callbacks are delivered on the main thread, at most once
+     * per player for each direction. Registering the same listener twice has no
+     * effect.
+     * <p>
+     * The service keeps a strong reference to the listener until
+     * {@link #removePlayerListChangeListener} is called, so callers tied to a view
+     * or fragment must unregister when it goes away. A notification queued before
+     * unregistering is not delivered to that listener.
+     */
+    public void addPlayerListChangeListener(PlayerListChangeNotifier.Listener listener) {
+        playerListChangeNotifier.addListener(listener);
+    }
+
+    public void removePlayerListChangeListener(PlayerListChangeNotifier.Listener listener) {
+        playerListChangeNotifier.removeListener(listener);
+    }
+
+    /**
+     * Creation sequence of an active player: higher means added later. Player ids
+     * can't tell that ({@code AVTransportPlayer} ids are random, local ids are fixed
+     * per type).
+     *
+     * @return the sequence (&gt; 0), or 0 if the player is not active
+     */
+    public long getPlayerCreationSequence(Player player) {
+        return playerListChangeNotifier.creationSequence(player);
     }
 
     private void updateForegroundState() {
@@ -156,27 +205,64 @@ public class PlayerService extends MediaSessionService {
         }
     }
 
+    /**
+     * The text of the notification of the service: how many players there are and what they do, for example
+     * "3 players (1 playing, 1 paused, 1 stopped)".
+     *
+     * @param idle         the text when there is no player
+     * @param players      the number of players as text ("3 players")
+     * @param states       the states that occur, as text ("1 playing"), in the order they are shown
+     * @param statusFormat puts the two together: {@code %1$s} the players, {@code %2$s} the states
+     * @param separator    between the states
+     */
+    static String statusText(int total, String idle, String players, java.util.List<String> states, String statusFormat,
+                             String separator) {
+        if (total == 0) {
+            return idle;
+        }
+        StringBuilder joined = new StringBuilder();
+        for (String state : states) {
+            if (joined.length() > 0) {
+                joined.append(separator);
+            }
+            joined.append(state);
+        }
+        return String.format(java.util.Locale.getDefault(), statusFormat, players, joined);
+    }
+
+    private void addState(java.util.List<String> states, int plurals, int count) {
+        if (count > 0) {
+            states.add(getResources().getQuantityString(plurals, count, count));
+        }
+    }
+
     private void updateServiceNotification() {
-        Intent notificationIntent = new Intent(this, TabBrowserActivity.class);
+        Intent notificationIntent = new Intent(this, BrowserLauncher.targetClass(this));
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
                 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
 
         // Build status text
         int totalPlayers = currentActivePlayer.size();
         int playingCount = 0;
+        int pausedCount = 0;
         for (Player player : currentActivePlayer.values()) {
             if (player.isPlaying()) {
                 playingCount++;
+            } else if (player.isPaused()) {
+                pausedCount++;
             }
         }
-
-        String statusText = totalPlayers == 0 ? "running" :
-                totalPlayers + " player" + (totalPlayers > 1 ? "s" : "") +
-                        (playingCount > 0 ? " (" + playingCount + " playing)" : " (paused)");
+        java.util.List<String> states = new java.util.ArrayList<>();
+        addState(states, R.plurals.player_service_playing, playingCount);
+        addState(states, R.plurals.player_service_paused, pausedCount);
+        addState(states, R.plurals.player_service_stopped, totalPlayers - playingCount - pausedCount);
+        String statusText = statusText(totalPlayers, getString(R.string.player_service_idle),
+                getResources().getQuantityString(R.plurals.player_service_players, totalPlayers, totalPlayers), states,
+                getString(R.string.player_service_status), getString(R.string.player_service_state_separator));
 
         Notification notification = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
-                .setContentTitle("Player Service")
+                .setContentTitle(getString(R.string.player_service_title))
                 .setSilent(true)
                 .setContentText(statusText)
                 .setSmallIcon(R.drawable.ic_notification_default)
@@ -196,6 +282,8 @@ public class PlayerService extends MediaSessionService {
     }
 
     @Override
+    // Deliberately hands out the app binder for every bind; calling super would change which binder clients receive.
+    @SuppressLint("MissingSuperCall")
     public IBinder onBind(Intent intent) {
         YaaccLogger.d(this.getClass().getName(), "On Bind");
         // Always return our binder for service binding
@@ -256,11 +344,37 @@ public class PlayerService extends MediaSessionService {
      */
     public List<Player> createPlayer(UpnpClient upnpClient, List<PlayableItem> items) {
         YaaccLogger.d(getClass().getName(), "create player...");
+        if (items.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // Check if any receiver device is selected; a selected one that the registry lost during a
+        // suspend gets a few seconds to come back first (this runs on the caller's worker thread)
+        java.util.Collection<Device<?, ?, ?>> receivers = upnpClient.awaitReceiverDevices();
+        if (receivers.isEmpty()) {
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> 
+                Toast.makeText(upnpClient.getContext(), 
+                    R.string.error_no_receiver_selected, 
+                    Toast.LENGTH_LONG).show()
+            );
+            return new ArrayList<>();
+        }
+
+        return createPlayerFor(upnpClient, items, receivers);
+    }
+
+    /**
+     * Creates one player per given receiver for the items; the other receivers are not touched (add to
+     * playlist uses this for the chosen receivers that have no player yet).
+     */
+    public List<Player> createPlayerFor(UpnpClient upnpClient, List<PlayableItem> items,
+                                        java.util.Collection<Device<?, ?, ?>> devices) {
         List<Player> resultList = new ArrayList<>();
         if (items.isEmpty()) {
             return resultList;
         }
-        Player result;
+        // a client of a group plays what its server plays: the send goes to the server (see YxcPlaybackRedirect)
+        devices = YxcPlayTargets.resolve(upnpClient, devices);
         boolean video = false;
         boolean image = false;
         boolean music = false;
@@ -270,27 +384,14 @@ public class PlayerService extends MediaSessionService {
                 video = video || playableItem.getMimeType().startsWith("video");
                 music = music || playableItem.getMimeType().startsWith("audio");
             } else {
-                //no mime type no knowlege about it
                 image = true;
                 music = true;
                 video = true;
             }
-
         }
         YaaccLogger.d(getClass().getName(), "video:" + video + " image: " + image + " audio:" + music);
-        
-        // Check if any receiver device is selected
-        if (upnpClient.getReceiverDevices().isEmpty()) {
-            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> 
-                Toast.makeText(upnpClient.getContext(), 
-                    R.string.error_no_receiver_selected, 
-                    Toast.LENGTH_LONG).show()
-            );
-            return resultList;
-        }
-        
-        for (Device<?, ?, ?> device : upnpClient.getReceiverDevices()) {
-            result = createPlayer(upnpClient, device, video, image, music);
+        for (Device<?, ?, ?> device : devices) {
+            Player result = createPlayer(upnpClient, device, video, image, music);
             if (result != null) {
                 addPlayer(result);
                 result.setItems(items.toArray(new PlayableItem[0]));
@@ -298,6 +399,97 @@ public class PlayerService extends MediaSessionService {
             }
         }
         return resultList;
+    }
+
+    /**
+     * Creates the players of a picked queue: for each non-empty type (audio, video, image) one player
+     * per receiver, every player with its own items. This phone plays audio and images straight from
+     * the picked {@code content:} uris; every other player gets placeholder items whose files are
+     * shared just in time (current and next item) for exactly its receiver and released again.
+     * The players are not started.
+     */
+    public List<Player> createQueuePlayers(UpnpClient upnpClient, PickedQueue.Result queue,
+                                           java.util.Collection<Device<?, ?, ?>> devices) {
+        List<Player> resultList = new ArrayList<>();
+        // a client of a group plays what its server plays: the send goes to the server (see YxcPlaybackRedirect)
+        devices = YxcPlayTargets.resolve(upnpClient, devices);
+        createQueuePlayers(upnpClient, queue.audio(), false, false, true, devices, resultList);
+        createQueuePlayers(upnpClient, queue.video(), true, false, false, devices, resultList);
+        createQueuePlayers(upnpClient, queue.image(), false, true, false, devices, resultList);
+        return resultList;
+    }
+
+    private void createQueuePlayers(UpnpClient upnpClient, List<PickedQueue.Entry> entries, boolean video,
+                                    boolean image, boolean music, java.util.Collection<Device<?, ?, ?>> devices,
+                                    List<Player> resultList) {
+        if (entries.isEmpty()) {
+            return;
+        }
+        // images of another receiver have no end of their own: they stay as long as the "default duration" setting (milliseconds, -1 never)
+        // says, as browsed images do; audio and video end by the transport state of the receiver
+        long imageMillis = upnpClient.getDefaultDuration();
+        for (Device<?, ?, ?> device : devices) {
+            String deviceId = device.getIdentity().getUdn().getIdentifierString();
+            boolean local = UpnpClient.LOCAL_UID.equals(deviceId);
+            // this phone reads its own audio and images with the grant of the app, no share needed
+            boolean direct = local && !video;
+            QueueItems.Built built = direct ? QueueItems.direct(entries) : QueueItems.placeholders(entries, imageMillis);
+            if (built.items().isEmpty()) {
+                continue;
+            }
+            if (!local && OpenHomeReceivers.isOpenHomeOnly(device) && !(music && !video && !image)) {
+                // an OpenHome device plays music only, and has no AVTransport for the rest
+                notifyFilesNotSupported(upnpClient);
+                continue;
+            }
+            Player player = createPlayer(upnpClient, device, video, image, music);
+            if (player == null) {
+                continue;
+            }
+            if (!direct && player instanceof AbstractPlayer) {
+                // what the share allows is decided now, at the confirm, not at every later bind
+                java.util.Set<String> addresses = ShareAddressResolver.resolve(upnpClient,
+                        getApplicationContext(), java.util.Collections.singleton(deviceId));
+                ShareService shareService = new ShareService(getApplicationContext(), upnpClient);
+                QueueShareWindow window = new QueueShareWindow(built.items(),
+                        new QueueShareBinder(built.entries(), built.items(), addresses,
+                                shareService::prepareFor, queueShareKeys(),
+                                entry -> ContentDuration.read(getApplicationContext(), entry.getUri(),
+                                        entry.getMimeType())));
+                ((AbstractPlayer) player).setShareLease(window.newLease());
+            }
+            addPlayer(player);
+            player.setItems(built.items().toArray(new PlayableItem[0]));
+            resultList.add(player);
+        }
+    }
+
+    private void notifyFilesNotSupported(UpnpClient upnpClient) {
+        android.content.Context context = upnpClient.getContext();
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                android.widget.Toast.makeText(context, R.string.openhome_files_not_supported, android.widget.Toast.LENGTH_LONG).show());
+    }
+
+    /** The key bookkeeping of the app's registries for the shares of a queue. */
+    private QueueShareBinder.Keys queueShareKeys() {
+        Yaacc yaacc = (Yaacc) getApplicationContext();
+        return new QueueShareBinder.Keys() {
+            @Override
+            public boolean hasRoom() {
+                return yaacc.getShareRegistry().hasRoom();
+            }
+
+            @Override
+            public void claimed(String key) {
+                yaacc.getUnclaimedShares().claimed(key);
+            }
+
+            @Override
+            public void remove(String key) {
+                yaacc.getShareRegistry().remove(key);
+                yaacc.getUnclaimedShares().released(key);
+            }
+        };
     }
 
     /**
@@ -346,6 +538,31 @@ public class PlayerService extends MediaSessionService {
     }
 
 
+    private OpenHomePlayer newOpenHomePlayer(UpnpClient upnpClient, Device receiverDevice) {
+        String deviceName = receiverDevice.getDetails().getFriendlyName() + " - " + receiverDevice.getDisplayString();
+        return new OpenHomePlayer(upnpClient, receiverDevice, upnpClient.getContext()
+                .getString(R.string.playerNameAvTransport) + "-OpenHome@" + deviceName,
+                receiverDevice.getDetails().getFriendlyName());
+    }
+
+    /**
+     * Gives an OpenHome device that plays already a player that shows its playlist (see {@link OpenHomePlayer#attach()}).
+     *
+     * @return the player of the device: the one it has, else a new one
+     */
+    public Player attachOpenHomePlayer(UpnpClient upnpClient, Device<?, ?, ?> device) {
+        String deviceId = device.getIdentity().getUdn().getIdentifierString();
+        for (Player player : getCurrentPlayersOfType(OpenHomePlayer.class)) {
+            if (((OpenHomePlayer) player).getDeviceId().equals(deviceId)) {
+                return player;
+            }
+        }
+        OpenHomePlayer player = newOpenHomePlayer(upnpClient, device);
+        addPlayer(player);
+        player.attach();
+        return player;
+    }
+
     /**
      * creates a player for the given device
      *
@@ -375,6 +592,14 @@ public class PlayerService extends MediaSessionService {
                 contentType = "image";
             } else if (!video && !image && music) {
                 contentType = "music";
+            }
+            if (OpenHomeChoice.useOpenHome(upnpClient.getContext(), receiverDevice, music && !video && !image)) {
+                for (Player player : getCurrentPlayersOfType(OpenHomePlayer.class)) {
+                    if (((OpenHomePlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())) {
+                        shutdown(player);
+                    }
+                }
+                return newOpenHomePlayer(upnpClient, receiverDevice);
             }
             for (Player player : getCurrentPlayersOfType(AVTransportPlayer.class)) {
                 if (((AVTransportPlayer) player).getDeviceId().equals(receiverDevice.getIdentity().getUdn().getIdentifierString())
@@ -427,6 +652,7 @@ public class PlayerService extends MediaSessionService {
                 .getString(R.string.playerNameImageShort));
     }
 
+    @OptIn(markerClass = UnstableApi.class)
     private Player createMusicPlayer(UpnpClient upnpClient) {
         Player result = getFirstCurrentPlayerOfType(LocalMediaSessionPlayer.class);
         if (result != null) {
@@ -448,7 +674,10 @@ public class PlayerService extends MediaSessionService {
     }
 
     public Player getCurrentPlayerById(Integer id) {
-
+        // ConcurrentHashMap.get(null) throws; keep the old HashMap "not found" result.
+        if (id == null) {
+            return null;
+        }
         return currentActivePlayer.get(id);
     }
 
@@ -490,6 +719,7 @@ public class PlayerService extends MediaSessionService {
      * @param mimeType the mime type
      * @return the player class
      */
+    @OptIn(markerClass = UnstableApi.class)
     public Class getPlayerClassForMimeType(String mimeType) {
 // FIXME don't implement business logic twice
         Class result = MultiContentPlayer.class;
@@ -519,7 +749,7 @@ public class PlayerService extends MediaSessionService {
     public void shutdown(Player player) {
         assert (player != null);
         YaaccLogger.d(getClass().getName(), "Shutting down player: " + player.getId());
-        currentActivePlayer.remove(player.getId());
+        playerListChangeNotifier.removeAndNotify(currentActivePlayer, player);
         player.onDestroy();
         updateForegroundState();
     }

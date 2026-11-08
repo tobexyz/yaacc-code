@@ -21,6 +21,8 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+
+import androidx.core.content.ContextCompat;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -50,7 +52,8 @@ public class PlayerServiceBroadcastReceiver extends BroadcastReceiver {
             Player player = playerService.getCurrentPlayerById(playerId);
             if (player != null) {
                 YaaccLogger.d(this.getClass().getName(), "Player of intent found: " + playerId + " Intent: " + intent);
-                player.next();
+                // The timer of a player: the item ended, the play mode decides what plays next
+                player.onItemEnded();
             } else {
                 YaaccLogger.d(this.getClass().getName(), "Player of intent not found: " + playerId + " Intent: " + intent);
             }
@@ -61,7 +64,7 @@ public class PlayerServiceBroadcastReceiver extends BroadcastReceiver {
         YaaccLogger.d(this.getClass().getName(), "Register PlayerServiceBroadcastReceiver");
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(ACTION_NEXT);
-        playerService.registerReceiver(this, intentFilter);
+        ContextCompat.registerReceiver(playerService, this, intentFilter, ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
 }

@@ -22,8 +22,8 @@ height="80">](https://f-droid.org/packages/de.yaacc/)
 ![Downloads (all time)](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgithub.com%2Fkitswas%2Ffdroid-metrics-dashboard%2Fraw%2Frefs%2Fheads%2Fmain%2Fprocessed%2Ftotal%2Fde.yaacc.json&query=%24.total_downloads&logo=fdroid&label=Downloads%20(all%20time))
 
 
-<img src="./docs/screenshots/5.4.x/browse_servers.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/5.4.x/browse_image_folder.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/5.4.x/browse_receiver.png" alt= “” width="30%" height="30%">
-<img src="./docs/screenshots/5.4.x/music_player.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/5.4.x/playlist_fully_editable.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/5.4.x/image_player_show_menu.png" alt= “” width="30%" height="30%">
+<img src="./docs/screenshots/6.0.x/browse_servers.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/6.0.x/browse_image_folder.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/6.0.x/browse_receiver.png" alt= “” width="30%" height="30%">
+<img src="./docs/screenshots/6.0.x/music_player.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/6.0.x/playlist_fully_editable.png" alt= “” width="30%" height="30%"> <img src="./docs/screenshots/6.0.x/image_player_show_menu.png" alt= “” width="30%" height="30%">
 
 ## Description
 
@@ -34,16 +34,22 @@ in order to play media from your device on any UPnP renderer in your network.
 ## Features
 
 * UPnP/DLNA Server - share files of your device in the network
+* Images and videos are offered in galleries by directory, and as one list of all
 * UPnP/DLNA Client - receive media from other devices on your device
 * UPnP/DLNA Controller - control media renderer in the network
 * Live streaming - stream system audio and screen to network devices (Android 10+)
 * SAF support - browse and share files from external storage, USB drives, SD cards
 * Lock screen controls - hardware volume buttons and media controls
-* Receiver controls - play/pause/stop directly from receiver tab with status display
+* Receiver controls - play/pause/stop directly from the receiver tab (classic) or the receivers list and sheet (new layout) with status display
+* Single-screen layout (Settings > Appearance > Layout): servers, receivers and the running players on one page; a fresh install starts in the single screen, an updated installation keeps the classic tabs
 * Sort browsed folders by name or date added, with server-side sorting when supported
 * Control multiple media renderer
+* OpenHome: play on OpenHome devices (the device keeps and shows its playlist, which you can edit), and let OpenHome control points play on the app
+* Yamaha MusicCast devices: link them into a group, group volume, now playing and controls of their own sources, presets, device settings (see the documentation)
 * Allow download files to the device
-* Allow sharing of URLs and sending them to the current media renderers
+* Share a link or one audio, video or image file from another app and play it on the receivers you pick
+* Share an item you browse with other apps, as a file or as a link
+* Pick files or a folder of your device and play them on the receivers you pick, each file is offered on the network only while it plays
 * Use your device as an proxy if your media renderer can't process https media URLs
 * Battery optimized with smart WiFi lock and foreground service management
 
@@ -58,14 +64,12 @@ or by activating the switch at the bottom of the server tab
 
 ## A word about the cling library
 
-This project is based on the work of <https://github.com/4thline/cling>. This great UPnP library
-made
-yaacc possible and all honor belongs to the authors of that project. Thank you for your work on that
-project!
+YAACC is based on the work of [Cling](https://github.com/4thline/cling). This great UPnP library
+made YAACC possible, and all honor belongs to its authors. Thank you for your work!
 
-Unfortunately the project went into the EOL state and no maintainer is found yet. Therefore a copy
-of the parts of cling needed by YAACC are now included in this repository because I am not able to
-maintain the whole project.
+Cling itself is no longer maintained; the fork [jUPnP](https://github.com/jupnp/jupnp) continues
+that work. YAACC still uses its own copy of the parts of Cling it needs, which is included in this
+repository.
 
 ## Build dependencies
 
@@ -83,3 +87,7 @@ After the build has finished the debug apk is located in
 ## Documentation
 
 <https://tobexyz.github.io/yaacc-code>
+
+## Trademarks
+
+Android and Android TV are trademarks of Google LLC. UPnP and DLNA are trademarks or certification marks of their respective owners; YAACC is not UPnP or DLNA certified. Yamaha and MusicCast are trademarks or registered trademarks of Yamaha Corporation. Home Assistant, VLC, Kodi, BubbleUPnP, Windows and the other product and company names mentioned in this documentation are trademarks or registered trademarks of their respective owners and are used only to identify compatible products. YAACC is an independent project and is not affiliated with, authorized or endorsed by any of them.

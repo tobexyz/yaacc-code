@@ -19,6 +19,7 @@
 package de.yaacc.upnp.server.avtransport;
 
 
+import de.yaacc.share.ShareLogRedactor;
 import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.avtransport.impl.state.AbstractState;
@@ -28,13 +29,11 @@ import org.fourthline.cling.support.model.MediaInfo;
 import org.fourthline.cling.support.model.PositionInfo;
 import org.fourthline.cling.support.model.SeekMode;
 
+import android.os.Handler;
+import android.os.Looper;
+
 import java.net.URI;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.List;
-import java.util.TimeZone;
-import java.util.Timer;
-import java.util.TimerTask;
 
 import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
@@ -46,8 +45,8 @@ import de.yaacc.upnp.UpnpClient;
  */
 public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implements YaaccState {
     private final UpnpClient upnpClient;
-    private boolean updateTime;
     private List<Player> players = null;
+    private TrackInfoUpdater trackInfoUpdater;
 
     /**
      * Constructor.
@@ -73,29 +72,60 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
                 || getTransport().getPositionInfo().getTrackURI().equals("")) {
             return;
         }
-        // Try to get existing players if resuming from pause
-        players = upnpClient.getCurrentPlayers(getTransport());
-        boolean hasPausedPlayer = false;
-        if (players != null && !players.isEmpty()) {
-            for (Player player : players) {
-                if (player != null && player.isPaused()) {
-                    hasPausedPlayer = true;
-                    break;
+        // The player that plays now may be replaced by a new one below: until the new one is attached, the end of the
+        // old one does not mean that the transport has no player left (it would forget its play mode)
+        getTransport().playersStarting();
+        try {
+            // Try to get existing players if resuming from pause
+            players = upnpClient.getCurrentPlayers(getTransport());
+            boolean hasPausedPlayer = false;
+            if (players != null && !players.isEmpty()) {
+                for (Player player : players) {
+                    if (player != null && player.isPaused()) {
+                        hasPausedPlayer = true;
+                        break;
+                    }
                 }
             }
-        }
-        if (!hasPausedPlayer) {
-            players = upnpClient.initializePlayers(getTransport());
+            if (!hasPausedPlayer) {
+                players = upnpClient.initializePlayers(getTransport());
+            }
+            // The play mode a control point set (or the one of the players) is in place before the first note
+            getTransport().attachPlayers(players);
+        } finally {
+            getTransport().playersStarted();
         }
         for (Player player : players) {
             player.play();
         }
         if (players != null && players.size() > 0) {
-            // Start playing now!
-            updateTime = true;
-            setTrackInfo();
+            trackInfoUpdater().start(players);
         }
 
+    }
+
+    /**
+     * Whatever the way out of this state (stop, pause, a new URI, forced), the position info is not updated any more.
+     */
+    public void onExit() {
+        if (trackInfoUpdater != null) {
+            trackInfoUpdater.stop();
+        }
+    }
+
+    /** @return true while the position info of the transport is kept up to date from the players (package private: for tests) */
+    boolean isUpdatingTrackInfo() {
+        return trackInfoUpdater != null && trackInfoUpdater.isRunning();
+    }
+
+    private TrackInfoUpdater trackInfoUpdater() {
+        if (trackInfoUpdater == null) {
+            Handler mainThread = new Handler(Looper.getMainLooper());
+            trackInfoUpdater = new TrackInfoUpdater(getTransport(), upnpClient::getCurrentPlayers,
+                    TrackInfoUpdater.sharedScheduler(), mainThread::post,
+                    message -> YaaccLogger.v(TrackInfoUpdater.class.getName(), message));
+        }
+        return trackInfoUpdater;
     }
 
     /*
@@ -106,8 +136,8 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
     public Class<? extends AbstractState<?>> setTransportURI(URI uri,
                                                              String metaData) {
         YaaccLogger.d(this.getClass().getName(), "Set TransportURI");
-        YaaccLogger.d(this.getClass().getName(), "uri: " + uri);
-        YaaccLogger.d(this.getClass().getName(), "metaData: " + metaData);
+        YaaccLogger.d(this.getClass().getName(), "uri: " + ShareLogRedactor.redact(String.valueOf(uri)));
+        YaaccLogger.d(this.getClass().getName(), "metaData: " + ShareLogRedactor.redact(String.valueOf(metaData)));
         getTransport().setMediaInfo(new MediaInfo(uri.toString(), metaData));
 // If you can, you should find and set the duration of the track here!
         getTransport().setPositionInfo(
@@ -129,8 +159,20 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
     @Override
     public Class<? extends AbstractState<?>> stop() {
         YaaccLogger.d(this.getClass().getName(), "Stop");
-        updateTime = false;
 // Stop playing!
+        return AvTransportMediaRendererStopped.class;
+    }
+
+    /**
+     * The player has played to its end (repeat off), was stopped in the app or the players were closed: the transport
+     * goes to Stopped like it does for a Stop of a control point, so {@code TransportState} is evented and the position
+     * updates end ({@link #onExit}).
+     */
+    public Class<? extends AbstractState<?>> playerStopped(Player player) {
+        if (!getTransport().playbackEnded(player)) {
+            return null;
+        }
+        YaaccLogger.d(this.getClass().getName(), "AVT player ended: transport -> STOPPED");
         return AvTransportMediaRendererStopped.class;
     }
 
@@ -141,7 +183,6 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
     @Override
     public Class<? extends AbstractState<?>> play(String speed) {
         YaaccLogger.d(this.getClass().getName(), "play");
-        updateTime = true;
         return AvTransportMediaRendererPlaying.class;
     }
 
@@ -152,7 +193,6 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
     @Override
     public Class<? extends AbstractState<?>> pause() {
         YaaccLogger.d(this.getClass().getName(), "pause");
-        updateTime = false;
         return AvTransportMediaRendererPaused.class;
     }
 
@@ -163,7 +203,6 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
     @Override
     public Class<? extends AbstractState<?>> next() {
         YaaccLogger.d(this.getClass().getName(), "next");
-        updateTime = false;
         return null;
     }
 
@@ -174,7 +213,6 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
     @Override
     public Class<? extends AbstractState<?>> previous() {
         YaaccLogger.d(this.getClass().getName(), "previous");
-        updateTime = false;
         return null;
     }
 
@@ -186,20 +224,17 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
     public Class<? extends AbstractState<?>> seek(SeekMode unit, String target) {
         YaaccLogger.d(this.getClass().getName(), "seek");
         if (SeekMode.REL_TIME.equals(unit)) {
-            SimpleDateFormat dateFormat = new SimpleDateFormat("HH:mm:ss");
-            dateFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
-            try {
-                Long millisecondsFromStart = (target != null && dateFormat.parse(target) != null) ? dateFormat.parse(target).getTime() : 0L;
+            Long millisecondsFromStart = SeekTarget.millis(target);
+            if (millisecondsFromStart == null) {
+                YaaccLogger.d(getClass().getName(), "unable to parse target time string");
+            } else {
                 for (Player player : players) {
                     if (player != null) {
                         player.seekTo(millisecondsFromStart);
                     }
                 }
-            } catch (ParseException pex) {
-                YaaccLogger.d(getClass().getName(), "unable to parse target time string", pex);
             }
         }
-        updateTime = true;
         return null;
     }
 
@@ -215,50 +250,4 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
         };
     }
 
-    private void setTrackInfo() {
-        doSetTrackInfo();
-        updateTime();
-    }
-
-    private void doSetTrackInfo() {
-        for (Player player : players) {
-            if (player != null) {
-                // Get duration on main thread for Media3 compatibility
-                final String[] duration = {""};
-                final String[] elapsedTime = {""};
-                
-                new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
-                    duration[0] = player.getDuration();
-                    elapsedTime[0] = player.getElapsedTime();
-                    
-                    if (!duration[0].equals("")) {
-                        getTransport().getPositionInfo().setTrackDuration(duration[0]);
-                        getTransport().getPositionInfo().setRelTime(elapsedTime[0]);
-                        YaaccLogger.d(getClass().getName(), "doSetTrackInfo: " + getTransport() + "Posinfo:" + getTransport().getPositionInfo() + " RelTime: " + getTransport().getPositionInfo().getRelTime());
-                    }
-                });
-                break;
-            }
-        }
-    }
-
-    private void updateTime() {
-        Timer commandExecutionTimer = new Timer();
-        commandExecutionTimer.schedule(new TimerTask() {
-
-            @Override
-            public void run() {
-
-                doSetTrackInfo();
-                if (updateTime) {
-                    updateTime();
-                }
-            }
-
-
-        }, 1000L);
-
-    }
-
-
-} 
+}

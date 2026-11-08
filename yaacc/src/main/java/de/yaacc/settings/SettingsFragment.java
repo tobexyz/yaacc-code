@@ -61,14 +61,11 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                     editText -> editText.setInputType(InputType.TYPE_CLASS_NUMBER));
         }
 
-        CheckBoxPreference checkBoxPreference = findPreference(getString(R.string.settings_dark_mode_key));
-        if (checkBoxPreference != null) {
-            checkBoxPreference.setOnPreferenceChangeListener((preference, newValue) -> {
-                if (newValue instanceof Boolean && (Boolean) newValue) {
-                    AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
-                } else {
-                    AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM);
-                }
+        androidx.preference.ListPreference themePreference = findPreference(getString(R.string.settings_theme_key));
+        if (themePreference != null) {
+            themePreference.setOnPreferenceChangeListener((preference, newValue) -> {
+                AppCompatDelegate.setDefaultNightMode(
+                        ThemeChoice.nightMode(newValue instanceof String ? (String) newValue : null));
                 return true;
             });
         }

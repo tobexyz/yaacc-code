@@ -1,0 +1,249 @@
+{
+  "response_code": 0,
+  "preset_info": [
+    {
+      "band": "fm",
+      "number": 87550,
+      "hd_program": 0,
+      "text": " TEST 1"
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    },
+    {
+      "band": "unknown",
+      "number": 0,
+      "hd_program": 0,
+      "text": ""
+    }
+  ],
+  "func_list": [
+    "clear",
+    "move"
+  ]
+}

@@ -6,8 +6,9 @@ folder of this project.
 Please be aware that the project based on cling which is 
 governed by their own respective licenses. For further informations visit  http://4thline.org/projects/cling/
 
-The icons used by this project are governed by their own respective licenses, too. 
-For further informations visit http://www.carpicon.com (http://www.carpicon.com/index.php?option=com_content&task=view&id=6&Itemid=26)
+The icons used by this project are governed by their own respective licenses, too:
+the credits and the license of every icon set are listed in ICONS.md (the Apache
+license text is in licenses/Apache-2.0.txt).
 
 -----------------------------------------------------------------------
 

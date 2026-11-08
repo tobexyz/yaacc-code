@@ -1,16 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
-    <ImageView
+    <androidx.appcompat.widget.AppCompatImageView
         android:id="@+id/file_state_icon"
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:layout_centerVertical="true"
+        android:contentDescription="@null"
         android:src="@drawable/sharp_chevron_right_24"
-        android:tint="?attr/colorControlNormal" />
+        app:tint="?attr/colorControlNormal" />
 
     <CheckBox
         android:id="@+id/file_checkbox"
@@ -20,14 +22,15 @@
         android:layout_toEndOf="@id/file_state_icon"
         android:layout_centerVertical="true" />
 
-    <ImageView
+    <androidx.appcompat.widget.AppCompatImageView
         android:id="@+id/file_type_icon"
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:layout_centerVertical="true"
         android:layout_toEndOf="@id/file_checkbox"
+        android:contentDescription="@null"
         android:src="@drawable/ic_baseline_folder_open_48"
-        android:tint="?attr/colorControlNormal" />
+        app:tint="?attr/colorControlNormal" />
 
     <TextView
         android:id="@+id/file_name"
@@ -40,12 +43,13 @@
         android:textAppearance="@android:style/TextAppearance.Material.Medium"
         tools:text="Directory" />
 
-    <ImageButton
+    <androidx.appcompat.widget.AppCompatImageButton
         android:id="@+id/file_remove"
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:layout_centerVertical="true"
         android:layout_alignParentEnd="true"
+        android:contentDescription="@string/remove_item"
         android:src="@drawable/ic_baseline_delete_outline_48"
-        android:tint="?attr/colorControlNormal" />
+        app:tint="?attr/colorControlNormal" />
 </RelativeLayout>

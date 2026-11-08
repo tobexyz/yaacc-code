@@ -28,7 +28,11 @@ public class ThemeHelper {
     public static Drawable tintDrawable(Drawable in, Resources.Theme theme) {
         Drawable drawable = DrawableCompat.wrap(in);
         TypedValue typedValue = new TypedValue();
-        theme.resolveAttribute(android.R.attr.colorForeground, typedValue, true);
+        // Same color as the primary text of the Material 3 gray scheme; themes without it keep the
+        // foreground color of the platform.
+        if (!theme.resolveAttribute(com.google.android.material.R.attr.colorOnSurface, typedValue, true)) {
+            theme.resolveAttribute(android.R.attr.colorForeground, typedValue, true);
+        }
         int color = typedValue.data;
         DrawableCompat.setTint(drawable, color);
         return drawable;

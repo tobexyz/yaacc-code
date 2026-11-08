@@ -18,27 +18,23 @@
  */
 package de.yaacc.upnp.server.contentdirectory;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
-import android.database.Cursor;
 import android.provider.MediaStore;
-import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.Item;
-import org.seamless.util.MimeType;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Browser  for a video item.
+ * Browser for one video.
  *
  * @author openbit (Tobias Schoene)
  */
-public class VideoItemBrowser extends ContentBrowser {
+public class VideoItemBrowser extends VideoBrowser {
 
     public VideoItemBrowser(Context context) {
         super(context);
@@ -47,74 +43,34 @@ public class VideoItemBrowser extends ContentBrowser {
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        String[] projection = {MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.MIME_TYPE,
-                MediaStore.Video.Media.SIZE, MediaStore.Video.Media.DURATION, MediaStore.Video.Media.DATE_ADDED};
-        String selection = MediaStore.Video.Media._ID + "=?";
-        String[] selectionArgs = new String[]{myId.substring(ContentDirectoryIDs.VIDEO_PREFIX.getId().length())};
-        try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, selection,
-                selectionArgs, null)) {
-
-            if (mediaCursor != null && mediaCursor.getCount() > 0) {
-                mediaCursor.moveToFirst();
-                @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns._ID));
-                @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.DISPLAY_NAME));
-                @SuppressLint("Range") String duration = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.DURATION));
-                duration = contentDirectory.formatDuration(duration);
-                @SuppressLint("Range") Long size = Long.valueOf(mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.SIZE)));
-                @SuppressLint("Range") String mimeTypeString = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.MIME_TYPE));
-                YaaccLogger.d(getClass().getName(), "Mimetype: " + mimeTypeString);
-                MimeType mimeType = MimeType.valueOf(mimeTypeString);
-                // MediaStore.Video.Media.DATE_ADDED is SECONDS since epoch (unlike
-                // DATE_TAKEN for images, which is millis) - convert before formatting.
-                @SuppressLint("Range") long dateAddedSeconds = mediaCursor.getLong(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.DATE_ADDED));
-                long dateAddedMillis = dateAddedSeconds * 1000L;
-                String date = SortSupport.formatEpochMillisAsDate(dateAddedMillis);
-                // file parameter only needed for media players which decide the
-                // ability of playing a file by the file extension
-                String uri = getUriString(contentDirectory, id, mimeType, name, null);
-                Item result = createItem(
-                    ContentDirectoryIDs.VIDEO_PREFIX.getId() + id,
-                    ContentDirectoryIDs.VIDEOS_FOLDER.getId(),
-                    name,
-                    "",
-                    false,
-                    mimeType,
-                    uri,
-                    size,
-                    duration,
-                    date
-                );
-                YaaccLogger.d(getClass().getName(), "VideoItem: " + id + " Name: " + name + " uri: " + uri);
-                return result;
-            } else {
-                YaaccLogger.d(getClass().getName(), "Item " + myId + "  not found.");
-            }
-        }
-
-        return null;
+        String id = myId.substring(ContentDirectoryIDs.VIDEO_PREFIX.getId().length());
+        // a video has one id wherever it is listed: its parent is "All videos"
+        // only a video in the media paths: the id is a consecutive number any host of the network can count through
+        List<String> args = new ArrayList<>();
+        args.add(id);
+        args.addAll(mediaPathArguments());
+        List<Item> found = items(contentDirectory, MediaStore.Video.Media._ID + "=? AND " + mediaPathSelection(), args,
+                ContentDirectoryIDs.VIDEOS_ALL_FOLDER.getId(), 0, 1, orderby);
+        return found.isEmpty() ? null : found.get(0);
     }
 
     @Override
     public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
-
         return 1;
     }
 
-
     @Override
-    public List<Container> browseContainer(
-            YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-
+    public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         return new ArrayList<>();
     }
 
     @Override
-    public List<Item> browseItem(YaaccContentDirectory contentDirectory,
-                                 String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
+    public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         List<Item> result = new ArrayList<>();
-        result.add((Item) browseMeta(contentDirectory, myId, firstResult, maxResults, orderby));
+        DIDLObject item = browseMeta(contentDirectory, myId, firstResult, maxResults, orderby);
+        if (item != null) {
+            result.add((Item) item);
+        }
         return result;
-
     }
-
 }

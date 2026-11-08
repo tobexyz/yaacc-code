@@ -388,6 +388,15 @@ public interface Registry {
     public void addLocalSubscription(LocalGENASubscription subscription);
 
     /**
+     * @param service the service whose subscribers are counted, {@code null} for the subscribers of all services
+     * @return how many event subscribers this device has
+     */
+    public int getLocalSubscriptionCount(org.fourthline.cling.model.meta.LocalService<?> service);
+
+    /** @return how many event subscribers have a callback address on the host (the host of the control point) */
+    public int getLocalSubscriptionCountForHost(String host);
+
+    /**
      * Called internally by the UPnP stack, during GENA protocol execution.
      */
     public LocalGENASubscription getLocalSubscription(String subscriptionId);
@@ -474,8 +483,16 @@ public interface Registry {
     public void setAliveInterval(int intervalMillis);
 
 
+    /**
+     * @return the protocol handler of the currently enabled network listener, null while the listener is disabled
+     * (no network): the registry then sends nothing (no renewals, no ALIVE/BYEBYE) and tries again later.
+     */
     UpnpProtocolHandler getUpnpProtocolHandler();
 
+    /**
+     * Sets the handler the registry sends with. The network listener sets its NEW handler on every enable (the old
+     * one owns closed sockets) and null on disable.
+     */
     void setUpnpProtocolHandler(UpnpProtocolHandler upnpProtocolHandler);
 
     ExecutorService getExecutorService();

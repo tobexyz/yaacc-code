@@ -24,8 +24,12 @@ import android.content.Intent;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 
 import androidx.annotation.RequiresApi;
+
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import de.yaacc.util.YaaccLogger;
 
@@ -40,34 +44,54 @@ public class MediaProjectionHelper {
 
     public static final int REQUEST_CODE_MEDIA_PROJECTION = 2001;
 
-    private static MediaProjection mediaProjection;
-    private static MediaProjectionManager mediaProjectionManager;
-    private static int storedResultCode = Activity.RESULT_CANCELED;
-    private static Intent storedResultData = null;
+    private static volatile MediaProjection mediaProjection;
+    private static volatile MediaProjectionManager mediaProjectionManager;
+    private static volatile int storedResultCode = Activity.RESULT_CANCELED;
+    private static volatile Intent storedResultData = null;
 
     // Callback for when MediaProjection stops
     public interface MediaProjectionStopCallback {
         void onMediaProjectionStopped();
     }
 
-    private static MediaProjectionStopCallback stopCallback;
+    // Several owners may listen at once (a process-wide state reset and one UI per started
+    // screen). Each owner removes exactly the callback it added, so a later owner never
+    // replaces an earlier one and a stopped screen is not kept alive.
+    private static final CopyOnWriteArrayList<MediaProjectionStopCallback> stopCallbacks =
+            new CopyOnWriteArrayList<>();
 
     /**
-     * Set callback for when MediaProjection stops.
+     * Add a callback for when MediaProjection stops. It is called on the main thread. Adding the
+     * same callback twice has no effect. The callback must not capture a Context or View that
+     * outlives its owner; remove it with {@link #removeStopCallback(MediaProjectionStopCallback)}.
      */
-    public static void setStopCallback(MediaProjectionStopCallback callback) {
-        stopCallback = callback;
+    public static void addStopCallback(MediaProjectionStopCallback callback) {
+        if (callback != null) {
+            stopCallbacks.addIfAbsent(callback);
+        }
+    }
+
+    /**
+     * Remove a callback added with {@link #addStopCallback(MediaProjectionStopCallback)}.
+     */
+    public static void removeStopCallback(MediaProjectionStopCallback callback) {
+        stopCallbacks.remove(callback);
+    }
+
+    private static MediaProjectionManager manager(Context context) {
+        if (mediaProjectionManager == null) {
+            // application context: the manager is kept in a static field
+            mediaProjectionManager = (MediaProjectionManager)
+                    context.getApplicationContext().getSystemService(Context.MEDIA_PROJECTION_SERVICE);
+        }
+        return mediaProjectionManager;
     }
 
     /**
      * Create intent to request MediaProjection permission.
      */
     public static Intent createPermissionIntent(Context context) {
-        if (mediaProjectionManager == null) {
-            mediaProjectionManager = (MediaProjectionManager)
-                    context.getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-        }
-        return mediaProjectionManager.createScreenCaptureIntent();
+        return manager(context).createScreenCaptureIntent();
     }
 
     /**
@@ -110,15 +134,12 @@ public class MediaProjectionHelper {
      * Must be called from a service with FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION.
      */
     public static boolean createMediaProjection(Context context, int resultCode, Intent data) {
-        if (mediaProjectionManager == null) {
-            mediaProjectionManager = (MediaProjectionManager)
-                    context.getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-        }
+        MediaProjectionManager projectionManager = manager(context);
 
         stopMediaProjection();
 
         try {
-            mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, data);
+            mediaProjection = projectionManager.getMediaProjection(resultCode, data);
 
             if (mediaProjection != null) {
                 mediaProjection.registerCallback(new MediaProjection.Callback() {
@@ -130,12 +151,17 @@ public class MediaProjectionHelper {
                         storedResultCode = Activity.RESULT_CANCELED;
                         storedResultData = null;
 
-                        // Notify callback
-                        if (stopCallback != null) {
-                            stopCallback.onMediaProjectionStopped();
+                        // Notify callbacks (on the main thread, see the handler below)
+                        for (MediaProjectionStopCallback callback : stopCallbacks) {
+                            try {
+                                callback.onMediaProjectionStopped();
+                            } catch (RuntimeException e) {
+                                YaaccLogger.w(MediaProjectionHelper.class.getName(),
+                                        "MediaProjection stop callback failed", e);
+                            }
                         }
                     }
-                }, null);
+                }, new Handler(Looper.getMainLooper()));
 
                 YaaccLogger.i(MediaProjectionHelper.class.getName(),
                         "MediaProjection created successfully");

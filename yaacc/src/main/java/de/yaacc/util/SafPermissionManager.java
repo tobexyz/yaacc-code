@@ -19,19 +19,16 @@
 package de.yaacc.util;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.content.UriPermission;
 import android.net.Uri;
 
 import androidx.documentfile.provider.DocumentFile;
-import androidx.preference.PreferenceManager;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import de.yaacc.R;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
 
 public class SafPermissionManager {
@@ -42,7 +39,6 @@ public class SafPermissionManager {
         Set<String> storedUris = MediaPathFilter.getSafPathes(context);
         List<UriPermission> grantedPermissions = context.getContentResolver().getPersistedUriPermissions();
         Set<String> toBeRemoved = new HashSet<>();
-        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
         YaaccLogger.d(SafPermissionManager.class.getName(), "Checking " + storedUris.size() + " stored SAF URIs, " +
                 grantedPermissions.size() + " total permissions");
 
@@ -79,10 +75,8 @@ public class SafPermissionManager {
         selectedUriSet = selectedUriSet.stream().filter(s -> storedUriSet.contains(s)).collect(Collectors.toSet());
         MediaPathFilter.saveSelectedSafPathes(context, selectedUriSet);
         for (String uriString : toBeRemoved) {
-            YaaccLogger.d(SafPermissionManager.class.getName(), "Removing duration cache entry for SAF URI: " + uriString);
-            if (preferences.contains(context.getString(R.string.settings_duration_format_key) + toBeRemoved)) {
-                preferences.edit().remove(context.getString(R.string.settings_duration_format_key) + toBeRemoved);
-            }
+            YaaccLogger.d(SafPermissionManager.class.getName(), "Removing duration cache entries below SAF URI: " + uriString);
+            SAFCacheManager.getInstance(context).removeCachedUnder(uriString);
         }
 
         // Clean up orphaned permissions if we're approaching the limit

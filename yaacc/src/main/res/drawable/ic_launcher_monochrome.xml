@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed (monochrome) launcher icon: a play button inside a ring, like the colored icon. Only the alpha is used. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"
+        android:pathData="M54,24A30,30 0 1,0 54,84A30,30 0 1,0 54,24ZM54,29A25,25 0 1,1 54,79A25,25 0 1,1 54,29Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M45,40L45,68L70,54Z" />
+</vector>

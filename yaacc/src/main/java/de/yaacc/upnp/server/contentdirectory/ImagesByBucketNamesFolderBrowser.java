@@ -22,7 +22,6 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.database.Cursor;
 import android.provider.MediaStore;
-import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.SortCriterion;
@@ -31,22 +30,28 @@ import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.function.Function;
 
 import de.yaacc.R;
 
 /**
- * Browser  for the image folder.
+ * Browser for the galleries of the images: one container per bucket of the media store (a directory with images in the media paths).
+ * <p>
+ * The galleries are grouped from the rows of the images first, then sorted and paged: a page is a page of galleries, not of rows
+ * (a client that asks for 50 at a time gets 50 galleries, not the first 50 images, which may all be in one gallery).
  *
  * @author TheOpenBit (Tobias Schoene)
  */
 public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
 
+    private static final String[] GALLERY_PROJECTION = {MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.BUCKET_DISPLAY_NAME};
+
+    // a browser lives for one Browse: the count and the page read the media store once
+    private List<MediaGalleries.Gallery> galleries;
 
     public ImagesByBucketNamesFolderBrowser(Context context) {
         super(context);
@@ -60,78 +65,53 @@ public class ImagesByBucketNamesFolderBrowser extends ContentBrowser {
 
     }
 
-    @SuppressLint("Range")
     @Override
     public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
+        return galleries(contentDirectory).size();
+    }
 
-        String[] projection = {MediaStore.Images.Media.BUCKET_ID};
+    /** The galleries of the images in the media paths, in the order of the rows (see {@link MediaGalleries#group}). */
+    List<MediaGalleries.Gallery> galleries(YaaccContentDirectory contentDirectory) {
+        if (galleries == null) {
+            galleries = readGalleries(contentDirectory);
+        }
+        return galleries;
+    }
+
+    @SuppressLint("Range")
+    private List<MediaGalleries.Gallery> readGalleries(YaaccContentDirectory contentDirectory) {
         String selection = "(" + makeLikeClause(MediaStore.Images.Media.DATA, getMediaPathes().size()) + ")";
         String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
-        Set<String> buckets = new HashSet<>();
-        try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
-                selectionArgs, null)) {
-            cursor.moveToFirst();
-            while (!cursor.isAfterLast()) {
-                buckets.add(cursor.getString(cursor.getColumnIndex(MediaStore.Images.Media.BUCKET_ID)));
-                cursor.moveToNext();
+        List<String[]> rows = new ArrayList<>();
+        try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                GALLERY_PROJECTION, selection, selectionArgs, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int idColumn = cursor.getColumnIndex(MediaStore.Images.Media.BUCKET_ID);
+                int nameColumn = cursor.getColumnIndex(MediaStore.Images.Media.BUCKET_DISPLAY_NAME);
+                do {
+                    String id = cursor.getString(idColumn);
+                    if (id != null) {
+                        rows.add(new String[]{id, cursor.getString(nameColumn)});
+                    }
+                } while (cursor.moveToNext());
             }
         }
-        return buckets.size();
+        return MediaGalleries.group(rows, getContext().getString(R.string.gallery_unnamed));
     }
-
-    private Integer getBucketNameFolderSize(YaaccContentDirectory contentDirectory, String id) {
-
-        String[] projection = {MediaStore.Images.Media.BUCKET_ID};
-        String selection = MediaStore.Images.Media.BUCKET_ID + "=?";
-        String[] selectionArgs = new String[]{id};
-        try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
-                selectionArgs, null)) {
-            return cursor.getCount();
-        }
-
-    }
-
 
     @Override
     public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        List<Container> result = new ArrayList<>();
-        // LinkedHashMap preserves cursor/SQL order - do not change to HashMap.
-        Map<String, StorageFolder> folderMap = new LinkedHashMap<>();
-        String[] projection = {MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.BUCKET_DISPLAY_NAME};
-        String selection = "(" + makeLikeClause(MediaStore.Images.Media.DATA, getMediaPathes().size()) + ")";
-        String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
-        Map<String, String> columnMap = new HashMap<>();
-        columnMap.put(SortSupport.PROPERTY_TITLE, MediaStore.Images.Media.BUCKET_DISPLAY_NAME);
-        try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, projection, selection,
-                selectionArgs, SortSupport.toMediaStoreSortOrder(
-                        orderby, columnMap, MediaStore.Images.Media.BUCKET_DISPLAY_NAME + " ASC"))) {
-            if (mediaCursor != null && mediaCursor.getCount() > 0) {
-                mediaCursor.moveToFirst();
-                int currentIndex = 0;
-                int currentCount = 0;
-                while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
-                    if (firstResult <= currentIndex) {
-                        @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Images.Media.BUCKET_ID));
-                        @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Images.Media.BUCKET_DISPLAY_NAME));
-                        StorageFolder imageFolder = new StorageFolder(ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId() + id, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), name, "yaacc", 0, 90700L);
-                        folderMap.put(id, imageFolder);
-                        YaaccLogger.d(getClass().getName(), "image by bucket names folder: " + id + " Name: " + name);
-                        currentCount++;
-                    }
-                    currentIndex++;
-                    mediaCursor.moveToNext();
-                }
-                //Fetch folder size
-                for (Map.Entry<String, StorageFolder> entry : folderMap.entrySet()) {
-                    entry.getValue().setChildCount(getBucketNameFolderSize(contentDirectory, entry.getKey()));
-                    result.add(entry.getValue());
-                }
-            } else {
-                YaaccLogger.d(getClass().getName(), "System media store is empty.");
-            }
+        List<Container> all = new ArrayList<>();
+        for (MediaGalleries.Gallery gallery : galleries(contentDirectory)) {
+            all.add(new StorageFolder(ContentDirectoryIDs.IMAGES_BY_BUCKET_NAME_PREFIX.getId() + gallery.id,
+                    ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), gallery.name, "yaacc", gallery.count, 90700L));
         }
-
-        return result;
+        // sorted by the name without regard to the case, then paged
+        Map<String, Function<DIDLObject, String>> accessors = new HashMap<>();
+        accessors.put(SortSupport.PROPERTY_TITLE, MediaGalleries::titleKey);
+        Comparator<DIDLObject> tieBreaker = MediaGalleries.inTitleOrder();
+        all.sort(SortSupport.toComparator(orderby, accessors, tieBreaker).thenComparing(tieBreaker));
+        return MediaGalleries.page(all, firstResult, maxResults);
     }
 
     @Override

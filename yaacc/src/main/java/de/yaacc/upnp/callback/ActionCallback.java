@@ -28,6 +28,7 @@ import java.net.URL;
 
 import de.yaacc.upnp.protocol.sync.SendingAction;
 import de.yaacc.upnp.server.http.HttpRequestSender;
+import de.yaacc.util.YaaccLogger;
 
 public abstract class ActionCallback implements Runnable {
 
@@ -67,8 +68,21 @@ public abstract class ActionCallback implements Runnable {
                 return;
             }
 
-            SendingAction protocol = new SendingAction(httpRequestSender, actionInvocation, controlURL);
-            protocol.run();
+            if (httpRequestSender == null) {
+                // no server service / network listener / network yet: the caller's failure path, not an NPE in a pool thread
+                YaaccLogger.w(getClass().getName(), "No HTTP request sender available, action not sent: " + actionInvocation.getAction().getName());
+                failure(actionInvocation, null, "No HTTP request sender available");
+                return;
+            }
+
+            try {
+                new SendingAction(httpRequestSender, actionInvocation, controlURL).run();
+            } catch (RuntimeException e) {
+                // otherwise the pool thread dies and whoever waits for the action to finish waits until its watchdog
+                YaaccLogger.e(getClass().getName(), "Action failed unexpectedly: " + actionInvocation.getAction().getName(), e);
+                failure(actionInvocation, null, "Action failed unexpectedly: " + e);
+                return;
+            }
 
             if (actionInvocation.getFailure() != null) {
                 failure(actionInvocation, null);

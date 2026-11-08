@@ -1,0 +1,29 @@
+# Security review: pick and play (#305), summary
+
+Condensed on 2026-11-04: the verdict of every cycle and the blocking findings in one or two lines each. The full texts of the
+cycles are in the git history of this file (the commit before the cleanup). Suggestions that were not taken stay listed in `decisions.md` or in the last cycle below.
+
+## Cycle 1 — 2026-11-03
+
+Verdict: FAIL
+
+Warning:
+- [yaacc/src/main/java/de/yaacc/browser/LocalPickController.java:224-252 (`readRows`, `text`)] SI-12 is weakened for folder rows. …
+- [yaacc/src/main/java/de/yaacc/imageviewer/ImageFragment.java:174 (reached through `QueueItems.direct` -> `LocalImagePlayer.setItems` -> `ImageViewerActivity`)] SI-16 is not kept on the direct path for this phone's images. …
+
+## Cycle 2 — 2026-11-03
+
+Verdict: PASS
+
+Suggestions left open:
+- [FolderListing.java:55-75 `Row.capped`, LocalPickController.java:233-236 `readRows`] Cycle 1 Warning 1 is fixed: id over 1024 chars -> null (row skipped by `list`), name cut at 1024 with `substring` (a copy, the big array is not k …
+- [ShareLogRedactor.java:35] Cycle 1 Warning 2 is fixed for everything the pick path logs. Probed the regex `(?i)content://([^/\s"'<>]*)[^\s"'<>]*` with a throw-away harness (outside the repo): `CoNtEnT://`, empty authority (`conten …
+- [LocalMediaSessionPlayer.java:185,296,341,383,390; AVTransportPlayer.java:522] The title of an item (for a picked file: the cleaned file name) is logged at DEBUG by existing player code. …
+- [QueueShareBinder.java:101-106 `BIND_LOCK`] Verified, no deadlock and no longer provider call. The lock is taken only inside `QueueShareBinder.bind`, which `QueueShareWindow.acquire` calls outside the window monitor, and from `Lea …
+- [LocalPickController.java:333-346 `runOnWorkerThenMain`] Verified: `then`/`finish` are posted in a `finally`, so the flight (`done`) and the receiver selection (`afterStart`) are given back after an `Error` too (the `Error` still …
+- [PlayerService.java:384-411 `createQueuePlayers`] Verified: items are built, an empty item list skips the device, and only then `createPlayer` is called, so no created-and-forgotten player on that path. …
+- Carried over from Cycle 1, still open and non-blocking (not part of this fix): busy refusal by the provider gate treated as a failed item (the bind lock removes most of it for this app's own binds), `stop()` ignored during a bind, …
+- SI-12 (provider calls): folder rows are now bounded in what they keep (Suggestion 1); probe, open and gate unchanged.
+- SI-14 (ownership): `Lease.close` never waits for a bind (checked in code, see `BIND_LOCK` point); late bind releases its share.
+- SI-16 (logging): the picked document uri no longer reaches the default-level log through `ImageFragment`; pick-path code logs fixed texts and class names.
+- SI-17, SI-18: unchanged (`git show HEAD --stat` touches no manifest, Gradle file, `ShareLimits` or resource strings).

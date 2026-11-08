@@ -34,6 +34,8 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
 
 import java.net.URI;
 import java.text.ParseException;
@@ -61,6 +63,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
     protected boolean updateTime = false;
     protected SeekBar seekBar = null;
     private PlayerService playerService;
+    private PlayModeControls.Binding playModeBinding;
 
     public void onServiceConnected(ComponentName className, IBinder binder) {
         if (binder instanceof PlayerService.PlayerServiceBinder) {
@@ -89,6 +92,11 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
         ImageButton btnExit = (ImageButton) findViewById(R.id.musicActivityControlExit);
         ImageButton btnFf = (ImageButton) findViewById(R.id.musicActivityControlFastForward);
         ImageButton btnFr = (ImageButton) findViewById(R.id.musicActivityControlFastRewind);
+        if (playModeBinding == null) {
+            playModeBinding = new PlayModeControls.Binding(this,
+                    findViewById(R.id.musicActivityControlRepeat), findViewById(R.id.musicActivityControlShuffle));
+        }
+        playModeBinding.attach(player);
         if (player == null) {
             btnPrev.setActivated(false);
             btnNext.setActivated(false);
@@ -237,6 +245,9 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
         super.onDestroy();
         YaaccLogger.d(getClass().getName(), "Activity onDestroy - unbinding from service");
         updateTime = false;
+        if (playModeBinding != null) {
+            playModeBinding.detach();
+        }
         try {
             unbindService(this);
             YaaccLogger.d(getClass().getName(), "Successfully unbound from service");
@@ -254,6 +265,7 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
 
     }
 
+    @OptIn(markerClass = UnstableApi.class)
     private Player getPlayer() {
         return playerService == null ? null : playerService.getFirstCurrentPlayerOfType(LocalMediaSessionPlayer.class);
     }
@@ -321,6 +333,10 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
             albumArtView.setImageTintList(null);
             ImageDownloadTask imageDownloadTask = new ImageDownloadTask(albumArtView);
             imageDownloadTask.executeOnExecutor(((Yaacc) getApplicationContext()).getContentLoadExecutor(), Uri.parse(albumArtUri.toString()));
+        } else if (getPlayer().getIcon() != null) {
+            // no art address (a controller that sends none): the cover embedded in the file, when the player has read it
+            albumArtView.setImageTintList(null);
+            albumArtView.setImageBitmap(getPlayer().getIcon());
         } else {
             albumArtView.setImageDrawable(ThemeHelper.tintDrawable(albumArtView.getDrawable(), getTheme()));
         }

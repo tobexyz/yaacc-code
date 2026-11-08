@@ -36,25 +36,35 @@ package de.yaacc.upnp.server.configuration;
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
-import java.util.LinkedList;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * TreeNode is a container for the value to represent a node on the TreeView
+ * TreeNode is a container for the value to represent a node on the TreeView.
+ * <p>
+ * All methods are for the main thread. A folder's children are read on a worker thread and handed
+ * over with {@link #finishLoading}; the load generation makes a result that arrives after the node
+ * was collapsed (or loaded again) harmless.
  */
 public class TreeNode {
 
-    private Object value;
+    /** Whether the children of a folder were read: unknown, being read, or read (then possibly none). */
+    public enum LoadState {NOT_LOADED, LOADING, LOADED}
+
+    private final TreeNodeData value;
     private TreeNode parent;
-    private LinkedList<TreeNode> children;
-    private int layoutId;
+    private final List<TreeNode> children;
+    private final int layoutId;
     private int level;
     private boolean isExpanded;
     private boolean isSelected;
+    private LoadState loadState = LoadState.NOT_LOADED;
+    private int loadGeneration;
 
-    public TreeNode(Object value, int layoutId) {
+    public TreeNode(TreeNodeData value, int layoutId) {
         this.value = value;
         this.parent = null;
-        this.children = new LinkedList<>();
+        this.children = new ArrayList<>();
         this.layoutId = layoutId;
         this.level = 0;
         this.isExpanded = false;
@@ -68,11 +78,17 @@ public class TreeNode {
         updateNodeChildrenDepth(child);
     }
 
-    public void setValue(Object value) {
-        this.value = value;
+    /** Adds all children in one go (one array growth, no per-child list work). */
+    public void addChildren(List<TreeNode> newChildren) {
+        children.addAll(newChildren);
+        for (TreeNode child : newChildren) {
+            child.setParent(this);
+            child.setLevel(level + 1);
+            updateNodeChildrenDepth(child);
+        }
     }
 
-    public Object getValue() {
+    public TreeNodeData getValue() {
         return value;
     }
 
@@ -84,7 +100,7 @@ public class TreeNode {
         return parent;
     }
 
-    public LinkedList<TreeNode> getChildren() {
+    public List<TreeNode> getChildren() {
         return children;
     }
 
@@ -116,6 +132,71 @@ public class TreeNode {
         return isSelected;
     }
 
+    /**
+     * Starts reading the children.
+     *
+     * @return the generation the result has to present to {@link #finishLoading} / {@link #failLoading}
+     */
+    public int startLoading() {
+        loadGeneration++;
+        loadState = LoadState.LOADING;
+        return loadGeneration;
+    }
+
+    /**
+     * Gives up a running load (the user collapsed the node): its result will be ignored.
+     *
+     * @return true if a load was running
+     */
+    public boolean cancelLoading() {
+        if (loadState != LoadState.LOADING) {
+            return false;
+        }
+        loadGeneration++;
+        loadState = LoadState.NOT_LOADED;
+        return true;
+    }
+
+    /**
+     * Takes over the children a load has read.
+     *
+     * @return false (and nothing changed) if the load was cancelled, restarted or is already finished
+     */
+    public boolean finishLoading(int generation, List<TreeNode> loadedChildren) {
+        if (loadState != LoadState.LOADING || generation != loadGeneration) {
+            return false;
+        }
+        addChildren(loadedChildren);
+        loadState = LoadState.LOADED;
+        return true;
+    }
+
+    /**
+     * A load could not read the folder: it stays unknown, so the next click asks again.
+     *
+     * @return false if the result was stale
+     */
+    public boolean failLoading(int generation) {
+        if (loadState != LoadState.LOADING || generation != loadGeneration) {
+            return false;
+        }
+        loadState = LoadState.NOT_LOADED;
+        return true;
+    }
+
+    public boolean isLoading() {
+        return loadState == LoadState.LOADING;
+    }
+
+    public boolean isLoaded() {
+        return loadState == LoadState.LOADED;
+    }
+
+    /** The folder was read and has no children - the only case in which the expand symbol is hidden. */
+    public boolean isKnownEmpty() {
+        return loadState == LoadState.LOADED && children.isEmpty();
+    }
+
     private void updateNodeChildrenDepth(TreeNode node) {
         if (node.getChildren().isEmpty()) return;
         for (TreeNode child : node.getChildren()) {
@@ -124,4 +205,3 @@ public class TreeNode {
         }
     }
 }
-

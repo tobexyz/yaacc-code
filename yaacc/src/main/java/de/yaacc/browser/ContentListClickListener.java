@@ -72,18 +72,15 @@ public class ContentListClickListener implements View.OnClickListener {
             navigator.pushPosition(new Position(position, newObjectId, upnpClient.getProviderDeviceId(), currentObject.getTitle()));
             contentListFragment.populateItemList(true);
         } else if (currentObject instanceof Item) {
-            PlayableItem playableItem = new PlayableItem((Item) currentObject, 0);
-            ContentItemPlayTask task = new ContentItemPlayTask(contentListFragment, currentObject, () -> {
-                // Hide loading indicator when done
-                contentListFragment.hideLoading(position);
-            });
-            // Show loading indicator
-            contentListFragment.showLoading(position);
-            if (playableItem.getMimeType() != null && playableItem.getMimeType().startsWith("video")) {
-                task.execute(ContentItemPlayTask.PLAY_CURRENT);
-            } else {
-                task.execute(ContentItemPlayTask.PLAY_ALL);
-            }
+            // the object this tap is about: the static field may point elsewhere by the time the pick is confirmed
+            final DIDLObject tapped = currentObject;
+            PlayableItem playableItem = new PlayableItem((Item) tapped, 0);
+            int mode = playableItem.getMimeType() != null && playableItem.getMimeType().startsWith("video")
+                    ? ContentItemPlayTask.PLAY_CURRENT : ContentItemPlayTask.PLAY_ALL;
+            // new layout: the receiver picker opens first; classic starts at once
+            contentListFragment.startPlayAction(tapped, mode,
+                    () -> contentListFragment.showLoading(position), // show loading indicator
+                    () -> contentListFragment.hideLoading(position)); // hide it when done
         }
     }
 } 

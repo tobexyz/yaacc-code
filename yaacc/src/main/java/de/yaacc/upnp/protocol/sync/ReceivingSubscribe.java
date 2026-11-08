@@ -42,9 +42,11 @@ import org.fourthline.cling.model.message.gena.IncomingSubscribeRequestMessage;
 import org.fourthline.cling.model.message.gena.OutgoingSubscribeResponseMessage;
 import org.fourthline.cling.model.meta.LocalService;
 import org.fourthline.cling.model.resource.ServiceEventSubscriptionResource;
+import org.fourthline.cling.model.state.StateVariableValue;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -76,6 +78,27 @@ import de.yaacc.util.YaaccLogger;
  */
 public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, OutgoingSubscribeResponseMessage> {
 
+
+    /** The most subscribers of all services of this device together, and of one service. */
+    static final int MAX_SUBSCRIPTIONS = 100;
+    static final int MAX_SUBSCRIPTIONS_PER_SERVICE = 30;
+    /** The most subscribers one control point (one host) may have: it subscribes to each service once, and some run several apps. */
+    static final int MAX_SUBSCRIPTIONS_PER_HOST = 25;
+
+    /** The shortest, the longest and the default time of a subscription (the control point renews it). */
+    static final int MIN_TIMEOUT_SECONDS = 60;
+    static final int MAX_TIMEOUT_SECONDS = 1800;
+
+    /**
+     * The time a subscription lasts. The control point asks for it, but a subscription that never ends (infinite, 0) can not be
+     * removed any more and fills the limited number of subscribers for good: the time is between one and thirty minutes.
+     */
+    static Integer clampTimeout(Integer requestedSeconds) {
+        if (requestedSeconds == null || requestedSeconds <= 0) {
+            return MAX_TIMEOUT_SECONDS;
+        }
+        return Math.max(MIN_TIMEOUT_SECONDS, Math.min(MAX_TIMEOUT_SECONDS, requestedSeconds));
+    }
 
     private final Registry registry;
     private final HttpRequestSender httpRequestSender;
@@ -125,6 +148,15 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
 
     }
 
+    private boolean tooManyForTheHost(List<URL> callbackURLs) {
+        for (URL callback : callbackURLs) {
+            if (registry.getLocalSubscriptionCountForHost(callback.getHost()) >= MAX_SUBSCRIPTIONS_PER_HOST) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     protected OutgoingSubscribeResponseMessage processRenewal(LocalService service,
                                                               IncomingSubscribeRequestMessage requestMessage) {
 
@@ -137,7 +169,7 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
         }
 
         YaaccLogger.v(getClass().getName(), "Renewing subscription: " + subscription);
-        subscription.setSubscriptionDuration(requestMessage.getRequestedTimeoutSeconds());
+        subscription.setSubscriptionDuration(clampTimeout(requestMessage.getRequestedTimeoutSeconds()));
         if (registry.updateLocalSubscription(subscription)) {
             return new OutgoingSubscribeResponseMessage(subscription);
         } else {
@@ -161,23 +193,20 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
             return new OutgoingSubscribeResponseMessage(UpnpResponse.Status.PRECONDITION_FAILED);
         }
 
+        // every host of the network may subscribe: the number of subscribers is limited, each one costs memory and traffic
+        if (registry.getLocalSubscriptionCount(null) >= MAX_SUBSCRIPTIONS
+                || registry.getLocalSubscriptionCount(service) >= MAX_SUBSCRIPTIONS_PER_SERVICE
+                || tooManyForTheHost(callbackURLs)) {
+            YaaccLogger.w(getClass().getName(), "Too many event subscribers, subscription refused");
+            return new OutgoingSubscribeResponseMessage(UpnpResponse.Status.SERVICE_UNAVAILABLE);
+        }
+
         Integer timeoutSeconds;
-        timeoutSeconds = requestMessage.getRequestedTimeoutSeconds();
+        timeoutSeconds = clampTimeout(requestMessage.getRequestedTimeoutSeconds());
 
 
         try {
-            subscription = new LocalGENASubscription(service, timeoutSeconds, callbackURLs) {
-                public void established() {
-                }
-
-                public void ended(CancelReason reason) {
-                }
-
-                public void eventReceived() {
-                    // The only thing we are interested in, sending an event when the state changes
-                    executorService.execute(new SendingEvent(httpRequestSender, this));
-                }
-            };
+            subscription = new EventSendingSubscription(service, timeoutSeconds, callbackURLs);
         } catch (Exception ex) {
             YaaccLogger.w(getClass().getName(), "Couldn't create local subscription to service: ", Exceptions.unwrap(ex));
             return new OutgoingSubscribeResponseMessage(UpnpResponse.Status.INTERNAL_SERVER_ERROR);
@@ -203,11 +232,13 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
             // subscriber is supposed to figure out what to do with out-of-sequence messages. I would be
             // surprised though if actual implementations won't crash!
             YaaccLogger.v(getClass().getName(), "Establishing subscription");
-            subscription.registerOnService();
-            subscription.establish();
-
-            YaaccLogger.v(getClass().getName(), "Response to subscription sent successfully, now sending initial event asynchronously");
-            executorService.execute(new SendingEvent(httpRequestSender, subscription));
+            if (subscription instanceof EventSendingSubscription) {
+                ((EventSendingSubscription) subscription).establishAndSendInitialEvent();
+            } else {
+                subscription.registerOnService();
+                subscription.establish();
+                executorService.execute(new SendingEvent(httpRequestSender, subscription));
+            }
 
         } else if (subscription.getCurrentSequence().getValue() == 0) {
             YaaccLogger.v(getClass().getName(), "Subscription request's response aborted, not sending initial event");
@@ -226,5 +257,97 @@ public class ReceivingSubscribe extends ReceivingSync<StreamRequestMessage, Outg
         if (subscription == null) return; // Nothing to do, we didn't get that far
         YaaccLogger.v(getClass().getName(), "Response could not be send to subscriber, removing local GENA subscription: " + subscription);
         registry.removeLocalSubscription(subscription);
+    }
+
+    /**
+     * A subscription of a control point to a local service that sends its events by HTTP.
+     */
+    protected class EventSendingSubscription extends LocalGENASubscription {
+
+        EventSendingSubscription(LocalService service, Integer requestedDurationSeconds, List<URL> callbackURLs) throws Exception {
+            super(service, requestedDurationSeconds, callbackURLs);
+        }
+
+        public void established() {
+        }
+
+        public void ended(CancelReason reason) {
+        }
+
+        private final EventDeliveryHealth health = new EventDeliveryHealth();
+        private final SendingEvent.DeliveryListener deliveryListener = new SendingEvent.DeliveryListener() {
+            @Override
+            public void delivered() {
+                health.succeeded();
+            }
+
+            @Override
+            public void failed(Exception cause) {
+                if (health.failed()) {
+                    giveUp(cause);
+                }
+            }
+        };
+
+        public void eventReceived() {
+            // The only thing we are interested in, sending an event when the state changes
+            executorService.execute(new SendingEvent(httpRequestSender, this, deliveryListener));
+        }
+
+        /**
+         * The subscriber cannot be reached (its callback address is not routable from here, or it is gone): every
+         * event would block a pool thread for the connect timeout. The subscription is removed, a control point
+         * that is still there finds out when it renews it and subscribes again.
+         */
+        private void giveUp(Exception cause) {
+            YaaccLogger.w(getClass().getName(), "Event delivery to " + getCallbackURLs() + " failed "
+                    + EventDeliveryHealth.MAX_FAILURES_IN_A_ROW + " times in a row, dropping subscription "
+                    + getSubscriptionId() + ": " + Exceptions.unwrap(cause));
+            try {
+                registry.removeLocalSubscription(this);
+                end(CancelReason.EXPIRED);
+            } catch (RuntimeException e) {
+                YaaccLogger.w(getClass().getName(), "Subscription " + getSubscriptionId() + " not removed: " + e);
+            }
+        }
+
+        /**
+         * Registers at the service, reads the state of the service again and sends it as the initial event.
+         * <p>
+         * The state was first read when the subscription was created, before the answer was written: a change
+         * between then and the registration (Home Assistant sets shuffle and repeat with two calls in a row, right
+         * when it subscribes) is neither in that state nor sent as an event to a subscription that is not
+         * registered yet, so the subscriber would keep the old value until the next change. Reading after the
+         * registration closes the gap: what is changed before the registration is in the state, what is changed
+         * after it arrives as an event. Everything runs under the monitor of this subscription, so an event cannot
+         * overtake the initial one in its sequence number.
+         */
+        void establishAndSendInitialEvent() {
+            SendingEvent initialEvent;
+            synchronized (this) {
+                registerOnService();
+                refreshCurrentValues();
+                establish();
+                initialEvent = new SendingEvent(httpRequestSender, this, deliveryListener);
+            }
+            YaaccLogger.v(getClass().getName(), "Response to subscription sent successfully, now sending initial event asynchronously");
+            executorService.execute(initialEvent);
+        }
+
+        private void refreshCurrentValues() {
+            try {
+                Collection<StateVariableValue> values = getService().getManager().getCurrentState();
+                if (values == null || values.isEmpty()) {
+                    return;
+                }
+                currentValues.clear();
+                for (StateVariableValue value : values) {
+                    currentValues.put(value.getStateVariable().getName(), value);
+                }
+            } catch (Exception e) {
+                // the state read when subscribing is still a state
+                YaaccLogger.w(getClass().getName(), "State for the initial event not read again, sending the first one: " + Exceptions.unwrap(e));
+            }
+        }
     }
 }

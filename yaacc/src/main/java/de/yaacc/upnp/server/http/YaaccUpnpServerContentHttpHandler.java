@@ -24,7 +24,6 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
@@ -39,6 +38,7 @@ import androidx.preference.PreferenceManager;
 
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.EntityDetails;
+import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpRequest;
@@ -51,7 +51,6 @@ import org.apache.hc.core5.http.nio.AsyncServerRequestHandler;
 import org.apache.hc.core5.http.nio.StreamChannel;
 import org.apache.hc.core5.http.nio.entity.AbstractBinAsyncEntityProducer;
 import org.apache.hc.core5.http.nio.entity.AsyncEntityProducers;
-import org.apache.hc.core5.http.nio.entity.BasicAsyncEntityConsumer;
 import org.apache.hc.core5.http.nio.support.AsyncResponseBuilder;
 import org.apache.hc.core5.http.nio.support.BasicRequestConsumer;
 import org.apache.hc.core5.http.protocol.HttpContext;
@@ -62,7 +61,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.ByteBuffer;
@@ -75,9 +73,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.share.HttpLinkTarget;
+import de.yaacc.share.RendererIdPolicy;
+import de.yaacc.share.ShareRegistry;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.contentdirectory.ContentDirectoryIDs;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
+import de.yaacc.upnp.server.contentdirectory.SafSelection;
 import de.yaacc.util.SAFCacheManager;
 import de.yaacc.upnp.server.media.SystemAudioCaptureService;
 import de.yaacc.util.HttpRange;
@@ -91,107 +93,40 @@ import de.yaacc.util.YaaccLogger;
 public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHandler<Message<HttpRequest, byte[]>> {
 
     private final Context context;
-    // Server-side position management for renderers
-    private static final Map<String, RendererState> rendererStates = new ConcurrentHashMap<>();
-
     SharedPreferences preferences;
-
-    static class RendererState {
-        long currentTimePosition = 0; // milliseconds
-        boolean isPaused = false;
-        String currentUrl = "";
-        long totalDuration = 0;
-        long lastUpdateTime = System.currentTimeMillis();
-        long lastBytePosition = 0; // Store last calculated byte position for pause
-    }
 
     public YaaccUpnpServerContentHttpHandler(Context context) {
         this.context = context;
         preferences = PreferenceManager.getDefaultSharedPreferences(context);
     }
 
-    private long calculateBytePositionFromTime(String url, long timeMs, long totalDurationMs) {
-        // More conservative estimation for MP3 files
-        if (totalDurationMs <= 0) return 0;
-
+    /**
+     * Tells the server-side time range management where a renderer is playing (position change,
+     * seek). Only an EXISTING state of a live http(s) share is changed; nothing is created, and
+     * an invalid key or device id does nothing. Neither is logged.
+     *
+     * @param shareKey the key of the share (last segment of its proxy URL)
+     * @param deviceId the renderer's id
+     */
+    public static void updateRendererPosition(Context context, String shareKey, String deviceId,
+                                              long timeMs, boolean isPaused) {
         try {
-            // Get total file size with HEAD request
-            HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
-            con.setRequestMethod("HEAD");
-            con.setConnectTimeout(5000);
-            con.setReadTimeout(5000);
-            long totalSize = con.getContentLengthLong();
-            con.disconnect();
-
-            if (totalSize > 0) {
-                // More conservative calculation for MP3 files
-                // Account for MP3 headers and variable bitrate
-                double timeRatio = (double) timeMs / totalDurationMs;
-
-                // Assume first 10% of file contains headers/metadata
-                long dataSize = (long) (totalSize * 0.9);
-                long headerSize = totalSize - dataSize;
-
-                // Calculate position within the data portion
-                long estimatedDataPosition = (long) (dataSize * timeRatio);
-                long estimatedPosition = headerSize + estimatedDataPosition;
-
-                // Additional safety margin - don't go beyond 85% of file size
-                long maxSafePosition = (long) (totalSize * 0.85);
-                estimatedPosition = Math.min(estimatedPosition, maxSafePosition);
-
-                YaaccLogger.d(getClass().getName(), "Calculated byte position " + estimatedPosition + " for time " + timeMs + "ms (file size: " + totalSize + ", ratio: " + String.format("%.3f", timeRatio) + ")");
-                return estimatedPosition;
+            if (!ShareRegistry.isWellFormedKey(shareKey) || !RendererIdPolicy.isValid(deviceId)) {
+                return;
             }
-        } catch (Exception e) {
-            YaaccLogger.w(getClass().getName(), "Failed to calculate byte position", e);
-        }
-
-        return 0;
-    }
-
-    private long getDurationFromUrl(String url) {
-        try {
-            // Get file size with HEAD request
-            HttpURLConnection con = (HttpURLConnection) new URL(url).openConnection();
-            con.setRequestMethod("HEAD");
-            con.setConnectTimeout(5000);
-            con.setReadTimeout(5000);
-            long fileSize = con.getContentLengthLong();
-            con.disconnect();
-
-            if (fileSize > 0) {
-                // Estimate duration for MP3 files based on file size
-                // Assume average bitrate of 128 kbps for MP3 files
-                // Duration (seconds) = (file size in bytes * 8) / (bitrate in bits per second)
-                long estimatedDurationMs = (fileSize * 8 * 1000) / (128 * 1024);
-                YaaccLogger.d(getClass().getName(), "Estimated duration: " + estimatedDurationMs + "ms from file size: " + fileSize + " bytes");
-                return estimatedDurationMs;
+            ShareRegistry.Entry entry = ((Yaacc) context.getApplicationContext()).getShareRegistry().lookup(shareKey);
+            if (entry != null && entry.getTarget() instanceof HttpLinkTarget) {
+                ((HttpLinkTarget) entry.getTarget()).getRendererStates().update(deviceId, timeMs, isPaused);
             }
-        } catch (Exception e) {
-            YaaccLogger.w(getClass().getName(), "Failed to estimate duration from URL: " + url, e);
-        }
-        return 0;
-    }
-
-    public static void updateRendererPosition(String rendererKey, long timeMs) {
-        updateRendererPosition(rendererKey, timeMs, false);
-    }
-
-    public static void updateRendererPosition(String rendererKey, long timeMs, boolean isPaused) {
-        RendererState state = rendererStates.get(rendererKey);
-        if (state != null) {
-            state.currentTimePosition = timeMs;
-            state.isPaused = isPaused;
-            state.lastUpdateTime = System.currentTimeMillis();
-            YaaccLogger.d("YaaccUpnpServerServiceHttpHandler", "Updated renderer position: " + rendererKey + " -> " + timeMs + "ms, paused=" + isPaused);
+        } catch (RuntimeException e) {
+            // best effort: the renderer's position is only an estimate anyway
         }
     }
 
     @Override
     public AsyncRequestConsumer<Message<HttpRequest, byte[]>> prepare(HttpRequest request, EntityDetails entityDetails,
                                                                       HttpContext context) {
-        return new BasicRequestConsumer<>(entityDetails != null ? new BasicAsyncEntityConsumer() : null);
+        return new BasicRequestConsumer<>(entityDetails != null ? new BoundedEntityConsumer() : null);
     }
 
     @Override
@@ -200,7 +135,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                        final HttpContext context) throws HttpException, IOException {
 
         YaaccLogger.d(getClass().getName(), "Processing HTTP request: "
-                + request.getHead().getRequestUri());
+                + loggableUri(request.getHead().getRequestUri()));
         final AsyncResponseBuilder responseBuilder = AsyncResponseBuilder.create(HttpStatus.SC_OK);
         // Extract what we need from the HTTP httpRequest
         String requestMethod = request.getHead().getMethod()
@@ -222,6 +157,14 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             responseBuilder.setEntity(
                     AsyncEntityProducers.create("<html><body>I am alive</body></html>", ContentType.TEXT_HTML));
             responseTrigger.submitResponse(responseBuilder.build(), context);
+            return;
+        }
+        if (!pathSegments.isEmpty() && YaaccUpnpServerService.PROXY_PATH.equals(pathSegments.get(0))) {
+            // The shares of the in-memory registry. Answered before the preference gate below: the
+            // HTTP server runs whenever the process lives and a share is protected by its random
+            // key, its expiry and (setting) the receiver addresses, not by the proxy preference.
+            new ProxyShareResponder(getContext(), preferences).respond(request, responseTrigger, context,
+                    requestMethod.equals("HEAD"), pathSegments);
             return;
         }
         if (pathSegments.size() < 2 || pathSegments.size() > 3) {
@@ -265,10 +208,9 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         }
         Arrays.stream(request.getHead().getHeaders())
                 .forEach(it -> YaaccLogger.d(getClass().getName(), "HEADER " + it.getName() + ": " + it.getValue()));
-        List<HttpRange> ranges = new ArrayList<>();
-        if (request.getHead().getHeader(HttpHeaders.RANGE) != null) {
-            ranges = HttpRange.parseRangeHeader(request.getHead().getHeader(HttpHeaders.RANGE).getValue().toString());
-        }
+        // never throws: a Range header that cannot be used is ignored and the whole resource is sent
+        Header rangeHeader = request.getHead().getHeader(HttpHeaders.RANGE);
+        List<HttpRange> ranges = RangeResponsePlan.parseHeader(rangeHeader == null ? null : rangeHeader.getValue());
         ContentHolder contentHolder = null;
         if (!contentId.isEmpty()) {
             contentHolder = lookupContent(contentId, ranges);
@@ -276,19 +218,6 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             contentHolder = lookupAlbumArt(albumId, ranges);
         } else if (!thumbId.isEmpty()) {
             contentHolder = lookupThumbnail(thumbId, ranges);
-        } else if (contentProxyEnabled && YaaccUpnpServerService.PROXY_PATH.equals(type)) {
-            YaaccLogger.d(getClass().getName(), "Processing proxy request: " + requestUri);
-            // Handle both old and new proxy URL formats
-            if (pathSegments.size() >= 3) {
-                // New format: /proxy/encodedDeviceId/contentKey
-                String encodedDeviceId = pathSegments.get(1);
-                String deviceId = java.net.URLDecoder.decode(encodedDeviceId, "UTF-8");
-                String contentKey = pathSegments.get(2);
-                contentHolder = lookupProxyContent(contentKey, ranges, deviceId);
-            } else if (pathSegments.size() >= 2) {
-                // Old format: /proxy/contentKey (fallback)
-                contentHolder = lookupProxyContent(pathSegments.get(1), ranges, null);
-            }
         } else if (contentServerEnabled && YaaccUpnpServerService.SAF_PATH.equals(type)) {
             contentHolder = lookupSafContent(pathSegments.get(1), pathSegments.get(2), ranges);
         } else if (contentServerEnabled && "live".equals(type) && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
@@ -314,37 +243,29 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             YaaccLogger.d(getClass().getName(), "Resource with id " + contentId
                     + albumId + thumbId + pathSegments.get(1) + " not found");
             responseBuilder.setStatus(HttpStatus.SC_NOT_FOUND);
-            String response = "<html><body>Resource with id " + contentId + albumId
-                    + thumbId + pathSegments.get(1) + " not found</body></html>";
-            responseBuilder.setEntity(AsyncEntityProducers.create(response, ContentType.TEXT_HTML));
+            // the page does not repeat what the client sent (a path segment is decoded text a browser would run as HTML)
+            responseBuilder.setHeader("X-Content-Type-Options", "nosniff");
+            responseBuilder.setEntity(AsyncEntityProducers.create(NOT_FOUND_PAGE, ContentType.TEXT_HTML));
         } else {
+            // The status and Content-Range come from the plan (full size of the resource, also for HEAD).
+            RangeResponsePlan plan = contentHolder.getRangePlan();
             YaaccLogger.d(getClass().getName(), "Serving content: type=" + type
                     + " mimeType=" + contentHolder.getMimeType()
-                    + " length=" + contentHolder.getContentLength()
-                    + " ranges=" + ranges.size());
-
-            if (!ranges.isEmpty()) {
-                responseBuilder.setStatus(HttpStatus.SC_PARTIAL_CONTENT);
-                // Add Content-Range header for partial content
-                HttpRange range = ranges.get(0);
-                long fileSize = contentHolder.getContentLength();
-
-                // For external URLs with unknown length, don't send Content-Range header
-                if (fileSize > 0) {
-                    long start = range.getStart() != null ? range.getStart() : 0;
-                    long end = range.getEnd() != null ? range.getEnd() : fileSize - 1;
-                    responseBuilder.setHeader(HttpHeaders.CONTENT_RANGE,
-                            "bytes " + start + "-" + end + "/" + fileSize);
-                    YaaccLogger.d(getClass().getName(), "Partial content: " + start + "-" + end + "/" + fileSize);
-                }
-            } else {
-                responseBuilder.setStatus(HttpStatus.SC_OK);
-            }
+                    + " length=" + plan.size()
+                    + " ranges=" + ranges.size()
+                    + " status=" + plan.status()
+                    + (plan.contentRange() != null ? " Content-Range: " + plan.contentRange() : ""));
+            plan.applyTo(responseBuilder);
+            responseBuilder.setHeader("X-Content-Type-Options", "nosniff");
 
             // Add essential streaming headers for UPnP renderers
             responseBuilder.setHeader(HttpHeaders.CONNECTION, "close");
             responseBuilder.setHeader("transferMode.dlna.org", "Streaming");
             responseBuilder.setHeader("contentFeatures.dlna.org", "DLNA.ORG_OP=01;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000");
+
+            if (contentHolder.cacheSeconds > 0) {
+                responseBuilder.setHeader(HttpHeaders.CACHE_CONTROL, "public, max-age=" + contentHolder.cacheSeconds);
+            }
 
             // Add MJPEG-specific headers for Kodi compatibility
             if (contentHolder instanceof LiveStreamContentHolder && ((LiveStreamContentHolder) contentHolder).isVideo) {
@@ -353,11 +274,30 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                 responseBuilder.setHeader(HttpHeaders.EXPIRES, "0");
             }
 
-            responseBuilder.setEntity(contentHolder.getEntityProducer());
+            // 416: no entity, so the resource is not opened and the answer has an empty body
+            if (plan.hasBody()) {
+                responseBuilder.setEntity(contentHolder.getEntityProducer());
+            }
         }
         responseBuilder.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
         responseTrigger.submitResponse(responseBuilder.build(), context);
         YaaccLogger.d(getClass().getName(), "end doService: ");
+    }
+
+    /**
+     * The request URI for the log. The path of a proxy request carries the share key, which is
+     * never logged.
+     */
+    private static String loggableUri(String requestUri) {
+        try {
+            List<String> segments = Uri.parse(requestUri).getPathSegments();
+            if (!segments.isEmpty() && YaaccUpnpServerService.PROXY_PATH.equals(segments.get(0))) {
+                return "/" + YaaccUpnpServerService.PROXY_PATH + "/[redacted]";
+            }
+        } catch (RuntimeException e) {
+            return "[unparsable]";
+        }
+        return requestUri;
     }
 
     private void createForbiddenResponse(ResponseTrigger responseTrigger, HttpContext context,
@@ -624,15 +564,28 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
      * @param albumId the id of the album
      * @return the content description
      */
-    private ContentHolder lookupAlbumArt(String albumId, List<HttpRange> ranges) {
+    ContentHolder lookupAlbumArt(String albumId, List<HttpRange> ranges) {
 
-        ContentHolder result = new ContentHolder(MimeType.valueOf("image/png"),
-                getDefaultIcon(), ranges, context);
+        // not cacheable here: a disabled server, a missing id or a failed file write do not say that the album has no cover
+        ContentHolder result = genericMusicIcon(ranges, false);
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
         if (!preferences.getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false)) {
             return result;
         }
         if (albumId == null) {
+            return result;
+        }
+        Long canonicalId = canonicalAlbumId(albumId);
+        if (canonicalId == null) {
+            // not the spelling of an id of the media store: the same album could be asked for in endless spellings (007, +7),
+            // and each spelling would get a cover file of its own in the cache directory
+            YaaccLogger.d(getClass().getName(), "Album id is not canonical, generic icon");
+            return result;
+        }
+        albumId = canonicalId.toString();
+        if (!isInMediaPaths(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, MediaStore.Audio.Media.ALBUM_ID, MediaStore.Audio.Media.DATA, albumId)) {
+            // an album without a track in the media paths: its cover is not served
+            YaaccLogger.d(getClass().getName(), "Album not in the media paths, generic icon");
             return result;
         }
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
@@ -669,21 +622,8 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                     + " Uri: " + dataUri);
                             result = new ContentHolder(mimeType, dataUri, ranges, context);
                         } else {
-                            YaaccLogger.d(getClass().getName(), "Album art not found in media store. Fallback to default");
-                            Bitmap bitmap = BitmapFactory.decodeResource(context.getResources(),
-                                    R.drawable.yaacc192_32);
-
-                            try {
-                                File art = new File(context.getCacheDir(), "albumart" + albumId + ".jpg");
-                                art.createNewFile();
-                                FileOutputStream fos = new FileOutputStream(art);
-                                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
-                                fos.flush();
-                                fos.close();
-                                result = new ContentHolder(mimeType, art.getAbsolutePath(), ranges, context);
-                            } catch (IOException e) {
-                                YaaccLogger.e(getClass().getName(), "Error loading album art from file", e);
-                            }
+                            YaaccLogger.d(getClass().getName(), "Album art not found in media store. Fallback to the generic music icon");
+                            result = genericMusicIcon(ranges, true);
                         }
                         cursor.moveToNext();
                     }
@@ -692,17 +632,15 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                 }
             }
         } else {
-            Uri albumArtUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI,
-                    Long.parseLong(albumId));
-            MimeType mimeType = MimeType.valueOf("image/jpeg");
-            YaaccLogger.d(getClass().getName(), "Content found: " + mimeType
-                    + " Uri: " + albumArtUri);
+            long id = canonicalId;
+            Uri albumArtUri = ContentUris.withAppendedId(MediaStore.Audio.Albums.EXTERNAL_CONTENT_URI, id);
+            YaaccLogger.d(getClass().getName(), "Album art lookup Uri: " + albumArtUri);
             Bitmap bitmap;
             try {
                 bitmap = context.getContentResolver().loadThumbnail(albumArtUri, new Size(1024, 1024), null);
             } catch (IOException io) {
-                YaaccLogger.d(getClass().getName(), "Album art not found in media store. Fallback to default");
-                bitmap = BitmapFactory.decodeResource(context.getResources(), R.drawable.yaacc192_32);
+                YaaccLogger.d(getClass().getName(), "Album art not found in media store. Fallback to the generic music icon");
+                return genericMusicIcon(ranges, true);
             }
             try {
                 File art = new File(context.getCacheDir(), "albumart" + albumId + ".jpg");
@@ -711,7 +649,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
                 fos.flush();
                 fos.close();
-                result = new ContentHolder(mimeType, art.getAbsolutePath(), ranges, context);
+                result = new ContentHolder(MimeType.valueOf("image/jpeg"), art.getAbsolutePath(), ranges, context);
             } catch (IOException e) {
                 YaaccLogger.e(getClass().getName(), "Error loading album art from file", e);
             }
@@ -721,12 +659,31 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
     }
 
     /**
+     * Whether the media store has a row with the id whose file is in the media paths of the server settings.
+     *
+     * @param idColumn   the column the id is compared with ({@code _id}, or the album id of the tracks)
+     * @param dataColumn the column of the path of the file
+     */
+    private boolean isInMediaPaths(Uri table, String idColumn, String dataColumn, String id) {
+        String selection = idColumn + "=? and (" + MediaPathFilter.makeLikeClause(dataColumn, MediaPathFilter.getMediaPathes(getContext()).size()) + ")";
+        List<String> args = new ArrayList<>();
+        args.add(id);
+        args.addAll(MediaPathFilter.getMediaPathesForLikeClause(getContext()));
+        try (Cursor cursor = getContext().getContentResolver().query(table, new String[]{idColumn}, selection, args.toArray(new String[0]), null)) {
+            return cursor != null && cursor.getCount() > 0;
+        }
+    }
+
+    /** The answer for a resource that does not exist: no text of the request in it. */
+    static final String NOT_FOUND_PAGE = "<html><body>Resource not found</body></html>";
+
+    /**
      * Lookup a thumbnail content in the mediastore
      *
      * @param idStr the id of the thumbnail
      * @return the content description
      */
-    private ContentHolder lookupThumbnail(String idStr, List<HttpRange> ranges) {
+    ContentHolder lookupThumbnail(String idStr, List<HttpRange> ranges) {
 
         ContentHolder result = new ContentHolder(MimeType.valueOf("image/png"),
                 getDefaultIcon(), ranges, context);
@@ -745,6 +702,11 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             return result;
         }
 
+        if (!isInMediaPaths(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, MediaStore.Images.Media._ID, MediaStore.Images.Media.DATA, idStr)) {
+            // an image outside the media paths: its picture is not served (the id is a number any host of the network can count through)
+            YaaccLogger.d(getClass().getName(), "Thumbnail not in the media paths");
+            return result;
+        }
         YaaccLogger.d(getClass().getName(), "System media store lookup thumbnail: "
                 + idStr);
         Bitmap bitmap = MediaStore.Images.Thumbnails.getThumbnail(getContext()
@@ -765,120 +727,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         return result;
     }
 
-    private ContentHolder lookupProxyContent(String contentKey, List<HttpRange> ranges) {
-        return lookupProxyContent(contentKey, ranges, null);
-    }
-
-    private ContentHolder lookupProxyContent(String contentKey, List<HttpRange> ranges, String deviceId) {
-        YaaccLogger.d(getClass().getName(), "Looking up proxy content for key: " + contentKey + ", device: " + deviceId);
-
-        String targetUri = PreferenceManager.getDefaultSharedPreferences(getContext())
-                .getString(YaaccUpnpServerService.PROXY_LINK_KEY_PREFIX + contentKey, null);
-        YaaccLogger.d(getClass().getName(), "Target URI from preferences: " + targetUri);
-
-        if (targetUri == null) {
-            YaaccLogger.e(getClass().getName(), "No target URI found for proxy key: " + contentKey);
-            return null;
-        }
-        String targetMimetype = PreferenceManager.getDefaultSharedPreferences(getContext())
-                .getString(YaaccUpnpServerService.PROXY_LINK_MIME_TYPE_KEY_PREFIX + contentKey, null);
-        YaaccLogger.d(getClass().getName(), "Target MIME type: " + targetMimetype);
-
-        // Check if this renderer needs server-side position management
-        boolean useServerPositionManagement = false; // Default: no server-side management
-
-        if (deviceId != null) {
-            SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
-            String prefKey = "manage_external_seeking_" + deviceId;
-            useServerPositionManagement = preferences.getBoolean(prefKey, false);
-            YaaccLogger.d(getClass().getName(), "Checking preference key: " + prefKey);
-            YaaccLogger.d(getClass().getName(), "Server position management for device " + deviceId + ": " + useServerPositionManagement);
-        } else {
-            YaaccLogger.d(getClass().getName(), "No device ID available, using default (no server-side management)");
-        }
-
-        if (useServerPositionManagement && !ranges.isEmpty()) {
-            YaaccLogger.d(getClass().getName(), "Server-side management enabled, processing ranges: " + ranges.size());
-            // For basic renderers, ignore their range requests and use server-managed position
-            String rendererKey = deviceId + "_" + contentKey;
-            RendererState state = rendererStates.get(rendererKey);
-            YaaccLogger.d(getClass().getName(), "Looking for renderer state: " + rendererKey + ", found: " + (state != null));
-            if (state != null && state.currentUrl.equals(targetUri)) {
-                long bytePosition;
-                if (state.isPaused) {
-                    // When paused, use the exact same byte position as before
-                    bytePosition = state.lastBytePosition;
-                    YaaccLogger.d(getClass().getName(), "Using cached byte position for pause: " + bytePosition);
-                } else {
-                    // Calculate new byte position and cache it
-                    // If we don't have duration yet, get it now
-                    if (state.totalDuration <= 0) {
-                        state.totalDuration = getDurationFromUrl(targetUri);
-                        YaaccLogger.d(getClass().getName(), "Updated renderer state duration: " + state.totalDuration + "ms");
-                    }
-                    bytePosition = calculateBytePositionFromTime(targetUri, state.currentTimePosition, state.totalDuration);
-                    if (bytePosition > 0) {
-                        state.lastBytePosition = bytePosition; // Update cache for future pause
-                    }
-                }
-
-                if (bytePosition > 0) {
-                    // Override the renderer's incorrect range request
-                    ranges.clear();
-                    ranges.add(new HttpRange("bytes", bytePosition, null, null));
-                    YaaccLogger.d(getClass().getName(), "Overriding range request with server-managed position: bytes=" + bytePosition + "- (paused=" + state.isPaused + ")");
-                }
-            } else {
-                // Initialize renderer state for new playback  
-                RendererState newState = new RendererState();
-                newState.currentUrl = targetUri;
-                // Get current server position (in case this is after a seek)
-                SharedPreferences serverPrefs = PreferenceManager.getDefaultSharedPreferences(getContext());
-                long serverPosition = serverPrefs.getLong("server_position_" + deviceId, 0);
-                newState.currentTimePosition = serverPosition;
-                newState.totalDuration = 0; // Will be determined dynamically
-                newState.isPaused = false;
-                newState.lastBytePosition = 0;
-                rendererStates.put(rendererKey, newState);
-                YaaccLogger.d(getClass().getName(), "Initialized renderer state for: " + rendererKey + " with position: " + serverPosition + "ms");
-
-                // Calculate byte position for the current server position
-                if (serverPosition > 0) {
-                    YaaccLogger.d(getClass().getName(), "Attempting to get duration for URL: " + targetUri);
-                    // Get the total duration dynamically from the media file
-                    long totalDuration = getDurationFromUrl(targetUri);
-                    YaaccLogger.d(getClass().getName(), "Retrieved duration: " + totalDuration + "ms for position: " + serverPosition + "ms");
-
-                    if (totalDuration > 0) {
-                        long bytePosition = calculateBytePositionFromTime(targetUri, serverPosition, totalDuration);
-                        YaaccLogger.d(getClass().getName(), "Calculated byte position: " + bytePosition + " for time: " + serverPosition + "ms");
-                        if (bytePosition > 0) {
-                            // Override the renderer's range request
-                            ranges.clear();
-                            ranges.add(new HttpRange("bytes", bytePosition, null, null));
-                            YaaccLogger.d(getClass().getName(), "Overriding range request with server-managed position: bytes=" + bytePosition + "- (time=" + serverPosition + "ms, duration=" + totalDuration + "ms)");
-                        } else {
-                            YaaccLogger.w(getClass().getName(), "Byte position calculation returned 0 or negative: " + bytePosition);
-                        }
-                    } else {
-                        YaaccLogger.w(getClass().getName(), "Could not determine duration for URL: " + targetUri);
-                    }
-                } else {
-                    YaaccLogger.d(getClass().getName(), "Server position is 0, no range override needed");
-                }
-            }
-        }
-
-        MimeType mimeType = MimeType.valueOf("*/*");
-        if (targetMimetype != null) {
-            mimeType = MimeType.valueOf(targetMimetype);
-        }
-
-        YaaccLogger.d(getClass().getName(), "Creating ContentHolder for proxy: " + targetUri + " with MIME: " + mimeType + ", ranges: " + ranges.size());
-        return new ContentHolder(mimeType, targetUri, ranges, context);
-    }
-
-    private ContentHolder lookupSafContent(String contentKey, String contentEnc, List<HttpRange> ranges) {
+    ContentHolder lookupSafContent(String contentKey, String contentEnc, List<HttpRange> ranges) {
         YaaccLogger.d(getClass().getName(), "lookupSafContent: contentKey=" + contentKey + ", contentEnc=" + contentEnc);
         
         if (!contentKey.startsWith(ContentDirectoryIDs.SAF_PREFIX.getId())) {
@@ -920,6 +769,11 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         
         if (contentUri == null) {
             YaaccLogger.e(getClass().getName(), "SAF short ID not found in cache: " + shortId);
+            return null;
+        }
+        // a short id outlives the selection of its tree: only what is in a selected tree is served
+        if (!SafSelection.contains(getContext(), contentUri)) {
+            YaaccLogger.d(getClass().getName(), "SAF content is not in a selected folder: " + shortId);
             return null;
         }
 
@@ -974,26 +828,6 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             }
         }
 
-        // Check if contentUri or its parents are included in selectedSafPathes
-        // FIXME
-        /*
-         * Set<String> selectedSafPathes =
-         * MediaPathFilter.getSelectedSafPathes(getContext());
-         * boolean isPathAllowed = false;
-         *
-         * for (String selectedPath : selectedSafPathes) {
-         * if (contentUri.startsWith(selectedPath)) {
-         * isPathAllowed = true;
-         * break;
-         * }
-         * }
-         *
-         * if (!isPathAllowed) {
-         * YaaccLogger.d(getClass().getName(), "SAF content URI not in selected paths: " +
-         * contentUri);
-         * return null;
-         * }
-         */
         String targetUri = contentUri;
         // Pass the DocumentFile instance to avoid re-creating it during streaming
         return new SafContentHolder(mimeType, targetUri, ranges, context, file);
@@ -1011,121 +845,87 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         }
 
         @Override
+        public long getContentLength() {
+            // the size the body is cut from, so the status, Content-Range and body agree; a provider that
+            // does not know the size reports 0
+            return documentFile != null ? Math.max(0, documentFile.length()) : super.getContentLength();
+        }
+
+        @Override
         public AsyncEntityProducer getEntityProducer() throws IOException {
             if (documentFile != null && documentFile.exists() && !documentFile.isDirectory()) {
-                return new AbstractBinAsyncEntityProducer(8192, ContentType.parse(getMimeType().toString())) {
-                    private InputStream input;
-                    private long totalBytesRead = 0;
-                    private final long fileLength = documentFile.length();
-                    private long startPosition = 0;
-                    private long rangeLength = fileLength;
-
-                    {
-                        // Calculate range if specified
-                        if (!ranges.isEmpty()) {
-                            HttpRange range = ranges.get(0);
-                            startPosition = range.getStart() == null ? 0 : range.getStart();
-                            if (range.getEnd() != null && range.getEnd() > 0) {
-                                rangeLength = range.getEnd() - startPosition + 1;
-                            } else {
-                                rangeLength = fileLength - startPosition;
-                            }
-                            if (range.getSuffixLength() != null && range.getSuffixLength() > 0) {
-                                startPosition = Math.max(0, fileLength - range.getSuffixLength());
-                                rangeLength = range.getSuffixLength();
-                            }
-                            // Ensure range is valid
-                            if (startPosition >= fileLength) {
-                                startPosition = 0;
-                                rangeLength = fileLength;
-                            }
-                            if (startPosition + rangeLength > fileLength) {
-                                rangeLength = fileLength - startPosition;
-                            }
-                        }
+                // the whole document without a range, else the first range (clipped to the document)
+                RangeWindow window = getRangePlan().window();
+                return new RangedStreamEntityProducer(ContentType.parse(getMimeType().toString()), () -> {
+                    InputStream input = context.getContentResolver().openInputStream(documentFile.getUri());
+                    if (input == null) {
+                        throw new IOException("No input stream for the SAF document");
                     }
-
-                    @Override
-                    public long getContentLength() {
-                        return rangeLength;
-                    }
-
-                    @Override
-                    protected int availableData() {
-                        return input != null ? 1 : 0;
-                    }
-
-                    @Override
-                    protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
-                        if (input == null) {
-                            try {
-                                input = context.getContentResolver().openInputStream(documentFile.getUri());
-                                if (startPosition > 0) {
-                                    input.skip(startPosition);
-                                }
-                                YaaccLogger.d(getClass().getName(), "Opened SAF input stream for: " + documentFile.getUri() +
-                                        " range: " + startPosition + "-" + (startPosition + rangeLength - 1));
-                            } catch (Exception e) {
-                                YaaccLogger.e(getClass().getName(), "Error opening SAF input stream", e);
-                                channel.endStream();
-                                return;
-                            }
-                        }
-
-                        if (input != null && totalBytesRead < rangeLength) {
-                            byte[] buffer = new byte[8192];
-                            int maxRead = (int) Math.min(buffer.length, rangeLength - totalBytesRead);
-                            try {
-                                int bytesRead = input.read(buffer, 0, maxRead);
-                                if (bytesRead > 0) {
-                                    totalBytesRead += bytesRead;
-                                    channel.write(ByteBuffer.wrap(buffer, 0, bytesRead));
-                                } else {
-                                    YaaccLogger.d(getClass().getName(), "End of SAF stream reached. Total bytes: " + totalBytesRead);
-                                    input.close();
-                                    channel.endStream();
-                                }
-                            } catch (IOException e) {
-                                YaaccLogger.e(getClass().getName(), "Error reading from SAF stream", e);
-                                if (input != null) {
-                                    try {
-                                        input.close();
-                                    } catch (IOException ignored) {
-                                    }
-                                }
-                                channel.endStream();
-                            }
-                        } else {
-                            if (input != null) {
-                                try {
-                                    input.close();
-                                } catch (IOException ignored) {
-                                }
-                            }
-                            channel.endStream();
-                        }
-                    }
-
-                    @Override
-                    public boolean isRepeatable() {
-                        return false;
-                    }
-
-                    @Override
-                    public void failed(final Exception cause) {
-                        YaaccLogger.e(getClass().getName(), "SAF streaming failed", cause);
-                        if (input != null) {
-                            try {
-                                input.close();
-                            } catch (IOException ignored) {
-                            }
-                        }
-                    }
-                };
+                    return input;
+                }, window.start(), window.length());
             }
             YaaccLogger.e(getClass().getName(), "DocumentFile is null, doesn't exist, or is a directory");
             return super.getEntityProducer();
         }
+    }
+
+    /**
+     * @return the id if the text is exactly the decimal spelling of a non-negative number (no sign, no leading zeros, no
+     * non-ASCII digits, no blanks), else {@code null}
+     */
+    static Long canonicalAlbumId(String text) {
+        if (text == null || text.isEmpty() || text.length() > 19) {
+            return null;
+        }
+        try {
+            long id = Long.parseLong(text);
+            return id >= 0 && Long.toString(id).equals(text) ? id : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** How long a control point may keep the generic music icon (the picture never changes). */
+    static final long GENERIC_ICON_CACHE_SECONDS = 24 * 60 * 60;
+    private static volatile byte[] genericMusicIconBytes;
+
+    /**
+     * The cover of a music track whose album has none: a fixed, small PNG of the music note glyph the app uses for audio items
+     * ({@code res/raw/album_art_music_generic.png}), not the app logo. It is read once, not rendered, and no file is written
+     * per album.
+     *
+     * @param cacheable true only where the answer says "this album has no cover" (then the control point may keep it, see
+     *                  {@link ContentHolder#cacheSeconds}); false for a disabled server, a missing id or a failure, which a
+     *                  control point must not keep for a day, and for the app logo that stands in when the picture is unreadable
+     * @return the holder, or {@code null} (answered 404) if there is no picture at all
+     */
+    ContentHolder genericMusicIcon(List<HttpRange> ranges, boolean cacheable) {
+        byte[] bytes = genericMusicIconBytes;
+        boolean generic = bytes != null;
+        if (bytes == null) {
+            try (InputStream in = getContext().getResources().openRawResource(R.raw.album_art_music_generic);
+                 ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                byte[] buffer = new byte[4096];
+                int read;
+                while ((read = in.read(buffer)) > 0) {
+                    out.write(buffer, 0, read);
+                }
+                bytes = out.toByteArray();
+                genericMusicIconBytes = bytes;
+                generic = true;
+            } catch (IOException | RuntimeException e) {
+                YaaccLogger.w(getClass().getName(), "The generic music icon could not be read, the app icon is used", e);
+                bytes = getDefaultIcon();
+            }
+        }
+        if (bytes == null) {
+            return null;
+        }
+        ContentHolder holder = new ContentHolder(MimeType.valueOf("image/png"), bytes, ranges, context);
+        if (cacheable && generic) {
+            holder.cacheSeconds = GENERIC_ICON_CACHE_SECONDS;
+        }
+        return holder;
     }
 
     private byte[] getDefaultIcon() {
@@ -1150,6 +950,9 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
         protected byte[] content;
         protected final Context context;
         protected List<HttpRange> ranges;
+        private RangeResponsePlan rangePlan;
+        /** &gt; 0: the answer may be cached by the client for that many seconds (a picture that never changes). */
+        long cacheSeconds;
 
         public ContentHolder(MimeType mimeType, String uri, List<HttpRange> ranges, Context context) {
             this.uri = uri;
@@ -1165,6 +968,15 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             this.ranges = ranges;
             this.context = context;
 
+        }
+
+        /**
+         * What to log about a failure of an external (http/https) link: only the exception class.
+         * The message and the exception object usually carry the link (a 404 reports the URL, a
+         * DNS failure the host), and the link of a share may hold a token.
+         */
+        static String exceptionName(Throwable throwable) {
+            return throwable == null ? "unknown" : throwable.getClass().getSimpleName();
         }
 
         /**
@@ -1202,7 +1014,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                         }
                         return -1; // Unknown length for external URLs
                     } catch (Exception e) {
-                        YaaccLogger.e(getClass().getName(), "Error getting external content length", e);
+                        YaaccLogger.e(getClass().getName(), "Error getting external content length (" + exceptionName(e) + ")");
                         return -1;
                     }
                 } else {
@@ -1227,48 +1039,18 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             return -1;
         }
 
-        private byte[] readRangeFormFile(File file, List<HttpRange> ranges) throws IOException {
-
-            try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-                long fileSize = raf.length();
-                long startPosition;
-                long rangeLength;
-                if (ranges.size() > 1) {
-                    YaaccLogger.d(getClass().getName(),
-                            "More than on ranges requested. Currently only one range is supported. Responding with the first range");
-                }
-                if (ranges.isEmpty()) {
-                    startPosition = 0;
-                    rangeLength = fileSize;
-                } else {
-                    HttpRange range = ranges.get(0);
-                    startPosition = range.getStart() == null ? 0 : range.getStart();
-                    if (range.getEnd() == null || range.getEnd() == 0) {
-                        rangeLength = fileSize;
-                    } else {
-                        rangeLength = range.getEnd() - startPosition;
-                    }
-                    if (range.getSuffixLength() != null && range.getSuffixLength() > 0) {
-                        startPosition = fileSize - range.getSuffixLength();
-                        rangeLength = range.getSuffixLength();
-                    }
-                }
-
-                // Read a range of bytes (e.g., bytes 100 to 200)
-                if (startPosition < 0 || startPosition + rangeLength > fileSize) {
-                    YaaccLogger.d(getClass().getName(), "Invalid range startPosition: " + startPosition + " rangeLength: "
-                            + rangeLength + " fileSize: " + fileSize);
-                    rangeLength = fileSize - startPosition;
-                    YaaccLogger.d(getClass().getName(), "Adjusted range startPosition: " + startPosition + " rangeLength: "
-                            + rangeLength + " fileSize: " + fileSize);
-                }
-
-                raf.seek(startPosition); // Move to the starting position
-                byte[] buffer = new byte[(int) rangeLength]; // Create a buffer
-                raf.read(buffer);
-                return buffer;
+        /**
+         * What to answer to this request: status, Content-Range and the bytes to send, from the requested
+         * ranges and the FULL size of the resource ({@link #getContentLength()} is the whole size of the
+         * resource for every holder, never the length of a range). Decided once, so the status line and
+         * the body come from the same size (for an external link {@code getContentLength()} is a request
+         * to the origin).
+         */
+        RangeResponsePlan getRangePlan() {
+            if (rangePlan == null) {
+                rangePlan = RangeResponsePlan.of(ranges, getContentLength());
             }
-
+            return rangePlan;
         }
 
         public AsyncEntityProducer getEntityProducer() throws IOException {
@@ -1297,8 +1079,10 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                             con.setRequestProperty("Connection", "keep-alive"); // Try to keep connection alive
                                             // Apply range request to external connection
                                             if (!ranges.isEmpty()) {
-                                                con.setRequestProperty("Range", HttpRange.toHeaderString(ranges));
-                                                YaaccLogger.d(getClass().getName(), "Applying range request to external URL: " + HttpRange.toHeaderString(ranges));
+                                                // only the first range is served, so only that one is asked for
+                                                String upstreamRange = HttpRange.toHeaderString(ranges.subList(0, 1));
+                                                con.setRequestProperty("Range", upstreamRange);
+                                                YaaccLogger.d(getClass().getName(), "Applying range request to external URL: " + upstreamRange);
                                             }
                                             con.connect();
 
@@ -1315,7 +1099,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                             break; // Success, exit retry loop
                                         } catch (Exception e) {
                                             lastException = e;
-                                            YaaccLogger.w(getClass().getName(), "Connection attempt " + (i + 1) + " failed: " + e.getMessage());
+                                            YaaccLogger.w(getClass().getName(), "Connection attempt " + (i + 1) + " failed (" + exceptionName(e) + ")");
                                             if (i < retries - 1) {
                                                 try {
                                                     Thread.sleep(1000);
@@ -1330,7 +1114,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                     }
                                 }
                             } catch (IOException e) {
-                                YaaccLogger.e(getClass().getName(), "Error opening external content", e);
+                                YaaccLogger.e(getClass().getName(), "Error opening external content (" + exceptionName(e) + ")");
                             }
                             return this;
                         }
@@ -1365,7 +1149,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                     channel.endStream();
                                 }
                             } catch (IOException e) {
-                                YaaccLogger.e(getClass().getName(), "Error reading external content", e);
+                                YaaccLogger.e(getClass().getName(), "Error reading external content (" + exceptionName(e) + ")");
                                 if (input != null) {
                                     try {
                                         input.close();
@@ -1383,7 +1167,7 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
 
                         @Override
                         public void failed(final Exception cause) {
-                            YaaccLogger.e(getClass().getName(), "External content streaming failed", cause);
+                            YaaccLogger.e(getClass().getName(), "External content streaming failed (" + exceptionName(cause) + ")");
                             if (input != null) {
                                 try {
                                     input.close();
@@ -1396,26 +1180,15 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                     // Handle local files and SAF content
                     File file = new File(getUri());
                     if (file.exists()) {
-                        if (ranges.isEmpty()) {
+                        RangeResponsePlan plan = getRangePlan();
+                        if (plan.isPartial()) {
+                            // every ranged request is streamed in 8 KB steps, whatever the size of the file
+                            result = new RangedFileEntityProducer(file, ContentType.parse(getMimeType().toString()),
+                                    plan.window());
+                        } else {
                             result = AsyncEntityProducers.create(file, ContentType.parse(getMimeType().toString()));
                             YaaccLogger.d(getClass().getName(), "Return without range request file-Uri: " + getUri()
                                     + " Mimetype: " + getMimeType());
-                        } else {
-                            // For large files (>50MB), use streaming instead of loading into memory
-                            long fileSize = file.length();
-                            HttpRange range = ranges.get(0);
-                            long rangeSize = fileSize;
-                            if (range.getEnd() != null && range.getEnd() > 0) {
-                                rangeSize = range.getEnd() - (range.getStart() != null ? range.getStart() : 0) + 1;
-                            }
-
-                            if (fileSize > 50 * 1024 * 1024 || rangeSize > 50 * 1024 * 1024) { // 50MB threshold
-                                YaaccLogger.d(getClass().getName(), "Using streaming for large file: " + fileSize + " bytes, range: " + rangeSize + " bytes");
-                                result = createStreamingEntityProducer(file, ranges);
-                            } else {
-                                result = AsyncEntityProducers.create(readRangeFormFile(file, ranges),
-                                        ContentType.parse(getMimeType().toString()));
-                            }
                         }
                     } else {
                         // DocumentFile handling - need to read content through InputStream
@@ -1423,7 +1196,8 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                             Uri uri = Uri.parse(getUri());
                             // For DocumentFile, we need to handle it differently since AsyncEntityProducers doesn't support it directly
                             // We'll read the content as bytes and create from that
-                            if (ranges.isEmpty()) {
+                            RangeResponsePlan plan = getRangePlan();
+                            if (!plan.isPartial()) {
                                 // DocumentFile handling using ContentResolver
                                 result = new AbstractBinAsyncEntityProducer(8192, ContentType.parse(getMimeType().toString())) {
                                     private InputStream input;
@@ -1449,11 +1223,9 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
 
                                     @Override
                                     protected int availableData() {
-                                        try {
-                                            return input != null ? input.available() : 0;
-                                        } catch (IOException e) {
-                                            return 0;
-                                        }
+                                        // input.available() is 0 at the end of a file and for slow providers; HttpCore
+                                        // would then never call produceData() again, so the stream would never end (#294)
+                                        return input != null ? 8192 : 0;
                                     }
 
                                     @Override
@@ -1482,9 +1254,14 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                                     }
                                 }.init();
                             } else {
-                                // Range requests for DocumentFile not implemented yet
-                                result = AsyncEntityProducers.create("DocumentFile range requests not implemented".getBytes(),
-                                        ContentType.parse(getMimeType().toString()));
+                                RangeWindow window = plan.window();
+                                result = new RangedStreamEntityProducer(ContentType.parse(getMimeType().toString()), () -> {
+                                    InputStream input = context.getContentResolver().openInputStream(uri);
+                                    if (input == null) {
+                                        throw new IOException("No input stream for the document");
+                                    }
+                                    return input;
+                                }, window.start(), window.length());
                             }
                         } catch (Exception e) {
                             YaaccLogger.e(getClass().getName(), "Error handling DocumentFile", e);
@@ -1492,7 +1269,10 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                     }
                 }
             } else if (content != null) {
-                result = AsyncEntityProducers.create(content, ContentType.parse(getMimeType().toString()));
+                RangeResponsePlan plan = getRangePlan();
+                byte[] body = plan.isPartial() ? Arrays.copyOfRange(content, (int) plan.window().start(),
+                        (int) (plan.window().start() + plan.window().length())) : content;
+                result = AsyncEntityProducers.create(body, ContentType.parse(getMimeType().toString()));
             }
 
             if (result == null) {
@@ -1501,89 +1281,6 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
                         ContentType.TEXT_HTML);
             }
             return result;
-        }
-
-        private AsyncEntityProducer createStreamingEntityProducer(File file, List<HttpRange> ranges) {
-            return new AbstractBinAsyncEntityProducer(8192, ContentType.parse(getMimeType().toString())) {
-                private RandomAccessFile raf;
-                private long startPosition = 0;
-                private long rangeLength;
-                private long bytesRead = 0;
-
-                {
-                    try {
-                        raf = new RandomAccessFile(file, "r");
-                        long fileSize = raf.length();
-
-                        if (!ranges.isEmpty()) {
-                            HttpRange range = ranges.get(0);
-                            startPosition = range.getStart() == null ? 0 : range.getStart();
-                            if (range.getEnd() == null || range.getEnd() == 0) {
-                                rangeLength = fileSize - startPosition;
-                            } else {
-                                rangeLength = range.getEnd() - startPosition + 1;
-                            }
-                            if (range.getSuffixLength() != null && range.getSuffixLength() > 0) {
-                                startPosition = fileSize - range.getSuffixLength();
-                                rangeLength = range.getSuffixLength();
-                            }
-                        } else {
-                            rangeLength = fileSize;
-                        }
-
-                        raf.seek(startPosition);
-                    } catch (IOException e) {
-                        YaaccLogger.e(getClass().getName(), "Error initializing streaming producer", e);
-                    }
-                }
-
-                @Override
-                public long getContentLength() {
-                    return rangeLength;
-                }
-
-                @Override
-                protected int availableData() {
-                    return (bytesRead < rangeLength) ? 8192 : 0;
-                }
-
-                @Override
-                protected void produceData(final StreamChannel<ByteBuffer> channel) throws IOException {
-                    if (raf != null && bytesRead < rangeLength) {
-                        byte[] buffer = new byte[8192];
-                        int toRead = (int) Math.min(buffer.length, rangeLength - bytesRead);
-                        int read = raf.read(buffer, 0, toRead);
-                        if (read > 0) {
-                            bytesRead += read;
-                            channel.write(ByteBuffer.wrap(buffer, 0, read));
-                        } else {
-                            raf.close();
-                            channel.endStream();
-                        }
-                    } else {
-                        if (raf != null) {
-                            raf.close();
-                        }
-                        channel.endStream();
-                    }
-                }
-
-                @Override
-                public void failed(final Exception cause) {
-                    YaaccLogger.e(getClass().getName(), "Streaming failed", cause);
-                    if (raf != null) {
-                        try {
-                            raf.close();
-                        } catch (IOException ignored) {
-                        }
-                    }
-                }
-
-                @Override
-                public boolean isRepeatable() {
-                    return false; // File streaming is not repeatable
-                }
-            };
         }
     }
 

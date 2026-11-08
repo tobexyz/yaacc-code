@@ -158,6 +158,11 @@ public abstract class SubscriptionCallback implements Runnable {
     }
 
     private void establishRemoteSubscription(RemoteService service) {
+        if (httpRequestSender == null) {
+            YaaccLogger.w(getClass().getName(), "No HTTP request sender available, subscription not sent");
+            failed(null, null, new IllegalStateException("No HTTP request sender available"));
+            return;
+        }
         RemoteGENASubscription remoteSubscription = new RemoteGENASubscription(service, requestedDurationSeconds) {
             public void failed(UpnpResponse responseStatus) {
                 synchronized (SubscriptionCallback.this) {
@@ -223,6 +228,10 @@ public abstract class SubscriptionCallback implements Runnable {
     }
 
     private void endRemoteSubscription(RemoteGENASubscription subscription) {
+        if (httpRequestSender == null) {
+            YaaccLogger.w(getClass().getName(), "No HTTP request sender available, unsubscribe not sent");
+            return;
+        }
         executorService.execute(new SendingUnsubscribe(registry, httpRequestSender, subscription));
     }
 

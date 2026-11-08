@@ -48,6 +48,26 @@ public class Log {
         return 0;
     }
 
+    public static int e(String tag, String msg, Throwable tr) {
+        System.out.println("ERROR: " + tag + ": " + msg + " " + tr);
+        return 0;
+    }
+
+    public static int w(String tag, String msg, Throwable tr) {
+        System.out.println("WARN: " + tag + ": " + msg + " " + tr);
+        return 0;
+    }
+
+    public static int w(String tag, Throwable tr) {
+        System.out.println("WARN: " + tag + ": " + tr);
+        return 0;
+    }
+
+    public static int i(String tag, String msg, Throwable tr) {
+        System.out.println("INFO: " + tag + ": " + msg + " " + tr);
+        return 0;
+    }
+
     public static int v(String tag, String msg) {
         System.out.println("VERBOSE: " + tag + ": " + msg);
         return 0;

@@ -1,11 +1,11 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="horizontal"
     android:baselineAligned="false">
 
-    <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-        xmlns:tools="http://schemas.android.com/tools"
+    <RelativeLayout xmlns:tools="http://schemas.android.com/tools"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
@@ -23,7 +23,7 @@
             android:layout_marginBottom="10dp"
             android:text="@string/upnp_server"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
-            android:textColor="?android:attr/colorForeground" />
+            android:textColor="?attr/colorOnSurface" />
 
         <com.google.android.material.switchmaterial.SwitchMaterial
             android:id="@+id/serverOnOff"
@@ -33,7 +33,7 @@
             android:layout_alignParentTop="true"
             android:layout_toEndOf="@id/serverLabel"
             android:layout_marginBottom="10dp"
-            android:layout_marginLeft="10dp" />
+            android:layout_marginStart="10dp" />
 
         <TextView
             android:id="@+id/localServerControlInterface"
@@ -45,7 +45,7 @@
             android:layout_marginStart="5dp"
             android:text="@string/all"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
-            android:textColor="?android:attr/colorForeground" />
+            android:textColor="?attr/colorOnSurface" />
 
         <CheckBox
             android:id="@+id/providerEnabled"
@@ -101,13 +101,13 @@
             android:layout_marginStart="10dp"
             android:layout_marginTop="5dp"
             android:contentDescription="@string/media_store_scan"
-            android:src="@drawable/ic_baseline_refresh_32" />
+            android:src="@drawable/ic_baseline_refresh_32"
+            app:tint="?attr/colorControlNormal" />
 
 
     </RelativeLayout>
 
-    <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-        xmlns:tools="http://schemas.android.com/tools"
+    <RelativeLayout xmlns:tools="http://schemas.android.com/tools"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="2"
@@ -122,7 +122,7 @@
             android:layout_marginBottom="12dp"
             android:layout_marginStart="5dp"
             android:textAppearance="@android:style/TextAppearance.Material.Medium"
-            android:textColor="?android:attr/colorForeground" />
+            android:textColor="?attr/colorOnSurface" />
 
         <ImageButton
             android:id="@+id/sharedFoldersReset"
@@ -133,7 +133,8 @@
             android:text="@string/reset_shared_folders"
             android:src="@drawable/outline_database_off_32"
             android:contentDescription="@string/reset_shared_folders"
-            android:textAppearance="@android:style/TextAppearance.Material.Medium" />
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            app:tint="?attr/colorControlNormal" />
 
         <ImageButton
             android:id="@+id/sharedFoldersAddSaf"
@@ -144,7 +145,8 @@
             android:text="@string/add_saf_content"
             android:src="@drawable/ic_search_bookmark"
             android:contentDescription="@string/add_saf_content"
-            android:textAppearance="@android:style/TextAppearance.Material.Medium" />
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            app:tint="?attr/colorControlNormal" />
 
         <ImageButton
             android:id="@+id/clearSafCache"
@@ -155,7 +157,8 @@
             android:text="@string/clear_saf_cache"
             android:src="@drawable/ic_baseline_refresh_32"
             android:contentDescription="@string/clear_saf_cache"
-            android:textAppearance="@android:style/TextAppearance.Material.Medium" />
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            app:tint="?attr/colorControlNormal" />
 
 
         <androidx.recyclerview.widget.RecyclerView

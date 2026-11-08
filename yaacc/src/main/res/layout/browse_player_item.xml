@@ -27,11 +27,11 @@
     android:clickable="true"
     android:foreground="?attr/selectableItemBackground">
 
-    <androidx.cardview.widget.CardView
+    <com.google.android.material.card.MaterialCardView
+        style="@style/Widget.App.CardView.List"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:focusable="true"
-        app:cardCornerRadius="12dp"
         app:cardUseCompatPadding="true"
         app:contentPadding="5dp">
 
@@ -45,13 +45,15 @@
                 android:layout_height="120dp"
                 android:scaleType="centerCrop"
                 android:alpha="0.3"
-                android:contentDescription="Album Art" />
+                android:contentDescription="@string/album_art" />
 
+            <!-- Icon and name stay separate views: the adapter binds the icon by id. -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="120dp"
                 android:orientation="horizontal"
-                android:padding="5dp">
+                android:padding="5dp"
+                tools:ignore="UseCompoundDrawables">
 
                 <ImageView
                     android:id="@+id/browsePlayerItemIcon"
@@ -72,9 +74,9 @@
                     android:textSize="18sp"
                     android:text="@string/all"
                     android:textAppearance="@android:style/TextAppearance.Material.Medium"
-                    android:textColor="?android:attr/colorForeground" />
+                    android:textColor="?attr/colorOnSurface" />
 
             </LinearLayout>
         </FrameLayout>
-    </androidx.cardview.widget.CardView>
+    </com.google.android.material.card.MaterialCardView>
 </RelativeLayout>

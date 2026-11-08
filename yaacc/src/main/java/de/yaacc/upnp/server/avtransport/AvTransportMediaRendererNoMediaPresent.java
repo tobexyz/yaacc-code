@@ -18,6 +18,7 @@
  */
 package de.yaacc.upnp.server.avtransport;
 
+import de.yaacc.share.ShareLogRedactor;
 import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.avtransport.impl.state.AbstractState;
@@ -28,6 +29,7 @@ import org.fourthline.cling.support.model.PositionInfo;
 
 import java.net.URI;
 
+import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
 
 /**
@@ -53,7 +55,7 @@ public class AvTransportMediaRendererNoMediaPresent extends
     @Override
     public Class<? extends AbstractState<?>> setTransportURI(URI uri,
                                                              String metaData) {
-        YaaccLogger.d(this.getClass().getName(), "set Transport: " + uri + " metaData: " + metaData);
+        YaaccLogger.d(this.getClass().getName(), "set Transport: " + ShareLogRedactor.redact(String.valueOf(uri)) + " metaData: " + ShareLogRedactor.redact(String.valueOf(metaData)));
         getTransport().setMediaInfo(new MediaInfo(uri.toString(), metaData));
         // If you can, you should find and set the duration of the track here!
         getTransport().setPositionInfo(
@@ -67,6 +69,33 @@ public class AvTransportMediaRendererNoMediaPresent extends
                 new AVTransportVariable.CurrentTrackURI(uri));
 
         return AvTransportMediaRendererPlaying.class;
+    }
+
+    /**
+     * Control points such as Home Assistant send {@code Stop} when they switch a player off, also when
+     * nothing is loaded. There is nothing to stop, so the renderer stays where it is instead of answering
+     * with UPnP error 701 (this state lists {@code Stop} as a possible action as well). Cling's
+     * {@code NoMediaPresent} does not declare {@code stop()}: the state machine looks a signal up by its
+     * name on the current state and answers 701 when there is none, so this method is what makes it work.
+     */
+    public Class<? extends AbstractState<?>> stop() {
+        YaaccLogger.d(this.getClass().getName(), "stop: nothing to stop");
+        return AvTransportMediaRendererNoMediaPresent.class;
+    }
+
+    /**
+     * Pause when nothing plays (a controller whose cached state is behind, for example after the item ended): the renderer
+     * stays where it is instead of answering UPnP error 701. Cling does not declare {@code pause()} on this state: the
+     * state machine looks a signal up by its name on the current state.
+     */
+    public Class<? extends AbstractState<?>> pause() {
+        YaaccLogger.d(this.getClass().getName(), "pause: nothing plays");
+        return null;
+    }
+
+    /** Nothing plays: a player that stops changes nothing. */
+    public Class<? extends AbstractState<?>> playerStopped(Player player) {
+        return null;
     }
 
     @Override

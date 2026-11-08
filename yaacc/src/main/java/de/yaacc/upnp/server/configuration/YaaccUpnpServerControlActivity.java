@@ -17,6 +17,7 @@
  */
 package de.yaacc.upnp.server.configuration;
 
+import android.annotation.SuppressLint;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
@@ -25,6 +26,9 @@ import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -34,6 +38,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.res.ResourcesCompat;
 import androidx.documentfile.provider.DocumentFile;
 import androidx.preference.PreferenceManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -48,12 +53,17 @@ import java.util.List;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.upnp.server.contentdirectory.MediaPathFilter;
+import de.yaacc.upnp.server.contentdirectory.SafDirectory;
+import de.yaacc.upnp.server.contentdirectory.SafDirectoryLister;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.MediaStoreScanner;
@@ -65,14 +75,25 @@ import de.yaacc.util.YaaccLogActivity;
 import de.yaacc.util.YaaccLogger;
 
 /**
- * Control activity for the yaacc upnp server
- *
- * @author Tobias Schoene (openbit)
+ * Control activity for the yaacc upnp server.
+ * <p>
+ * The shared folders tree reads folders on ONE background thread owned by the activity (file system
+ * and document provider calls are never made on the main thread); the main thread only builds rows
+ * from the plain {@link TreeNodeData} the worker produced and inserts a folder's children as one range.
  */
 public class YaaccUpnpServerControlActivity extends AppCompatActivity {
 
     private static final int REQUEST_CODE_OPEN_DOCUMENT_TREE = 1001;
     private TreeViewAdapter treeViewAdapter;
+    private final ExecutorService worker = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "yaacc-shared-folders");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    // main thread only: set in onDestroy; counts the tree builds so a result of a replaced tree is dropped
+    private boolean destroyed;
+    private int treeGeneration;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -128,22 +149,22 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
             }
         }));
         ImageButton resetButton = findViewById(R.id.sharedFoldersReset);
-        Drawable icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.outline_database_off_32, getTheme()), getTheme());
+        Drawable icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.outline_database_off_32, getTheme()), getTheme());
         resetButton.setImageDrawable(icon);
         resetButton.setOnClickListener(v -> {
                     MediaPathFilter.resetMediaPaths(getApplicationContext());
                     MediaPathFilter.resetSelectedSafPathes(getApplicationContext());
-                    buildFileSystemTree(treeViewAdapter);
+                    buildFileSystemTree();
                 }
         );
 
         ImageButton safButton = findViewById(R.id.sharedFoldersAddSaf);
-        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_search_bookmark, getTheme()), getTheme());
+        icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_search_bookmark, getTheme()), getTheme());
         safButton.setImageDrawable(icon);
         safButton.setOnClickListener(v -> selectSafContent());
 
         ImageButton clearCacheButton = findViewById(R.id.clearSafCache);
-        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_refresh_32, getTheme()), getTheme());
+        icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_refresh_32, getTheme()), getTheme());
         clearCacheButton.setImageDrawable(icon);
         clearCacheButton.setOnClickListener(v -> {
             SAFCacheManager.getInstance(getApplicationContext()).clearCache();
@@ -152,7 +173,7 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         });
 
         ImageButton mediaStoreRescanButton = findViewById(R.id.mediaStoreRescan);
-        icon = ThemeHelper.tintDrawable(getResources().getDrawable(R.drawable.ic_baseline_refresh_32, getTheme()), getTheme());
+        icon = ThemeHelper.tintDrawable(ResourcesCompat.getDrawable(getResources(), R.drawable.ic_baseline_refresh_32, getTheme()), getTheme());
         mediaStoreRescanButton.setImageDrawable(icon);
         mediaStoreRescanButton.setOnClickListener(v -> {
             new Timer().schedule(new TimerTask() {
@@ -178,7 +199,17 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         TreeViewHolderFactory factory = (v, layout) -> new TreeViewHolder(v);
         treeViewAdapter = new TreeViewAdapter(factory);
         recyclerView.setAdapter(treeViewAdapter);
-        buildFileSystemTree(treeViewAdapter);
+        treeViewAdapter.setTreeNodeClickListener((treeNode, nodeView) -> onTreeNodeClicked(treeNode));
+        buildFileSystemTree();
+    }
+
+    @Override
+    protected void onDestroy() {
+        destroyed = true;
+        mainHandler.removeCallbacksAndMessages(null);
+        // A listing that is already running finishes into the listing cache (a recreated screen reuses it).
+        worker.shutdownNow();
+        super.onDestroy();
     }
 
     private void selectSafContent() {
@@ -196,7 +227,26 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
         startActivityForResult(intent, REQUEST_CODE_OPEN_DOCUMENT_TREE);
     }
 
-    private void buildFileSystemTree(TreeViewAdapter treeViewAdapter) {
+    /**
+     * Builds the root nodes (the external storage's top level and the saved SAF trees) on the worker
+     * and shows them when they are ready. A newer build makes an older result obsolete.
+     */
+    private void buildFileSystemTree() {
+        final int generation = ++treeGeneration;
+        final Context appContext = getApplicationContext();
+        runInBackground(() -> {
+            List<TreeNode> fileRoots = readRoots(appContext);
+            runOnMainThread(() -> {
+                if (generation == treeGeneration) {
+                    treeViewAdapter.updateTreeNodes(fileRoots);
+                }
+            });
+        });
+    }
+
+    // worker thread
+    private List<TreeNode> readRoots(Context appContext) {
+        long start = SystemClock.elapsedRealtime();
         List<TreeNode> fileRoots = new ArrayList<>();
         File externalStorageRoot = Environment.getExternalStorageDirectory(); // Or any other root path
         // Check if external storage is readable
@@ -207,12 +257,7 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
                 // Add top-level directories from the chosen root
                 File[] topLevelFiles = externalStorageRoot.listFiles();
                 if (topLevelFiles != null) {
-                    for (File file : topLevelFiles) {
-                        TreeNode node = buildFileSystemNode(file, R.layout.file_list_item);
-                        if (node != null) {
-                            fileRoots.add(node);
-                        }
-                    }
+                    fileRoots.addAll(TreeNodeFactory.fileChildren(topLevelFiles, R.layout.file_list_item));
                 } else {
                     YaaccLogger.e(getClass().getName(), "Could not list files in root: " + externalStorageRoot.getAbsolutePath());
                 }
@@ -227,17 +272,14 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
             YaaccLogger.w(getClass().getName(), "No file system roots found or storage unavailable. Adding a placeholder.");
         }
 
-        Set<String> safUris = MediaPathFilter.getSafPathes(getApplicationContext());
+        Set<String> safUris = MediaPathFilter.getSafPathes(appContext);
         if (safUris != null) {
             for (String uriString : safUris) {
                 try {
-                    Uri uri = Uri.parse(uriString);
-                    DocumentFile docRoot = DocumentFile.fromTreeUri(this, uri);
+                    DocumentFile docRoot = DocumentFile.fromTreeUri(appContext, Uri.parse(uriString));
                     if (docRoot != null && docRoot.exists()) {
-                        TreeNode node = buildFileSystemNode(docRoot, R.layout.file_list_item);
-                        if (node != null) {
-                            fileRoots.add(node);
-                        }
+                        fileRoots.add(TreeNodeFactory.safRoot(docRoot.getUri().toString(), docRoot.getName(),
+                                docRoot.isDirectory(), R.layout.file_list_item));
                     } else {
                         YaaccLogger.w(getClass().getName(), "SAF root not accessible: " + uriString);
                     }
@@ -246,79 +288,120 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
                 }
             }
         }
-        treeViewAdapter.updateTreeNodes(fileRoots);
-
-
-        treeViewAdapter.setTreeNodeClickListener((treeNode, nodeView) -> {
-            YaaccLogger.d(getClass().getName(), "Click on TreeNode with value " + treeNode.getValue().toString());
-            Object value = treeNode.getValue();
-            if (value instanceof File) {
-                clickedOnFile(treeNode, (File) value);
-            } else if (value instanceof DocumentFile) {
-                clickedOnDocument(treeNode, (DocumentFile) value);
-            }
-        });
-    }
-
-    private void clickedOnDocument(TreeNode treeNode, DocumentFile value) {
-        DocumentFile doc = value;
-        if (doc.isDirectory()) {
-            DocumentFile[] children = doc.listFiles();
-            if (children != null && treeNode.getChildren().size() != children.length) {
-                for (DocumentFile childDoc : children) {
-                    TreeNode childNode = buildFileSystemNode(childDoc, treeNode.getLayoutId());
-                    if (childNode != null) {
-                        treeNode.addChild(childNode);
-                    }
-                }
-            }
-        }
-        YaaccLogger.d(getClass().getName(), "Clicked on document file: " + doc.getUri());
-    }
-
-    private void clickedOnFile(TreeNode treeNode, File value) {
-        File file = value;
-        if (file.isDirectory() && file.listFiles() != null && treeNode.getChildren().size() != file.listFiles().length) {
-            File[] children = file.listFiles();
-            if (children != null) {
-                for (File childFile : children) {
-                    TreeNode childNode = buildFileSystemNode(childFile, treeNode.getLayoutId());
-                    if (childNode != null) {
-                        treeNode.addChild(childNode);
-                    }
-                }
-            }
-        }
-        YaaccLogger.d(getClass().getName(), "Clicked on file: " + file.getAbsolutePath());
+        YaaccLogger.d(getClass().getName(), "Shared folders roots=" + fileRoots.size() + " read in "
+                + (SystemClock.elapsedRealtime() - start) + " ms");
+        return fileRoots;
     }
 
     /**
-     * Recursively builds a TreeNode structure from the file system or a DocumentFile.
-     *
-     * @param fileObj  The current File or DocumentFile.
-     * @param layoutId The layout resource ID for the TreeNode.
-     * @return A TreeNode representing the file/directory, or null if it should be skipped.
+     * A click on a row (the adapter toggles selection and expands or collapses a folder whose children
+     * are known): reads the children of a folder that was not read yet; a second click while they are
+     * read gives that up (collapse).
      */
-    private TreeNode buildFileSystemNode(Object fileObj, int layoutId) {
-        if (fileObj == null) {
-            return null;
+    private void onTreeNodeClicked(TreeNode treeNode) {
+        TreeNodeData data = treeNode.getValue();
+        // per row, so verbose only
+        YaaccLogger.v(getClass().getName(), "Click on TreeNode with value " + data);
+        if (!data.isDirectory()) {
+            return;
         }
+        if (treeNode.isLoading()) {
+            treeNode.cancelLoading();
+            treeViewAdapter.notifyNodeChanged(treeNode);
+        } else if (!treeNode.isLoaded()) {
+            loadChildren(treeNode);
+        }
+    }
 
-        if (fileObj instanceof File) {
-            File file = (File) fileObj;
-            if (!file.exists()) {
+    private void loadChildren(TreeNode treeNode) {
+        final int loadGeneration = treeNode.startLoading();
+        final int generation = treeGeneration;
+        final TreeNodeData data = treeNode.getValue();
+        final int layoutId = treeNode.getLayoutId();
+        final Context appContext = getApplicationContext();
+        treeViewAdapter.notifyNodeChanged(treeNode);
+        runInBackground(() -> {
+            List<TreeNode> children = null;
+            try {
+                children = readChildren(appContext, data, layoutId);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                YaaccLogger.d(getClass().getName(), "Listing of " + data + " interrupted");
+                return;
+            } catch (Exception e) {
+                YaaccLogger.w(getClass().getName(), "Listing of " + data + " failed: " + e);
+            }
+            final List<TreeNode> loaded = children;
+            runOnMainThread(() -> onChildrenLoaded(treeNode, loadGeneration, generation, loaded));
+        });
+    }
+
+    // worker thread; null if the folder cannot be read (the next click asks again)
+    private List<TreeNode> readChildren(Context appContext, TreeNodeData data, int layoutId) throws Exception {
+        long start = SystemClock.elapsedRealtime();
+        List<TreeNode> children;
+        if (data.isSaf()) {
+            // ONE provider query for the names, types and ids of all children (shared with the server's cache)
+            SafDirectory directory = SafDirectoryLister.list(appContext, data.getPath()).value;
+            if (directory.entries.isEmpty() && !directory.isCacheable()) {
                 return null;
             }
-            return new TreeNode(file, layoutId);
-        } else if (fileObj instanceof DocumentFile) {
-            DocumentFile doc = (DocumentFile) fileObj;
-            if (!doc.exists()) {
+            Uri folderUri = Uri.parse(directory.rootUri != null ? directory.rootUri : data.getPath());
+            children = TreeNodeFactory.safChildren(directory.entries,
+                    entry -> SafDirectoryLister.childDocumentUri(folderUri, entry.documentId).toString(), layoutId);
+            YaaccLogger.d(getClass().getName(), "SAF tree " + data.getPath() + " children=" + children.size()
+                    + " loaded in " + (SystemClock.elapsedRealtime() - start) + " ms");
+        } else {
+            File[] files = new File(data.getPath()).listFiles();
+            if (files == null) {
                 return null;
             }
-            return new TreeNode(doc, layoutId);
+            children = TreeNodeFactory.fileChildren(files, layoutId);
+            YaaccLogger.d(getClass().getName(), "Folder " + data.getPath() + " children=" + children.size()
+                    + " loaded in " + (SystemClock.elapsedRealtime() - start) + " ms");
         }
+        return children;
+    }
 
-        return null;
+    // main thread
+    private void onChildrenLoaded(TreeNode treeNode, int loadGeneration, int generation, List<TreeNode> children) {
+        if (generation != treeGeneration) {
+            return; // the tree was rebuilt meanwhile
+        }
+        if (children == null) {
+            if (treeNode.failLoading(loadGeneration)) {
+                treeViewAdapter.notifyNodeChanged(treeNode);
+            }
+            return;
+        }
+        if (!treeNode.finishLoading(loadGeneration, children)) {
+            YaaccLogger.v(getClass().getName(), "Ignoring the stale children of " + treeNode.getValue());
+            return;
+        }
+        if (children.isEmpty()) {
+            treeViewAdapter.notifyNodeChanged(treeNode); // the expand symbol goes away
+        } else {
+            treeViewAdapter.expandNode(treeNode); // all children as one inserted range
+        }
+    }
+
+    private void runInBackground(Runnable task) {
+        if (destroyed) {
+            return;
+        }
+        try {
+            worker.execute(task);
+        } catch (RejectedExecutionException e) {
+            YaaccLogger.d(getClass().getName(), "Screen is closing, work dropped");
+        }
+    }
+
+    private void runOnMainThread(Runnable task) {
+        mainHandler.post(() -> {
+            if (!destroyed) {
+                task.run();
+            }
+        });
     }
 
 
@@ -346,6 +429,8 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
     }
 
     @Override
+    // Lint cannot infer that the masked takeFlags is a valid READ-only grant flag.
+    @SuppressLint("WrongConstant")
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
@@ -391,7 +476,7 @@ public class YaaccUpnpServerControlActivity extends AppCompatActivity {
                     MediaPathFilter.saveSelectedSafPathes(getApplicationContext(), selectedUriSet);
 
                     // rebuild tree with newly added SAF root
-                    buildFileSystemTree(treeViewAdapter);
+                    buildFileSystemTree();
                 }
             }
         }

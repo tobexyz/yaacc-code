@@ -25,6 +25,7 @@ import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.view.Menu;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ImageButton;
@@ -38,6 +39,7 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.viewpager2.widget.ViewPager2;
 
+import java.beans.PropertyChangeEvent;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,13 +49,14 @@ import java.util.TimerTask;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.player.LocalImagePlayer;
+import de.yaacc.player.PlayMode;
+import de.yaacc.player.PlayModeControls;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlayerService;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.util.ActivitySwipeDetector;
 import de.yaacc.util.AboutActivity;
 import de.yaacc.util.SwipeReceiver;
-import de.yaacc.util.ThemeHelper;
 import de.yaacc.util.YaaccLogActivity;
 import de.yaacc.util.YaaccLogger;
 
@@ -70,6 +73,9 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
     private PlayerService playerService;
     private ImageViewerBroadcastReceiver broadcastReceiver;
     private Timer controlHideTimer;
+    // The player whose play mode the slideshow follows (while the service is bound)
+    private LocalImagePlayer followedPlayer;
+    private final java.beans.PropertyChangeListener playModeListener = this::onPlayerPropertyChange;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -138,6 +144,9 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
                 viewPager.setUserInputEnabled(true);
             }
         });
+
+        // The repeat and shuffle items of the menu show the play mode
+        viewModel.getPlayModeLive().observe(this, mode -> invalidateOptionsMenu());
     }
 
     private void initViews() {
@@ -272,6 +281,7 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
     @Override
     protected void onStop() {
         super.onStop();
+        followPlayer(null);
         try {
             unbindService(this);
         } catch (IllegalArgumentException e) {
@@ -346,6 +356,36 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
         if (binder instanceof PlayerService.PlayerServiceBinder) {
             YaaccLogger.d(getClass().getName(), "PlayerService connected");
             playerService = ((PlayerService.PlayerServiceBinder) binder).getService();
+            Player player = playerService.getFirstCurrentPlayerOfType(LocalImagePlayer.class);
+            followPlayer(player instanceof LocalImagePlayer ? (LocalImagePlayer) player : null);
+        }
+    }
+
+    /**
+     * The slideshow plays by the play mode of the image player (set by its owner: this screen, a
+     * controller, the settings at the creation of the player); without a player it keeps its own.
+     */
+    private void followPlayer(LocalImagePlayer player) {
+        if (followedPlayer != null) {
+            followedPlayer.removePropertyChangeListener(playModeListener);
+        }
+        followedPlayer = player;
+        if (player != null) {
+            player.addPropertyChangeListener(playModeListener);
+            viewModel.setPlayMode(player.getPlayMode());
+        }
+    }
+
+    private void onPlayerPropertyChange(PropertyChangeEvent event) {
+        if (Player.PROPERTY_PLAY_MODE.equals(event.getPropertyName()) && event.getNewValue() instanceof PlayMode) {
+            viewModel.setPlayMode((PlayMode) event.getNewValue());
+        }
+    }
+
+    private void changePlayMode(PlayMode mode) {
+        viewModel.setPlayMode(mode);
+        if (followedPlayer != null) {
+            followedPlayer.setPlayMode(mode);
         }
     }
 
@@ -401,17 +441,14 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
     // Public methods called by BroadcastReceiver
     public void play() {
         viewModel.play();
-        Toast.makeText(this, R.string.play, Toast.LENGTH_SHORT).show();
     }
 
     public void pause() {
         viewModel.pause();
-        Toast.makeText(this, R.string.pause, Toast.LENGTH_SHORT).show();
     }
 
     public void stop() {
         viewModel.stop();
-        Toast.makeText(this, R.string.stop, Toast.LENGTH_SHORT).show();
     }
 
     public void next() {
@@ -434,14 +471,24 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
 
     @Override
     public boolean onCreateOptionsMenu(android.view.Menu menu) {
+        // The icons are white vectors; the menu file tints them (app:iconTint) with the title bar's icon
+        // color, which is light on the black bar of the dark theme and dark on the light bar of the light one.
         getMenuInflater().inflate(R.menu.activity_image_viewer, menu);
-        for (int i = 0; i < menu.size(); i++) {
-            android.view.MenuItem item = menu.getItem(i);
-            if (item.getIcon() != null) {
-                item.setIcon(ThemeHelper.tintDrawable(item.getIcon(), getTheme()));
-            }
-        }
         return true;
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        PlayMode mode = viewModel.getPlayMode();
+        android.view.MenuItem repeat = menu.findItem(R.id.menu_repeat);
+        if (repeat != null) {
+            PlayModeControls.renderRepeat(this, repeat, mode);
+        }
+        android.view.MenuItem shuffle = menu.findItem(R.id.menu_shuffle);
+        if (shuffle != null) {
+            PlayModeControls.renderShuffle(this, shuffle, mode);
+        }
+        return super.onPrepareOptionsMenu(menu);
     }
 
     @Override
@@ -475,6 +522,14 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
             stop();
             return true;
         }
+        if (itemId == R.id.menu_repeat) {
+            changePlayMode(viewModel.getPlayMode().nextRepeat());
+            return true;
+        }
+        if (itemId == R.id.menu_shuffle) {
+            changePlayMode(viewModel.getPlayMode().toggleShuffle());
+            return true;
+        }
         if (itemId == R.id.yaacc_log) {
             YaaccLogActivity.showLog(this);
             return true;
@@ -487,7 +542,64 @@ public class ImageViewerActivity extends AppCompatActivity implements SwipeRecei
             exit();
             return true;
         }
+        if (itemId == R.id.menu_share) {
+            shareCurrentImage();
+            return true;
+        }
         return false;
+    }
+
+    /**
+     * Mirrors BrowseContentItemAdapter's per-item share: a small choice
+     * ("share the file" / "share a link to it") instead of one fixed
+     * behavior - a sharing-the-file's-URL-as-text approach alone would
+     * silently fail for a remote recipient whenever the URL is only
+     * reachable on the local network (this device's own embedded server,
+     * or another server on the same LAN), which is the common case here.
+     * "Share link" is omitted entirely for a local (content://) image,
+     * since that's an opaque, app-private identifier, not a link anyone
+     * else could resolve - unlike the browse list, where every item
+     * always has a real UPnP resource URL.
+     */
+    private void shareCurrentImage() {
+        ImageViewerState state = viewModel.getState().getValue();
+        if (state == null || state.getImageUris() == null || state.getImageUris().isEmpty()) {
+            return;
+        }
+        int index = Math.max(0, Math.min(state.getCurrentIndex(), state.getImageUris().size() - 1));
+        Uri imageUri = state.getImageUris().get(index);
+        String scheme = imageUri.getScheme();
+        boolean isRemote = "http".equals(scheme) || "https".equals(scheme);
+        String title = imageUri.getLastPathSegment();
+        String mimeType = isRemote
+                ? android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(
+                        android.webkit.MimeTypeMap.getFileExtensionFromUrl(imageUri.toString()))
+                : getContentResolver().getType(imageUri);
+        if (mimeType == null) {
+            mimeType = "image/*";
+        }
+
+        List<String> options = new ArrayList<>();
+        options.add(getString(R.string.browse_share_menu_file));
+        if (isRemote) {
+            options.add(getString(R.string.browse_share_menu_link));
+        }
+        String finalMimeType = mimeType;
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.browse_context_share)
+                .setItems(options.toArray(new String[0]), (dialog, which) -> {
+                    if (options.get(which).equals(getString(R.string.browse_share_menu_file))) {
+                        Toast.makeText(this, R.string.browse_share_preparing, Toast.LENGTH_SHORT).show();
+                        new de.yaacc.util.ShareFileTask(this, imageUri, title, finalMimeType).execute();
+                    } else {
+                        Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                        shareIntent.setType("text/plain");
+                        shareIntent.putExtra(Intent.EXTRA_SUBJECT, title);
+                        shareIntent.putExtra(Intent.EXTRA_TEXT, imageUri.toString());
+                        startActivity(Intent.createChooser(shareIntent, getString(R.string.browse_context_share)));
+                    }
+                })
+                .show();
     }
 
     @Override

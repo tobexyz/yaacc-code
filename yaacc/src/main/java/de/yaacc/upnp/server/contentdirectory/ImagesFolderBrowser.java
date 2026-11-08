@@ -62,27 +62,19 @@ public class ImagesFolderBrowser extends ContentBrowser {
     @Override
     public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         List<Container> result = new ArrayList<>();
-        result.add((Container) new ImagesAllFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_ALL_FOLDER.getId(), firstResult, maxResults, orderby));
-        result.add((Container) new ImagesByBucketNamesFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), firstResult, maxResults, orderby));
+        result.add((Container) new ImagesAllFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_ALL_FOLDER.getId(), 0, 1, orderby));
+        result.add((Container) new ImagesByBucketNamesFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.IMAGES_BY_BUCKET_NAMES_FOLDER.getId(), 0, 1, orderby));
 
         Map<String, Function<DIDLObject, String>> accessorMap = new HashMap<>();
-        accessorMap.put(SortSupport.PROPERTY_TITLE, DIDLObject::getTitle);
+        accessorMap.put(SortSupport.PROPERTY_TITLE, MediaGalleries::titleKey);
         // No natural "default" sort key for this fixed, hand-picked list of top-level
         // image folders - a no-op comparator relies on List.sort's stability to keep
-        // today's existing fixed order ("All images", "By bucket name") unchanged
+        // today's existing fixed order ("All images", "Galleries") unchanged
         // when no SortCriteria was requested.
         Comparator<DIDLObject> defaultComparator = (a, b) -> 0;
         result.sort(SortSupport.toComparator(orderby, accessorMap, defaultComparator));
 
-        int start = firstResult > 0 ? (int) firstResult : 0;
-        if (firstResult >= (result.size() - 1)) {
-            start = result.size() - 1;
-        }
-        int end = start + (int) maxResults;
-        if (maxResults > result.size() - 1) {
-            end = result.size();
-        }
-        return result.subList(start, end);
+        return MediaGalleries.page(result, firstResult, maxResults);
     }
 
     @Override

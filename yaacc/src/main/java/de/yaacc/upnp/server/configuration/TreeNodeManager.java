@@ -18,6 +18,7 @@
  */
 package de.yaacc.upnp.server.configuration;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -30,13 +31,15 @@ public class TreeNodeManager {
     /**
      * Collection to save the current tree nodes
      */
-    private final LinkedList<TreeNode> rootsNodes;
+    // An ArrayList: the adapter reads it by position for every bound row, which is a walk along the
+    // list for a LinkedList and slows scrolling down with every thousand rows.
+    private final ArrayList<TreeNode> rootsNodes;
 
     /**
      * Simple constructor
      */
     public TreeNodeManager() {
-        this.rootsNodes = new LinkedList<>();
+        this.rootsNodes = new ArrayList<>();
     }
 
     /**
@@ -115,27 +118,56 @@ public class TreeNodeManager {
     }
 
     /**
+     * What a change of the visible list did, so the adapter can report exactly that range.
+     * The rows are contiguous and directly behind the node (or, for a removal, start at the node).
+     */
+    public static final class Change {
+        /** Index of the node in the visible list, -1 if it is not visible (nothing changed then). */
+        public final int position;
+        /** Index of the first inserted or removed row. */
+        public final int start;
+        /** Number of rows inserted or removed; 0 if nothing changed. */
+        public final int count;
+
+        Change(int position, int start, int count) {
+            this.position = position;
+            this.start = start;
+            this.count = count;
+        }
+    }
+
+    /**
+     * @return the index of the node in the visible list, -1 if it is not visible
+     */
+    public int indexOf(TreeNode node) {
+        return rootsNodes.indexOf(node);
+    }
+
+    /**
      * Collapsing node and all of his children
      *
      * @param node The node to collapse it
      * @return the index of this node if it exists in the list
      */
     public int collapseNode(TreeNode node) {
+        return collapse(node).position;
+    }
+
+    /**
+     * Collapses the node: its children and the visible descendants of its expanded children leave the
+     * visible list. Descendants keep their own expanded state, so expanding the node again restores them.
+     *
+     * @return the removed rows ({@code count} 0 if the node is not visible or not expanded)
+     */
+    public Change collapse(TreeNode node) {
         int position = rootsNodes.indexOf(node);
-        if (position != -1 && node.isExpanded()) {
-            node.setExpanded(false);
-            LinkedList<TreeNode> deletedParents = new LinkedList<>(node.getChildren());
-            rootsNodes.removeAll(node.getChildren());
-            for (int i = position + 1; i < rootsNodes.size(); i++) {
-                TreeNode iNode = rootsNodes.get(i);
-                if (deletedParents.contains(iNode.getParent())) {
-                    deletedParents.add(iNode);
-                    deletedParents.addAll(iNode.getChildren());
-                }
-            }
-            rootsNodes.removeAll(deletedParents);
+        if (position == -1 || !node.isExpanded()) {
+            return new Change(position, position + 1, 0);
         }
-        return position;
+        int count = visibleDescendantCount(node);
+        node.setExpanded(false);
+        rootsNodes.subList(position + 1, position + 1 + count).clear();
+        return new Change(position, position + 1, count);
     }
 
     /**
@@ -145,31 +177,62 @@ public class TreeNodeManager {
      * @return the index of this node if it exists in the list
      */
     public int expandNode(TreeNode node) {
-        int position = rootsNodes.indexOf(node);
-        if (position != -1 && !node.isExpanded()) {
-            node.setExpanded(true);
-            rootsNodes.addAll(position + 1, node.getChildren());
-            for (TreeNode child : node.getChildren()) {
-                if (child.isExpanded()) updateExpandedNodeChildren(child);
-            }
-        }
-        return position;
+        return expand(node).position;
     }
 
     /**
-     * Update the list for expanded node
-     * to expand any child of his children that is already expanded before
+     * Expands the node: its children and the visible descendants of its expanded children are inserted
+     * behind it in one block.
      *
-     * @param node that just expanded now
+     * @return the inserted rows ({@code count} 0 if the node is not visible or already expanded)
      */
-    private void updateExpandedNodeChildren(TreeNode node) {
+    public Change expand(TreeNode node) {
         int position = rootsNodes.indexOf(node);
-        if (position != -1 && node.isExpanded()) {
-            rootsNodes.addAll(position + 1, node.getChildren());
-            for (TreeNode child : node.getChildren()) {
-                if (child.isExpanded()) updateExpandedNodeChildren(child);
+        if (position == -1 || node.isExpanded()) {
+            return new Change(position, position + 1, 0);
+        }
+        node.setExpanded(true);
+        List<TreeNode> visible = new ArrayList<>(node.getChildren().size());
+        collectVisibleDescendants(node, visible);
+        rootsNodes.addAll(position + 1, visible);
+        return new Change(position, position + 1, visible.size());
+    }
+
+    /**
+     * Removes the node from the visible list together with its visible descendants.
+     *
+     * @return the removed rows, starting at the node itself ({@code count} 0 if it is not visible)
+     */
+    public Change removeWithDescendants(TreeNode node) {
+        int position = rootsNodes.indexOf(node);
+        if (position == -1) {
+            return new Change(position, 0, 0);
+        }
+        int count = 1 + (node.isExpanded() ? visibleDescendantCount(node) : 0);
+        node.setExpanded(false);
+        rootsNodes.subList(position, position + count).clear();
+        return new Change(position, position, count);
+    }
+
+    // children of an expanded node, each followed by its own visible descendants
+    private static void collectVisibleDescendants(TreeNode node, List<TreeNode> out) {
+        for (TreeNode child : node.getChildren()) {
+            out.add(child);
+            if (child.isExpanded()) {
+                collectVisibleDescendants(child, out);
             }
         }
+    }
+
+    private static int visibleDescendantCount(TreeNode node) {
+        int count = 0;
+        for (TreeNode child : node.getChildren()) {
+            count++;
+            if (child.isExpanded()) {
+                count += visibleDescendantCount(child);
+            }
+        }
+        return count;
     }
 
     /**

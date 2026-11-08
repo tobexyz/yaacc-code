@@ -1,0 +1,10 @@
+Version 6.0.0
+- new single-screen layout: servers, receivers and running players on one page
+- Material 3 look
+- OpenHome device support
+- Yamaha MusicCast: link devices, device controls
+- improved support for Home Assistant
+- play files or folders of your phone directly on other receivers
+- improved sharing of links, files and content from other apps to your receivers
+- share server content directly with other apps
+- improvements for server and renderer

@@ -18,11 +18,126 @@
  -->
 <resources>
 
-    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.Bridge">
+    <!-- Material 3 with our own gray scheme (res/values/colors.xml, dark variants in res/values-night). The
+         activities keep the support action bar (menus, subtitle), so this is not a NoActionBar theme. -->
+    <style name="AppTheme" parent="Theme.Material3.DayNight">
         <item name="materialTimePickerTheme">@style/ThemeOverlay.App.TimePicker</item>
+
+        <!-- Color roles: every role the Material 3 components read, so none falls back to the library's
+             tinted baseline. Error roles are left to the library (the app has no errors of its own). -->
+        <item name="colorPrimary">@color/gray_primary</item>
+        <item name="colorOnPrimary">@color/gray_on_primary</item>
+        <item name="colorPrimaryContainer">@color/gray_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/gray_on_primary_container</item>
+        <item name="colorPrimaryInverse">@color/gray_inverse_primary</item>
+        <item name="colorSecondary">@color/gray_secondary</item>
+        <item name="colorOnSecondary">@color/gray_on_secondary</item>
+        <item name="colorSecondaryContainer">@color/gray_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/gray_on_secondary_container</item>
+        <item name="colorTertiary">@color/gray_tertiary</item>
+        <item name="colorOnTertiary">@color/gray_on_tertiary</item>
+        <item name="colorTertiaryContainer">@color/gray_tertiary_container</item>
+        <item name="colorOnTertiaryContainer">@color/gray_on_tertiary_container</item>
+        <item name="android:colorBackground">@color/gray_background</item>
+        <item name="colorOnBackground">@color/gray_on_background</item>
+        <item name="colorSurface">@color/gray_surface</item>
+        <item name="colorOnSurface">@color/gray_on_surface</item>
+        <item name="colorSurfaceVariant">@color/gray_surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/gray_on_surface_variant</item>
+        <item name="colorSurfaceInverse">@color/gray_inverse_surface</item>
+        <item name="colorOnSurfaceInverse">@color/gray_inverse_on_surface</item>
+        <item name="colorSurfaceDim">@color/gray_surface_dim</item>
+        <item name="colorSurfaceBright">@color/gray_surface_bright</item>
+        <item name="colorSurfaceContainerLowest">@color/gray_surface_container_lowest</item>
+        <item name="colorSurfaceContainerLow">@color/gray_surface_container_low</item>
+        <item name="colorSurfaceContainer">@color/gray_surface_container</item>
+        <item name="colorSurfaceContainerHigh">@color/gray_surface_container_high</item>
+        <item name="colorSurfaceContainerHighest">@color/gray_surface_container_highest</item>
+        <item name="colorOutline">@color/gray_outline</item>
+        <item name="colorOutlineVariant">@color/gray_outline_variant</item>
+
+        <!-- AppCompat widgets (check boxes, switches, sliders, progress bars, text cursor) take these -->
+        <item name="colorAccent">@color/gray_primary</item>
+        <item name="colorControlActivated">@color/gray_primary</item>
+
+        <!-- The library's theme points the text colors at its tinted baseline; these take the gray scheme.
+             textColorSecondary also feeds colorControlNormal, the default icon tint. -->
+        <item name="android:textColorPrimary">@color/gray_text_primary</item>
+        <item name="android:textColorPrimaryDisableOnly">@color/gray_text_primary</item>
+        <item name="android:textColorAlertDialogListItem">@color/gray_text_primary</item>
+        <item name="android:textColorSecondary">@color/gray_text_secondary</item>
+        <item name="android:textColorTertiary">@color/gray_text_secondary</item>
+        <item name="android:textColorHint">@color/gray_text_secondary</item>
+        <item name="android:textColorHighlight">@color/gray_text_highlight</item>
+        <item name="android:textColorPrimaryInverse">?attr/colorOnSurfaceInverse</item>
+        <item name="android:textColorSecondaryInverse">?attr/colorOnSurfaceInverse</item>
+        <item name="android:textColorTertiaryInverse">?attr/colorOnSurfaceInverse</item>
+        <item name="android:textColorPrimaryInverseDisableOnly">?attr/colorOnSurfaceInverse</item>
+        <item name="android:textColorHintInverse">?attr/colorOnSurfaceInverse</item>
+        <item name="android:textColorHighlightInverse">@color/gray_text_highlight</item>
+
+        <!-- Title bar and system bars: the page color in both themes (light gray / black), dark icons in
+             the light theme, light icons in the dark one. targetSdk is 33, so the system does not force
+             edge-to-edge and these colors are honoured. -->
+        <item name="colorPrimaryDark">@color/gray_surface</item>
+        <item name="android:colorPrimaryDark">@color/gray_surface</item>
+        <item name="android:statusBarColor">@color/gray_surface</item>
+        <item name="android:navigationBarColor">@color/gray_background</item>
+        <item name="android:windowLightStatusBar">@bool/gray_light_system_bars</item>
+        <item name="android:windowLightNavigationBar">@bool/gray_light_system_bars</item>
+        <item name="actionBarSize">@dimen/app_bar_height</item>
+        <item name="actionBarStyle">@style/Widget.App.ActionBar</item>
+        <item name="actionBarTheme">@style/ThemeOverlay.App.ActionBar</item>
+        <!-- Headlines of the settings sections stand out from the entries -->
+        <item name="preferenceTheme">@style/PreferenceThemeOverlay.App</item>
     </style>
 
-    <style name="Widget.App.Button.OutlinedButton.IconOnly" parent="Widget.MaterialComponents.Button.OutlinedButton">
+    <!-- Title bar: the surface color (page color), flat, no shadow -->
+    <style name="Widget.App.ActionBar" parent="Widget.Material3.Light.ActionBar.Solid">
+        <item name="background">?attr/colorSurface</item>
+        <item name="backgroundStacked">?attr/colorSurface</item>
+        <item name="backgroundSplit">?attr/colorSurface</item>
+        <item name="elevation">0dp</item>
+    </style>
+
+    <!-- Title, menu icons and the overflow button of the title bar use the primary text color -->
+    <style name="ThemeOverlay.App.ActionBar" parent="ThemeOverlay.Material3.ActionBar">
+        <item name="colorControlNormal">?attr/colorOnSurface</item>
+        <item name="actionMenuTextColor">?attr/colorOnSurface</item>
+    </style>
+
+    <style name="PreferenceThemeOverlay.App" parent="PreferenceThemeOverlay">
+        <item name="preferenceCategoryTitleTextColor">?attr/colorOnSurface</item>
+        <item name="preferenceCategoryTitleTextAppearance">@style/TextAppearance.App.PreferenceCategory</item>
+    </style>
+
+    <!-- Section headlines: small bold capitals with letter spacing, so they read as headlines and not as an entry -->
+    <style name="TextAppearance.App.PreferenceCategory" parent="TextAppearance.AppCompat.Body2">
+        <item name="android:textStyle">bold</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.1</item>
+    </style>
+
+    <!-- Cards: filled with a container surface, no shadow, no outline. The library's filled card uses the
+         highest container, the gray scheme wants the high one. Content cards (the card grid) are rounder
+         than list cards (mini-player, receivers, players, playlist). -->
+    <style name="Widget.App.CardView" parent="Widget.Material3.CardView.Filled">
+        <item name="cardBackgroundColor">?attr/colorSurfaceContainerHigh</item>
+        <item name="cardElevation">0dp</item>
+        <item name="strokeWidth">0dp</item>
+        <item name="android:stateListAnimator">@null</item>
+    </style>
+
+    <style name="Widget.App.CardView.Content">
+        <item name="cardCornerRadius">20dp</item>
+    </style>
+
+    <style name="Widget.App.CardView.List">
+        <item name="cardCornerRadius">16dp</item>
+    </style>
+
+    <style name="Widget.App.Button.OutlinedButton.IconOnly" parent="Widget.Material3.Button.OutlinedButton">
         <item name="iconPadding">0dp</item>
         <item name="android:insetTop">0dp</item>
         <item name="android:insetBottom">0dp</item>
@@ -32,13 +147,18 @@
         <item name="android:minHeight">48dp</item>
     </style>
 
-    <style name="AppTheme.FullScreenDialog" parent="Theme.MaterialComponents.DayNight.Bridge" />
+    <style name="AppTheme.FullScreenDialog" parent="AppTheme" />
 
     <style name="AppTheme.Slide">
         <item name="android:windowEnterAnimation">@anim/slide_up</item>
         <item name="android:windowExitAnimation">@anim/slide_down</item>
     </style>
 
-    <style name="ThemeOverlay.App.TimePicker" parent="@style/ThemeOverlay.MaterialComponents.TimePicker" />
+    <style name="ThemeOverlay.App.TimePicker" parent="@style/ThemeOverlay.Material3.MaterialTimePicker" />
+
+    <!-- Device sheet and pick sheet (BottomSheetDialogFragment#getTheme). An overlay: the colors still come
+         from AppTheme (DayNight); the sheet takes the Material 3 bottom sheet look (container surface,
+         rounded top corners). DeviceSheetFragment returns it explicitly. -->
+    <style name="ThemeOverlay.App.DeviceSheet" parent="@style/ThemeOverlay.Material3.BottomSheetDialog" />
 
 </resources>

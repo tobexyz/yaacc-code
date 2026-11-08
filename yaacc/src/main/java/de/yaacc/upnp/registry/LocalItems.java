@@ -62,6 +62,38 @@ import de.yaacc.util.YaaccLogger;
  */
 class LocalItems extends RegistryItems<LocalDevice, LocalGENASubscription> {
 
+    int countSubscriptionsForHost(String host) {
+        int count = 0;
+        for (RegistryItem<String, LocalGENASubscription> item : getSubscriptionItems()) {
+            java.util.List<java.net.URL> callbacks = item.getItem().getCallbackURLs();
+            if (callbacks == null) {
+                continue;
+            }
+            for (java.net.URL callback : callbacks) {
+                if (host != null && host.equalsIgnoreCase(callback.getHost())) {
+                    count++;
+                    break;
+                }
+            }
+        }
+        return count;
+    }
+
+    /** @param service the service of the subscribers to count, {@code null} for all */
+    int countSubscriptions(org.fourthline.cling.model.meta.LocalService<?> service) {
+        if (service == null) {
+            return getSubscriptionItems().size();
+        }
+        int count = 0;
+        for (RegistryItem<String, LocalGENASubscription> item : getSubscriptionItems()) {
+            if (item.getItem().getService() == service) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+
     private final ExecutorService executorService;
     int ALIVE_INTERVAL_MILLIS = 0; //Defaults to zero, disabling ALIVE flooding.
     protected Map<UDN, DiscoveryOptions> discoveryOptions = new HashMap<>();

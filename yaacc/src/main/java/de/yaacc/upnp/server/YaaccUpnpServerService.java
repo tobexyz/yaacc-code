@@ -36,6 +36,7 @@ import android.os.IBinder;
 
 import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.res.ResourcesCompat;
 import androidx.preference.PreferenceManager;
 
@@ -86,16 +87,27 @@ import de.yaacc.upnp.protocol.UpnpProtocolHandler;
 import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.registry.RegistryImpl;
 import de.yaacc.upnp.server.avtransport.AvTransport;
+import de.yaacc.upnp.server.avtransport.AvTransportServiceManager;
 import de.yaacc.upnp.server.avtransport.YaaccAVTransportService;
 import de.yaacc.upnp.server.configuration.YaaccUpnpServerControlActivity;
 import de.yaacc.upnp.server.connectionmanager.ConnectionManagerService;
+import de.yaacc.upnp.server.contentdirectory.SafChangeRunner;
+import de.yaacc.upnp.server.contentdirectory.SafDirectoryLister;
 import de.yaacc.upnp.server.contentdirectory.YaaccContentDirectory;
+import de.yaacc.upnp.server.http.ClientDisconnects;
+import de.yaacc.upnp.server.http.ServerHttpProcessor;
 import de.yaacc.upnp.server.http.YaaccUpnpServerContentHttpHandler;
 import de.yaacc.upnp.server.http.YaaccUpnpServerProtocolRequestHandler;
 import de.yaacc.upnp.server.media.CombinedCaptureService;
 import de.yaacc.upnp.server.media.MediaProjectionHelper;
 import de.yaacc.upnp.server.media.ScreenCastCaptureService;
 import de.yaacc.upnp.server.media.SystemAudioCaptureService;
+import de.yaacc.upnp.callback.openhome.ClingOhControl;
+import de.yaacc.upnp.server.openhome.AndroidOhThreads;
+import de.yaacc.upnp.server.openhome.AndroidOpenHomeHost;
+import de.yaacc.upnp.server.openhome.OhRendererCore;
+import de.yaacc.upnp.server.openhome.OpenHomeRenderer;
+import de.yaacc.upnp.server.renderingcontrol.RenderingControlServiceManager;
 import de.yaacc.upnp.server.renderingcontrol.YaaccAudioRenderingControlService;
 import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.NotificationId;
@@ -111,11 +123,17 @@ import de.yaacc.util.YaaccLogger;
  */
 public class YaaccUpnpServerService extends Service implements SharedPreferences.OnSharedPreferenceChangeListener {
 
+    /**
+     * Only for removing the settings an earlier version wrote (links shared through the media
+     * proxy); nothing reads or writes such settings any more.
+     */
     public static final String PROXY_LINK_KEY_PREFIX = "proxy_link_";
-    public static final String PROXY_LINK_MIME_TYPE_KEY_PREFIX = "proxy_link_mime_type";
     public static final String PROXY_PATH = "proxy";
     public static final String SAF_PATH = "saf";
     public static final int LOCK_TIMEOUT = 5000;
+
+    /** The OpenHome renderer; created with the first device, lives as long as this service. */
+    private OpenHomeRenderer openHomeRenderer;
 
     public static int PORT = 49157;
     public static ServiceType[] EXCLUSIVE_SERVER_TYPES = new ServiceType[]{
@@ -123,12 +141,22 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             new UDAServiceType("ContentDirectory"),
             new UDAServiceType("ConnectionManager"),
             new UDAServiceType("RenderingControl"),
-            new UDAServiceType("X_MS_MediaReceiverRegistrar")};
+            new UDAServiceType("X_MS_MediaReceiverRegistrar"),
+            // OpenHome: what the OpenHome player needs from a device (the other services of a device are left out)
+            new ServiceType(ClingOhControl.NAMESPACE, "Product", 1),
+            new ServiceType(ClingOhControl.NAMESPACE, "Playlist", 1),
+            new ServiceType(ClingOhControl.NAMESPACE, "Info", 1),
+            new ServiceType(ClingOhControl.NAMESPACE, "Time", 1),
+            new ServiceType(ClingOhControl.NAMESPACE, "Volume", 1)};
 
     public String locaDeviceUuid;
     protected IBinder binder = new YaaccUpnpServerServiceBinder();
     SharedPreferences preferences;
-    private LocalService<YaaccContentDirectory> contentDirectoryService;
+    private volatile LocalService<YaaccContentDirectory> contentDirectoryService;
+    // one SystemUpdateID change for the preferences of one user action (adding a folder writes two)
+    private final DebouncedAction contentDirectoryChanged = new DebouncedAction(this::changeContentDirectoryUpdateId, 1000, "content-directory-update");
+    // notices new files and folders in the shared SAF folders and raises the SystemUpdateID (issue #299)
+    private SafChangeRunner safChangeRunner;
 
 
     private NetworkDeviceListener networkDeviceListener;
@@ -166,12 +194,13 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         YaaccLogger.i(getClass().getName(), "YaaccUpnpServerService onCreate called");
         // when the service starts, the preferences are initialized
         preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+        safChangeRunner = new SafChangeRunner(getApplicationContext(), this::bumpContentDirectory);
         preferences.registerOnSharedPreferenceChangeListener(this);
 
         // Register broadcast receiver for cache updates
-        registerReceiver(cacheUpdateReceiver, new IntentFilter("de.yaacc.CACHE_PRELOAD_COMPLETE"));
-        registerReceiver(cacheProgressReceiver, new IntentFilter("de.yaacc.CACHE_PRELOAD_PROGRESS"));
-        registerReceiver(safPathsChangedReceiver, new IntentFilter("de.yaacc.SAF_PATHS_CHANGED"));
+        ContextCompat.registerReceiver(this, cacheUpdateReceiver, new IntentFilter("de.yaacc.CACHE_PRELOAD_COMPLETE"), ContextCompat.RECEIVER_NOT_EXPORTED);
+        ContextCompat.registerReceiver(this, cacheProgressReceiver, new IntentFilter("de.yaacc.CACHE_PRELOAD_PROGRESS"), ContextCompat.RECEIVER_NOT_EXPORTED);
+        ContextCompat.registerReceiver(this, safPathsChangedReceiver, new IntentFilter("de.yaacc.SAF_PATHS_CHANGED"), ContextCompat.RECEIVER_NOT_EXPORTED);
 
         // Start background preloading of SAF durations
         SAFCacheManager.getInstance(getApplicationContext()).preloadSafDurations();
@@ -207,11 +236,53 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             // Restart SAF preloading with new paths
             cacheFilesIndexed = 0;
             cacheCurrentFolder = "";
+            SafDirectoryLister.clearCache();
             SAFCacheManager.getInstance(getApplicationContext()).preloadSafDurations();
             showNotification();
+            // the shared folders changed: control points that browse this server have to look again
+            notifyContentDirectoryChanged();
+            // what the change check saw belongs to the old folders
+            safChangeRunner.pathsChanged();
         }
     };
 
+    /**
+     * Asks for a new SystemUpdateID of the content directory (the shared folders changed). Requests that come close together
+     * (adding a folder writes two preferences) are one change. It runs on its own thread: reading the new value needs the lock
+     * of the service, which a long Browse holds, and this is called on the main thread.
+     */
+    private void notifyContentDirectoryChanged() {
+        contentDirectoryChanged.request();
+    }
+
+    private void changeContentDirectoryUpdateId() {
+        LocalService<YaaccContentDirectory> service = contentDirectoryService;
+        if (service == null || service.getManager() == null) {
+            return;
+        }
+        try {
+            service.getManager().getImplementation().changeSystemUpdateID();
+        } catch (RuntimeException e) {
+            YaaccLogger.w(getClass().getName(), "SystemUpdateID not changed", e);
+        }
+    }
+
+
+    /**
+     * Increments the SystemUpdateID of the content directory and sends it to the subscribed control points, on the
+     * calling thread: the SAF change check calls it on its own thread (reading the new value needs the lock of the
+     * service, which a long Browse holds, so not the main thread).
+     *
+     * @return false if there is no content directory (yet)
+     */
+    private boolean bumpContentDirectory() {
+        LocalService<YaaccContentDirectory> service = contentDirectoryService;
+        if (service == null || service.getManager() == null) {
+            return false;
+        }
+        service.getManager().getImplementation().changeSystemUpdateID();
+        return true;
+    }
 
     /*
      * (non-Javadoc)
@@ -227,7 +298,12 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
         if (networkDeviceListener == null) {
             networkDeviceListener = new NetworkDeviceListener(getApplicationContext(), registry, this);
-            registry.setUpnpProtocolHandler(networkDeviceListener.getUpnpProtocolHandler());
+            // the listener hands its handler to the registry itself on every enable() (and clears it on disable())
+            // screens register at the client; hand the "network is back" over to it
+            UpnpClient recoveryClient = ((Yaacc) getApplicationContext()).getUpnpClient();
+            if (recoveryClient != null) {
+                networkDeviceListener.addNetworkRecoveryListener(recoveryClient.getNetworkRecoveryRelay());
+            }
         }
         // App is active when service starts
         networkDeviceListener.setAppInForeground(true);
@@ -254,7 +330,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         locaDeviceUuid = preferences.getString(getApplicationContext().getString(R.string.settings_local_device_uuid_key), null);
         if (locaDeviceUuid == null) {
             locaDeviceUuid = UUID.randomUUID().toString();
-            preferences.edit().putString(getApplicationContext().getString(R.string.settings_local_device_uuid_key), locaDeviceUuid).commit();
+            preferences.edit().putString(getApplicationContext().getString(R.string.settings_local_device_uuid_key), locaDeviceUuid).apply();
         }
         // the footprint of the onStart() method must be small
         // otherwise android will kill the service
@@ -298,9 +374,16 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
 
 
+        safChangeRunner.stop();
+        contentDirectoryChanged.shutdown();
+
         if (localDevice != null) {
             registry.removeDevice(localDevice);
             localDevice = null;
+        }
+        if (openHomeRenderer != null) {
+            openHomeRenderer.shutdown();
+            openHomeRenderer = null;
         }
 
         networkDeviceListener.disable();
@@ -360,13 +443,13 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 if (!"0.0.0.0".equals(iface[0])) {
                     statusBuilder.append(" | ").append(iface[1]).append(":").append(iface[0]);
                 } else {
-                    statusBuilder.append(" | No usable network interface found");
+                    statusBuilder.append(" | ").append(getString(R.string.notification_no_network_interface));
                 }
             } catch (Exception e) {
                 YaaccLogger.d(getClass().getName(), "Failed to get network interface info", e);
             }
         } else {
-            statusBuilder.append(" | No usable network interface found");
+            statusBuilder.append(" | ").append(getString(R.string.notification_no_network_interface));
         }
 
         // Server/Renderer status
@@ -396,7 +479,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         YaaccLogger.d(getClass().getName(), "showNotification: isPreloading=" + isPreloading + ", cacheSize=" + cacheManager.getCacheSize() + ", filesIndexed=" + cacheFilesIndexed);
         
         if (isPreloading) {
-            statusBuilder.append(" | ⏳ Indexing: ").append(cacheFilesIndexed);
+            statusBuilder.append(" | ⏳ ").append(getString(R.string.notification_indexing)).append(": ").append(cacheFilesIndexed);
             if (!cacheCurrentFolder.isEmpty()) {
                 statusBuilder.append(" (").append(cacheCurrentFolder).append(")");
             }
@@ -412,7 +495,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 .setOngoing(true)
                 .setSmallIcon(R.drawable.ic_notification_default)
                 .setSilent(true)
-                .setContentTitle("Yaacc UPnP Service")
+                .setContentTitle(getString(R.string.notification_upnp_service_title))
                 .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
                 .setContentText(statusBuilder.toString());
         mBuilder.setContentIntent(contentIntent);
@@ -607,6 +690,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 List<LocalService<?>> serverServices = new ArrayList<>();
                 serverServices.addAll(Arrays.asList(createCoreServices()));
                 serverServices.addAll(Arrays.asList(createMediaServerServices()));
+                // OpenHome controllers (Home Assistant among them) only look at the services of the root device
+                serverServices.addAll(createOpenHomeServices());
 
                 LocalDevice serverDevice = new LocalDevice(
                         identity,
@@ -626,6 +711,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 }
                 if (serverEnabled && rendererEnabled) {
                     services.addAll(Arrays.asList(createMediaRendererServices()));
+                    services.addAll(createOpenHomeServices());
                 }
 
                 UDADeviceType deviceType;
@@ -643,6 +729,9 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             int aliveInterval = getUpnpNotificationFrequency();
             registry.setAliveInterval(aliveInterval);
             YaaccLogger.d(this.getClass().getName(), "UPnP ALIVE interval set to: " + aliveInterval + "ms");
+
+            // runs only while this device serves a selected SAF folder
+            safChangeRunner.update();
 
         } catch (ValidationException e) {
             YaaccLogger.e(this.getClass().getName(), "Exception during device creation", e);
@@ -694,7 +783,12 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         if (getApplicationContext().getString(R.string.settings_saf_tree_uris_pref_key).equals(key) ||
                 getApplicationContext().getString(R.string.settings_saf_tree_uris_selected_pref_key).equals(key)) {
             YaaccLogger.d(this.getClass().getName(), "SAF paths changed, reloading cache");
+            SafDirectoryLister.clearCache();
             SAFCacheManager.getInstance(getApplicationContext()).preloadSafDurations();
+            // another folder is watched now (or none): forget what was seen, start or stop the change check
+            safChangeRunner.pathsChanged();
+            // ticking or unticking a shared folder: control points that browse this server have to look again
+            notifyContentDirectoryChanged();
         }
 
         // Notify content directory change when media-type serving preferences change
@@ -769,11 +863,15 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                         .build();
                 httpServer = H2ServerBootstrap.bootstrap()
                         .setIOReactorConfig(config)
+                        .setHttpProcessor(ServerHttpProcessor.create())
                         .setExceptionCallback(new Callback<Exception>() {
 
                             @Override
                             public void execute(Exception ex) {
-                                if (ex instanceof SocketTimeoutException) {
+                                if (ClientDisconnects.isClientDisconnect(ex)) {
+                                    // the client hung up while we were answering: normal, one line, no stack
+                                    YaaccLogger.d(getClass().getName(), "client disconnected: " + ex);
+                                } else if (ex instanceof SocketTimeoutException) {
                                     YaaccLogger.e(getClass().getName(), "connection timeout:", ex);
                                 } else if (ex instanceof ConnectionClosedException) {
                                     YaaccLogger.e(getClass().getName(), "connection closed:", ex);
@@ -785,7 +883,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                         })
                         .setCanonicalHostName(InterfaceResolutionHelper.getIpAddress(getApplicationContext()))
                         .register("*", new YaaccUpnpServerContentHttpHandler(getApplicationContext()))
-                        .register(UpnpProtocolHandler.NAMESPACE.getBasePath().getPath() + "/*", new YaaccUpnpServerProtocolRequestHandler(getNetworkDeviceListener().getUpnpProtocolHandler()))
+                        .register(UpnpProtocolHandler.NAMESPACE.getBasePath().getPath() + "/*", new YaaccUpnpServerProtocolRequestHandler(this::currentProtocolHandler))
                         .create();
                 YaaccLogger.d(getClass().getName(), "Starting HTTP server");
                 httpServer.start();
@@ -855,7 +953,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         icons.add(new Icon("image/jpeg", 32, 32, 24, "yaacc32.jpg", getIconAsByteArray(R.drawable.yaacc32jpg, Bitmap.CompressFormat.JPEG)));
 
 
-        icons.add(new Icon("image/png", 192, 192, 24, "yaacc192.png", getIconAsByteArray(R.drawable.yaacc192png, Bitmap.CompressFormat.PNG)));
+        icons.add(new Icon("image/png", 192, 192, 24, "yaacc192.png", getIconAsByteArray(R.drawable.yaacc192_32, Bitmap.CompressFormat.PNG)));
         icons.add(new Icon("image/png", 120, 120, 24, "yaacc120.png", getIconAsByteArray(R.drawable.yaacc120png, Bitmap.CompressFormat.PNG)));
         icons.add(new Icon("image/png", 64, 48, 24, "yaacc64.png", getIconAsByteArray(R.drawable.yaacc64png, Bitmap.CompressFormat.PNG)));
         icons.add(new Icon("image/png", 48, 48, 24, "yaacc48.png", getIconAsByteArray(R.drawable.yaacc48png, Bitmap.CompressFormat.PNG)));
@@ -899,6 +997,38 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         return services.toArray(new LocalService[]{});
     }
 
+    /** What the OpenHome control points are told the renderer can play. */
+    private static final String OPENHOME_PROTOCOL_INFO = "http-get:*:audio/mpeg:*,http-get:*:audio/mp4:*,"
+            + "http-get:*:audio/aac:*,http-get:*:audio/flac:*,http-get:*:audio/x-flac:*,http-get:*:audio/ogg:*,"
+            + "http-get:*:audio/wav:*,http-get:*:audio/x-wav:*,http-get:*:audio/L16:*";
+
+    /**
+     * The OpenHome services (Product, Playlist, Info, Time, Volume) next to AVTransport and RenderingControl. The renderer behind them
+     * lives as long as this service, so the queue survives a rebuild of the device; the services are built again.
+     */
+    private List<LocalService<?>> createOpenHomeServices() {
+        try {
+            UpnpClient client = ((Yaacc) getApplicationContext()).getUpnpClient();
+            if (openHomeRenderer == null) {
+                AndroidOpenHomeHost host = new AndroidOpenHomeHost(getApplicationContext(), client);
+                String name = getLocalServerName();
+                openHomeRenderer = new OpenHomeRenderer(host, host, new AndroidOhThreads(),
+                        new OhRendererCore.Details("yaacc.de", "https://www.yaacc.de", "YAACC", name, name),
+                        OPENHOME_PROTOCOL_INFO);
+                openHomeRenderer.start();
+            }
+            return openHomeRenderer.core().buildServices(LOCK_TIMEOUT);
+        } catch (ValidationException | RuntimeException e) {
+            // OpenHome is an addition: without it the renderer still works with AVTransport
+            YaaccLogger.e(getClass().getName(), "OpenHome services not available", e);
+            if (openHomeRenderer != null) {
+                openHomeRenderer.shutdown();
+                openHomeRenderer = null;
+            }
+            return new ArrayList<>();
+        }
+    }
+
     /**
      * Creates an ContentDirectoryService. The content directory includes all
      * Files of the MediaStore.
@@ -937,34 +1067,17 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
 
         LocalService<YaaccAVTransportService> avTransportService = new AnnotationLocalServiceBinder().read(YaaccAVTransportService.class);
-        avTransportService.setManager(new DefaultServiceManager<>(avTransportService, null) {
-            @Override
-            protected int getLockTimeoutMillis() {
-                return LOCK_TIMEOUT;
-            }
-
-            @Override
-            protected YaaccAVTransportService createServiceInstance() {
-                return new YaaccAVTransportService();
-            }
-        });
+        // sends the LastChange (CurrentPlayMode, TransportState, ...) to the subscribers, see AvTransportServiceManager
+        avTransportService.setManager(new AvTransportServiceManager(avTransportService, LOCK_TIMEOUT));
         return avTransportService;
     }
 
     private LocalService<AbstractAudioRenderingControl> createRenderingControl() {
         LocalService<AbstractAudioRenderingControl> renderingControlService = new AnnotationLocalServiceBinder()
                 .read(AbstractAudioRenderingControl.class);
-        renderingControlService.setManager(new DefaultServiceManager<>(renderingControlService, null) {
-            @Override
-            protected int getLockTimeoutMillis() {
-                return LOCK_TIMEOUT;
-            }
-
-            @Override
-            protected AbstractAudioRenderingControl createServiceInstance() {
-                return new YaaccAudioRenderingControlService(getApplicationContext());
-            }
-        });
+        // sends the LastChange (Volume, Mute) to the subscribers, see RenderingControlServiceManager
+        renderingControlService.setManager(new RenderingControlServiceManager(renderingControlService, LOCK_TIMEOUT,
+                () -> new YaaccAudioRenderingControlService(getApplicationContext())));
         return renderingControlService;
     }
 
@@ -1005,7 +1118,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
             @Override
             protected ConnectionManagerService createServiceInstance() {
-                return new ConnectionManagerService(sourceProtocols, null);
+                return new ConnectionManagerService(sourceProtocols, new ProtocolInfos()); // no sink protocols listed: an empty list, not null
             }
         });
 
@@ -1231,6 +1344,15 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         return registry;
     }
 
+    /**
+     * The protocol handler of the enabled network listener, resolved per incoming request by the HTTP server (null
+     * while there is no network). The registry holds the live handler, NetworkDeviceListener#enable() replaces it.
+     */
+    private UpnpProtocolHandler currentProtocolHandler() {
+        Registry currentRegistry = registry;
+        return currentRegistry == null ? null : currentRegistry.getUpnpProtocolHandler();
+    }
+
 
     public void onNetworkStateChange() {
         YaaccLogger.d(getClass().getName(), "Network state change - restarting UPnP device");
@@ -1383,6 +1505,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
 
         // Stop current server
+        safChangeRunner.stop();
         networkDeviceListener.disable();
         if (httpServer != null) {
             httpServer.initiateShutdown();

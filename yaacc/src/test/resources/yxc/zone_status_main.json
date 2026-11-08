@@ -1,0 +1,13 @@
+{
+  "response_code": 0,
+  "power": "on",
+  "sleep": 0,
+  "volume": 30,
+  "mute": false,
+  "input": "net_radio",
+  "sound_program": "straight",
+  "pure_direct": false,
+  "tone_control": {"mode": "manual", "bass": 0, "treble": 2},
+  "link_control": "speed",
+  "invented_future_key": {"anything": [1, 2, 3]}
+}

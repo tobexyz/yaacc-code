@@ -1,0 +1,24 @@
+{
+  "response_code": 0,
+  "input": "spotify",
+  "play_queue_type": "system",
+  "playback": "stop",
+  "repeat": "all",
+  "shuffle": "on",
+  "play_time": -60000,
+  "total_time": 0,
+  "artist": "",
+  "album": "",
+  "track": "",
+  "albumart_url": "",
+  "albumart_id": 8367,
+  "usb_devicetype": "unknown",
+  "auto_stopped": false,
+  "attribute": 16777503,
+  "repeat_available": [
+    "off",
+    "one",
+    "all"
+  ],
+  "shuffle_available": []
+}

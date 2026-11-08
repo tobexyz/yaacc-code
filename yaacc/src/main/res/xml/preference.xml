@@ -21,12 +21,20 @@
 
 
     <PreferenceCategory android:title="@string/settings_category_appearance">
-        <CheckBoxPreference
-            android:defaultValue="true"
-            android:key="@string/settings_dark_mode_key"
-            android:summaryOff="@string/settings_dark_mode_off"
-            android:summaryOn="@string/settings_dark_mode_on"
-            android:title="@string/settings_dark_mode_title" />
+        <ListPreference
+            android:defaultValue="new"
+            android:entries="@array/browser_layout_entries"
+            android:entryValues="@array/browser_layout_values"
+            android:key="@string/settings_browser_layout_key"
+            android:summary="%s"
+            android:title="@string/settings_browser_layout_title" />
+        <ListPreference
+            android:defaultValue="dark"
+            android:entries="@array/theme_entries"
+            android:entryValues="@array/theme_values"
+            android:key="@string/settings_theme_key"
+            android:summary="%s"
+            android:title="@string/settings_theme_title" />
         <ListPreference
             android:defaultValue="E"
             android:entries="@array/log_level_entries"
@@ -91,8 +99,8 @@
             android:key="@string/settings_silence_duration_key"
             android:title="@string/settings_silence_duration" />
         <CheckBoxPreference
-            android:defaultValue="true"
-            android:disableDependentsState="true"
+            android:defaultValue="false"
+            android:disableDependentsState="false"
             android:title="@string/settings_replay_title"
             android:key="@string/settings_replay_playlist_chkbx"
             android:summaryOff="@string/settings_replay_playlist_off"
@@ -128,6 +136,12 @@
             android:title="@string/settings_local_server_proxy_title"
             android:summaryOff="@string/settings_local_server_proxy_off"
             android:summaryOn="@string/settings_local_server_proxy_on" />
+        <CheckBoxPreference
+            android:key="@string/settings_proxy_restrict_receivers_chkbx"
+            android:title="@string/settings_proxy_restrict_receivers_title"
+            android:defaultValue="true"
+            android:summaryOff="@string/settings_proxy_restrict_receivers_off"
+            android:summaryOn="@string/settings_proxy_restrict_receivers_on" />
         <CheckBoxPreference
             android:key="@string/settings_local_server_receiver_chkbx"
             android:title="@string/settings_local_server_receiver_title"

@@ -20,6 +20,10 @@ package de.yaacc.player;
 
 import android.content.ComponentName;
 import android.os.IBinder;
+
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
+
 import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.model.action.ActionInvocation;
@@ -37,6 +41,7 @@ import de.yaacc.R;
 import de.yaacc.upnp.ActionState;
 import de.yaacc.upnp.UpnpClient;
 
+@OptIn(markerClass = UnstableApi.class)
 public class AVTransportController extends AVTransportPlayer {
 
     public static final String DEVICE_ID = "DEVICE_ID";
