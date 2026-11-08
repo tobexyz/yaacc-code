@@ -444,3 +444,44 @@ Reviewing: commit f8b91bf7 (fixes of the 2 Warnings of cycle 5, plus the changed
 - [ ] Coverage adequate for the change: almost; the new `id == null` path has the delete case but no test for a user-added track behind a track a control point deleted (the Warning).
 
 ### Verdict: FAIL
+
+## Cycle 7 - fix of cycle 6 — 2026-11-08
+Reviewing: commit defd4024 (the one-line fix for the Warning of cycle 6 in `takeOverFromPlayer`, its test and the decisions.md entry); extra cycle beyond the cap of three, approved by the owner.
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+- [OpenHomeRendererTest.java:499-511] The new test covers a deleted track in the middle of the list. The variant "the first tracks are gone too" (player [K1,K2,X], both deleted, X must end at the start of the queue) is
+  correct by the code (see 2) but has no test of its own. Optional.
+- Still open from earlier cycles (not blocking): `feedFiles` retry may append a file twice if only the answer was lost (comment wanted), URI normalisation, strict base64, `trackDeleted` index race,
+  Stopped flap after Play, ohPipeline behavior for deleting the playing track not verified against a real device.
+
+### Checked and fine
+1. Fix (OpenHomeRenderer.java:539-541): `previous` advances only if `queue.indexOf(id) >= 0`. `newIds` still gets every known id (also a deleted one), so `playerIds` keeps matching the player's items by place and the
+   `reconcile` that every control point delete triggers removes the stale entry by index. `queue.insert(previous, ...)` therefore never gets an id that is not in the queue: `previous` is either `OhIds.NONE` or
+   the id of a track that was in the queue when it was set. An id inserted in this loop is in the queue, so new tracks chain correctly (X1, X2 behind each other). The only other way to leave the queue between two
+   iterations would be a concurrent delete; `takeOverFromPlayer` runs on the worker thread like `sync`, and `OhQueue` is synchronized per call, so this cannot happen on the worker (a delete from the SOAP thread in
+   between would be refused as 800 and the track leaves the player again, as before).
+2. First tracks gone too: player [K1,K2,X] with K1, K2 deleted: step 1 deletes nothing (both kept in `found`), step 2 `order` is empty (the `indexOf >= 0` filter), step 3 leaves `previous = NONE` for K1 and K2,
+   `OhQueue.insert(NONE, ...)` inserts at index 0 (OhQueue.java:110-116), so X is the first track; `reconcile` then removes K1, K2 from the player by index. With live tracks mixed in ([K1,a,X] or [K1,X,a]) X follows the last
+   live predecessor, i.e. its place relative to the live tracks is the one the user gave it.
+3. Test `aTrackAddedAtThePlayerBehindATrackAControlPointDeletedKeepsItsPlace`: traced on both versions. Setup: queue [a,k], player [a,k], x added at the player, `queue.delete(k)`, `trackDeleted(1,k)` (`id != startId`, `sync()`).
+   New code: found [a,k,null], k stays in `newIds` but not as anchor, x is inserted behind a, `reconcile` removes k (wanted {a,x}): queue and player [a,x]. Old code: `previous = k`, `insert(k, ...)` throws 800, x is "refused" and
+   removed from the player, `reconcile` removes k: queue and player [a]; both assertions (a,x) fail. So the test fails without the fix, and it checks queue and player. `InlineThreads` make the path deterministic.
+4. Regressions: the change touches only the anchor; `newIds`, `refused`, `playerIds`, `idByItem` clean-up and `core.queueEditedByPlayer()` are as before. Cost of `indexOf` is O(n) per item with at most 1000 tracks, on the worker once per
+   changed list: fine. Unchanged paths re-read: `sync` (adopt first, `player == null`, wanted again), `reconcile` (delete by id with by-value cleanup, then insert by place; the stale id is removed before the inserts so index
+   alignment holds), `refreshNow` (adopt, rebuild on discard). The existing tests of this area (`anEditAtThePlayerIsTakenOverBeforeAControlPointEditIsSynced`, `aTrackAddedAtThePlayerEntersTheQueueBehindItsPredecessor`,
+   `aTrackTheQueueCanNotHoldIsTakenOutOfThePlayerAgain`, `aTrackAControlPointAddedIsNotTakenForAnEditOfThePlayer`) do not depend on the anchor of a deleted track.
+5. Overall controller group (5-6) and the reverse sync (cycles 4-7): the findings of cycles 4, 5 and 6 are all fixed (transport error code, `command(..., always)`, `moveInPlayOrder` ids, `feedFiles` retry, sync order
+   adopt-then-reconcile, identity compare, `idByItem` by value for ids above 127, no resurrected deleted track, anchor). No Critical or Warning is left; the remaining items are Suggestions or unverified device behavior.
+6. decisions.md: the new entry matches the code and says honestly that the fix was made after the cap.
+
+### Tests
+- [x] All tests passing: not re-run here (coordinator: `assembleDebug`, `testDebugUnitTest` 3198 tests, `lintDebug` 0 at HEAD defd4024).
+- [x] Coverage adequate for the change: yes, the new test fails on the old code.
+
+### Verdict: PASS
