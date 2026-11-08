@@ -205,8 +205,8 @@ public class HttpRequestSender {
         int read;
         while ((read = in.read(chunk)) != -1) {
             if (out.size() + (long) read > maxBytes) {
-                // the stream is NOT closed here: closing reads the rest of the body, which may never end. The exception leaves
-                // the client, which drops the connection.
+                // the stream is NOT closed here: closing reads the rest of the body, which may never end. The caller ({@code send})
+                // aborts the request, which drops the connection.
                 throw new IOException("the answer is larger than " + maxBytes + " bytes");
             }
             out.write(chunk, 0, read);

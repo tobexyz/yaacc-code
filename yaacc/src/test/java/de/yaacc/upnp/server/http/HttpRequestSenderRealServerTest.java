@@ -54,7 +54,9 @@ public class HttpRequestSenderRealServerTest {
             while (!server.isClosed()) {
                 try {
                     Socket socket = server.accept();
-                    new Thread(() -> serve(socket)).start();
+                    Thread serving = new Thread(() -> serve(socket));
+                    serving.setDaemon(true);
+                    serving.start();
                 } catch (IOException e) {
                     return;
                 }
