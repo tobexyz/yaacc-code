@@ -18,8 +18,8 @@
 package de.yaacc.browser;
 
 /**
- * Runs an action once, a little after the last of a burst of triggers: a flood of device announcements asks for a refresh of the
- * receiver rows many times, one rebuild after the burst is enough. Main thread only. The clock is behind {@link Poster}, so the logic
+ * Runs an action once for a burst of triggers, the delay after the first one: a flood of device announcements asks for a refresh of
+ * the receiver rows many times, one rebuild per delay is enough (a continuous flood gives at most one run per delay). Main thread only. The clock is behind {@link Poster}, so the logic
  * is tested on the JVM.
  */
 final class Coalescer {
@@ -59,7 +59,7 @@ final class Coalescer {
         };
     }
 
-    /** Asks for a run; many calls before the run are one run. */
+    /** Asks for a run; many calls before the run are one run (the delay counts from the first call). */
     void trigger() {
         if (pending) {
             return;

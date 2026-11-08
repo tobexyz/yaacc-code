@@ -30,3 +30,28 @@ Scope notes: "new" = introduced or made reachable by this change; "pre-existing"
 
 ### Verdict: FAIL
 One Warning (unbounded polled devices and unthrottled rebuilds on the new landing screen). Availability-only on the local network and small to fix; no Critical. After the cap and the debounce the expected verdict is PASS.
+
+## Cycle 2 — 2026-11-08
+Reviewing: the fixes for the cycle 1 Warning: `ReceiverLiveUpdates.MAX_RECEIVERS` / `watched(...)`, `Coalescer` (+ `CoalescerTest`, `ReceiverLiveUpdatesTest`), their use in `ServerListFragment`, `DeviceSheetAdapter.refresh()` and `ReceiverLiveUpdates.forApp`.
+
+### Critical
+- none
+
+### Warning
+- none (the cycle 1 Warning is resolved, see below)
+
+### Suggestion
+- [RendererStatusMonitor.java / MonitorSubscriptions.java] (PRE-EXISTING, follow-up already in decisions.md) the cap bounds the receivers polled at one time (64), not over time: `subscribe` is additive and `polledDevices`/`statusMap` are only cleared when the last listener leaves. A host that keeps rotating fake UDNs that sort into the first 64 still adds one 10 s chain per new UDN while the page is started. This needs a sustained, active attacker (each device must be announced and its description fetched), costs one request per 10 s per chain, and is slow compared with the former flood; pruning chains of devices that left the registry closes it. Worth doing soon, since the page is the landing screen.
+- [ReceiverLiveUpdates.watched, ordering] the cap keeps "this phone first, then by name", so a hostile host can name fake receivers to sort before real ones and push real receivers out of the 64 (they then are not listed or polled). This is inherent in any cap, availability only, and no worse than the flood it replaces; no change needed, but it is why 64 should not be lowered.
+- [Coalescer.java doc] the doc says "a little after the last of a burst"; the implementation runs 300 ms after the first trigger of a burst (a trigger while one is pending does nothing), so a continuous flood gives at most one rebuild per 300 ms rather than none until it stops. That is the better behaviour for the UI (no starvation) and the rate is bounded; only the wording is imprecise.
+- [ReceiverRowBinder.java:242, 263, 266, 1162] (PRE-EXISTING, follow-up in decisions.md) uncleaned device strings in the log.
+
+### Checked
+1. **Cap applied consistently.** `watched()` is used for the status monitor subscription, the group feed (`YxcRowFeed.start`, itself capped at 64 by `YxcMonitor`) and the rows in `DeviceSheetAdapter.refresh()`, so rows, polled devices and the volume candidates (visible rows only) all come from the same first 64; the order is the registry's (local dummy device first, then by name), so this phone is never dropped. The helper copies at most 64 entries and handles a smaller or empty collection.
+2. **Truncating the list in the sheet.** `DeviceSheetAdapter` serves the sheet, the picker and the page, so all three now show at most 64 receivers (before: unbounded). Players are not truncated: sessions of a device outside the cap still get a session row (the existing "device not in the list" path via `receiversById.containsKey`, grouped by `DeviceSessionGrouper`), so no session becomes unreachable and no action can target the wrong device (rows resolve their entry by binding position as before). The classic Receiver tab is unchanged and not capped (pre-existing). Realistic households have a handful of receivers, so the limit is not a usability risk.
+3. **`devicesChanged()` per coalesced refresh.** It now runs at most once per 300 ms burst; with the cap it passes at most 64 devices to `subscribe` calls that de-duplicate (`addIfAbsent`, `polledDevices.add`, `YxcMonitor` known-UDN check, `addBusyListener` `addIfAbsent`), so a repeated call starts no new chain and no new listener. The UI-thread cost per rebuild is bounded by 64 entries plus the player list.
+4. **Cancelled or late runnable.** `Coalescer` is main-thread only; `cancel()` clears `pending` and removes the exact runnable, and the runnable clears `pending` before running, so a late run cannot be double-scheduled. `onDestroyView` cancels it and nulls it; the action `refreshReceivers` null-guards `receiverAdapter` and `receiverLive`, so a runnable that was already dispatched cannot touch a released adapter (it runs on the same thread, in order). A `populateDeviceList` lambda queued before `onDestroyView` null-checks `receiverRefresh` and calls `refreshReceivers` only through the guard. The first build is immediate (adapter set up in `populateDeviceList`), later events only trigger the coalescer. The runnable references the fragment only until cancelled, so no leak past `onDestroyView`; a new view creates a new coalescer.
+5. **No new surface.** No manifest, permission, intent, dependency or logging change in the fixes.
+
+### Verdict: PASS
+Zero Critical, zero Warning. The cycle 1 Warning is fixed: the number of receivers that are listed, polled and watched is bounded at 64 and the rebuild rate on device events is bounded at one per 300 ms. Remaining items are Suggestions (pruning of poll chains over time is the one to schedule first).

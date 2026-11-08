@@ -27,6 +27,6 @@ Receiver tab does the same with `groupFeed.start`). Both calls accept the same l
 The page polls the receivers for as long as it is started, and a host of the network can announce any number of devices. At most
 `ReceiverLiveUpdates.MAX_RECEIVERS` (64, the order of the limit of the group feed) receivers are listed, watched and polled (this phone
 first, then by name: `ReceiverLiveUpdates.watched`), also in the device sheet. Device events (announce / byebye floods) rebuild the rows
-once, 300 ms after the last event (`Coalescer`), the first build is immediate. Not changed (pre-existing, noted as follow-ups): the status
+once per 300 ms, counted from the first event of a burst (`Coalescer`), the first build is immediate. Not changed (pre-existing, noted as follow-ups): the status
 monitor never drops the poll chain of a device that left the network, and `ReceiverRowBinder` logs some device strings without cleaning.
 

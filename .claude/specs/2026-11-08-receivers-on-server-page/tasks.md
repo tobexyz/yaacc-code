@@ -15,7 +15,7 @@ Gate: `ANDROID_HOME=/root/android-sdk ./gradlew :yaacc:assembleDebug :yaacc:test
 - [x] 2.4 `ServerListFragment` top-level page; tooltip in `ContentListFragment`; positions of the servers by binding position (`ServerListClickListenerTest`)
 - [x] 2.5 Fixes of review cycle 1: `devicesChanged()` for late receivers, the hint rule (local device), `AdapterPositions` (+ tests), docs wording
 - [x] 2.6 Fixes of security review cycle 1: cap of 64 receivers, `Coalescer` for the refresh (+ tests)
-- [ ] 2.7 Review gate: reviewer PASS (cycle 2), then security-reviewer PASS
+- [ ] 2.7 Review gate: reviewer PASS (cycle 2; cycle 3 of the cap and the coalescing is open: the reviewer hit the usage limit), security-reviewer PASS (cycle 2)
 
 ## Group 3: documentation
 - [x] 3.1 `docs/index.md`, `docs/tech.md` (as built), `CHANGELOG.md`

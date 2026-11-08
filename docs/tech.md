@@ -1311,7 +1311,7 @@ the accessibility heading and the icons are decorative. The receiver rows are
 kept live by `ReceiverLiveUpdates` (status monitor, group feed, player list
 listener, 2 s poll, volume updater), which was extracted from `DeviceSheetFragment`
 and is used by both; the page runs it between `onStart` and `onStop`, refreshes the
-rows when a device is added/removed/updated (coalesced by `Coalescer` into one rebuild 300 ms after the last event; it also calls `devicesChanged()`, because the status monitor and the group feed took the receivers of the start as a snapshot) and releases the adapter in
+rows when a device is added/removed/updated (coalesced by `Coalescer` into one rebuild per 300 ms; it also calls `devicesChanged()`, because the status monitor and the group feed took the receivers of the start as a snapshot) and releases the adapter in
 `onDestroyView`. Because the sheet's adapter is one part of a `ConcatAdapter` here,
 `DeviceSheetAdapter.visibleReceiverRows()` finds its rows through the holders
 (`AdapterPositions.laidOutRows`: `getBindingAdapter() == this`, `getBindingAdapterPosition()`), not through the
