@@ -141,3 +141,49 @@ Cycle 1 items:
 - [x] Coverage adequate for the change
 
 ### Verdict: PASS
+
+## Cycle 3 - 2026-11-08
+Reviewing: what changed since the cycle 2 PASS (commits c98d4bce, 4c63964d on `prepareRelease`): `ReceiverLiveUpdates.MAX_RECEIVERS` / `watched()`
+(used in `forApp.subscribeStatus`, `forApp.startGroupFeed`, `DeviceSheetAdapter.refresh`), `Coalescer` (+ `CoalescerTest`) in
+`ServerListFragment`, docs/decisions. Gate taken from the caller (not re-run): build ok, 3386 tests, 0 failures, lint 0.
+
+Checked:
+- Cap. `watched()` keeps the first 64 of `getDevicesProvidingAvTransportService()`, whose order is the local dummy device first, then the
+  rest by name, so the local device and the existing order survive the cut; below 64 the list is returned unchanged (tested, incl. empty
+  and "local first"). The same list feeds the rows, the status monitor and the group feed, so a listed row is always a watched row. 64
+  equals `YxcMonitor.MAX_DEVICES`. The sheet in pick mode uses the same `refresh()`, so the picker also lists at most 64 receivers; the
+  Receiver tab of the classic layout is untouched (uncapped, as before). Sessions of a receiver beyond the cap are listed as sessions of
+  an unknown device (the existing "orphan" row with the device id), nothing breaks.
+- Coalescer. Main-thread only and used only there: `populateDeviceList`'s `runOnUiThread` body triggers it, the `Handler` is the main
+  looper's. `pending` is cleared before the action runs, so a trigger from inside the action schedules the next run; `cancel()` removes
+  the exact runnable. First build (adapter == null) calls `refreshReceivers()` directly, only later events are coalesced; `onStart`'s
+  `start(true)` refresh stays immediate. A late runnable cannot act on a dead view: `onDestroyView` cancels and nulls `receiverRefresh`,
+  and `refreshReceivers()` returns when `receiverAdapter` is null; a recreated view builds a new Coalescer with the new adapter. While the
+  page is stopped, events still schedule a rebuild (as before the change), `devicesChanged()` is a no-op then. The 300 ms delay counts from
+  the first event, so a continuous flood gives at most one rebuild per 300 ms, as the Javadoc says.
+- Tests: `CoalescerTest` (burst = one post with the right delay, re-trigger after a run, cancel, cancel without trigger) proves the
+  logic; the cap tests prove `watched` (size, first and last element, order, empty). The glue (`forApp`, `DeviceSheetAdapter.refresh`,
+  the fragment wiring) is not testable on the JVM and is reviewed only.
+- Docs: tech.md (64 receivers, coalesced rebuild per 300 ms) and decisions.md (cap, coalescing, noted follow-ups) match the code.
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+- The cap bounds the receivers that are listed now, not the ones ever polled: `RendererStatusMonitor` (`MonitorSubscriptions.polledDevices`)
+  adds each new device and drops it only when the last listener unsubscribes, so on a page that stays started over a long time with a
+  changing set of devices the polled set can exceed 64. This is the pre-existing follow-up already noted in decisions.md and in
+  cycle 2; `YxcMonitor` has its own 64 limit on the watched map.
+- In pick mode a receiver that was ticked before and now lies beyond the cap is not shown and not handed out (`pickedIds()` returns only
+  listed receivers). Only matters with more than 64 receivers; no action needed.
+- CHANGELOG / docs/index.md do not mention the limit of 64 receivers; fine for a limit nobody meets, mention it if the owner wants it
+  documented for users.
+
+### Tests
+- [x] All tests passing (caller's gate: 3386, 0 failures; not re-run)
+- [x] Coverage adequate for the change
+
+### Verdict: PASS
