@@ -1301,13 +1301,18 @@ Both layouts use the same ids (`serverList`, `serverListRefreshButton`,
 `serverListLocalServerEnabled`, `serverListLocalServerSettings`, status icons).
 
 `fragment_server_root.xml` (top level of the new layout): the `serverList`, one
-`ConcatAdapter` with two sections, and a footer. The sections:
-`SectionHeaderAdapter` "Servers" (broadcast icon, refresh), `BrowseDeviceAdapter`
+`ConcatAdapter` with three sections, and a footer. The sections:
+`SectionHeaderAdapter` "Servers" (broadcast icon, the one refresh button), `BrowseDeviceAdapter`
 (shared with classic), `PickCardAdapter`, `SectionHeaderAdapter` "Receivers"
-(devices icon, refresh; the same `searchDevices()`), `DeviceSheetAdapter` (the
+(devices icon, a line above), `DeviceSheetAdapter` (the
 sheet's adapter in normal mode: receivers and their players), `SectionHintAdapter`
-("No other receivers found yet." while only the local device, which is always listed, is a receiver; updated after every `DeviceSheetAdapter.refresh()` through `setOnRefreshed`). The headers carry
-the accessibility heading and the icons are decorative. The receiver rows are
+("No other receivers found yet." while only the local device, which is always listed, is a receiver; updated after every `DeviceSheetAdapter.refresh()` through `setOnRefreshed`), then `SectionHeaderAdapter` "Players" (hidden while there is no player)
+and the rows of a `MiniPlayerBar` created in page mode (`MiniPlayerBar(Context, UpnpClient, Consumer<Boolean>)`: its adapter is a part of
+the page's list and it reports whether there is any row; bound between `onStart` and `onStop` of the page). The headers carry
+the accessibility heading and the icons are decorative; a line (`sectionHeaderDivider`) is above every header but the first.
+`BrowserActivity` puts the receiver bar and the mini-player of the content into `browserBottomStack` and shows (and binds) them only
+while a `ContentListFragment` is on top (`updateBottomStack`, on back stack changes, `onStart`/`onStop`), so the top level has no
+second set of subscriptions. The receiver rows are
 kept live by `ReceiverLiveUpdates` (status monitor, group feed, player list
 listener, 2 s poll, volume updater), which was extracted from `DeviceSheetFragment`
 and is used by both; the page runs it between `onStart` and `onStop`, refreshes the

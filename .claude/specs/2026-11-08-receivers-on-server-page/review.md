@@ -187,3 +187,60 @@ Checked:
 - [x] Coverage adequate for the change
 
 ### Verdict: PASS
+
+## Cycle 4 - 2026-11-08
+Reviewing: the owner's follow-up (uncommitted on top of d6642b03): one refresh button (Servers header only), receiver bar + mini-player only
+below the content of a server (`browserBottomStack`, `BrowserActivity.updateBottomStack`), the mini-player rows as a third page section
+"Players" (page-mode `MiniPlayerBar`, hideable `SectionHeaderAdapter`), a line above the Receivers and Players headers, `browser_players_header`
+in 7 locales, docs. Gate taken from the caller (not re-run): build ok, 3391 tests, 0 failures, lint 0.
+
+Checked:
+- Bottom stack. State is computed from the fragment manager (`findFragmentById(browserContainer) instanceof ContentListFragment`) plus the
+  `started` flag on every back stack change, `onCreate`, `onStart`, and `onStop` clears it, so there is no stored "shown" state to drift:
+  fast back/forward, a quick second tap (`showContent` executes pending transactions first) and `popBackStack` all end in the state of
+  the fragment that is on top. Rotation or process recreation with content on top: `super.onCreate` restores the fragments before
+  `updateBottomStack()`, the container is made visible, `started` is false so nothing binds until `onStart`. Early returns in `onCreate`
+  (other layout, no client) leave `bottomStack` and the controllers null; every use is null-guarded. Double bind is harmless:
+  `ReceiverBarController.bind` and `MiniPlayerBar.bind` both return when already bound, and `unbind` of both is idempotent (listener,
+  poll, command executor, accessibility delegate, click listener are dropped). `onStop` and `onDestroy` unbind; hidden container, bar
+  not clickable, nothing subscribed at the top level, so the page's own subscriptions are the only ones there. During a pop the page
+  (bound in its `onStart`) and the activity's bar (unbound by the back stack listener) can overlap for a moment; that is two light
+  listeners, not a leak.
+- Nothing else depended on the bar at the top level: `R.id.miniPlayerBar` / `browserReceiverBar` / `browserBottomSeparator` are used only
+  in `BrowserActivity` and the layout; `showReceivers()` is reached from the bar and from the content footer (both below a server);
+  `showPlayers()` is a no-op in the new layout; pick and share flows use `ReceiverPickController` and their own sheet. The classic
+  activity and layouts are untouched; `ServerListFragment` creates `playersBar` only in the `hostProvidesShutdownTimer` block.
+- Page-mode `MiniPlayerBar`. `MiniPlayerAdapter` has no list-position logic (rows are looked up through `holder.row`), so it is safe in
+  the ConcatAdapter; its stable ids are ignored there like for the receiver adapter (accepted, decisions.md). Order in `refreshFromPlayers`:
+  `adapter.submit(rows)` first, then `visibility.accept(...)`, so the header appears above rows that already exist and disappears after the
+  rows are gone; `SectionHeaderAdapter.setVisible` sets the flag before `notifyItemInserted/Removed`. `unbind()` clears the adapter and reports
+  "not visible", so a stopped page shows no stale section. `playersBar`/`playersHeader` are nulled together with the other view-bound
+  fields in `onDestroyView` (after `unbind`), the visibility lambda is null-guarded, and `populateDeviceList` reads `playersBar` only when
+  `receiverAdapter != null` (both are set and cleared in the same UI-thread steps). Bound in `onStart`, unbound in `onStop` and
+  `onDestroyView`, poll and callbacks on the main handler, the command executor is shut down on unbind: no duplicate or leaked pollers.
+- Resources/docs: divider has `importantForAccessibility="no"` and a theme colour role; the Receivers/Players headers have no refresh
+  (`hasRefresh` false), Servers has the one; `ic_baseline_playlist_play_32` exists; strings in 7 locales; index.md, tech.md, CHANGELOG match
+  the behaviour (they now say the bars belong to the content of a server).
+- Tests: `SectionHeaderAdapterTest` (visibility, notifications guarded by the observer shim, refresh/divider flags), the layout test for
+  the stack order and ids, the locale test. They would fail on the previous tree (new classes/ids).
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+- `updateBottomStack` and the page-mode visibility callback are not unit tested (Activity/Handler are not available on the JVM). The rule
+  "bound iff started and content on top" could be a one-line pure function with a test; optional.
+- Translations of `browser_players_header` (es "Jugadores", fr "Joueurs", pt "Jogadores") follow the existing tab title
+  `title_activity_player_list`, but read as "game players"; "Reproductores / Lecteurs / Reprodutores" (as in `mini_player_open`) would be
+  clearer. Cosmetic, consistent with the existing strings.
+- The top level no longer has the 1 dp separator above the footer (it lived in the bottom stack); if the owner wants a line between the
+  list and the server footer it belongs in `fragment_server_root.xml`. Cosmetic.
+
+### Tests
+- [x] All tests passing (caller's gate: 3391, 0 failures; not re-run)
+- [x] Coverage adequate for the change (the lifecycle glue is reviewed, not testable on the JVM)
+
+### Verdict: PASS

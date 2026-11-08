@@ -37,23 +37,53 @@ import de.yaacc.util.ThemeHelper;
 /**
  * The header row of a section of the top-level page ("Servers", "Receivers"): the icon of the kind of device in front of the label, the
  * label as an accessibility heading and, if the section offers it, the refresh button (the search for devices finds servers and
- * receivers alike, so both headers may carry it). One item.
+ * receivers alike; the first header has it). Sections after the first have a line above them. One item, or none while hidden (the
+ * Players section is hidden while no player runs). Main thread only.
  */
 final class SectionHeaderAdapter extends RecyclerView.Adapter<SectionHeaderAdapter.Holder> {
 
     private final int labelRes;
     private final int iconRes;
     private final Runnable onRefresh;
+    private final boolean dividerAbove;
+    private boolean visible = true;
 
     /**
      * @param labelRes  the label
      * @param iconRes   the icon (a drawable that {@link ThemeHelper#tintDrawable} can tint)
      * @param onRefresh what the refresh button does; null for a header without one
+     * @param dividerAbove true for a line above the header, between this section and the one before it
      */
-    SectionHeaderAdapter(@StringRes int labelRes, @DrawableRes int iconRes, @Nullable Runnable onRefresh) {
+    SectionHeaderAdapter(@StringRes int labelRes, @DrawableRes int iconRes, @Nullable Runnable onRefresh, boolean dividerAbove) {
         this.labelRes = labelRes;
         this.iconRes = iconRes;
         this.onRefresh = onRefresh;
+        this.dividerAbove = dividerAbove;
+    }
+
+    boolean hasRefresh() {
+        return onRefresh != null;
+    }
+
+    boolean hasDividerAbove() {
+        return dividerAbove;
+    }
+
+    boolean isVisible() {
+        return visible;
+    }
+
+    /** Shows or hides the header (and with it the line above); nothing is notified when the state does not change. */
+    void setVisible(boolean visible) {
+        if (this.visible == visible) {
+            return;
+        }
+        this.visible = visible;
+        if (visible) {
+            notifyItemInserted(0);
+        } else {
+            notifyItemRemoved(0);
+        }
     }
 
     @NonNull
@@ -64,6 +94,7 @@ final class SectionHeaderAdapter extends RecyclerView.Adapter<SectionHeaderAdapt
 
     @Override
     public void onBindViewHolder(@NonNull Holder holder, int position) {
+        holder.divider.setVisibility(dividerAbove ? View.VISIBLE : View.GONE);
         holder.label.setText(labelRes);
         ViewCompat.setAccessibilityHeading(holder.label, true);
         android.content.Context context = holder.itemView.getContext();
@@ -80,19 +111,21 @@ final class SectionHeaderAdapter extends RecyclerView.Adapter<SectionHeaderAdapt
 
     @Override
     public int getItemCount() {
-        return 1;
+        return visible ? 1 : 0;
     }
 
     static final class Holder extends RecyclerView.ViewHolder {
         final ImageView icon;
         final TextView label;
         final View refresh;
+        final View divider;
 
         Holder(@NonNull View itemView) {
             super(itemView);
             icon = itemView.findViewById(R.id.sectionHeaderIcon);
             label = itemView.findViewById(R.id.sectionHeaderLabel);
             refresh = itemView.findViewById(R.id.sectionHeaderRefresh);
+            divider = itemView.findViewById(R.id.sectionHeaderDivider);
         }
     }
 }

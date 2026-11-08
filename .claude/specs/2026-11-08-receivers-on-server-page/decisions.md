@@ -30,3 +30,10 @@ first, then by name: `ReceiverLiveUpdates.watched`), also in the device sheet. D
 once per 300 ms, counted from the first event of a burst (`Coalescer`), the first build is immediate. Not changed (pre-existing, noted as follow-ups): the status
 monitor never drops the poll chain of a device that left the network, and `ReceiverRowBinder` logs some device strings without cleaning.
 
+## 2026-11-08 — Players as the third section; bottom stack only below the content (owner's request after trying the page)
+The receiver bar with the mini-player on the first screen was too much next to the Receivers section. The top level lists the running players as a
+third section (the rows of the mini-player, hidden with their header while no player runs) and has no receiver bar and no mini-player; below
+the content of a server both stay. The Receivers header has no second refresh button (one is enough). A thin line sits above the Receivers and
+the Players header. The activity binds the bar and the mini-player only while the content is on top, the page binds its own player rows only
+while it is started.
+

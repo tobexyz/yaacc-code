@@ -48,6 +48,7 @@ public class ServerRootResourcesTest {
         assertTrue(xml.contains("@+id/serverList"));
         assertTrue(xml.contains("@+id/serverListLocalServerEnabled"));
         assertTrue(xml.contains("@+id/serverListLocalServerSettings"));
+        assertTrue("a line above the footer (it was the line of the bottom stack)", xml.contains("@+id/serverListFooterSeparator"));
         assertFalse("the header is a row of the list now", xml.contains("@+id/serverRootHeader"));
         assertFalse("the refresh button is in the headers of the list", xml.contains("@+id/serverListRefreshButton"));
     }
@@ -67,6 +68,7 @@ public class ServerRootResourcesTest {
         assertTrue(xml.contains("@+id/sectionHeaderIcon"));
         assertTrue(xml.contains("@+id/sectionHeaderLabel"));
         assertTrue(xml.contains("@+id/sectionHeaderRefresh"));
+        assertTrue("a line above the section", xml.contains("@+id/sectionHeaderDivider"));
         assertTrue("the refresh button is labelled", Pattern.compile("@\\+id/sectionHeaderRefresh\"[^>]*android:contentDescription=",
                 Pattern.DOTALL).matcher(xml).find());
         assertTrue("the icon is decorative, the label says it", xml.contains("importantForAccessibility=\"no\""));
@@ -81,9 +83,23 @@ public class ServerRootResourcesTest {
     public void everyLocaleHasTheNewTexts() throws Exception {
         for (String dir : LOCALES) {
             String xml = read("src/main/res/" + dir + "/strings.xml");
-            for (String name : new String[]{"browser_receivers_header", "browser_receivers_none"}) {
+            for (String name : new String[]{"browser_receivers_header", "browser_receivers_none", "browser_players_header"}) {
                 assertTrue(dir + " " + name, Pattern.compile("<string name=\"" + name + "\">[^<]+</string>").matcher(xml).find());
             }
         }
+    }
+
+    @Test
+    public void theReceiverBarAndTheMiniPlayerShareOneContainerThatTheActivityCanHide() throws Exception {
+        String xml = read("src/main/res/layout/activity_browser.xml");
+
+        int stack = xml.indexOf("@+id/browserBottomStack");
+        assertTrue("the bottom stack has a container", stack > 0);
+        int separator = xml.indexOf("@+id/browserBottomSeparator");
+        int miniPlayer = xml.indexOf("@layout/mini_player_bar");
+        int receiverBar = xml.indexOf("@+id/browserReceiverBar");
+        assertTrue("separator, mini-player, receiver bar come after the container, in this order",
+                stack < separator && separator < miniPlayer && miniPlayer < receiverBar);
+        assertTrue("the content container is outside the stack", xml.indexOf("@+id/browserContainer") < stack);
     }
 }

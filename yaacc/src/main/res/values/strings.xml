@@ -149,6 +149,7 @@
     <string name="browser_servers_header">Servers</string>
     <string name="browser_receivers_header">Receivers</string>
     <string name="browser_receivers_none">No other receivers found yet.</string>
+    <string name="browser_players_header">Players</string>
     <string name="add_saf_content">add source</string>
     <string name="clear_saf_cache">clear SAF cache</string>
     <string name="saf_content">Linked</string>

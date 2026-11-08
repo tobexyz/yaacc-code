@@ -142,6 +142,7 @@
     <string name="browser_servers_header">Servidores</string>
     <string name="browser_receivers_header">Receptores</string>
     <string name="browser_receivers_none">Aún no se han encontrado otros receptores.</string>
+    <string name="browser_players_header">Reproductores</string>
     <string name="add_saf_content">agregar fuente</string>
     <string name="clear_saf_cache">borrar caché SAF</string>
     <string name="saf_content">vinculado</string>

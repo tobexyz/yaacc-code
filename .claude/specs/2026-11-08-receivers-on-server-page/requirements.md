@@ -10,12 +10,13 @@ content list uses the broadcast icon without any hint what it leads to, and the 
   **Receivers** (every receiver with its controls and the yaacc players running on it, the rows of the device sheet).
 - Both section headers show their icon in front of the label (broadcast icon for servers, devices icon for receivers), the same icons
   the rows, the content footer and the receiver bar use.
-- Device search: the refresh button of the Servers header stays; the Receivers header has one too (same action: one search finds both).
+- Device search: one refresh button, in the Servers header (one search finds servers and receivers).
 - While only this phone is listed as a receiver (the local renderer is always in the list), the Receivers section shows the hint "No other receivers found yet.".
 - The receiver rows are live like in the sheet: status of the receivers, group/power/source of devices with group support, local status,
   volume and mute of the visible rows, new/ended players, and receivers that are found after the page started. Updates run only while the page is started and are dropped when it stops.
 - The server button in the header of the content list says what it is: tooltip on long press (the existing content description).
-- The receiver bar and the device sheet are unchanged.
+- A third section, **Players**: the running players as the compact rows of the mini-player (hidden with its header while no player runs). The receiver bar and the mini-player at the bottom are only shown below the content of a server; the top level has the sections instead (owner's request after trying it). The device sheet is unchanged.
+- A thin line separates the sections.
 
 ## Non-Goals
 - The classic layout (tabs): unchanged, it keeps its Receiver tab.

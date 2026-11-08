@@ -19,3 +19,10 @@ Gate: `ANDROID_HOME=/root/android-sdk ./gradlew :yaacc:assembleDebug :yaacc:test
 
 ## Group 3: documentation
 - [x] 3.1 `docs/index.md`, `docs/tech.md` (as built), `CHANGELOG.md`
+
+## Group 4: Players section, one refresh button, lines (owner's request)
+- [x] 4.1 Tests first: `SectionHeaderAdapterTest`, `ServerRootResourcesTest` (divider, players string, bottom stack container)
+- [x] 4.2 One refresh button; `SectionHeaderAdapter` with line and `setVisible`; Players section with `MiniPlayerBar` in page mode; `BrowserActivity` shows the bottom stack below the content only
+- [x] 4.3 `docs/index.md`, `docs/tech.md`, `CHANGELOG.md`, spec
+- [x] 4.4 Review gate: reviewer PASS (cycle 4), security-reviewer PASS (cycle 3)
+

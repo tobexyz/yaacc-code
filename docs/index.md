@@ -55,7 +55,7 @@ android device itself.
 Normally senders and receivers will appear automatically.
 If not you can use the refresh button at the bottom of
 the sender and receiver tab to trigger a new search for devices
-(in the new layout: the refresh button in the "Servers" or the "Receivers" header).
+(in the new layout: the refresh button in the "Servers" header).
 
 ## New layout (single screen)
 
@@ -65,16 +65,18 @@ the new layout (also on Android TV, where it has not been checked with a TV
 remote yet); an updated installation without a stored layout starts in the new layout.
 There are no tabs. The screen shows one level at a time:
 
-* **Servers and receivers** is the top level, one list in two sections. The "Servers"
-  section (broadcast icon in front of the header) lists all UPnP/DLNA servers in
-  your network with the card "Play from this device" below them; the YAACC entry has the live streaming
-  buttons (see [Live streaming](#live-streaming-android-10)). The "Receivers" section (devices icon in
-  front of the header) lists every receiver with the same rows and controls as the
+* **Servers, receivers and players** is the top level, one list in three sections with a
+  thin line between them. The "Servers" section (broadcast icon in front of the header) lists
+  all UPnP/DLNA servers in your network with the card "Play from this device" below them; the YAACC
+  entry has the live streaming buttons (see [Live streaming](#live-streaming-android-10)). Its header has
+  the refresh button to search for devices again (one search finds servers and receivers). The
+  "Receivers" section (devices icon) lists every receiver with the same rows and controls as the
   device sheet, and under each receiver the YAACC players running on it, see
-  [Receiver controls](#receiver-controls); while only this phone is listed it says that no other receiver was found yet.
-  Both headers have a refresh button to search for devices again (one search finds
-  servers and receivers). The rows update live while this level is shown. The receiver bar and
-  the device sheet at the bottom stay available. At the bottom of the screen are the YAACC
+  [Receiver controls](#receiver-controls); while only this phone is listed it says that no other
+  receiver was found yet. The "Players" section lists every running player as one compact row, like
+  the mini-player below the content (see below); it is only there while a player runs. The rows update
+  live while this level is shown. This level has neither the receiver bar nor the mini-player at the
+  bottom, because the sections show the same. At the bottom of the screen are the YAACC
   server switch with the button for the server settings, and the icons showing
   whether the device acts as media provider, media renderer or proxy
   (see [Media server](#media-server)). These bottom controls exist only on
@@ -91,11 +93,11 @@ There are no tabs. The screen shows one level at a time:
   under the title of the toolbar. Otherwise a tap opens the duration picker; confirming a
   duration above 0 starts the timer. The overflow menu has the settings, the log
   and the about page, and the exit button quits the app.
-* **Receiver bar**: at the bottom of every level. It shows the names of the
+* **Receiver bar**: at the bottom of the content of a server (the top level has the Receivers section instead). It shows the names of the
   receivers that are playing something right now (a paused player counts), or
   "No receiver playing". It does not show a selection. Tap it to open the device
   sheet, see [Receiver controls](#receiver-controls).
-* **Mini-player**: directly above the receiver bar. It shows every running player
+* **Mini-player**: directly above the receiver bar, below the content of a server (the top level has the Players section instead). It shows every running player
   as one compact row: the album art when available, the title, the name of the
   receiver it plays on, and the buttons previous, play/pause, next, stop and exit (stop only stops the
   playback, exit removes the player). Tap a row itself to open that player's screen. The rows are in the same order as the
@@ -123,7 +125,7 @@ each with its icon. They only display the current selection; choose the
 receivers on the receiver tab. Playing while no receiver is selected shows a
 message asking you to select one there.
 
-In the new layout the receiver bar at the bottom shows the receivers that are
+In the new layout the receiver bar at the bottom of the content shows the receivers that are
 playing; tap it to open the device sheet. Playing does not use a stored selection:
 play, play all, tapping an item, and add to playlist first open the "Play on…"
 list, see [Choosing receivers](#choosing-receivers-new-layout).
@@ -175,7 +177,7 @@ on your device, starting a movie on a TV or play music on a
 smart speaker at the same time.
 
 Each player is displayed in the player tab (classic layout). The new layout has
-no player tab: every running player has a row in the mini-player and is listed in
+no player tab: every running player has a row in the mini-player (on the top level: in the Players section) and is listed in
 the device sheet under the receiver it plays on. Depending on the content type
 and if the content is played by YAACC itself or a network device, the player ui differs.
 
@@ -206,7 +208,7 @@ You can control playback directly from the receiver tab without opening the play
 The controls work for both local playback and remote UPnP devices.
 
 In the new layout there is no receiver tab: the top level lists the receivers below the servers, and the receiver bar
-at the bottom of any screen (or selected with the D-pad) opens the device sheet. The classic layout does not
+below the content of a server (or selected with the D-pad) opens the device sheet. The classic layout does not
 have the sheet; use the receiver tab and the player tab there.
 The sheet is titled "Receivers". It lists every receiver with its status, play/pause/stop, volume and mute controls,
 and under each receiver the YAACC players currently running on it, in the order they were started.

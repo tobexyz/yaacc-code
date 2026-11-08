@@ -31,6 +31,13 @@
         android:layout_height="0dp"
         android:layout_weight="1" />
 
+    <View
+        android:id="@+id/serverListFooterSeparator"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?attr/colorOutlineVariant"
+        android:importantForAccessibility="no" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

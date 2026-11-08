@@ -81,6 +81,9 @@ public class ServerListFragment extends Fragment implements
     private ReceiverLiveUpdates receiverLive;
     // device events come in floods: the rows are rebuilt once after a burst
     private Coalescer receiverRefresh;
+    // the running players as the third section (the mini-player rows); the header shows while a player exists
+    private MiniPlayerBar playersBar;
+    private SectionHeaderAdapter playersHeader;
 
 
     /**
@@ -119,10 +122,16 @@ public class ServerListFragment extends Fragment implements
             // receivers and players may have come or gone while the page was not shown
             receiverLive.start(true);
         }
+        if (playersBar != null) {
+            playersBar.bind();
+        }
     }
 
     @Override
     public void onStop() {
+        if (playersBar != null) {
+            playersBar.unbind();
+        }
         if (receiverLive != null) {
             receiverLive.stop();
         }
@@ -137,6 +146,11 @@ public class ServerListFragment extends Fragment implements
     public void onDestroyView() {
         // the display lambda holds this view hierarchy; the fragment instance can outlive it
         shutdownTimerDisplay = null;
+        if (playersBar != null) {
+            playersBar.unbind();
+            playersBar = null;
+        }
+        playersHeader = null;
         if (receiverLive != null) {
             receiverLive.stop();
             receiverLive = null;
@@ -191,16 +205,19 @@ public class ServerListFragment extends Fragment implements
                     // the card "Play from this device" comes directly after the last server
                     List<RecyclerView.Adapter<? extends RecyclerView.ViewHolder>> parts = new ArrayList<>();
                     if (receiverAdapter != null) {
+                        // the sections: servers (with the one refresh button), receivers, players; a line above each but the first
                         parts.add(new SectionHeaderAdapter(R.string.browser_servers_header, R.drawable.ic_baseline_sensors_32,
-                                this::searchDevices));
+                                this::searchDevices, false));
                     }
                     parts.add(bDeviceAdapter);
                     parts.add(new PickCardAdapter(localPick::pickFiles, localPick::pickFolder));
                     if (receiverAdapter != null) {
                         parts.add(new SectionHeaderAdapter(R.string.browser_receivers_header, R.drawable.ic_baseline_devices_32,
-                                this::searchDevices));
+                                null, true));
                         parts.add(receiverAdapter);
                         parts.add(receiversHint);
+                        parts.add(playersHeader);
+                        parts.add(playersBar.adapter());
                     }
                     deviceList.setAdapter(new androidx.recyclerview.widget.ConcatAdapter(parts));
                     refreshReceivers();
@@ -343,6 +360,14 @@ public class ServerListFragment extends Fragment implements
             Handler mainHandler = new Handler(Looper.getMainLooper());
             receiverLive = new ReceiverLiveUpdates(ReceiverLiveUpdates.forApp(upnpClient, mainHandler), receiverAdapter);
             receiverRefresh = new Coalescer(Coalescer.forHandler(mainHandler), this::refreshReceivers, RECEIVER_REFRESH_DELAY_MS);
+            // the third section: the running players, hidden with its header while there is none (bound between onStart and onStop)
+            playersHeader = new SectionHeaderAdapter(R.string.browser_players_header, R.drawable.ic_baseline_playlist_play_32, null, true);
+            playersHeader.setVisible(false);
+            playersBar = new MiniPlayerBar(requireContext(), upnpClient, visible -> {
+                if (playersHeader != null) {
+                    playersHeader.setVisible(visible);
+                }
+            });
             // started by onStart, which always follows the creation of the view
         }
         setLocalServerState(view);
