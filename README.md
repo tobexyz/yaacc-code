@@ -64,14 +64,12 @@ or by activating the switch at the bottom of the server tab
 
 ## A word about the cling library
 
-This project is based on the work of <https://github.com/4thline/cling>. This great UPnP library
-made
-yaacc possible and all honor belongs to the authors of that project. Thank you for your work on that
-project!
+YAACC is based on the work of [Cling](https://github.com/4thline/cling). This great UPnP library
+made YAACC possible, and all honor belongs to its authors. Thank you for your work!
 
-Unfortunately the project went into the EOL state and no maintainer is found yet. Therefore a copy
-of the parts of cling needed by YAACC are now included in this repository because I am not able to
-maintain the whole project.
+Cling itself is no longer maintained; the fork [jUPnP](https://github.com/jupnp/jupnp) continues
+that work. YAACC still uses its own copy of the parts of Cling it needs, which is included in this
+repository.
 
 ## Build dependencies
 
