@@ -1083,8 +1083,8 @@ unchanged.
 
 Two browser activities share one app: the **classic** layout
 (`TabBrowserActivity`: four tabs) and the **new** single-screen layout
-(`BrowserActivity`: server list, then a server's content, with a receiver bar
-and a mini-player on every level). The "Layout" setting picks one. This section
+(`BrowserActivity`: the top level lists servers, receivers and the running players as sections of one page; a server's content has a receiver bar
+and a mini-player below it). The "Layout" setting picks one. This section
 records the layout as built (Phase 2, Groups 5-9), verified 2026-10-24 against the checkout at `e312ee8b` on branch
 `feat/unified-device-sheet`, followed by the Group 5 research it was built
 from (condensed to the platform facts). Group 11 (owner feedback, see "Owner feedback

@@ -25,7 +25,8 @@ layout: default
 * A Shutdown timer stops the running players and the app after a given time
 * Sort browsed content by name or date, ascending or descending
 * Android TV support (leanback launcher)
-* Two layouts: the classic tabs or a single screen (the default of a fresh install) with a mini-player, chosen in the settings
+* Two layouts: the classic tabs or a single screen (the default of a fresh install) with servers, receivers and the running players on one page, chosen in the settings
+* Share an item you browse (the file or its link) with other apps, see [Content browsing](#content-browsing)
 
 # Usage
 
@@ -114,6 +115,7 @@ Behind each content entry different symbols are showing the possible actions:
 * download the item
 * play the item
 * play all items on the same directory level
+* share the item with another app: the symbol (and the share entry in the menu of the image viewer) offers *Share file*, which copies the item to the cache of YAACC and hands it to the app you choose (so it works also for a server that is only reachable in your network), and *Share link*, which hands over the address of the item
 
 The bread crumb starts with the name of the selected server. The arrow in front
 of it goes up one folder (in the new layout it also leaves the server at its
@@ -236,6 +238,8 @@ previous/next buttons (the image viewer in its menu bar).
 * **Shuffle** plays the items in a random order, every item once per round. Switching
   it on or off while playing keeps the current item; previous goes back through the
   order that was played.
+
+With shuffle on, the playlist dialog lists the items in the order they will play, with the playing item marked at its place; dragging an item changes the play order and leaves your list as it is, deleting removes the item from both. Without shuffle it shows the list as before.
 
 The settings *Repeat for new players* and *Shuffle for new players* (see [Settings](settings.html); they
 were called *replay playlist* and *shuffle music*) only give the mode a new player starts with. They are not a switch
@@ -606,7 +610,7 @@ a light title bar.
 
 The log opens from the overflow menu ("log"). It shows the entries of the level chosen in the settings
 (*Appearance* > *Log level*), refreshes every two seconds while it is open and scrolls down by itself only while you are
-at the end. The clear button hides all entries from before the moment you pressed it.
+at the end. The clear button hides all entries from before the moment you pressed it. The pause button stops the automatic refresh, so you can select and copy text; it starts again when you press it again.
 
 ## Shutdown timer
 

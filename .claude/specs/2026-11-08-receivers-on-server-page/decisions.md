@@ -50,5 +50,5 @@ while it is started.
 - The Players rows are emptied on `onStop` and refilled on `onStart` (a short flicker, album art looked up again).
 - D-pad focus on a TV after a rebuild of the receiver rows (no stable ids across the parts) is not checked.
 - The bind rule of the bottom stack (started and content on top) and `ReceiverLiveUpdates.forApp` are only reviewed, not unit-tested.
-- Once in the full suite `OpenHomeRendererTest.thePlayerIsOnlyTouchedOnItsOwnThread` failed (no player created); it passed alone and on the rerun. Cause not found.
+- `OpenHomeRendererTest.thePlayerIsOnlyTouchedOnItsOwnThread` failed now and then in a full run (no player created). Cause found and fixed in the test: the main thread edited the OpenHome queue while the async worker had not yet run the `play`, so on a busy machine the worker found the queue empty. The test waits for the worker after `play` now (shown with an artificially slowed worker: without the wait `expected:<1> but was:<0>`, with it green).
 
