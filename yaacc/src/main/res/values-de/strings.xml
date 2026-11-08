@@ -87,6 +87,8 @@
     <string name="playerTimeElapsed">Verstrichene Zeit</string>
     <string name="bucket_names">Galerien</string>
     <string name="all_images">Alle Bilder</string>
+    <string name="all_videos">Alle Videos</string>
+    <string name="gallery_unnamed">(Hauptordner)</string>
     <string name="images">Bilder</string>
     <string name="albums">Alben</string>
     <string name="all">Alle</string>

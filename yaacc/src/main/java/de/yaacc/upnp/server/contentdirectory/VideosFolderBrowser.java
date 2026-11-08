@@ -18,28 +18,25 @@
  */
 package de.yaacc.upnp.server.contentdirectory;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
-import android.database.Cursor;
-import android.provider.MediaStore;
-import de.yaacc.util.YaaccLogger;
 
 import org.fourthline.cling.support.model.DIDLObject;
 import org.fourthline.cling.support.model.SortCriterion;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.container.StorageFolder;
 import org.fourthline.cling.support.model.item.Item;
-import org.seamless.util.MimeType;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import de.yaacc.R;
 
 /**
- * Browser  for the video folder.
+ * Browser for the video folder: "All videos" and "Galleries" (the directories), as the image folder has them.
  *
  * @author openbit (Tobias Schoene)
  */
@@ -51,91 +48,31 @@ public class VideosFolderBrowser extends ContentBrowser {
 
     @Override
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-
-        return new StorageFolder(ContentDirectoryIDs.VIDEOS_FOLDER.getId(), ContentDirectoryIDs.ROOT.getId(), getContext().getString(R.string.videos), "yaacc", getSize(contentDirectory, myId),
-                null);
-
+        return new StorageFolder(ContentDirectoryIDs.VIDEOS_FOLDER.getId(), ContentDirectoryIDs.ROOT.getId(), getContext().getString(R.string.videos), "yaacc",
+                getSize(contentDirectory, myId), null);
     }
 
     @Override
     public Integer getSize(YaaccContentDirectory contentDirectory, String myId) {
-        String[] projection = {MediaStore.Video.Media._ID};
-        String selection = "(" + makeLikeClause(MediaStore.Video.Media.DATA, getMediaPathes().size()) + ")";
-        String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
-        try (Cursor cursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, selection,
-                selectionArgs, null)) {
-            return cursor.getCount();
-        }
+        return 2;
     }
 
     @Override
     public List<Container> browseContainer(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-
-        return new ArrayList<>();
+        List<Container> all = new ArrayList<>();
+        all.add((Container) new VideosAllFolderBrowser(getContext()).browseMeta(contentDirectory, ContentDirectoryIDs.VIDEOS_ALL_FOLDER.getId(), 0, 1, orderby));
+        all.add((Container) new VideosByBucketNamesFolderBrowser(getContext()).browseMeta(contentDirectory,
+                ContentDirectoryIDs.VIDEOS_BY_BUCKET_NAMES_FOLDER.getId(), 0, 1, orderby));
+        // the fixed order "All videos", "Galleries" unless a client asks for a sort
+        Map<String, Function<DIDLObject, String>> accessors = new HashMap<>();
+        accessors.put(SortSupport.PROPERTY_TITLE, VideoGalleries::titleKey);
+        Comparator<DIDLObject> fixedOrder = (a, b) -> 0;
+        all.sort(SortSupport.toComparator(orderby, accessors, fixedOrder));
+        return VideoGalleries.page(all, firstResult, maxResults);
     }
 
     @Override
     public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
-        List<Item> result = new ArrayList<>();
-        String[] projection = {MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.MIME_TYPE,
-                MediaStore.Video.Media.SIZE, MediaStore.Video.Media.DURATION, MediaStore.Video.Media.DATE_ADDED};
-        String selection = "(" + makeLikeClause(MediaStore.Video.Media.DATA, getMediaPathes().size()) + ")";
-        String[] selectionArgs = getMediaPathesForLikeClause().toArray(new String[0]);
-        Map<String, String> columnMap = new HashMap<>();
-        columnMap.put(SortSupport.PROPERTY_TITLE, MediaStore.Video.Media.DISPLAY_NAME);
-        columnMap.put(SortSupport.PROPERTY_DATE, MediaStore.Video.Media.DATE_ADDED);
-        String sortOrder = SortSupport.toMediaStoreSortOrder(orderby, columnMap, MediaStore.Video.Media.DISPLAY_NAME + " ASC");
-        try (Cursor mediaCursor = contentDirectory.getContext().getContentResolver().query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, selection,
-                selectionArgs, sortOrder)) {
-
-            if (mediaCursor != null && mediaCursor.getCount() > 0) {
-                mediaCursor.moveToFirst();
-                int currentIndex = 0;
-                int currentCount = 0;
-                while (!mediaCursor.isAfterLast() && currentCount < maxResults) {
-                    if (firstResult <= currentIndex) {
-                        @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns._ID));
-                        @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.DISPLAY_NAME));
-                        @SuppressLint("Range") String duration = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.DURATION));
-                        duration = contentDirectory.formatDuration(duration);
-                        @SuppressLint("Range") Long size = Long.valueOf(mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.SIZE)));
-                        @SuppressLint("Range") String mimeTypeString = mediaCursor.getString(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.MIME_TYPE));
-                        YaaccLogger.d(getClass().getName(), "Mimetype: " + mimeTypeString);
-                        MimeType mimeType = MimeType.valueOf(mimeTypeString);
-                        // MediaStore.Video.Media.DATE_ADDED is SECONDS since epoch (unlike
-                        // DATE_TAKEN for images, which is millis) - convert before formatting.
-                        @SuppressLint("Range") long dateAddedSeconds = mediaCursor.getLong(mediaCursor.getColumnIndex(MediaStore.Video.VideoColumns.DATE_ADDED));
-                        long dateAddedMillis = dateAddedSeconds * 1000L;
-                        String date = SortSupport.formatEpochMillisAsDate(dateAddedMillis);
-                        // file parameter only needed for media players which decide the
-                        // ability of playing a file by the file extension
-                        String uri = getUriString(contentDirectory, id, mimeType, name, null);
-                        Item item = createItem(
-                            ContentDirectoryIDs.VIDEO_PREFIX.getId() + id,
-                            ContentDirectoryIDs.VIDEOS_FOLDER.getId(),
-                            name,
-                            "",
-                            false,
-                            mimeType,
-                            uri,
-                            size,
-                            duration,
-                            date
-                        );
-                        result.add(item);
-                        YaaccLogger.d(getClass().getName(), "VideoItem: " + id + " Name: " + name + " uri: " + uri);
-                        currentCount++;
-                    }
-                    currentIndex++;
-                    mediaCursor.moveToNext();
-                }
-
-            } else {
-                YaaccLogger.d(getClass().getName(), "System media store is empty.");
-            }
-        }
-
-        return result;
+        return new ArrayList<>();
     }
-
 }

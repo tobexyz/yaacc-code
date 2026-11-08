@@ -89,6 +89,8 @@
     <string name="playerTimeElapsed">Elapsed</string>
     <string name="bucket_names">Galleries</string>
     <string name="all_images">All images</string>
+    <string name="all_videos">All videos</string>
+    <string name="gallery_unnamed">(root folder)</string>
     <string name="images">Images</string>
     <string name="albums">Albums</string>
     <string name="all">All</string>

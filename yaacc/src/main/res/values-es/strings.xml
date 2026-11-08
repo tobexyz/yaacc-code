@@ -87,6 +87,8 @@
     <string name="playerTimeElapsed">Transcurrido</string>
     <string name="bucket_names">Galerías</string>
     <string name="all_images">Todas las imágenes</string>
+    <string name="all_videos">Todos los vídeos</string>
+    <string name="gallery_unnamed">(carpeta raíz)</string>
     <string name="images">Imágenes</string>
     <string name="albums">Álbumes</string>
     <string name="all">Todo</string>

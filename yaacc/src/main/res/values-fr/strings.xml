@@ -87,6 +87,8 @@
     <string name="playerTimeElapsed">Écoulé</string>
     <string name="bucket_names">Galleries</string>
     <string name="all_images">Toutes les images</string>
+    <string name="all_videos">Toutes les vidéos</string>
+    <string name="gallery_unnamed">(dossier racine)</string>
     <string name="images">Images</string>
     <string name="albums">Albums</string>
     <string name="all">Tout</string>
