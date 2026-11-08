@@ -425,12 +425,15 @@ public class PlayerService extends MediaSessionService {
         if (entries.isEmpty()) {
             return;
         }
+        // images of another receiver have no end of their own: they stay as long as the "default duration" setting (milliseconds, -1 never)
+        // says, as browsed images do; audio and video end by the transport state of the receiver
+        long imageMillis = upnpClient.getDefaultDuration();
         for (Device<?, ?, ?> device : devices) {
             String deviceId = device.getIdentity().getUdn().getIdentifierString();
             boolean local = UpnpClient.LOCAL_UID.equals(deviceId);
             // this phone reads its own audio and images with the grant of the app, no share needed
             boolean direct = local && !video;
-            QueueItems.Built built = direct ? QueueItems.direct(entries) : QueueItems.placeholders(entries);
+            QueueItems.Built built = direct ? QueueItems.direct(entries) : QueueItems.placeholders(entries, imageMillis);
             if (built.items().isEmpty()) {
                 continue;
             }

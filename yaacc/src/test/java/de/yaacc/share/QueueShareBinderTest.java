@@ -205,4 +205,24 @@ public class QueueShareBinderTest {
         binder((data, ids) -> preparedShare("K", "http://192.0.2.1:1/proxy/K"), items).bind(0);
         assertNull(items.get(0).getItem().getFirstResource().getDuration());
     }
+
+    @Test
+    public void anImageKeepsItsDurationWhenItsShareIsBound() {
+        // images have no length: the duration of the placeholder (the "default duration" setting) must survive the bind
+        List<PickedQueue.Entry> entries = new ArrayList<>();
+        entries.add(new PickedQueue.Entry("content://p/9", "pic.jpg", "image/jpeg", 7));
+        List<PlayableItem> items = new ArrayList<>();
+        PlayableItem placeholder = SharedItemFactory.create("image/jpeg", "pic", uri("yaacc-pending:0"), 7, 0, 0);
+        placeholder.setDuration(8000L);
+        items.add(placeholder);
+        duration = -1L; // an image has no duration to read
+        QueueShareBinder binder = new QueueShareBinder(entries, items, Collections.singleton("192.0.2.7"),
+                (data, ids) -> new ShareService.Prepared("IMG", SharedItemFactory.create("image/jpeg", "pic",
+                        uri("http://192.0.2.1:1/proxy/IMG"), 7, 0, 0)), keys, entry -> duration);
+
+        assertNotNull(binder.bind(0));
+
+        assertEquals("http://192.0.2.1:1/proxy/IMG", placeholder.getUri().toString());
+        assertEquals(8000L, placeholder.getDuration());
+    }
 }

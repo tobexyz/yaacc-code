@@ -547,6 +547,10 @@ not have to run.
   chosen receiver: a folder with songs, a video and photos starts the music
   player, the video player and the image show at the same time. A receiver that
   cannot play a kind fails for that player only.
+* On other receivers the image show changes to the next image after the default
+  duration of the settings (the same time as for images you start from a server;
+  "never" keeps an image until you go on yourself). This phone's own image viewer
+  uses the slideshow time of its own settings.
 * This phone plays audio and images straight from the files you picked. For any
   other receiver (and for video on this phone) a file is offered on the network
   only while it is the file being played: it gets its own random address when its
