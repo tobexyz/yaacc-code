@@ -351,3 +351,59 @@ Method: spec read against the code; Cling failure path read in `SendingAction` /
   edit + control point edit in the same window, user edit + concurrent delete, and a refused playing track.
 
 ### Verdict: FAIL
+
+## Cycle 5 - fixes of cycle 4 — 2026-11-08
+Reviewing: commit fd24389b (fixes of the 4 Warnings of cycle 4)
+
+### Critical
+- none
+
+### Warning
+- [yaacc/src/main/java/de/yaacc/upnp/server/openhome/OpenHomeRenderer.java:385] The `idByItem` clean-up added to `reconcile`
+  (`idByItem.values().remove(playerIds.remove(i))`) does nothing for ids above 127. `idByItem` is an `IdentityHashMap`, whose `values().remove(Object)`
+  compares by reference (==), and the `Long` taken out of `playerIds` is a different box than the one stored in the map (`playerIds.add(i, entry.getId())` and
+  `idByItem.put(item, entry.getId())` box separately). Checked with a 10-line program: id 5 is removed, id 1000 stays. The queue ids grow
+  with every insert, so in a real session the stale `PlayableItem` references stay until the next player take-over or discard (the suggestion of cycle 4 is
+  not really fixed, and no test covers it). Fix: remove by value, e.g. `long gone = playerIds.remove(i); idByItem.values().removeIf(v -> v == gone);`
+  (unboxed compare), or look the item up by id; add a test with an id above 127 (or assert `idByItem` indirectly).
+- [yaacc/src/test/java/de/yaacc/upnp/server/openhome/OpenHomeRendererTest.java:483-495] `anEditAtThePlayerIsTakenOverBeforeAControlPointEditIsSynced` does not
+  fail without the fix. Traced on the code before fd24389b: the player has [a,b] (c deleted at the phone), `add(0, d)` runs `reconcile` with playerIds
+  [a,b,c] and wanted [d,a,b,c]: nothing to remove, d is inserted at index 0, the other indexes still match, then `refreshNow` -> `adoptPlayerEdits` sees [d,a,b]
+  against [d,a,b,c] and deletes c. Result [d,a,b] in queue and player, the same as asserted. The case that the fix is for needs a control point
+  edit that goes by index: e.g. the user deletes a at the phone (player [b,c]) and a control point deletes b (queue [a,c], wanted ids {a,c}); old code removes
+  index 1 of the player (that is c, not b), the new code first takes over the delete of a and then removes b: expected queue and player [c]. Replace or add
+  this test so it fails on the old code.
+
+### Suggestion
+- [yaacc/src/test/java/de/yaacc/player/OpenHomePlayerTest.java:`twoQuickDragsEachCountFromTheOrderTheFirstOneMade`] The two `moveInPlayOrder` calls are
+  back to back on the test thread, so job 1 normally is not finished when the second drag is posted (this is what makes the test fail without `ids = current`:
+  the second drag would then move d after a, giving a d b c). If job 1 and its refresh happen to finish in between, the poll rebuilds `ids` and the test passes
+  without the fix. Make it deterministic: let the control block on the first `Move` (latch) until the second drag was posted.
+- [OpenHomePlayer.java:440-457] A retry of `feedFiles` after a failed `append` calls `moveToItems` again and, if the device had executed the Insert but the answer was lost
+  (timeout), appends the next file twice. Rare; acceptable, a comment would help.
+- [OpenHomePlayer.java `onDestroy`] The decision "closing the player leaves the device playing" is documented in a Javadoc only; decisions.md and the docs
+  (OpenHome chapter) do not say it, which was part of the suggestion of cycle 4. Not blocking.
+- [AbstractPlayer.java:786] The new Javadoc line is about 170 characters; wrap it like the lines around it.
+- [ClingOhControl.java:35] The new import `de.yaacc.upnp.UpnpTransportException` sits after `de.yaacc.upnp.server.http...`; keep the imports sorted.
+- Still open from earlier cycles (not blocking): reverse-sync race with a control point delete in the same window, URI normalisation, strict base64,
+  `trackDeleted` index race, Stopped flap after Play.
+
+### Checked and fine
+- `ClingOhControl.codeOf`: `SendingAction` sets `UpnpTransportException` for "Connection error or no response received", so the transport failure now
+  gives `NO_ANSWER` and `countFailure` / `unreachable` / `ready = false` work for the real path; a device fault keeps its code (501, 800). The test covers the three cases and fails on the old code (501).
+- `OpenHomePlayer.command(..., always)`: `always` runs in `finally` (also when `ensureReady` throws) and before `refresh()`, so the poll is not blocked by a
+  failed preparation; it also runs on the caller thread when the post is rejected. `aDragWhoseCommandCouldNotRunDoesNotFreezeThePlayer` fails on the old code
+  (3 failures -> `ready = false` -> `prepare()` throws -> `pendingEdits` stays at 1 -> `refresh()` returns for ever).
+- `moveInPlayOrder`: `ids` is replaced on the worker with the id returned by `OhRemote.moveTrack` (new id for the Playlist 1 insert+delete); `deviceIds` is left as it was, so the next
+  poll sees a different IdArray and rebuilds the screen from the device. The trace of the test (d a b c, then d c a b) is right.
+- `feedFiles`: `fileSent` and `fileCurrent` are set only after the append, so a failed append is tried again; `aFailedAppendOfTheNextPickedFileIsTriedAgainOnTheNextPoll` fails on the old code
+  (no retry, queue stays at 2). The path without a share (`moveToItems` false) still marks `fileCurrent`, as before.
+- `OpenHomeRenderer.sync`: `adoptPlayerEdits` first, `player == null` check, `wanted` read again, empty queue handled; no recursion (`queueEditedByPlayer` only schedules the IdArray update); exceptions go to the existing catch.
+- `AbstractPlayer.adoptDeviceState` Javadoc now matches the `synchronized` use from the screen thread. `onDestroy` comment matches the code (`stopWorkers()` before `super.onDestroy()`, the `stop()` is dropped).
+- Test rename `nothingIsLockedAndAMoveNeedsAtLeastTwoTracks` fits what it asserts.
+
+### Tests
+- [x] All tests passing: not re-run here (coordinator: `assembleDebug`, `testDebugUnitTest` 3196 tests, `lintDebug` all green at fd24389b).
+- [ ] Coverage adequate for the change: no. The renderer test for "player edit first" passes on the old code (see Warning), and the `idByItem` clean-up has no test.
+
+### Verdict: FAIL

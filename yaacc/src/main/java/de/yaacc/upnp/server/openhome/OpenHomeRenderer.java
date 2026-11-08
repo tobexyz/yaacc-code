@@ -382,7 +382,9 @@ public final class OpenHomeRenderer implements OhPlayback {
             }
             final int index = i;
             if (onPlayer(() -> current.removeItem(index, true))) {
-                idByItem.values().remove(playerIds.remove(i));
+                // by value: the map compares the boxed ids by reference, which is wrong for ids above 127
+                long gone = playerIds.remove(i);
+                idByItem.values().removeIf(id -> id == gone);
             } else {
                 long next = 0;
                 for (int j = i + 1; j < playerIds.size(); j++) {
@@ -515,7 +517,8 @@ public final class OpenHomeRenderer implements OhPlayback {
         List<Long> newIds = new ArrayList<>();
         for (int i = 0; i < items.size(); i++) {
             Long id = found.get(i);
-            if (id == null || queue.indexOf(id) < 0) {
+            // a known track stays known although a control point deleted it from the queue meanwhile: the sync takes it out of the player
+            if (id == null) {
                 PlayableItem item = items.get(i);
                 String uri = host.queueUriOf(item);
                 id = null;
@@ -725,5 +728,10 @@ public final class OpenHomeRenderer implements OhPlayback {
     /** For tests (on the worker, or with threads that run inline): the player the queue plays on, null if there is none. */
     AbstractPlayer playerForTest() {
         return player;
+    }
+
+    /** For tests: how many items of the player the renderer knows the queue id of. */
+    int trackedItemsForTest() {
+        return idByItem.size();
     }
 }

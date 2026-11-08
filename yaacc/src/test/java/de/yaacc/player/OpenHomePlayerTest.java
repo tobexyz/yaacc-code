@@ -482,6 +482,8 @@ public class OpenHomePlayerTest {
 
     /** Lets calls to the device fail while {@code failing} is set. */
     private final java.util.concurrent.atomic.AtomicBoolean failing = new java.util.concurrent.atomic.AtomicBoolean();
+    /** While set, the Insert of a track waits (the first job of a drag is held back). */
+    private volatile java.util.concurrent.CountDownLatch gate;
     private final java.util.concurrent.atomic.AtomicBoolean failingAppend = new java.util.concurrent.atomic.AtomicBoolean();
 
     private OpenHomePlayer playerWithFailingDevice() throws Exception {
@@ -500,6 +502,14 @@ public class OpenHomePlayerTest {
             @Override
             protected OhControl createControl() {
                 return (service, action, arguments) -> {
+                    java.util.concurrent.CountDownLatch held = gate;
+                    if (held != null && "Insert".equals(action)) {
+                        try {
+                            held.await(5, java.util.concurrent.TimeUnit.SECONDS);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
                     if (failing.get() || (failingAppend.get() && "Insert".equals(action))) {
                         throw new de.yaacc.openhome.OhControlException(de.yaacc.openhome.OhControlException.NO_ANSWER, "no answer");
                     }
@@ -543,16 +553,24 @@ public class OpenHomePlayerTest {
         long b = core.queue().insert(a, "http://h/b.mp3", "");
         long c = core.queue().insert(b, "http://h/c.mp3", "");
         core.queue().insert(c, "http://h/d.mp3", "");
-        player.pause();
-        await(() -> player.getItems().size() == 4);
+        OpenHomePlayer other = playerWithFailingDevice();
+        try {
+            other.pause();
+            await(() -> other.getItems().size() == 4);
 
-        assertTrue(player.moveInPlayOrder(3, 0)); // d a b c
-        assertTrue(player.moveInPlayOrder(3, 1)); // d c a b (the screen's order after the first drag)
+            gate = new java.util.concurrent.CountDownLatch(1); // the first drag is still on its way when the second one is posted
+            assertTrue(other.moveInPlayOrder(3, 0)); // d a b c
+            assertTrue(other.moveInPlayOrder(3, 1)); // d c a b (the screen's order after the first drag)
+            gate.countDown();
 
-        await(() -> core.queue().snapshot().get(0).getUri().equals("http://h/d.mp3")
-                && core.queue().snapshot().get(1).getUri().equals("http://h/c.mp3"));
-        assertEquals("http://h/a.mp3", core.queue().snapshot().get(2).getUri());
-        assertEquals("http://h/b.mp3", core.queue().snapshot().get(3).getUri());
+            await(() -> core.queue().snapshot().get(0).getUri().equals("http://h/d.mp3")
+                    && core.queue().snapshot().get(1).getUri().equals("http://h/c.mp3"));
+            assertEquals("http://h/a.mp3", core.queue().snapshot().get(2).getUri());
+            assertEquals("http://h/b.mp3", core.queue().snapshot().get(3).getUri());
+        } finally {
+            gate = null;
+            other.stopWorkers();
+        }
     }
 
     @Test

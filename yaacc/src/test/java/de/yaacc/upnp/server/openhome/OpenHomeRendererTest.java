@@ -484,14 +484,32 @@ public class OpenHomeRendererTest {
     public void anEditAtThePlayerIsTakenOverBeforeAControlPointEditIsSynced() {
         long a = add(0, "http://h/a.mp3");
         long b = add(a, "http://h/b.mp3");
-        add(b, "http://h/c.mp3");
+        long c = add(b, "http://h/c.mp3");
+        renderer.seekToTrack(c);
+
+        assertEquals(true, player().removeItem(0, true)); // the user deletes a at the phone: the player holds b, c ...
+        renderer.core().queue().delete(b);                // ... and a control point deletes b before the poll looked
+        renderer.trackDeleted(1, b);
+
+        // by place the control point's delete would have taken the wrong track (index 1 of the player is c)
+        assertEquals(Collections.singletonList("http://h/c.mp3"), queueUris());
+        assertEquals(Collections.singletonList("http://h/c.mp3"), titles(player()));
+    }
+
+    @Test
+    public void theRenderersKnowledgeOfTheItemsFollowsTheQueueAlsoForIdsAbove127() {
+        long last = 0;
+        for (int i = 0; i < 130; i++) {
+            last = add(last, "http://h/" + i + ".mp3");
+        }
         renderer.play();
+        assertEquals(130, renderer.trackedItemsForTest());
 
-        assertEquals(true, player().removeItem(2)); // the user deletes c at the phone ...
-        add(0, "http://h/d.mp3");                    // ... and a control point adds d at the start, before the poll looked
+        renderer.core().queue().delete(last); // id 130
+        renderer.trackDeleted(129, last);
 
-        assertEquals(Arrays.asList("http://h/d.mp3", "http://h/a.mp3", "http://h/b.mp3"), queueUris());
-        assertEquals(queueUris(), titles(player()));
+        assertEquals(129, renderer.trackedItemsForTest());
+        assertEquals(129, player().getItems().size());
     }
 
     @Test
