@@ -14,7 +14,7 @@ source lets the device be linked to other Snapcast clients in the network. Plain
 - **Linking Snapcast clients is not possible from an arbitrary UPnP controller.** UPnP has no standard for it and Snapcast clients do not speak UPnP; grouping goes
   through Snapcast's JSON-RPC. So the link UI is YAACC's (like MusicCast) or Snapweb/Snapdroid. What any UPnP controller gets is the playlist, transport, volume and
   queue of the group: that is the real value.
-- **A Snapcast client talks to exactly one server.** That decides the design (below).
+- **A Snapcast client talks to exactly one server at a time** (checked in the source, see below). That decides the design.
 - Snapcast is GPLv3 (YAACC is GPL v3 or later): compatible.
 - Already possible today without YAACC: upmpdcli + MPD feeding a snapserver (Pi / Docker). The phone version wins only without extra hardware or for YAACC's other features.
 
@@ -39,11 +39,31 @@ source lets the device be linked to other Snapcast clients in the network. Plain
 2. Android tap: play a UPnP queue into the stream in real time. Pass: half an hour with the screen off, track changes do not break sync.
 3. Control: expose it as the OpenHome renderer (reuse the existing one), a link sheet like MusicCast's. Stop if 1 or 2 fails.
 
-## To verify before a spec (not checked first hand: GitHub was not reachable for the fetch tool)
-- The binary protocol (message ids, Time semantics, WireChunk layout): `doc/binary_protocol.md` of Snapcast. Third-party implementations give Base 0, CodecHeader 1,
-  WireChunk 2, ServerSettings 3, Time 4, Hello 5, StreamTags 6; an older Python library numbers differently (version difference).
-- The JSON-RPC methods (Server.GetStatus, Group.SetClients, Group.SetStream, Client.SetVolume, Stream.Control, runtime `Stream.AddStream`) and the TCP stream source options.
-- Media3: tapping PCM (`TeeAudioProcessor`), resampling (Sonic) and a real-time paced sink.
+## Verified against the Snapcast sources (v0.35.0, `doc/binary_protocol.md`, `doc/json_rpc_api/control.md`, `client/`, `server/`)
+- **Binary protocol:** little endian, TCP 1704. Ids: Base 0, CodecHeader 1, WireChunk 2, ServerSettings 3, Time 4, Hello 5, ClientInfo 7, Error 8 (StreamTags 6 is not in
+  the doc; check the source). Join: Hello, ServerSettings, CodecHeader, then WireChunks; the client sends Time periodically and computes the offset from the round trip.
+  Codecs: flac, ogg, pcm (RIFF WAVE header), opus. ServerSettings carry bufferMs (default 1000), latency, volume 0-100, muted.
+- **Control:** JSON-RPC 2.0 over raw TCP 1705 (ndjson) and HTTP/WebSocket. Methods: Server.GetStatus, Server.DeleteClient, Client.SetVolume/SetLatency/SetName,
+  Group.SetStream/SetClients/SetMute/SetName, Stream.Control/SetProperty/AddStream/RemoveStream. Notifications: Client.OnVolumeChanged, Group.OnStreamChanged,
+  Server.OnUpdate and others. `Stream.AddStream` accepts only pipe, file, tcp, alsa, jack and meta (security restriction): a stream can be added at runtime.
+- **Feeding a server:** `tcp://<ip>:4953?name=<n>` (server mode, default) takes PCM/WAV pushed by a producer (the Mopidy/GStreamer example); that is the V1 sink.
+- **One server per client:** the client takes one URI (`tcp://host:1704`, ws, or the default `tcp://_snapcast._tcp` = mDNS, which takes the first server found).
+  There is **no JSON-RPC method that moves a client to another server** (no Client.SetServer); it only reconnects on its own. Several snapservers can coexist in a
+  network (each with its own clients), but a third-party snapclient is bound to its configured server.
+- Open: StreamTags (id 6), a FLAC/Opus decoder for a client in plain Java (otherwise the stream must be configured with `codec=pcm`), the Media3 audio tap.
+
+## Discussion 2 (owner's ordering and the final gate)
+Order proposed by the owner: (1) Docker rig with a small snapserver and snapclients, (2) YAACC accepts a Snapcast server as a target and shows its controls (volume
+etc.), (3) the protocol in plain Java, tested without Android, (4) YAACC as Snapcast client with a control plane through the YAACC renderer, (5) YAACC as server with
+linking, (6) the final gate: how to link through UPnP/OpenHome, or a smart controller speaking both.
+- Step 2 maps well on the JSON-RPC: Client.SetVolume/Group.SetStream plus the notifications fit the existing receivers/volume UI. Step 3 can start as a client against
+  the Docker snapserver (needs only Hello, Time and PCM chunks), the server side follows.
+- **Linking when YAACC is the server:** a YAACC device that runs a server and a client can link to another YAACC device by pointing its client to that device's server
+  (unlink = back to its own server). That works because YAACC controls its own client end. Third-party snapclients cannot be moved by anyone but their own configuration.
+  mDNS: two YAACC servers must not both be published under the default name, or mDNS-default clients pick whichever answers first.
+- **Final gate, my recommendation:** a smart controller (YAACC's own UI speaking UPnP/OpenHome and Snapcast/YXC-style side channels), as for MusicCast. Standard UPnP
+  and OpenHome have no link concept except Songcast (`Receiver.SetSender`, its own transport). A vendor-specific UPnP service for the link could be offered later, but
+  no foreign controller would show UI for it; other controllers get playlist, transport and volume of the group through the leader device.
 
 ## Open questions for the discussion
 - V1 or V2 first (or the spike of step 1 first)? Is a snapserver a fair requirement for V1?
