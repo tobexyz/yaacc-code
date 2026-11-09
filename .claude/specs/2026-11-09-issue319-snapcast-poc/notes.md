@@ -86,8 +86,8 @@ linking, (6) the final gate: how to link through UPnP/OpenHome, or a smart contr
 ## Discussion 4 (goal restated: an open multi-room system as flexible as MusicCast)
 Owner: Snapcast clients cannot be re-pointed, so Snapcast can be one more target type for the app, but the real goal is an open multi-room system with MusicCast's
 flexibility (devices link and unlink at runtime, any device can lead a group, one control plane). Candidates (web research, partly unverified, see below):
-- **Sendspin** (Open Home Foundation, formerly "Resonate"; the native protocol of Music Assistant; ESPHome has a component; a release candidate was reported). From a
-  read of `github.com/Sendspin/spec` (by a subagent; the project website was not reachable from the sandbox, so details need a first-hand read):
+- **Sendspin** (Open Home Foundation, formerly "Resonate"; the native protocol of Music Assistant; ESPHome has a component; a release candidate was reported). First
+  read by a subagent; **the spec was then read first-hand (Discussion 5), which supersedes the details here where they differ**:
   - A **server** orchestrates devices, generates the streams, manages players and groups; **clients** have roles (player, source, controller, metadata, artwork, ...).
     A client belongs to exactly one group. Not found: a device being server and player at once.
   - **Discovery in both directions** (servers must support both): server-initiated (recommended) = the client advertises `_sendspin._tcp` (port 8928) and the server
@@ -107,6 +107,35 @@ flexibility (devices link and unlink at runtime, any device can lead a group, on
 - **Consequence for #319:** keep Snapcast as an optional target type (V1, cheap), and evaluate Sendspin first as the multi-room backend: read the full spec (Player,
   Server, Group, `client/leave`, Noise), then a plain-Java spike (player and/or server) against `sendspin-python-cli` / Music Assistant. The Docker rig is still useful
   (Sendspin CLI containers instead of snapclients).
+
+## Discussion 5 (Sendspin spec read first-hand, `Sendspin/spec` at c281aeb, 2026-11-09)
+Spec files: `README.md` (normative: connection, Noise, messages, roles), `pairing.md`/`messaging.md`/`connection.md`, `roles/`, `SCOPE.md`; license Community Specification
+License 1.0 (royalty-free patent grant for conforming implementations; "Sendspin" is a trademark of the Open Home Foundation: nominative use only).
+- **Roles:** player, source, controller, metadata, artwork, visualizer, color; a client lists `supported_roles` (`player@v1`, ...), the server activates them. A phone could
+  be a controller, a player, a source (streams captured audio to a server) and a server in one app. A client is in exactly one group; group id is server-chosen.
+- **Connections:** server-initiated (recommended): the client advertises `_sendspin._tcp` (8928, TXT `path`), the server connects; client-initiated: the server advertises
+  `_sendspin-server._tcp` (8927). Servers must support both. Plain `ws://` plus an end-to-end **Noise** layer.
+- **Multiple servers = the dynamic part:** a client admits one connection at a time; at most one has the `'playback'` activity; a newer activation with equal or higher rank
+  displaces the old (`client/goodbye` `another_server`), the last-playback server wins ties. So **linking a device = another server connects and activates playback on it**;
+  no client configuration. `client/leave` makes the client a solo group; the controller command `switch` cycles a client through playing groups. Group membership is otherwise
+  decided by the server (there is no standard "put client X into group Y" command from a controller).
+- **Audio:** binary chunks with a server µs timestamp, 15-150 ms each; flac and pcm (16/24 bit, 44.1/48 kHz, 1-2 ch) mandatory for servers, opus optional. Clock sync by
+  `client/time`/`server/time` with a required Kalman-style time filter. **Player accuracy must be within ±1 ms (target ±0.5 ms), speed deviation within ±0.5 %,** suggested
+  strategy: drop/duplicate single frames. Group volume: delta algorithm over the players (`controller` command `volume`). Per-player `output_delay_ms`.
+- **Cost for a Java implementation (the real risk):**
+  - Noise `KKpsk2` with X25519 + ChaChaPoly or AESGCM + SHA256 is mandatory on every connection (identities are Curve25519 keys; `client_id` = 43-char base64url public key).
+    Android minSdk 27: JCA lacks X25519 before API 33, so a library (Bouncy Castle lightweight API or a Noise library) is needed; pin versions, security review.
+  - Pairing: a client must implement the Pairing PSK method; a **server must implement all three** (Pairing PSK, dynamic and static pairing codes), the code-based ones use
+    **CPace (draft-irtf-cfrg-cpace-21, X25519/SHA-512)**: no standard Java library; a hand-written PAKE needs careful testing and review. A spike can use unpaired access
+    (Sentinel PSK, operator approval) and the Pairing PSK first.
+  - Player sync at ±1 ms on Android needs a custom `AudioTrack` path (timestamps, frame drop/insert), not the stock ExoPlayer pipeline; same class of risk as Snapcast.
+  - A phone as server has the always-on problem (doze); a mains-powered YAACC device (tablet, TV box, Pi) fits better as the orchestrator.
+- **Identity vs UPnP:** `client_id` is a public key, unrelated to the UPnP UDN; `client/hello` can carry `device_info.mac_address`. The mapping convention from Discussion 3
+  (two description fields: control endpoint and client id) applies unchanged.
+- **Verdict for #319:** Sendspin matches the "flexible as MusicCast" goal better than Snapcast (dynamic multi-server, groups, controller role, group volume, source role,
+  metadata/artwork, active spec and ecosystem: Music Assistant, ESPHome, CLI players), at the price of a larger protocol (Noise, pairing, tight sync). Snapcast stays the cheap
+  optional target type. Suggested spike order: (1) Docker rig with `sendspin-python-cli` player(s) and a server (Music Assistant or a Python server); (2) plain-Java **client
+  connection only** (WebSocket, Noise with unpaired access, `client/hello`, time sync, receive PCM chunks, no audio output); (3) decide on the server role and CPace.
 
 ## Open questions for the discussion
 - V1 or V2 first (or the spike of step 1 first)? Is a snapserver a fair requirement for V1?
