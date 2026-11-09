@@ -137,6 +137,16 @@ License 1.0 (royalty-free patent grant for conforming implementations; "Sendspin
   optional target type. Suggested spike order: (1) Docker rig with `sendspin-python-cli` player(s) and a server (Music Assistant or a Python server); (2) plain-Java **client
   connection only** (WebSocket, Noise with unpaired access, `client/hello`, time sync, receive PCM chunks, no audio output); (3) decide on the server role and CPace.
 
+## Discussion 6 (adoption: is this a niche?)
+- **SendspinZero** (RealDeco, ESPHome YAML + 3D files, no protocol code of its own): a DIY ESP32-S3 Sendspin player (analog or digital out, optional display/button), plus
+  firmware installers; it shows the cheap-hardware side. The author points to ready-made players (Apollo CAST-1, a Guition display player).
+- Adoption evidence (web search, not measured): Sendspin is young (formerly "Resonate"), the Music Assistant docs call it a **technical preview** and name limits (one
+  Music Assistant server per network for Sendspin; earlier notes: 16-bit only); an Android client app says it needs Music Assistant 2.11 for Sendspin 1.0. Players exist
+  (MA web player, ESPHome, Bluetooth bridge, tablet app, Pi players), the backing is the Open Home Foundation. Snapcast is older and established in the self-hosting
+  scene, has a Home Assistant integration, but its status inside Music Assistant is unclear (one source says a beta dropped it).
+- Conclusion: both are niches inside a niche (self-hosters, Home Assistant users); Sendspin has momentum but no proven reach. Do not make it a roadmap bet: keep Snapcast
+  as the cheap optional target type, run only the Docker rig for now, and revisit Sendspin when Music Assistant ships it as stable.
+
 ## Open questions for the discussion
 - V1 or V2 first (or the spike of step 1 first)? Is a snapserver a fair requirement for V1?
 - Where does the "link" live for other controllers: only in YAACC, or also OpenHome Product sources / a Songcast-style Receiver facade?
