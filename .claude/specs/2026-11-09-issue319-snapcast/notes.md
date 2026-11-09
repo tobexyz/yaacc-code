@@ -1,6 +1,6 @@
 # Snapcast support: first assessment (#319)
 
-Status: idea, not a plan. Written after a first discussion; to be discussed further before a spec is written.
+Status: background and research for the spec in this folder (`requirements.md`, `design.md`, `tasks.md`, `decisions.md`). Written during the discussion; the spec has the decisions.
 
 ## The idea (owner)
 YAACC as a UPnP/OpenHome device, the control plane, with different sources, like a MusicCast device. One source is Snapcast: Snapcast is the audio
