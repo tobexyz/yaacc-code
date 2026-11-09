@@ -13,6 +13,9 @@ Two phases, each releasable:
 
 Alternatives rejected: YAACC as snapserver (needs linking to be worth it, which is dropped); a UPnP facade per group for third-party controllers (more value, but a second large design, kept possible, see Open Items); native snapclient via NDK (the owner wants plain Java).
 
+## Shared parts with the Sendspin spec
+The synthetic receiver device (or a receiver seam), the PCM capture sink and the `NsdManager` helper are needed by both this spec and `.claude/specs/2026-11-09-sendspin/`. They are built once, by whichever spec starts first; the inventory task is 1.4 here and 1.4 there (do it once).
+
 ## Technical Approach
 
 ### Packages (neutral names, Android-free parts first)
