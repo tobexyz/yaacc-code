@@ -83,6 +83,31 @@ linking, (6) the final gate: how to link through UPnP/OpenHome, or a smart contr
 - Honest odds: adoption by the Snapcast or renderer communities cannot be planned; the design must be useful for YAACC alone and the convention is then published as a
   short document. The better upstream target may be Snapcast itself (a "use this server" message), but it would take years to reach clients.
 
+## Discussion 4 (goal restated: an open multi-room system as flexible as MusicCast)
+Owner: Snapcast clients cannot be re-pointed, so Snapcast can be one more target type for the app, but the real goal is an open multi-room system with MusicCast's
+flexibility (devices link and unlink at runtime, any device can lead a group, one control plane). Candidates (web research, partly unverified, see below):
+- **Sendspin** (Open Home Foundation, formerly "Resonate"; the native protocol of Music Assistant; ESPHome has a component; a release candidate was reported). From a
+  read of `github.com/Sendspin/spec` (by a subagent; the project website was not reachable from the sandbox, so details need a first-hand read):
+  - A **server** orchestrates devices, generates the streams, manages players and groups; **clients** have roles (player, source, controller, metadata, artwork, ...).
+    A client belongs to exactly one group. Not found: a device being server and player at once.
+  - **Discovery in both directions** (servers must support both): server-initiated (recommended) = the client advertises `_sendspin._tcp` (port 8928) and the server
+    connects to it; client-initiated = the server advertises `_sendspin-server._tcp` (port 8927). WebSocket transport.
+  - **Re-pointing is built in:** a new server connecting to a player displaces the old one (`client/goodbye`, reason `another_server`); no client reconfiguration.
+  - Binary audio chunks with a server timestamp (µs) and `send_ahead`; codecs flac and pcm (mandatory for servers), opus optional; clock sync by `client/time` /
+    `server/time` with a Kalman filter (accuracy claimed about 1 ms). Control: `server/command` volume (0-100, perceptual) / mute / `set_output_delay`; `client/state`,
+    `group/update`, `stream/start|clear|end`. A Noise handshake (KKpsk2) is mentioned for encryption: check whether it is mandatory (effort in Java).
+  - Spec under the Community Specification License 1.0 (royalty-free implementation); trademark with the Open Home Foundation (nominative use only); reference
+    implementations mostly Apache-2.0 (Python, C++, TypeScript, Rust, Swift, C#). **No Java/Kotlin implementation found.**
+- **Songcast** (OpenHome): the receiver pulls a sender via a UPnP action, the closest to MusicCast's peer model; open parts exist, but the sender tooling is
+  reported unmaintained and controller support is patchy (see Findings).
+- **Snapcast**: server-centric, clients fixed (this note, above). **Music Assistant** is the existing smart controller that already bridges Snapcast, Sonos, AirPlay,
+  Cast and Sendspin (sync groups); a competitor to a YAACC controller rather than a basis.
+- Honest pattern: every open, dynamic system has a central orchestrator (the server). In YAACC's case the orchestrator can be the phone (it is already a media server and
+  controller), the way a MusicCast "server" device leads its group.
+- **Consequence for #319:** keep Snapcast as an optional target type (V1, cheap), and evaluate Sendspin first as the multi-room backend: read the full spec (Player,
+  Server, Group, `client/leave`, Noise), then a plain-Java spike (player and/or server) against `sendspin-python-cli` / Music Assistant. The Docker rig is still useful
+  (Sendspin CLI containers instead of snapclients).
+
 ## Open questions for the discussion
 - V1 or V2 first (or the spike of step 1 first)? Is a snapserver a fair requirement for V1?
 - Where does the "link" live for other controllers: only in YAACC, or also OpenHome Product sources / a Songcast-style Receiver facade?
