@@ -65,6 +65,24 @@ linking, (6) the final gate: how to link through UPnP/OpenHome, or a smart contr
   and OpenHome have no link concept except Songcast (`Receiver.SetSender`, its own transport). A vendor-specific UPnP service for the link could be offered later, but
   no foreign controller would show UI for it; other controllers get playlist, transport and volume of the group through the leader device.
 
+## Discussion 3 (client reconfiguration, identity mapping, a "Snapcast UPnP" convention)
+- **A client cannot be reconfigured over the network** (checked in `client/controller.cpp`): the client reacts only to WireChunk, ServerSettings (bufferMs, latency,
+  volume, muted), CodecHeader, Time and Error from the server; nothing carries a server address. Its server comes from its command line (`tcp://host:1704` or the
+  mDNS name `_snapcast._tcp`, re-browsed on each reconnect). JSON-RPC cannot move it. What JSON-RPC **can** do for any client **of the same server**: groups
+  (`Group.SetClients`), stream (`Group.SetStream`), volume, mute, latency, name. So with one snapserver, linking is fully controllable for foreign clients; only moving
+  between servers is not.
+- **Identity:** a Snapcast client id is its `hostID` (default MAC, plus `#instance`), unrelated to the UPnP UDN. `snapclient --hostID` accepts any string. The mapping needs
+  a convention, not a protocol: for YAACC's own devices hostID = UDN (trivial); for foreign pairs match by IP + name heuristics or a user pairing in the app.
+- **A small convention instead of a new wire protocol:** MusicCast does the same at its core, a vendor element in the UPnP device description
+  (`X_yxcControlURL`) plus an id convention (UDN suffix = device id). The Snapcast equivalent would be two fields in the description: the JSON-RPC control URL of the
+  server the device is attached to, and the device's Snapcast client id. Cheap for other renderer projects to adopt (one extra XML element); everything else
+  stays JSON-RPC. Naming: own namespace, never a "snapcast" urn (it would read as official; trademark rule).
+- **Piggyback on existing adoption (needs an experiment):** OpenHome already has the link idea (Songcast `Sender`/`Receiver.SetSender`). If controllers that offer Songcast
+  linking accept an opaque sender URI/metadata, a Snapcast-flavoured sender might show up in their UI without a new protocol. Unknown how strictly they validate the
+  `ohz://` scheme; test with the existing OpenHome renderer (a Sender/Receiver facade) before building on it.
+- Honest odds: adoption by the Snapcast or renderer communities cannot be planned; the design must be useful for YAACC alone and the convention is then published as a
+  short document. The better upstream target may be Snapcast itself (a "use this server" message), but it would take years to reach clients.
+
 ## Open questions for the discussion
 - V1 or V2 first (or the spike of step 1 first)? Is a snapserver a fair requirement for V1?
 - Where does the "link" live for other controllers: only in YAACC, or also OpenHome Product sources / a Songcast-style Receiver facade?
