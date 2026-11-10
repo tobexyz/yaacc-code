@@ -3631,3 +3631,17 @@ Verified 2026-11-10 by reading the Snapcast sources: the `develop` branch at `ea
 - The documented scheme limit of `Stream.AddStream` is not visible in the sources; a `process://` source, if accepted, would run a program on the server for any unauthenticated control connection. Probe it once on the rig (rig README) and record the answer here.
 - The HTTP/websocket control listener (port 1780) is not used by YAACC; the rig disables it because a web page in a browser can reach a loopback websocket.
 - A hostile or spoofed server (mDNS is unauthenticated and publishes no TXT records) can send malformed JSON, very long lines, deeply nested JSON, large batches, or stream URIs that name other hosts; the rules for the control client and the feeder are in `design.md`, "Security rules".
+
+### Rig run and feed spike (owner, 2026-11-10, `FeedSpike` against the rig built from commit `ea981ec`)
+Both runs on the owner's machine, one snapserver and two snapclients in Docker, loopback (docker port mapping), `Stream.AddStream` created the stream `YAACC spike` as a tcp source on port 4953.
+| | real-time paced, 300 s | burst, 60 s |
+|---|---|---|
+| chunks written | 15 000 (56 250 KiB) | 3 000 (11 250 KiB) |
+| lead over real time | max 20 ms | **max 39 098 ms** |
+| late chunks (> 20 ms) | 0 (worst 3.6 ms) | 0 (worst 0.2 ms) |
+| slowest `write()` | 2.6 ms | **11 007.8 ms** (TCP back pressure) |
+| status samples | 30 of 30 `playing` | 6 of 7 `playing` |
+| clients connected (min) | 2 | 2 |
+- What this settles: `Stream.AddStream` with a tcp source in server mode on `0.0.0.0:<port>` is accepted by a real snapserver, the producer can connect and feed it, the stream turns `playing` and stays so for five minutes, and two clients were connected throughout. A deadline-paced writer stays within one chunk of real time. The Phase A kill criterion for the server side of the feed is **not triggered**.
+- Burst result: the data piled up for up to **39 s** between the producer and the server (docker's port forwarding plus the kernel socket buffers); the server read in real time as the source says, so a stop or seek would have acted that late. Consequence for the real feeder: pace by deadline **and** keep the send buffer small (`SO_SNDBUF` of a few chunks, `TCP_NODELAY`), do not rely on back pressure.
+- Not yet reported: the client-side check (`docker compose logs -t --since <start+5s> --until <end> snapclient-1 snapclient-2 | grep -c "No chunks available"`, expect 0) and the server log line `State changed` (`idle => playing`), the raw `Stream.AddStream` answer (`id` or `stream_id`), and the `process://` probe from the rig README. The **rig** items in this document stay open until those are reported.

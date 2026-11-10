@@ -6,12 +6,12 @@ Rules: spec first, tests first for the pure parts; all new strings in values + d
 **Phase A (Groups 1-6): source + controls. Phase B (Groups 7-10): the phone as a client; starts only after the owner's gate at the end of Group 6.**
 
 ## Group 1: Research and rig (P0), no production code
-Status 2026-11-10: gates passed (review cycle 3 PASS, security review cycle 2 PASS). Open items wait for the owner's rig run: 1.2 (build and run), 1.5 (feed spike), and the **rig** items in `docs/tech.md`. The owner cannot test at the moment, so Group 2 starts without them.
+Status 2026-11-10: gates passed (review cycle 3 PASS, security review cycle 2 PASS). The owner ran the rig and the feed spike on 2026-11-10 (tasks 1.2 and 1.5 done; the kill criterion was not triggered). Still open: the client-log check, the `process://` probe, the raw `AddStream` answer shape and the remaining **rig** items in `docs/tech.md`.
 - [x] 1.1 (done 2026-11-10, `docs/tech.md` section "Snapcast (issue #319)"; items marked **rig** still need the rig) Verify protocol and control behavior from the Snapcast sources and the rig and write it to `docs/tech.md` (own words, version 0.35.0) | `docs/tech.md`
   - **Accept**: notes cover JSON-RPC framing and error codes, the `Server.GetStatus` shape, every notification we use, the `Stream.AddStream` tcp URI (bind address, port choice, `codec`, `sampleformat`, raw PCM vs WAV header, which security limits apply), `Group.SetClients` semantics, mDNS service names and TXT, server identity fields, ServerSettings/Time/WireChunk layouts for Phase B; each item has a source (file/line in the Snapcast repo) or "verified on the rig".
   - **Verify**: a grep shows every `(verify)` marker of `design.md` resolved in `docs/tech.md`; nothing copied verbatim.
   - **Constraints**: Snapcast is GPL v3: no code copied; list the license.
-- [ ] 1.2 (drafted 2026-11-10, **not built or run**: no Docker in the sandbox, the owner cannot test at the moment) Docker rig | `tools/snapcast-rig/` (`docker-compose.yml`, `snapserver.conf`, README)
+- [x] 1.2 (built and run by the owner on 2026-11-10: snapserver and two snapclients up, the spike ran against it; `docker compose config` and the image pins were exercised by that run) Docker rig | `tools/snapcast-rig/` (`docker-compose.yml`, `snapserver.conf`, README)
   - **Accept**: `docker compose up` starts one snapserver (control 1705, stream 1704, a pipe source) and two snapclients with a null/file audio backend; the README says how to see the streams and how the owner connects a real client.
   - **Verify**: `docker compose config` validates; (owner or CI) `Server.GetStatus` over `nc localhost 1705` lists two clients.
   - **Constraints**: images pinned by tag (no `latest`); only local ports; non-interactive; never commit audio files.
@@ -21,7 +21,7 @@ Status 2026-11-10: gates passed (review cycle 3 PASS, security review cycle 2 PA
 - [x] 1.4 (done 2026-11-10: GO for the synthetic device, see design.md "Inventory result"; the owner's review of the go/no-go is still pending) Inventory: where a receiver must be a Cling `Device` | `.claude/specs/2026-11-09-issue319-snapcast/design.md` (section update)
   - **Accept**: a list of every place that uses a receiver's services or registry (`UpnpClient.getDevice`, `RendererStatus`, `OpenHomeChoice`, `ShareAddressResolver`, `DeviceSessionGrouper`, volume, `DeviceSheetAdapter`, pick controllers) with the change needed for a synthetic device; a go/no-go for "synthetic device" vs "`ReceiverTarget` seam".
   - **Verify**: reviewed by the owner before Group 3 starts.
-- [ ] 1.5 (spike program drafted as `tools/snapcast-rig/spike/FeedSpike.java`, only run against a fake server; **waits for the owner's rig run**) Spike (throw-away, plain Java, not committed to `main` sources): feed a tone as raw PCM into a tcp source created by `Stream.AddStream` on the rig | `tools/snapcast-rig/spike/`
+- [x] 1.5 (owner's run 2026-11-10, results in `docs/tech.md` "Rig run and feed spike": paced 300 s OK, 30/30 `playing`, 0 late chunks; burst lead 39 s. The client-log check "No chunks available" is still to be reported) Spike (throw-away, plain Java, not committed to `main` sources): feed a tone as raw PCM into a tcp source created by `Stream.AddStream` on the rig | `tools/snapcast-rig/spike/`
   - **Accept**: the stream shows `playing`, the rig clients log chunks, no underruns for 5 minutes at real-time pacing; a burst write is shown to misbehave (documents why pacing is needed).
   - **Verify**: run output attached to `docs/tech.md`; **kill criterion**: if AddStream is refused or the feed cannot be kept steady, stop and decide with the owner (static source fallback).
 
