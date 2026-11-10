@@ -186,7 +186,6 @@ final class SnapcastJson {
         return value == JSONObject.NULL ? null : value;
     }
 
-    /** Cuts a string at {@link SnapcastLimits#MAX_STRING_LENGTH} characters, never inside a surrogate pair. */
     /**
      * Server text made safe for an error row: control characters, line and paragraph separators, bidi controls and the
      * C1 range become {@code ?}; the text is cut at {@code max} characters. It is still the server's text (display
@@ -222,6 +221,7 @@ final class SnapcastJson {
         return out.toString();
     }
 
+    /** Cuts a string at {@link SnapcastLimits#MAX_STRING_LENGTH} characters, never inside a surrogate pair. */
     static String truncate(String text) {
         if (text == null) {
             return null;

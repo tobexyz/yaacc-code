@@ -355,7 +355,7 @@ public class SnapcastRpcTest {
         assertEquals(SnapcastRpc.State.WAITING_RETRY, rpc.getState());
         scheduler.runNext();
         assertTrue(await(() -> rpc.getState() == SnapcastRpc.State.CONNECTED, 5_000));
-        assertEquals(2, server.acceptedCount());
+        assertTrue(await(() -> server.acceptedCount() == 2, 3_000));
     }
 
     @Test

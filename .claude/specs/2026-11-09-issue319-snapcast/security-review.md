@@ -125,3 +125,35 @@ Method: read all production files in the package line by line; read the test nam
 
 ### Verdict: FAIL
 One Warning (W1: server text unfiltered in the exceptions, with an explicit invitation to log it). No Critical finding: every item of the design's "Security rules" for the control client is enforced in production code and has a test that fails without it. After W1 is fixed (and tested) the library passes; S1 to S11 do not block.
+
+## Cycle 2 (Group 2) - 2026-11-10
+Reviewing: commit fae36a5 (fix W1, suggestions S3 and S9) on top of Group 2; scope: every path by which server text reaches an exception or a public getter of `yaacc/src/main/java/de/yaacc/multiroom/control/`.
+
+Method: read the diff of the commit and the whole of `SnapcastException`, `SnapcastJson` (`displayText`, `errorTitle`, `truncate`), `SnapcastMessage.parseError`; grepped every `new SnapcastException`, `SnapcastException.<factory>(`, every `IllegalArgumentException`/`IllegalStateException` and every string concatenation in the package; read the new tests; ran `./gradlew :yaacc:testDebugUnitTest --offline --tests 'de.yaacc.multiroom.*'` (first run: 218 tests, 1 failure, a timing test unrelated to the change, see S12; then 3 runs with `--rerun`: green each time).
+
+### W1 (cycle 1): fixed
+- `SnapcastMessage.parseError:180-188` is the only place that builds a `SERVER_ERROR`. The message goes through `SnapcastJson.errorTitle` (every char outside 0x20..0x7e becomes `?`, at most 64 chars, so it is printable ASCII and short; null gives ""). The data goes through `truncate` and then `displayText` for both the string case and the non-string case (`rawData.toString()`, so object/array data is covered); `displayText` replaces < 0x20, 0x7f, 0x80..0x9f (C1, includes U+0085), U+2028/2029, U+202A..202E, U+2066..2069, U+200E/200F, U+061C and U+FEFF with `?`. The cut at `max` in `displayText` is the same as the length after `truncate`, so no surrogate pair is split there.
+- `getMessage()`, `getData()`, `describe()` (a concatenation of the two) and `toString()` (class name + message) therefore carry nothing outside the filtered sets; the Javadoc of `describe()` now says "error row ... never a log line".
+- All other exceptions of the package have fixed texts: the MALFORMED, LIMIT, TIMEOUT, NOT_CONNECTED and CLOSED messages are literals (checked each call site; none quotes input), IO and INTERNAL name the exception class only, `NOT_CONNECTED` appends the `State` enum. `IllegalArgumentException`/`IllegalStateException` texts are literals or the `Config` name; the two that wrap a `JSONException` (`SnapcastOperations.json:313`, `SnapcastVolume.toJson:46`) are built from caller/own values (a `JSONException` there can only come from a NaN/Infinity, not from server text). `SnapcastRpc.fail`/`PendingCall` pass server errors through unchanged, so they inherit the filter. The model `toString()` methods print counts and fixed words (unchanged since cycle 1).
+- Test `SnapcastModelTest.serverErrorTextCarriesNoControlCharactersAndTheMessageStaysShort` sends `\n`, ESC, ` `, `‮`, `\u0085`, DEL, `\r`, NUL in both message and data and asserts, per character, that none of the filtered classes appears in `getMessage()`, `getData()`, `describe()`, `toString()`, that the message is at most 64 chars and that the data keeps its readable part ("end"). It would fail without the change (message and data were raw).
+
+### Suggestions taken
+- S3: all 15 `Config` setters go through `positive(...)` (1 `int` and 1 `long` overload; `readTimeoutMs(0)`, `maxFailures(0)`, `maxLineBytes(0)` and so on now throw `IllegalArgumentException`); `aLimitOfZeroOrLessIsRefusedByTheConfig` covers six of them. The existing tests use positive values (green). The upper bound (clamp to `SnapcastLimits`) is not taken, see S13.
+- S9(a) is not taken as a code change and the Javadoc of `addStream` now says that any scheme may be accepted, that callers build only `tcp` sources and never pass a URI from server data, and that the control connection has no TLS and no authentication (this covers the statement of S9(b) for the control path; the `SocketTransport` class Javadoc itself was not changed).
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+- [S12: `SnapcastRpcTest.aCallWithoutAnyReplyDropsTheConnectionAndStartsTheReconnectCycle:358`] Flaky: `assertEquals(2, server.acceptedCount())` failed once in four runs after `await(state == CONNECTED)` (the fake server probably counts the accept after the client sees the connection). Unrelated to this commit (no production or test line it touches changed), but a red gate costs a review cycle: wait for `acceptedCount() == 2` with `await(...)` instead of asserting at once.
+- [S13: `SnapcastRpc.Config`] The second half of S3 (clamp each limit to its `SnapcastLimits` constant, keep small values for tests) is neither done nor named in "Fix Group 2c". Only a library caller can set these, so hardening only; either clamp (`Math.min(value, SnapcastLimits.X)`) or add it to the later list.
+- [S14: `tasks.md` "Fix Group 2c", F2.11] The "not taken" list names S1, S2, S4, S5 to S8, S10 and S11, but gives a reason or a handling group only for S4 (Group 3 passes the `InetAddress`) and S11 (Group 4). S1, S2, S5, S6, S7, S8, S10 are "recorded for later" with no owner. Give each a group or a one-line reason (for example S6 and S8 to Group 3/4 which are the first callers; S10 to the Phase A gate), so they are not lost. The remark of W1 about display-name getters (names, host names, ids, stream URI are only truncated, not filtered) is not recorded either; `design.md:89` says "shown escaped in the UI": add "control characters and bidi controls replaced before display" to the constraints of task 5.1, or reuse `SnapcastJson.displayText` in the getters.
+- [S15: `SnapcastJson.displayText/errorTitle`] Not covered by the filter: zero-width and invisible format characters (U+200B..200D, U+2060..2064, U+00AD, U+180E), tag characters (surrogate pairs, U+E0000 range), unpaired surrogates, U+FFFE/FFFF. They cannot forge a line or an escape sequence, only confuse a display; a test-free option is to replace every char for which `Character.getType` is CONTROL, FORMAT, SURROGATE (unpaired), PRIVATE_USE or UNASSIGNED.
+- [S16: `SnapcastJson.java:189-190`] The Javadoc of `truncate` ("Cuts a string at MAX_STRING_LENGTH...") now sits above the Javadoc of `displayText`, and `truncate` has none. Move the comment back down (two consecutive doc comments; only the second one is attached).
+- S1 to S11 of cycle 1 stand as listed there (none blocks).
+
+### Verdict: PASS
+No Critical and no Warning. W1 is fixed in the only place that builds a server error, for message, data, `describe()` and `toString()`, and is covered by a test that asserts per character. The remaining items are Suggestions.
