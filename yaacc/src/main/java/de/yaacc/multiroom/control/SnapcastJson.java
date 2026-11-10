@@ -187,6 +187,41 @@ final class SnapcastJson {
     }
 
     /** Cuts a string at {@link SnapcastLimits#MAX_STRING_LENGTH} characters, never inside a surrogate pair. */
+    /**
+     * Server text made safe for an error row: control characters, line and paragraph separators, bidi controls and the
+     * C1 range become {@code ?}; the text is cut at {@code max} characters. It is still the server's text (display
+     * only, never an identity, never a log line).
+     */
+    static String displayText(String text, int max) {
+        if (text == null) {
+            return null;
+        }
+        int length = Math.min(text.length(), max);
+        StringBuilder out = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            char c = text.charAt(i);
+            boolean unsafe = c < 0x20 || c == 0x7f || (c >= 0x80 && c <= 0x9f) || c == 0x2028 || c == 0x2029
+                    || (c >= 0x202a && c <= 0x202e) || (c >= 0x2066 && c <= 0x2069) || c == 0x200e || c == 0x200f
+                    || c == 0x061c || c == 0xfeff;
+            out.append(unsafe ? '?' : c);
+        }
+        return out.toString();
+    }
+
+    /** The title of a server error: printable ASCII only and at most 64 characters (the titles are fixed texts). */
+    static String errorTitle(String text) {
+        if (text == null) {
+            return "";
+        }
+        int length = Math.min(text.length(), 64);
+        StringBuilder out = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            char c = text.charAt(i);
+            out.append(c >= 0x20 && c < 0x7f ? c : '?');
+        }
+        return out.toString();
+    }
+
     static String truncate(String text) {
         if (text == null) {
             return null;

@@ -1608,4 +1608,22 @@ public class SnapcastRpcTest {
         assertTrue(listener.awaitCount("disconnected:IO", 1, 3_000));
         assertEquals(SnapcastException.Kind.IO, listener.lastCause.getKind());
     }
+
+    @Test
+    public void aLimitOfZeroOrLessIsRefusedByTheConfig() {
+        for (Runnable bad : new Runnable[]{
+                () -> new SnapcastRpc.Config().readTimeoutMs(0),
+                () -> new SnapcastRpc.Config().callTimeoutMs(-1),
+                () -> new SnapcastRpc.Config().connectTimeoutMs(0),
+                () -> new SnapcastRpc.Config().maxLineBytes(0),
+                () -> new SnapcastRpc.Config().notificationQueueBytes(0),
+                () -> new SnapcastRpc.Config().maxFailures(0)}) {
+            try {
+                bad.run();
+                fail("a limit below 1 was accepted");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains("at least 1"));
+            }
+        }
+    }
 }

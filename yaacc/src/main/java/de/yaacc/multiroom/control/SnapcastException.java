@@ -92,7 +92,11 @@ public final class SnapcastException extends Exception {
         return isUnauthorized() || isForbidden();
     }
 
-    /** The message and the data in one line, for a log or an error row (the text comes from the server: display only). */
+    /**
+     * The message and the data in one line, for an error row. The text comes from the server: it is display text
+     * (control characters are already replaced), never an identity and never a log line, because it can carry
+     * addresses or other identifiers of the server's network.
+     */
     public String describe() {
         String message = getMessage() == null ? "" : getMessage();
         return data == null || data.isEmpty() ? message : message + ": " + data;

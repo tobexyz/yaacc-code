@@ -198,6 +198,10 @@ public final class SnapcastOperations {
     /**
      * {@code Stream.AddStream}.
      *
+     * <p>The URI is sent as given: the server may accept any scheme (the documented restriction was not found in its
+     * sources), so a caller builds only {@code tcp} sources it controls and never passes a URI taken from server data.
+     * The control connection has no TLS and no authentication.
+     *
      * @return the id of the new stream; the server answers {@code id} (its source) or {@code stream_id} (its
      * documentation), both are read
      * @throws SnapcastException MALFORMED when the answer has neither

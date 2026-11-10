@@ -151,6 +151,22 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
         private long stableConnectionMs = 10_000;
         private int maxBadLines = 16;
 
+        /** A limit of zero or less would mean "infinite" for sockets and "nothing" for queues: refuse it. */
+        private static int positive(String name, int value) {
+            if (value < 1) {
+                throw new IllegalArgumentException(name + " must be at least 1");
+            }
+            return value;
+        }
+
+        private static long positive(String name, long value) {
+            if (value < 1) {
+                throw new IllegalArgumentException(name + " must be at least 1");
+            }
+            return value;
+        }
+
+
         public Config() {
         }
 
@@ -174,49 +190,49 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
 
         /** The overall deadline of a call, from the call to the answer (default 10 s). */
         public Config callTimeoutMs(long value) {
-            callTimeoutMs = value;
+            callTimeoutMs = positive("callTimeoutMs", value);
             return this;
         }
 
         /** How long one read may block (default 5 s); a stall in the middle of a line drops the connection. */
         public Config readTimeoutMs(int value) {
-            readTimeoutMs = value;
+            readTimeoutMs = positive("readTimeoutMs", value);
             return this;
         }
 
         public Config connectTimeoutMs(int value) {
-            connectTimeoutMs = value;
+            connectTimeoutMs = positive("connectTimeoutMs", value);
             return this;
         }
 
         /** How long a line may take from its first byte to its end (default 10 s). */
         public Config lineDeadlineMs(long value) {
-            lineDeadlineMs = value;
+            lineDeadlineMs = positive("lineDeadlineMs", value);
             return this;
         }
 
         public Config maxLineBytes(int value) {
-            maxLineBytes = value;
+            maxLineBytes = positive("maxLineBytes", value);
             return this;
         }
 
         public Config maxRequestBytes(int value) {
-            maxRequestBytes = value;
+            maxRequestBytes = positive("maxRequestBytes", value);
             return this;
         }
 
         public Config maxPending(int value) {
-            maxPending = value;
+            maxPending = positive("maxPending", value);
             return this;
         }
 
         public Config maxBatch(int value) {
-            maxBatch = value;
+            maxBatch = positive("maxBatch", value);
             return this;
         }
 
         public Config notificationQueueSize(int value) {
-            notificationQueueSize = value;
+            notificationQueueSize = positive("notificationQueueSize", value);
             return this;
         }
 
@@ -225,35 +241,35 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
          * (default 4 MiB). One notification is always accepted into an empty queue.
          */
         public Config notificationQueueBytes(long value) {
-            notificationQueueBytes = value;
+            notificationQueueBytes = positive("notificationQueueBytes", value);
             return this;
         }
 
         /** Consecutive failures after which the reconnects stop (default 5). */
         public Config maxFailures(int value) {
-            maxFailures = value;
+            maxFailures = positive("maxFailures", value);
             return this;
         }
 
         public Config backoffInitialMs(long value) {
-            backoffInitialMs = value;
+            backoffInitialMs = positive("backoffInitialMs", value);
             return this;
         }
 
         public Config backoffMaxMs(long value) {
-            backoffMaxMs = value;
+            backoffMaxMs = positive("backoffMaxMs", value);
             return this;
         }
 
         /** How long a connection must hold to reset the failure count (default 10 s). */
         public Config stableConnectionMs(long value) {
-            stableConnectionMs = value;
+            stableConnectionMs = positive("stableConnectionMs", value);
             return this;
         }
 
         /** Unreadable lines in a row after which the connection is dropped (default 16). */
         public Config maxBadLines(int value) {
-            maxBadLines = value;
+            maxBadLines = positive("maxBadLines", value);
             return this;
         }
 

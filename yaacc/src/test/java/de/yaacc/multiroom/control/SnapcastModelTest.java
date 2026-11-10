@@ -450,6 +450,27 @@ public class SnapcastModelTest {
     }
 
     @Test
+    public void serverErrorTextCarriesNoControlCharactersAndTheMessageStaysShort() throws Exception {
+        String evil = "x\n\u001b[31m192.0.2.55\u2028\u202e\u0085\u007f\r\0 end";
+        JSONObject error = new JSONObject().put("code", 5).put("message", evil).put("data", evil);
+        String line = new JSONObject().put("jsonrpc", "2.0").put("id", 1).put("error", error).toString();
+
+        SnapcastException parsed = SnapcastMessage.parseLine(line).get(0).getError();
+
+        for (String text : new String[]{parsed.getMessage(), parsed.getData(), parsed.describe(), parsed.toString()}) {
+            for (int i = 0; i < text.length(); i++) {
+                char c = text.charAt(i);
+                assertTrue("control or format character 0x" + Integer.toHexString(c) + " in: " + text,
+                        c >= 0x20 && c != 0x7f && !(c >= 0x80 && c <= 0x9f) && c != 0x2028 && c != 0x2029
+                                && !(c >= 0x202a && c <= 0x202e) && !(c >= 0x2066 && c <= 0x2069) && c != 0x200e
+                                && c != 0x200f && c != 0x061c);
+            }
+        }
+        assertTrue(parsed.getMessage().length() <= 64);
+        assertTrue(parsed.getData().contains("end"));
+    }
+
+    @Test
     public void exceptionCarriesKindCodeMessageAndData() {
         SnapcastException exception = new SnapcastException(SnapcastException.Kind.SERVER_ERROR, 7, "msg", "why", null);
 

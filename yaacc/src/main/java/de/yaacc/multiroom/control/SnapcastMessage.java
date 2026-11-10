@@ -177,13 +177,13 @@ public final class SnapcastMessage {
         }
         JSONObject error = (JSONObject) rawError;
         int code = SnapcastJson.integer(error, "code", Integer.MIN_VALUE, Integer.MAX_VALUE, 0);
-        String message = SnapcastJson.string(error, "message", "");
+        String message = SnapcastJson.errorTitle(SnapcastJson.string(error, "message", ""));
         Object rawData = error.opt("data");
         String data = null;
         if (rawData instanceof String) {
-            data = SnapcastJson.truncate((String) rawData);
+            data = SnapcastJson.displayText(SnapcastJson.truncate((String) rawData), SnapcastLimits.MAX_STRING_LENGTH);
         } else if (rawData != null && rawData != JSONObject.NULL) {
-            data = SnapcastJson.truncate(rawData.toString());
+            data = SnapcastJson.displayText(SnapcastJson.truncate(rawData.toString()), SnapcastLimits.MAX_STRING_LENGTH);
         }
         return new SnapcastException(SnapcastException.Kind.SERVER_ERROR, code, message, data, null);
     }
