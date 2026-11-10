@@ -326,4 +326,72 @@ final class RpcTestSupport {
             closed.countDown();
         }
     }
+
+    /**
+     * A connection that stays open until it is closed and whose {@link #close()} takes a while (a socket that is
+     * slow to close): the client must not let that delay reorder its lifecycle events.
+     */
+    static final class SlowCloseConnection implements SnapcastTransport.Connection {
+        private final CountDownLatch closed = new CountDownLatch(1);
+        private final long closeDelayMs;
+
+        SlowCloseConnection(long closeDelayMs) {
+            this.closeDelayMs = closeDelayMs;
+        }
+
+        private void blockUntilClosed() {
+            try {
+                closed.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return new InputStream() {
+                @Override
+                public int read() {
+                    blockUntilClosed();
+                    return -1;
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) {
+                    blockUntilClosed();
+                    return -1;
+                }
+            };
+        }
+
+        @Override
+        public OutputStream getOutputStream() {
+            return new OutputStream() {
+                @Override
+                public void write(int b) {
+                    // nothing is sent anywhere
+                }
+            };
+        }
+
+        @Override
+        public void setReadTimeout(int millis) {
+            // nothing
+        }
+
+        @Override
+        public InetAddress getPeerAddress() {
+            return null;
+        }
+
+        @Override
+        public void close() {
+            try {
+                Thread.sleep(closeDelayMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            closed.countDown();
+        }
+    }
 }

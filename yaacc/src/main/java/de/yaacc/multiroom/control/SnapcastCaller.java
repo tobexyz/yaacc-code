@@ -45,6 +45,8 @@ public interface SnapcastCaller {
      * notification. The default runs the handler on the calling thread (a fake without notifications needs no more).
      *
      * @throws SnapcastException when the call fails or the handler throws one
+     * @throws IllegalStateException when called from inside a delivery of the listeners (the real connection only; a
+     *                               fake that runs the handler on the calling thread has no such limit)
      */
     default <T> T callOrdered(String method, JSONObject params, ResultHandler<T> handler) throws SnapcastException {
         return handler.handle(call(method, params));

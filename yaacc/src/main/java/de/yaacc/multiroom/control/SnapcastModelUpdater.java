@@ -46,7 +46,10 @@ import java.util.ArrayDeque;
  * the model itself ({@link #applyOwnChange}; {@link SnapcastOperations} does it after every successful call).
  *
  * <p><b>Re-reads.</b> The re-read is requested, not made: it is the caller's to do, and to repeat if it fails (the
- * wish is cleared when it is handed out). A new connection needs a fresh status as well.
+ * wish is cleared when it is handed out). A new connection needs a fresh status as well: read it on a worker when
+ * {@link SnapcastRpc.Listener#onConnected()} is told. The requester runs on the thread that found the doubt, which is
+ * the listener thread of the connection, so it must only hand the read to a worker: a {@code getStatus()} in it
+ * throws an {@link IllegalStateException} (see {@link SnapcastRpc#callOrdered}).
  */
 public final class SnapcastModelUpdater {
 
@@ -61,9 +64,10 @@ public final class SnapcastModelUpdater {
     private boolean reReadWanted;
 
     /**
-     * @param reReadRequester called, on the thread that found the doubt (or that calls {@link #poll()}), when the full
-     *                        status should be read again; it should hand the work to the connection's worker and then
-     *                        give the answer to {@link #setStatus}
+     * @param reReadRequester called, on the thread that found the doubt (or that calls {@link #poll()}; for the
+     *                        notifications that is the listener thread of the connection), when the full status
+     *                        should be read again; it must only hand the work to a worker, which reads the status
+     *                        and gives the answer to {@link #setStatus}
      */
     public SnapcastModelUpdater(MonotonicClock clock, Runnable reReadRequester) {
         this.clock = clock;
@@ -91,6 +95,14 @@ public final class SnapcastModelUpdater {
             default:
                 return false;
         }
+    }
+
+    /**
+     * @return false when the model ignores the params of this (known) notification, so that the reader can drop them
+     * ({@code Stream.OnProperties}: the metadata of a stream is not in the model)
+     */
+    static boolean needsParams(String method) {
+        return !"Stream.OnProperties".equals(method);
     }
 
     /** The current model; null before the first status. */

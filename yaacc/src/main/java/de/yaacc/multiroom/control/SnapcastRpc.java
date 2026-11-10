@@ -65,6 +65,23 @@ import java.util.concurrent.TimeUnit;
  * <p><b>Reconnect.</b> A lost connection is retried with a doubling delay (1 s, 2 s, ... at most 30 s); after 5
  * failures in a row it stops ({@link State#GAVE_UP}) until {@link #retry()} is called. A connection that held for
  * {@link Config#stableConnectionMs} counts as a success. {@link #reconnect()} replaces a connection that looks alive.
+ * {@link #retry()} and {@link #reconnect()} start the failure count again, so a caller that calls them after every
+ * failure removes the ceiling of 5: keep them out of automatic loops.
+ *
+ * <p><b>Events.</b> {@link Listener#onConnected()} and {@link Listener#onDisconnected} are queued together with the
+ * change of the state they report, so they arrive in the order of the changes (a connection that was replaced by
+ * {@link #reconnect()} is reported as disconnected before the new one is reported as connected). An attempt that could
+ * not connect reports "disconnected" without a "connected" before it.
+ *
+ * <p><b>For the code that uses this (Group 3).</b> Give the client a listener executor that does nothing but the
+ * deliveries ({@code null} makes an own thread). {@link #callOrdered} throws an {@link IllegalStateException} when it is
+ * called from inside a delivery; it can not see a task of another kind on the same single-thread executor, which blocks
+ * the delivery that the call waits for, so the call ends in TIMEOUT. The re-read requester of
+ * {@link SnapcastModelUpdater} runs on the listener thread: it hands the read to a worker. Read a fresh status in
+ * {@link Listener#onConnected()} (on a worker), and repeat a re-read that failed. A call that waits for the whole
+ * deadline while the server sends nothing at all drops the connection, also when the server is only slow.
+ * When the executor rejects the tasks (it was shut down while the client is open), the ordered calls that wait for
+ * their delivery fail as CLOSED at once.
  */
 public final class SnapcastRpc implements SnapcastCaller, Closeable {
 
@@ -86,7 +103,10 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
 
     /** Receives what happens, on the listener executor (never on the socket thread). All methods do nothing by default. */
     public interface Listener {
-        /** The connection is up. */
+        /**
+         * The connection is up. The place to read a fresh status, on a worker: not on the listener thread, where a
+         * {@link #callOrdered} throws an {@link IllegalStateException}.
+         */
         default void onConnected() {
         }
 
@@ -547,7 +567,8 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
 
     /**
      * Connects now when the client waits for a retry or gave up (the failure count starts again); does nothing while
-     * connecting or connected, and after {@link #close()}. Call it when the receivers page becomes visible.
+     * connecting or connected, and after {@link #close()}. Call it when the receivers page becomes visible. The failure
+     * count starts again, so do not call it in an automatic loop: the ceiling of the reconnects is gone.
      */
     public void retry() {
         synchronized (lock) {
@@ -560,35 +581,37 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
 
     /**
      * Replaces the connection by a new one now, also from CONNECTED: use it when the connection looks alive but is
-     * not (the calls end in timeouts). Waiting calls fail as CLOSED, the failure count starts again. Does nothing
-     * while a connection is being opened, and after {@link #close()}.
+     * not (the calls end in timeouts). Waiting calls fail as CLOSED, the failure count starts again (so do not call
+     * it in an automatic loop: the ceiling of the reconnects is gone). Does nothing while a connection is being
+     * opened, and after {@link #close()}.
      */
     public void reconnect() {
         SnapcastTransport.Connection old = null;
         List<PendingCall> toFail = Collections.emptyList();
-        boolean dropped = false;
+        boolean submit = false;
+        final SnapcastException replaced = SnapcastException.closed("connection replaced");
         synchronized (lock) {
             if (state == State.CLOSED || state == State.CONNECTING) {
                 return;
             }
             if (state == State.CONNECTED) {
-                dropped = true;
                 old = connection;
                 connection = null;
                 toFail = new ArrayList<>(pending.values());
                 pending.clear();
+                // in the queue before the new attempt exists, so its "connected" can not come first
+                submit = enqueueLifecycleLocked(QueuedEvent.lifecycle(listener -> listener.onDisconnected(replaced)));
             }
             failures = 0;
             startAttemptLocked(); // a new generation makes the old reader and the old timers stale
         }
-        final SnapcastException replaced = SnapcastException.closed("connection replaced");
+        if (submit) {
+            submitDrain();
+        }
         for (PendingCall call : toFail) {
             call.fail(replaced);
         }
         closeQuietly(old);
-        if (dropped) {
-            enqueue(QueuedEvent.lifecycle(listener -> listener.onDisconnected(replaced)));
-        }
     }
 
     private void startAttemptLocked() {
@@ -616,6 +639,7 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
             if (opened == null) {
                 throw new IOException("no connection");
             }
+            boolean submit;
             synchronized (lock) {
                 if (attempt != generation || state != State.CONNECTING) {
                     return; // closed or replaced while connecting: the finally block closes the connection
@@ -623,11 +647,15 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
                 connection = opened;
                 state = State.CONNECTED;
                 connectedAt = clock.nowMillis();
+                connectedOnce = true;
+                // queued with the change of the state: a reconnect() right behind it queues its "disconnected" after it
+                submit = enqueueLifecycleLocked(QueuedEvent.lifecycle(Listener::onConnected));
                 lock.notifyAll();
             }
-            connectedOnce = true;
+            if (submit) {
+                submitDrain();
+            }
             lastReceivedNanos = System.nanoTime();
-            enqueue(QueuedEvent.lifecycle(Listener::onConnected));
             opened.setReadTimeout(config.readTimeoutMs);
             readLoop(opened, attempt);
             ended = SnapcastException.closed("connection closed");
@@ -715,8 +743,10 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
                         markLost(); // nobody can use its params: keep none, only ask for a re-read
                         break;
                     }
-                    final JSONObject params = message.getParams();
-                    enqueue(QueuedEvent.notification(listener -> listener.onNotification(method, params), weight));
+                    // the model ignores the params of some: they are dropped here, so they cost no memory and no budget
+                    final boolean keepParams = SnapcastModelUpdater.needsParams(method);
+                    final JSONObject params = keepParams ? message.getParams() : new JSONObject();
+                    enqueue(QueuedEvent.notification(listener -> listener.onNotification(method, params), keepParams ? weight : 1));
                     break;
                 default:
                     break; // a request of the server: this client answers none
@@ -753,6 +783,7 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
     private void sessionEnded(long attempt, boolean connectedOnce, final SnapcastException cause) {
         List<PendingCall> toFail;
         boolean giveUp;
+        boolean submit;
         long delay = 0;
         final long token;
         synchronized (lock) {
@@ -775,15 +806,20 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
                 delay = Math.min(config.backoffMaxMs, config.backoffInitialMs << shift);
             }
             token = generation;
+            // queued before the state allows the next attempt (a retry() or the timer), so its "connected" can not come first
+            submit = enqueueLifecycleLocked(QueuedEvent.lifecycle(listener -> listener.onDisconnected(cause)));
+            if (giveUp) {
+                submit |= enqueueLifecycleLocked(QueuedEvent.lifecycle(listener -> listener.onGaveUp(cause)));
+            }
             lock.notifyAll();
+        }
+        if (submit) {
+            submitDrain();
         }
         for (PendingCall call : toFail) {
             call.fail(cause);
         }
-        enqueue(QueuedEvent.lifecycle(listener -> listener.onDisconnected(cause)));
-        if (giveUp) {
-            enqueue(QueuedEvent.lifecycle(listener -> listener.onGaveUp(cause)));
-        } else {
+        if (!giveUp) {
             scheduler.schedule(() -> retryTimerFired(token), delay);
         }
     }
@@ -808,7 +844,10 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
      * Calls a method and runs {@code handler} on the listener executor, in the order of the lines of the connection
      * (see {@link SnapcastCaller#callOrdered}). The call returns when the handler has run, so the model is up to date
      * when it returns. The overall deadline covers both. It must not be called from a listener: the delivery it waits
-     * for would be the thread it blocks (an {@link IllegalStateException} instead of a wait until the deadline).
+     * for would be the thread it blocks (an {@link IllegalStateException} instead of a wait until the deadline). That
+     * guard sees only the deliveries of this client: a task of another kind on the same single-thread executor also
+     * blocks the delivery, and the call then ends in TIMEOUT. If the executor rejects the delivery the call fails as
+     * CLOSED at once.
      */
     @Override
     @SuppressWarnings("unchecked")
@@ -941,22 +980,42 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
             if (eventsClosed) {
                 return false;
             }
-            if (event.notification && !fitsLocked(event.weight)) {
-                lost = true; // dropped: the model is told to read again
-            } else {
-                events.add(event);
-                if (event.notification) {
-                    queuedNotifications++;
-                    queuedNotificationBytes += event.weight;
-                }
-            }
-            submit = !draining;
-            draining = true;
+            submit = addLocked(event);
         }
         if (submit) {
             submitDrain();
         }
         return true;
+    }
+
+    /**
+     * Queues an event while the caller holds {@link #lock}, so that the order of the events is the order of the changes
+     * of the state. {@code eventLock} is a leaf lock (nothing that holds it takes {@code lock}), so the nesting is
+     * safe. The caller calls {@link #submitDrain()} after it has left {@code lock} (the executor may run the task at
+     * once, on the calling thread).
+     *
+     * @return true when the caller must submit the drain
+     */
+    private boolean enqueueLifecycleLocked(QueuedEvent event) {
+        synchronized (eventLock) {
+            return !eventsClosed && addLocked(event);
+        }
+    }
+
+    /** The caller holds {@code eventLock}. @return true when the caller must submit the drain */
+    private boolean addLocked(QueuedEvent event) {
+        if (event.notification && !fitsLocked(event.weight)) {
+            lost = true; // dropped: the model is told to read again
+        } else {
+            events.add(event);
+            if (event.notification) {
+                queuedNotifications++;
+                queuedNotificationBytes += event.weight;
+            }
+        }
+        boolean submit = !draining;
+        draining = true;
+        return submit;
     }
 
     /** The count and the byte budget; a notification is always taken into an empty queue. */
@@ -970,10 +1029,21 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
     private void submitDrain() {
         try {
             listenerExecutor.execute(this::drain);
-        } catch (RejectedExecutionException closed) {
+        } catch (RejectedExecutionException rejected) {
+            // nobody will deliver now (the executor was shut down): a caller must not wait for its deadline for a
+            // result that is stuck in the queue. The other events stay; a later event tries the executor again.
+            List<PendingCall> waiting = new ArrayList<>();
             synchronized (eventLock) {
                 draining = false;
+                for (java.util.Iterator<QueuedEvent> it = events.iterator(); it.hasNext(); ) {
+                    QueuedEvent event = it.next();
+                    if (event.orderedCall != null) {
+                        waiting.add(event.orderedCall);
+                        it.remove();
+                    }
+                }
             }
+            failAll(waiting, SnapcastException.closed("the listener executor does not accept tasks"));
         }
     }
 

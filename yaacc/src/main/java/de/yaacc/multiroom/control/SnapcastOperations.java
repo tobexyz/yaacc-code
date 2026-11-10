@@ -35,7 +35,9 @@ import java.util.Set;
  * server, never on the main thread).
  *
  * <p>A wrong argument of the caller (a missing id) is an {@link IllegalArgumentException}; everything the server does is
- * a {@link SnapcastException}. Ids that are handed in come from the model (they were truncated when parsed); names are
+ * a {@link SnapcastException}. A call that changes the model, and {@link #getStatus()}, throws an
+ * {@link IllegalStateException} when it is made from inside a delivery of the listeners (a notification handler, a
+ * re-read requester): the call would wait for the thread it blocks. Ids that are handed in come from the model (they were truncated when parsed); names are
  * cut at {@link SnapcastLimits#MAX_STRING_LENGTH} characters before they are sent.
  *
  * <p><b>The model.</b> With a {@link SnapcastModelUpdater} the status that a call returns, and every change of our own,
@@ -43,6 +45,16 @@ import java.util.Set;
  * That is needed: the server tells every connection about a change except the one that made it, so without it the
  * model would not show what we just did. A stream that was added or removed can not be patched; it asks for a re-read.
  * A failed call changes nothing.
+ *
+ * <p><b>For the code that uses this (Group 3).</b> Give {@link SnapcastRpc} a listener executor of its own, used for
+ * nothing but the deliveries: a task of anything else on the same single thread blocks the delivery that a
+ * {@code callOrdered} waits for, and the call ends in TIMEOUT after its deadline. The re-read requester of the
+ * {@link SnapcastModelUpdater} runs on that thread: it must only hand the read to a worker, never call
+ * {@link #getStatus()} itself. Read a fresh status (on a worker) in {@code onConnected}, and repeat a re-read that
+ * failed. Do not call {@link SnapcastRpc#reconnect()} or {@link SnapcastRpc#retry()} in an automatic loop: both reset
+ * the failure count, so the ceiling of the reconnects is gone. A single call that takes the whole deadline (10 s)
+ * while the server sends nothing else (an {@code AddStream} of a slow {@code process://} source) drops the connection:
+ * prefer sources that answer at once, or give such a call a longer deadline.
  */
 public final class SnapcastOperations {
 
