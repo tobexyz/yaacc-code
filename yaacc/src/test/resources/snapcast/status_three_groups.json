@@ -212,7 +212,7 @@
           "status": "playing",
           "uri": {
             "fragment": "",
-            "host": "0.0.0.0",
+            "host": "0.0.0.0:4953",
             "path": "",
             "query": {
               "chunk_ms": "20",

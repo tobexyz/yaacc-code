@@ -1,0 +1,3 @@
+# the build context is only the Dockerfile; nothing else is sent to the daemon
+*
+!Dockerfile
