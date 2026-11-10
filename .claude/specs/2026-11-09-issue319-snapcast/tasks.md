@@ -42,6 +42,29 @@ Status 2026-11-10: gates passed (review cycle 3 PASS, security review cycle 2 PA
   - **Verify**: `SnapcastOperationsTest`.
   - **Constraints**: Phase A rig test (opt-in, `-Dsnapcast.rig=localhost`): changes made through the library are seen by a second connection.
 
+## Fix Group 2: Address review cycle 1 of Group 2 (findings W1 to W6 in `review.md`, "Cycle 1 (Group 2)")
+- [ ] F2.1 Ordering of a status answer and notifications (W1) | `de.yaacc.multiroom.control` (`SnapcastRpc`, `SnapcastModelUpdater`)
+  - **Accept**: a `Server.GetStatus` (or `Group.SetClients`) answer followed directly by a notification always ends in the newer state; lines are applied in the order received.
+  - **Verify**: a new test reproduces the reviewer's probe (answer with volume 70, `Client.OnVolumeChanged` 74 right behind it) for at least 1000 rounds without a stale result.
+- [ ] F2.2 JSON pre-scan matches Android's `org.json` literal rule (W2) | `SnapcastJson`
+  - **Accept**: a `"` outside a string opens a string only directly after `{`, `[`, `,` or `:` (whitespace allowed); otherwise the line is rejected as malformed; the two bypass lines of the review are rejected.
+  - **Verify**: scan-level tests with `[a",` + 100 000 x `[` + `"]` and `[a",[],[],...,b"]` (300 000 elements).
+- [ ] F2.3 Unknown notifications are not queued; the notification queue is bounded by bytes as well (W3) | `SnapcastRpc`
+  - **Accept**: params of methods outside `SnapcastModelUpdater.isKnown` are dropped at the reader (only a "re-read needed" flag is set); the queue has a byte budget (default 4 MiB) and overflow sets the flag instead of growing.
+  - **Verify**: a test with a blocked listener and 1 MB notifications shows bounded memory (queue byte counter) and a re-read request.
+- [ ] F2.4 A silent peer is detected (W4) | `SnapcastRpc`
+  - **Accept**: a call that times out with nothing received since its request was written drops the connection and starts the reconnect cycle; a forced reconnect is possible from CONNECTED.
+  - **Verify**: tests for both; the old test that asserted "stays CONNECTED" is changed accordingly.
+- [ ] F2.5 The rig switch works as documented (W5) | `yaacc/build.gradle` (forward the system property `snapcast.rig` to the test JVM), `SnapcastRigTest`
+  - **Accept**: `-Dsnapcast.rig=<host>` on the Gradle command line reaches the test; without it the test is skipped; the Javadoc, the rig README and task 2.4 name the same switch.
+  - **Verify**: with `-Dsnapcast.rig=127.0.0.1` and no rig the rig tests are attempted (they fail or are aborted by a connection error, not skipped); without the property 3 are skipped.
+  - **Constraints**: no new dependency; do not change dependency versions.
+- [ ] F2.6 Test: a server that stops reading (W6) | `SnapcastRpcTest`
+  - **Accept**: callers return at their deadline and the connection is dropped when the peer does not read.
+  - **Verify**: the new test passes without real sleeps longer than 2 s.
+- [ ] F2.7 Suggestions taken: local model patch after our own calls (the server does not notify the caller's connection), `setGroupVolume` takes start levels and current levels separately, peer address accessor on `SnapcastRpc` for Group 4, null/empty checks in `setGroupClients`, no address text in exception causes or `toString()`, remove unused code and test leftovers; record the Group 2 choices in `decisions.md`.
+  - **Verify**: `./gradlew :yaacc:testDebugUnitTest --offline --tests 'de.yaacc.multiroom.*'` green; full unit tests and lint without new issues.
+
 ## Group 3: Discovery and the receiver model (P1)
 - [ ] 3.1 `SnapcastDiscovery` (NsdManager for `_snapcast-ctrl._tcp`, manual servers from preferences, merge by server key) with a testable pure core | `de.yaacc.multiroom.discovery`, tests for the merge/key logic
   - **Accept**: two sightings of one server give one entry; a lost service is removed after the live-update grace; manual servers survive restarts; nothing is scanned outside the receivers page lifetime.
