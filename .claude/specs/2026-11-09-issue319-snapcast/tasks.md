@@ -6,6 +6,7 @@ Rules: spec first, tests first for the pure parts; all new strings in values + d
 **Phase A (Groups 1-6): source + controls. Phase B (Groups 7-10): the phone as a client; starts only after the owner's gate at the end of Group 6.**
 
 ## Group 1: Research and rig (P0), no production code
+Status 2026-11-10: gates passed (review cycle 3 PASS, security review cycle 2 PASS). Open items wait for the owner's rig run: 1.2 (build and run), 1.5 (feed spike), and the **rig** items in `docs/tech.md`. The owner cannot test at the moment, so Group 2 starts without them.
 - [x] 1.1 (done 2026-11-10, `docs/tech.md` section "Snapcast (issue #319)"; items marked **rig** still need the rig) Verify protocol and control behavior from the Snapcast sources and the rig and write it to `docs/tech.md` (own words, version 0.35.0) | `docs/tech.md`
   - **Accept**: notes cover JSON-RPC framing and error codes, the `Server.GetStatus` shape, every notification we use, the `Stream.AddStream` tcp URI (bind address, port choice, `codec`, `sampleformat`, raw PCM vs WAV header, which security limits apply), `Group.SetClients` semantics, mDNS service names and TXT, server identity fields, ServerSettings/Time/WireChunk layouts for Phase B; each item has a source (file/line in the Snapcast repo) or "verified on the rig".
   - **Verify**: a grep shows every `(verify)` marker of `design.md` resolved in `docs/tech.md`; nothing copied verbatim.

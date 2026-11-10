@@ -3,8 +3,7 @@
 # Local testing only (see README.md). Snapcast is GPL-3.0-or-later; nothing of it
 # is copied into this repository, the sources are cloned at build time.
 #
-# Both pins below must be checked at the first build (the tags are written from
-# memory, not verified in the sandbox this file was authored in):
+# The pins below must be checked at the first build (written in a sandbox without Docker):
 #   - DEBIAN_TAG:    https://hub.docker.com/_/debian/tags?name=12.
 #   - SNAPCAST_COMMIT: the commit the YAACC notes (docs/tech.md) were read on; it is fetched by hash
 #                      and verified, so the build cannot silently get other sources.
@@ -48,8 +47,8 @@ RUN printf '%s' "${SNAPCAST_COMMIT}" | grep -Eq '^[0-9a-f]{40}$' \
     && git -C /src remote add origin https://github.com/snapcast/snapcast.git \
     && git -C /src fetch --depth 1 origin "${SNAPCAST_COMMIT}" \
     && git -C /src checkout --detach FETCH_HEAD \
-    && test "$(git -C /src rev-parse HEAD)" = "${SNAPCAST_COMMIT}" \
-         || { echo "fetched commit does not match SNAPCAST_COMMIT" >&2; exit 1; }
+    && { test "$(git -C /src rev-parse HEAD)" = "${SNAPCAST_COMMIT}" \
+         || { echo "fetched commit does not match SNAPCAST_COMMIT" >&2; exit 1; }; }
 # The sources have no git submodules and the CMake configure step (BUILD_TESTS=OFF) downloads
 # nothing (FetchContent is used only for the tests); re-check this when the commit is changed.
 

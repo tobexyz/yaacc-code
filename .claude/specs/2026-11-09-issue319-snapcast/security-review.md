@@ -38,3 +38,47 @@ Confirmed good (no action):
 
 ### Verdict: FAIL
 Four Warnings (W1 and W2 in the rig, W3 and W4 in the design/tasks for the control client, feeder and discovery); no Critical. All four are fixable without a rig run: compose/Dockerfile/README/conf edits for W1 and W2, and a "Security requirements" subsection in `design.md` plus Constraints in `tasks.md` 2.1, 2.2, 3.1, 4.2 and 4.3 for W3 and W4. Suggestions do not block.
+
+## Cycle 2 - 2026-11-10
+Reviewing: fix commit 27e87fbf (rig Dockerfile/compose/conf/README/.dockerignore, `spike/FeedSpike.java`, `design.md` "Security rules", `tasks.md` constraints, `decisions.md`, `docs/tech.md`) against the four Warnings of cycle 1.
+
+Method: read the diff and the resulting files; network was available for GitHub in this session, so the pinned commit was checked against upstream (`git ls-remote`, then `git init` + `git fetch --depth 1 origin <hash>` + `checkout --detach FETCH_HEAD` of the exact Dockerfile flow in the scratchpad), the CMake files of that commit were grepped, and the config key names were compared with `server/server_settings.hpp`/`snapserver.cpp`. `FeedSpike.java` was compiled with `javac` and run against `fake/fake_snapserver.py` and against a purpose-written hostile server (scratchpad `c2sec/hostile.py`: 3 MiB line, ANSI escapes in names/ids, wrong stream id). Not done: Gradle, Docker, a Snapcast build.
+
+### W1 supply chain - fixed
+- `Dockerfile:17-19` default `SNAPCAST_COMMIT` is a full 40-hex hash; the RUN step (`:44-52`) rejects anything not matching `^[0-9a-f]{40}$`, then `git init` / `remote add` / `fetch --depth 1 origin <hash>` / `checkout --detach FETCH_HEAD` / `rev-parse HEAD` equality test. Shell syntax is sound (the `grep || { ...; exit 1; };` group ends with `;`, the rest is one `&&` chain whose failure, including a failed fetch, reaches the final `|| { exit 1; }`).
+- Verified upstream: `ea981ec5ec0805dfc9b4af3979090c325abf501d` exists and is the current `develop` head; the exact fetch-by-hash flow works against GitHub and `rev-parse HEAD` returns that hash.
+- Verified for that commit: no `.gitmodules`, no gitlinks, `FetchContent` only in `test/CMakeLists.txt`, which is added only under `BUILD_TESTS` (default OFF, also passed OFF), no other download in any CMake file. The new Dockerfile comment is therefore true.
+- `docker-compose.yml:31-35` passes `SNAPCAST_COMMIT` as build arg (`${SNAPCAST_COMMIT:-<hash>}`), the three services share the image tag derived from it. No `SNAPCAST_REF` remains in the rig, `docs/tech.md`, `decisions.md` or the README (only historical mentions in the earlier `review.md`/`security-review.md` cycles). README documents `SNAPCAST_COMMIT=<40 hex> docker compose up --build` (valid: compose interpolates the environment variable). `.dockerignore` is `*` + `!Dockerfile`.
+
+### W2 HTTP listener / loopback claim - fixed
+- `snapserver.conf` `[http] enabled = false` (key name `http.enabled` confirmed in `snapserver.cpp`; `ssl_enabled` defaults to false); the 1780 mapping is gone from compose and from the README port table and troubleshooting; the README states that loopback is not private (any local process) and that the rig should be stopped when idle; the `process://` probe is in the README with the instruction to record the result in `docs/tech.md`; `decisions.md:14` and `docs/tech.md` (3630-3632) are reworded to "documented, not confirmed in the sources". README also has `adb reverse --remove-all`. (Side note for the probe: `StreamManager` in this commit has a `process` scheme branch, so the probe is worth running.)
+
+### W3 control client rules - fixed
+`design.md` "Security rules / Control client" now has: 1 MiB byte-level line cap, overall per-call deadline, depth pre-scan (32) and token cap before `org.json`, parse on the worker only, caps for batch/groups/clients/streams/strings/numbers, ignore unknown notifications, rate-limited re-read (1/s, 10/min), reconnect backoff to 30 s with stop after 5 failures, server text is display only and not logged with MAC/IP/host. `tasks.md` 2.1 and 2.2 carry matching Constraints, and 2.1 requires hostile-input tests (10 000-deep nesting, 2 MiB line, 100 000 batch, huge strings, out-of-range numbers).
+
+### W4 feeder, stream marker, discovery - fixed
+`design.md` "Feeder and stream handling" and "Discovery and servers": connect only to the control connection's peer `InetAddress` and the port YAACC asked for, `0.0.0.0` used for matching only; random per-install marker, remove/restore only recorded ids and only while the group is still on YAACC's stream, adopt only `tcp`/`mode=server`/expected format; full percent-encoding of the phone name with a unit test; port chosen by YAACC with bounded tries; discovery limited to loopback/private/link-local/unique-local, max 16 servers, lazy connect, no feed to an unpicked server, strict manual entry validation; residual LAN-injection risk of the tcp source documented. Constraints are in `tasks.md` 3.1, 4.2, 4.3.
+
+### Spike hardening - verified by running
+- Compiles (javac, Java 17+). Host guard: `8.8.8.8` is refused with exit 2 before any connection; `127.0.0.1` runs; `--allow-public-host` is in usage.
+- Against the fake server: full run OK (exit 0), feed 572 160 bytes, group restored, stream removed.
+- Hostile server, 3 MiB line without newline: `FAILED: control line longer than 1 MiB`, exit 1, bounded memory.
+- Hostile server, ESC/BEL sequences in version, group id/name, client id, stream id/status: all printed with `?` instead of control characters (checked with `cat -v`), terminal injection closed for these fields.
+- Hostile server answering `Stream.AddStream` with id `Default`: `FAILED: ... answered the stream id 'Default', not the requested 'YAACC spike'; not touching it`; no `Stream.RemoveStream` was sent (hostile log empty), so the foreign stream is not removed.
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion (none blocks; carried from cycle 1 where still open)
+- [FeedSpike.java:434,553,563] A few server strings are still printed unfiltered: `gid` in "could not restore the group", the group's `stream_id` and the stream `scheme` in `describe()`. Wrap them in `clean()` like the rest.
+- [FeedSpike.java readLine/Control] The 1 MiB cap is in place, but there is still no overall deadline: a server dripping one byte per 9 s keeps the run alive. Acceptable for a spike that is pointed at the own rig (the host guard now limits that to local networks); the production deadline is in the design rules.
+- [design.md "Security rules"] Make three points explicit for Group 2: catch `StackOverflowError`/`OutOfMemoryError` at the worker boundary as a typed "bad server" error that closes the connection (the pre-scan is the primary guard, this is the backstop); bounded pending-request map with ids generated locally; add a "dripping reader" case to the hostile tests of 2.2. For the feeder (4.2): write watchdog and bounded queue (stalled receiver). For 3.1: keep `InetAddress` (with scope id) for link-local IPv6 instead of string concatenation; multicast lock in try/finally.
+- [docs/tech.md:3628] The "Version note" still says the rig builds the `v0.35.0` tag and that `SNAPCAST_COMMIT` is to be pinned after the first build; it now builds the commit the notes were read on. Update the sentence. The Dockerfile header comment still says the tags "are written from memory"; the hash has now been checked against upstream, so say so. Also the final `||` message of the Dockerfile RUN ("fetched commit does not match") is also what a failed fetch prints; harmless, but a generic text would be clearer.
+- [Dockerfile:12] Still no base image digest pin; [docker-compose.yml:40-42] tmpfs without explicit `noexec,nosuid,nodev` (note: the snapserver binary is in the image, not on `/tmp`, so `noexec` is expected to work; confirm on the first run). Both optional for a local rig.
+- [design.md / tech.md] Threat-model paragraph and "do not log or persist raw `Server.GetStatus` (MACs, IPs, host names)" are covered in the control-client rules (no MAC/IP/host in logs); add the persistence/crash-report half in Group 6 docs.
+
+### Verdict: PASS
+All four Warnings of cycle 1 are resolved and verified (W1 and the spike against upstream and by execution); no new Critical or Warning findings. Open items are Suggestions only.
