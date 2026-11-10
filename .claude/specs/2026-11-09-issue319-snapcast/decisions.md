@@ -11,7 +11,7 @@
 **Rationale**: owner's choice (recommended option).
 
 ## 2026-11-09 - Runtime stream creation
-**Context**: `Stream.AddStream` accepts only pipe, file, tcp, alsa, jack, meta (security restriction).
+**Context**: The documentation says `Stream.AddStream` accepts only pipe, file, tcp, alsa, jack, meta (a security restriction), but no such check was found in the sources (`docs/tech.md`); until the rig shows otherwise assume the server accepts any scheme. YAACC only ever creates `tcp` sources and never takes a stream URI from server data.
 **Decision**: YAACC creates a tcp stream per phone (name "YAACC <device name>") on demand and removes it when idle for a while; fallback = documented `snapserver.conf` line when the server answers an error.
 **Rationale**: owner's choice; no manual server setup.
 

@@ -19,7 +19,7 @@
 // THROW-AWAY SPIKE for task 1.5 of the Snapcast spec (#319). Not production code,
 // not part of any Gradle module, never shipped. Plain Java 17, no dependencies:
 //
-//   java FeedSpike.java <host> [seconds] [--burst] [--no-group]
+//   java FeedSpike.java <host> [seconds] [--burst] [--no-group] [--allow-public-host]
 //
 // What it does (the Phase A "feed" path of design.md in miniature):
 //   1. talks newline-delimited JSON-RPC 2.0 to the snapserver control port 1705,
@@ -54,10 +54,11 @@
 // Exit code: 0 = run completed and checks passed, 1 = a check failed or an error
 // occurred, 2 = usage error.
 
-import java.io.BufferedReader;
+import java.io.BufferedInputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
@@ -93,18 +94,32 @@ public final class FeedSpike {
 
     static volatile boolean stopRequested;
 
+    private static boolean isLocalNetwork(String host) {
+        try {
+            InetAddress a = InetAddress.getByName(host);
+            byte[] raw = a.getAddress();
+            boolean uniqueLocal6 = raw.length == 16 && (raw[0] & 0xfe) == 0xfc;
+            return a.isLoopbackAddress() || a.isSiteLocalAddress() || a.isLinkLocalAddress() || uniqueLocal6;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
     // ---- entry point ------------------------------------------------------------
     public static void main(String[] args) {
         String host = null;
         int seconds = 300;
         boolean burst = false;
         boolean moveGroup = true;
+        boolean allowPublic = false;
         boolean secondsGiven = false;
         for (String a : args) {
             if (a.equals("--burst")) {
                 burst = true;
             } else if (a.equals("--no-group")) {
                 moveGroup = false;
+            } else if (a.equals("--allow-public-host")) {
+                allowPublic = true;
             } else if (a.equals("-h") || a.equals("--help")) {
                 usage();
                 return;
@@ -129,6 +144,13 @@ public final class FeedSpike {
         }
         if (host == null || seconds < 1 || seconds > 86_400) {
             usage();
+            Runtime.getRuntime().halt(2);
+        }
+
+        if (!allowPublic && !isLocalNetwork(host)) {
+            System.err.println("refusing " + clean(host) + ": not a loopback, private or link-local address."
+                    + " The spike takes over every group of the server with a test tone; use --allow-public-host only"
+                    + " for a server you own.");
             Runtime.getRuntime().halt(2);
         }
 
@@ -157,12 +179,13 @@ public final class FeedSpike {
     }
 
     static void usage() {
-        System.err.println("usage: java FeedSpike.java <host> [seconds] [--burst] [--no-group]");
+        System.err.println("usage: java FeedSpike.java <host> [seconds] [--burst] [--no-group] [--allow-public-host]");
         System.err.println("  host        snapserver host (control port " + CONTROL_PORT + ", feed ports "
                 + FIRST_FEED_PORT + "-" + (FIRST_FEED_PORT + PORT_TRIES - 1) + ")");
         System.err.println("  seconds     feed duration, default 300");
         System.err.println("  --burst     write without real-time pacing (demonstrates why pacing is needed)");
         System.err.println("  --no-group  do not move a group to the new stream (clients then get no chunks)");
+        System.err.println("  --allow-public-host  accept a host that is not loopback/private/link-local");
     }
 
     // ---- state ------------------------------------------------------------------
@@ -332,7 +355,11 @@ public final class FeedSpike {
                     id = Json.str(Json.at(res, "stream_id"));
                 }
                 if (id == null) {
-                    throw new IOException("Stream.AddStream gave no stream id: " + res);
+                    throw new IOException("Stream.AddStream gave no stream id: " + clean(res));
+                }
+                if (!id.equals(STREAM_NAME)) {
+                    throw new IOException("Stream.AddStream answered the stream id '" + clean(id) + "', not the requested '"
+                            + STREAM_NAME + "'; not touching it");
                 }
                 streamId = id;
                 feedPort = port;
@@ -376,7 +403,7 @@ public final class FeedSpike {
             movedGroupIds.add(gid);
             previousStreamIds.add(prev);
             moved++;
-            System.out.println("group " + gid + " moved from stream '" + prev + "' to '" + streamId + "'");
+            System.out.println("group " + clean(gid) + " moved from stream '" + clean(prev) + "' to '" + streamId + "'");
         }
         if (moved == 0) {
             System.out.println("no group with a connected client found, not moving any group (clients will not receive the stream)");
@@ -402,7 +429,7 @@ public final class FeedSpike {
             }
             try {
                 control.call("Group.SetStream", "{\"id\":" + q(gid) + ",\"stream_id\":" + q(prev) + "}");
-                System.out.println("group " + gid + " restored to stream '" + prev + "'");
+                System.out.println("group " + clean(gid) + " restored to stream '" + clean(prev) + "'");
             } catch (Exception e) {
                 System.out.println("could not restore the group " + gid + ": " + e);
             }
@@ -518,22 +545,22 @@ public final class FeedSpike {
 
     // ---- printing of Server.GetStatus --------------------------------------------------
     private static void describe(Object result) {
-        System.out.println("snapserver version : " + Json.str(Json.at(result, "server", "server", "snapserver", "version")));
+        System.out.println("snapserver version : " + clean(Json.str(Json.at(result, "server", "server", "snapserver", "version"))));
         List<?> groups = Json.list(Json.at(result, "server", "groups"));
         System.out.println("groups             : " + groups.size());
         for (Object g : groups) {
-            System.out.println("  group " + Json.str(Json.at(g, "id")) + " name='" + Json.str(Json.at(g, "name"))
+            System.out.println("  group " + clean(Json.str(Json.at(g, "id"))) + " name='" + clean(Json.str(Json.at(g, "name")))
                     + "' stream='" + Json.str(Json.at(g, "stream_id")) + "'");
             for (Object c : Json.list(Json.at(g, "clients"))) {
                 Object vol = Json.at(c, "config", "volume", "percent");
-                System.out.println("    client " + Json.str(Json.at(c, "id")) + " connected=" + Json.at(c, "connected")
+                System.out.println("    client " + clean(Json.str(Json.at(c, "id"))) + " connected=" + Json.at(c, "connected")
                         + " volume=" + vol);
             }
         }
         List<?> streams = Json.list(Json.at(result, "server", "streams"));
         System.out.println("streams            : " + streams.size());
         for (Object s : streams) {
-            System.out.println("  stream '" + Json.str(Json.at(s, "id")) + "' status=" + Json.str(Json.at(s, "status"))
+            System.out.println("  stream '" + clean(Json.str(Json.at(s, "id"))) + "' status=" + clean(Json.str(Json.at(s, "status")))
                     + " scheme=" + Json.str(Json.at(s, "uri", "scheme")));
         }
     }
@@ -575,13 +602,24 @@ public final class FeedSpike {
         return b.append('"').toString();
     }
 
+    /** Server-supplied text for the terminal: control characters replaced, length capped. */
+    static String clean(Object o) {
+        String t = String.valueOf(o);
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < t.length() && i < 200; i++) {
+            char c = t.charAt(i);
+            b.append(c < 0x20 || c == 0x7f ? '?' : c);
+        }
+        return b.toString();
+    }
+
     // ---- JSON-RPC over the control socket ---------------------------------------------
     static final class RpcException extends Exception {
         private static final long serialVersionUID = 1L;
         final int code;
 
         RpcException(int code, String message) {
-            super("JSON-RPC error " + code + ": " + message);
+            super("JSON-RPC error " + code + ": " + clean(message));
             this.code = code;
         }
     }
@@ -589,7 +627,7 @@ public final class FeedSpike {
     /** Newline-delimited JSON-RPC 2.0 client. One request at a time; notifications are counted and dropped. */
     static final class Control {
         private final Socket socket;
-        private final BufferedReader in;
+        private final InputStream in;
         private final OutputStream out;
         private int nextId = 1;
         volatile int notifications;
@@ -598,8 +636,26 @@ public final class FeedSpike {
             socket = new Socket();
             socket.connect(new InetSocketAddress(host, port), 5000);
             socket.setSoTimeout(10_000);
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+            in = new BufferedInputStream(socket.getInputStream());
             out = socket.getOutputStream();
+        }
+
+        /** Reads one line of at most 1 MiB (the server is not trusted); null at the end of the stream. */
+        private String readLine() throws IOException {
+            java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+            while (true) {
+                int b = in.read();
+                if (b < 0) {
+                    return buf.size() == 0 ? null : buf.toString(StandardCharsets.UTF_8);
+                }
+                if (b == '\n') {
+                    return buf.toString(StandardCharsets.UTF_8);
+                }
+                if (buf.size() >= 1 << 20) {
+                    throw new IOException("control line longer than 1 MiB");
+                }
+                buf.write(b);
+            }
         }
 
         /** Sends a request and returns its "result"; skips notifications and answers to other ids. */
@@ -613,7 +669,7 @@ public final class FeedSpike {
             while (true) {
                 String line;
                 try {
-                    line = in.readLine();
+                    line = readLine();
                 } catch (SocketTimeoutException e) {
                     throw new IOException("no answer to " + method + " within 10 s");
                 }

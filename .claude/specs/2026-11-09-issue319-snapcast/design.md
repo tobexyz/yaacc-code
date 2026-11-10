@@ -78,6 +78,24 @@ Inventory counts (main sources): app code under `de/` only: `getDevice(` 97 uses
 - Control plane through the YAACC renderer: when the renderer's output is "Snapcast group X", the renderer feeds the group (Phase A) and the phone is a client of that same server; volume/mute of the renderer map to the phone client's volume (`ClientInfo` message and `Client.SetVolume`); the local direct audio output is switched off so the phone plays only what comes from the server (stays in sync with the other clients).
 - Runs as a foreground service with a wake lock only while it plays; Wi-Fi lock.
 
+## Security rules (security review of Group 1, 2026-11-10)
+A snapserver may be hostile or spoofed (mDNS is unauthenticated and carries no TXT records, any LAN host can advertise one), so everything it sends is untrusted.
+**Control client (`SnapcastRpc`, task 2.x)**
+- Read bytes, not `readLine()`: a line is capped at 1 MiB at the byte level; the connection is dropped on a longer line. Every call has an overall deadline (default 10 s) as well as the per-read timeout, so a dripping sender cannot hold a call.
+- Before a line goes to `org.json`, a byte-level pre-scan rejects nesting deeper than 32 and a line with more than 10 000 tokens; `StackOverflowError` is not an `Exception`, so the guard must come first (precedent: `YxcJson.parseObject`, a quote-aware depth scan plus a handler). Parsing happens on the RPC worker only.
+- Caps: batch arrays at most 64 elements; at most 64 groups, 256 clients per group, 64 streams; strings (names, ids, URIs) at most 1 KiB, truncated; numbers clamped (volume 0-100, latency 0-10 000 ms); unknown notifications are ignored, not queued.
+- "Re-read on doubt" is rate-limited (at most one full `Server.GetStatus` per second, at most 10 per minute); reconnects use backoff up to 30 s and stop after 5 failures until the user (or the receivers page becoming visible) retries.
+- Server-supplied names and ids are display text only: never used as an identity key, never written to logs together with MAC/IP/host names (log counts and ids' hashes instead), shown escaped in the UI.
+**Feeder and stream handling (tasks 4.x)**
+- The feed connects only to the **peer address of the control connection** (the `InetAddress` YAACC itself connected to) and the port YAACC asked for; a host, port or URI in a server reply is never a connect target. The server reports `0.0.0.0:<port>`; that is only used to match, not to connect.
+- The stream name carries a random per-install marker (`YAACC <phone name> <marker>`); YAACC removes only stream ids it recorded itself, restores a group's previous stream only if the group is still on YAACC's stream, and adopts an existing stream with that marker only if it is `tcp`, `mode=server` and in the expected format.
+- The phone name in the stream URI is percent-encoded in full (a name such as `a&mode=client` must stay inside the `name` value; unit test).
+- The free port is chosen by YAACC from its own range (4953 and up) and checked against the status, with a bounded number of tries.
+**Discovery and servers (tasks 3.x)**
+- Accept only addresses in loopback, private, link-local or unique-local ranges; cap the number of discovered servers (default 16); connect lazily (when the receivers page is visible and for servers that are listed or chosen); no automatic feed to a server the user has not picked; manual `host[:port]` entries are validated strictly (host name or IP literal, port 1-65535).
+- No credentials stored (authorization is out of scope); multicast lock only while the page is visible.
+**Residual risk (documented, not removed):** the TCP feed port on the snapserver is unauthenticated, so a LAN host that sees the stream port can also push audio into YAACC's stream; this is a property of Snapcast's tcp source and is documented in the README. The rig is for trusted machines only.
+
 ## Interfaces & Contracts
 - `SnapcastRpc.call(method, params) -> JSONObject` (blocking with timeout, used from the worker), `SnapcastRpc.addListener(Notification)`; `SnapcastModel` (server, groups, clients, streams) immutable; `SnapcastDirectory` (servers, groups, merged ids); `PcmFeeder` (`start(format)`, `write(byte[], len)`, `stop()`); all with injectable transports so JVM tests use a loopback fake server (as `YxcClient` does with a fake YXC server, `Host = localhost`).
 - Persistence: manual server list in preferences; the stream names/ids YAACC created, to clean up after a crash.

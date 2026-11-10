@@ -30,9 +30,10 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        # Pinned Snapcast git ref. Override with SNAPCAST_REF=<tag> docker compose up --build
-        SNAPCAST_REF: ${SNAPCAST_REF:-v0.35.0}
-    image: yaacc-snapcast-rig:${SNAPCAST_REF:-v0.35.0}
+        # Pinned Snapcast commit (full hash, see the Dockerfile). Override with
+        # SNAPCAST_COMMIT=<hash> docker compose up --build
+        SNAPCAST_COMMIT: ${SNAPCAST_COMMIT:-ea981ec5ec0805dfc9b4af3979090c325abf501d}
+    image: yaacc-snapcast-rig:${SNAPCAST_COMMIT:-ea981ec5ec0805dfc9b4af3979090c325abf501d}
     hostname: rig-snapserver
     command: ["snapserver", "-c", "/etc/snapserver/snapserver.conf"]
     volumes:
@@ -46,8 +47,6 @@ services:
       - "127.0.0.1:1704:1704"
       # JSON-RPC over TCP (newline-delimited), what YAACC's control library uses
       - "127.0.0.1:1705:1705"
-      # HTTP JSON-RPC and websocket control
-      - "127.0.0.1:1780:1780"
       # tcp stream sources created at runtime with Stream.AddStream
       # (tcp://0.0.0.0:<port>?mode=server, the producer connects to the host port)
       - "127.0.0.1:4953-4962:4953-4962"
@@ -62,7 +61,7 @@ services:
   snapclient-1:
     <<: *rig-hardening
     # same image as the server, built by the snapserver service (never pulled)
-    image: yaacc-snapcast-rig:${SNAPCAST_REF:-v0.35.0}
+    image: yaacc-snapcast-rig:${SNAPCAST_COMMIT:-ea981ec5ec0805dfc9b4af3979090c325abf501d}
     pull_policy: never
     hostname: rig-client-1
     # Client id on the server = hostID (instance 1 adds no suffix): "rig-host-1".
@@ -86,7 +85,7 @@ services:
 
   snapclient-2:
     <<: *rig-hardening
-    image: yaacc-snapcast-rig:${SNAPCAST_REF:-v0.35.0}
+    image: yaacc-snapcast-rig:${SNAPCAST_COMMIT:-ea981ec5ec0805dfc9b4af3979090c325abf501d}
     pull_policy: never
     hostname: rig-client-2
     # Instance 2 makes the server id "<hostID>#2" = "rig-host-2#2", so the rig also

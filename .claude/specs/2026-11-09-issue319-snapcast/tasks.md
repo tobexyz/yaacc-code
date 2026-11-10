@@ -28,9 +28,11 @@ Rules: spec first, tests first for the pure parts; all new strings in values + d
 - [ ] 2.1 Models and parsing: `SnapcastServerStatus`, `SnapcastGroup`, `SnapcastClient`, `SnapcastStream`, volume, errors | `yaacc/src/main/java/de/yaacc/multiroom/control/`, tests `SnapcastModelTest`
   - **Accept**: all fixtures parse; unknown fields are ignored; missing optional fields give defaults; no exception escapes on malformed JSON (a typed error instead).
   - **Verify**: `./gradlew :yaacc:testDebugUnitTest --tests 'de.yaacc.multiroom.control.*'` green.
+  - **Constraints (security)**: the limits of design.md "Security rules" apply; tests with hostile input (nesting 10 000 deep, a 2 MiB line, 100 000-element batch, huge strings, out-of-range numbers) must pass without an `Error` or unbounded memory.
 - [ ] 2.2 `SnapcastRpc` (ndjson over TCP, ids, pending map, 5 s timeout, notification listeners, reconnect with backoff, serial worker) | same package, tests with a loopback fake server (`setCanonicalHostName("localhost")` as in the existing fake servers)
   - **Accept**: request/response match by id; a notification between two responses is delivered; a lost connection fails pending calls and reconnects; line length capped (1 MiB) and a flood does not grow memory; listeners are called off the socket thread.
   - **Verify**: `SnapcastRpcTest` green, including the cap and the reconnect cases.
+  - **Constraints (security)**: byte-level line cap, overall deadline per call, depth pre-scan before `org.json`, rate-limited re-read, reconnect ceiling (design.md "Security rules").
 - [ ] 2.3 `SnapcastModelUpdater`: patch the model from notifications, re-read on doubt | same package
   - **Accept**: each notification of the fixtures produces the same state as a fresh `Server.GetStatus`; an unknown notification triggers a re-read.
   - **Verify**: `SnapcastModelUpdaterTest`.
@@ -44,6 +46,7 @@ Rules: spec first, tests first for the pure parts; all new strings in values + d
   - **Accept**: two sightings of one server give one entry; a lost service is removed after the live-update grace; manual servers survive restarts; nothing is scanned outside the receivers page lifetime.
   - **Verify**: `SnapcastDirectoryTest`.
   - **Constraints**: multicast lock only while needed; no extra permission beyond what NsdManager needs.
+  - **Constraints (security)**: only loopback/private/link-local/unique-local addresses, at most 16 servers, lazy connect, strict manual entry validation; names and ids from servers are display text only.
 - [ ] 3.2 `SnapcastGroupDevice` + `SnapcastDirectory` integrated into `UpnpClient` lists/lookups as decided in 1.4 | `de.yaacc.multiroom`, `de.yaacc.upnp.UpnpClient`
   - **Accept**: a group appears in `getDevicesProvidingAvTransportService()` and resolves by `getDevice(id)`; it is never in Cling's registry (never advertised); a group that vanishes is dropped from the list and from stored receiver selections without a crash.
   - **Verify**: `SnapcastGroupDeviceTest`, `UpnpClientReceiversTest` (new), existing receiver tests unchanged.
@@ -58,9 +61,11 @@ Rules: spec first, tests first for the pure parts; all new strings in values + d
 - [ ] 4.2 `PcmFeeder` + `RealTimePacer` (pure pacing math, injectable clock) | `de.yaacc.multiroom.feed`, tests
   - **Accept**: never more than the allowed look-ahead; after a stall it does not burst (drops/pads silence by rule); format conversion (rate, channels, 16 bit) is bit-exact where no conversion is needed.
   - **Verify**: `RealTimePacerTest`, `PcmFormatConverterTest`.
+  - **Constraints (security)**: the feed connects only to the control connection's peer address and the port YAACC requested; never to a host or port from a server reply.
 - [ ] 4.3 `SnapcastStreams` (ensure/add, SetStream with restore, idle cleanup, name marker, crash recovery of leftover YAACC streams) | `de.yaacc.multiroom.feed`, tests with the fake RPC server
   - **Accept**: no second stream for one phone; the previous group stream is restored on stop; only streams carrying the YAACC marker are ever removed; an AddStream error gives a typed result for the UI (static source hint).
   - **Verify**: `SnapcastStreamsTest`.
+  - **Constraints (security)**: random per-install name marker, percent-encoded name (`a&mode=client` test), remove/restore only what YAACC recorded and only while still on its stream.
 - [ ] 4.4 `SnapcastPlayer` (queue, play/pause/stop/next/previous/seek, state reporting to the existing player UI, volume = group volume) and `PlayerService.createPlayer` wiring | `de.yaacc.player`
   - **Accept**: the same behaviors as the local music player for a queue, plus the buffer delay noted in the UI; one player per group; sharing/Play-on flow picks a Snapcast group like any receiver.
   - **Verify**: `SnapcastPlayerTest` (fake feeder), existing player tests green.

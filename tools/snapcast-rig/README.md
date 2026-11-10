@@ -30,11 +30,14 @@ The tags were written without network access and **must be checked once**:
 - Base image `debian:12.12-slim` (`ARG DEBIAN_TAG` in the `Dockerfile`). Look it
   up at <https://hub.docker.com/_/debian/tags?name=12.> and bump to an existing
   `12.<n>-slim` tag if needed. No `latest` or floating tag is used.
-- Snapcast `v0.35.0` (`ARG SNAPCAST_REF`, overridable:
-  `SNAPCAST_REF=v0.35.0 docker compose up --build`). Check it at
-  <https://github.com/snapcast/snapcast/tags>. Optionally pin the commit with
-  `--build-arg SNAPCAST_COMMIT=<full hash>`; the build fails if the tag resolves
-  to another commit.
+- Snapcast is built from the exact commit `ea981ec5ec0805dfc9b4af3979090c325abf501d`
+  (`ARG SNAPCAST_COMMIT`, the `develop` commit of 2026-11-03 that
+  `docs/tech.md` was read on; CMake version 0.35.0). The build fetches the commit
+  by hash and fails if the hash is malformed or the fetched commit differs, so no
+  moving tag is involved. Override with `SNAPCAST_COMMIT=<40 hex characters>
+  docker compose up --build`. If GitHub no longer serves that commit by hash,
+  pick another full hash, re-read the **rig** items of `docs/tech.md` and note it
+  here. The `v0.35.0` tag may differ from this commit.
 - The Debian package names in the `Dockerfile` (`libflac12`, `libsoxr0`, ...) are
   for Debian 12. If the first build fails on a missing package or library, fix
   the list and note it here.
@@ -59,7 +62,6 @@ between runs (its data directory is a tmpfs).
 | --- | --- |
 | 1704 | stream protocol (snapclients; Phase B: the phone as a client) |
 | 1705 | JSON-RPC 2.0 over TCP, newline-delimited: the control interface |
-| 1780 | HTTP JSON-RPC (`POST /jsonrpc`) and websocket control; no web UI is installed |
 | 4953-4962 | `tcp` stream sources created at runtime with `Stream.AddStream` |
 
 ## Look at it: the control socket
@@ -209,18 +211,27 @@ run, so CI needs no Docker. Tests expect exactly the layout of this rig: stream
   this rig; use the manual server entry. A server with Avahi on a real host is
   needed for that.
 - **No authentication and no TLS.** The authorization and HTTPS paths of
-  Snapcast are not exercised.
+  Snapcast are not exercised. "Loopback only" is not "private": every local
+  process can use the control port, so run the rig only on a machine you trust.
+  The HTTP/websocket listener (1780) is disabled and not published, because a
+  web page in your browser could reach it.
+- **Stream URI schemes.** The documentation says `Stream.AddStream` accepts only
+  `pipe`, `file`, `tcp`, `alsa`, `jack` and `meta`, but no such check was found in
+  the sources. Once, on the first run, probe it:
+  `{"id":9,"jsonrpc":"2.0","method":"Stream.AddStream","params":{"streamUri":"process:///bin/true?name=probe"}}`
+  and write the answer to `docs/tech.md`. If it is accepted, an unauthenticated
+  control connection can start programs in the container.
 - **Loopback only.** Network effects (Wi-Fi jitter, power save, packet loss) are not
   reproduced; loopback socket buffers are also much larger than on a real
   network, which hides back pressure in short feed tests.
-- **Version.** One Snapcast version at a time (`SNAPCAST_REF`). Behavior of older
+- **Version.** One Snapcast commit at a time (`SNAPCAST_COMMIT`). Behavior of older
   or newer servers must be checked by rebuilding with another ref.
 - **Mixer and codecs.** Clients use the software mixer; all codecs the image was
   built with (flac, pcm, ogg, opus) can be selected per stream.
 
 ## Troubleshooting
 
-- `port is already allocated`: another process uses 1704, 1705, 1780 or one of
+- `port is already allocated`: another process uses 1704, 1705 or one of
   4953-4962 on the host.
 - `snapserver` unhealthy: `docker compose logs snapserver` shows the reason
   (config parse error, a missing library, an unwritable `/tmp`).
@@ -230,3 +241,5 @@ run, so CI needs no Docker. Tests expect exactly the layout of this rig: stream
   earlier run still holds that port; remove it with `Stream.RemoveStream` or use
   the next port. "Stream with name '...' already exists" means the stream name
   is taken.
+
+After using `adb reverse`, undo it with `adb reverse --remove-all`.

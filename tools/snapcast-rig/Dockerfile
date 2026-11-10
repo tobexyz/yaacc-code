@@ -6,7 +6,8 @@
 # Both pins below must be checked at the first build (the tags are written from
 # memory, not verified in the sandbox this file was authored in):
 #   - DEBIAN_TAG:    https://hub.docker.com/_/debian/tags?name=12.
-#   - SNAPCAST_REF:  https://github.com/snapcast/snapcast/tags
+#   - SNAPCAST_COMMIT: the commit the YAACC notes (docs/tech.md) were read on; it is fetched by hash
+#                      and verified, so the build cannot silently get other sources.
 # No "latest" or floating tag is used anywhere.
 
 ARG DEBIAN_TAG=12.12-slim
@@ -14,9 +15,9 @@ ARG DEBIAN_TAG=12.12-slim
 # ---------------------------------------------------------------- build stage
 FROM debian:${DEBIAN_TAG} AS build
 
-ARG SNAPCAST_REF=v0.35.0
-# Optional integrity check: full commit hash the tag must resolve to (empty = skip).
-ARG SNAPCAST_COMMIT=
+# Full 40-character commit hash of snapcast/snapcast (develop at 2026-11-03, CMake version 0.35.0).
+# The build fetches exactly this commit and fails if the hash is malformed or does not match.
+ARG SNAPCAST_COMMIT=ea981ec5ec0805dfc9b4af3979090c325abf501d
 # Parallel compile jobs; keep low, the C++ build is memory hungry.
 ARG BUILD_JOBS=2
 
@@ -41,11 +42,16 @@ RUN apt-get update \
         pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-RUN git clone --depth 1 --branch "${SNAPCAST_REF}" https://github.com/snapcast/snapcast.git /src \
-    && if [ -n "${SNAPCAST_COMMIT}" ]; then \
-         test "$(git -C /src rev-parse HEAD)" = "${SNAPCAST_COMMIT}" \
-           || { echo "SNAPCAST_REF ${SNAPCAST_REF} does not match SNAPCAST_COMMIT" >&2; exit 1; }; \
-       fi
+RUN printf '%s' "${SNAPCAST_COMMIT}" | grep -Eq '^[0-9a-f]{40}$' \
+    || { echo "SNAPCAST_COMMIT must be a full 40 character lowercase commit hash" >&2; exit 1; }; \
+    git init /src \
+    && git -C /src remote add origin https://github.com/snapcast/snapcast.git \
+    && git -C /src fetch --depth 1 origin "${SNAPCAST_COMMIT}" \
+    && git -C /src checkout --detach FETCH_HEAD \
+    && test "$(git -C /src rev-parse HEAD)" = "${SNAPCAST_COMMIT}" \
+         || { echo "fetched commit does not match SNAPCAST_COMMIT" >&2; exit 1; }
+# The sources have no git submodules and the CMake configure step (BUILD_TESTS=OFF) downloads
+# nothing (FetchContent is used only for the tests); re-check this when the commit is changed.
 
 WORKDIR /src
 
