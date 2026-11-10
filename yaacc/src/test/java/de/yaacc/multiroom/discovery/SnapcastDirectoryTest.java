@@ -330,4 +330,152 @@ public class SnapcastDirectoryTest {
         assertTrue(directory.expire());
         assertFalse(directory.expire());
     }
+
+    // ---- remembered servers (the server of a selected group, known again after a restart)
+
+    @Test
+    public void aRememberedServerIsListedWithoutBeingAnnounced() {
+        directory.setRememberedServers(Collections.singletonList(manual("192.168.1.5:1705")));
+
+        List<SnapcastDirectory.Entry> servers = directory.servers();
+        assertEquals(1, servers.size());
+        assertTrue(servers.get(0).isRemembered());
+        assertFalse(servers.get(0).isManual());
+        assertFalse(servers.get(0).isDiscovered());
+        assertFalse(servers.get(0).isLost());
+    }
+
+    @Test
+    public void aRememberedServerDoesNotExpireByTimeAlone() {
+        directory.setRememberedServers(Collections.singletonList(manual("192.168.1.5:1705")));
+
+        now.addAndGet(GRACE * 100);
+
+        assertEquals("nothing is scanned outside the page, so nothing may age it out", 1, directory.servers().size());
+    }
+
+    @Test
+    public void whenDiscoveryRestartsARememberedServerThatIsNotSeenGoesAfterTheGrace() {
+        directory.setRememberedServers(Collections.singletonList(manual("192.168.1.5:1705")));
+
+        directory.discoveryRestarted();
+        now.addAndGet(GRACE - 1);
+        assertEquals(1, directory.servers().size());
+        now.addAndGet(1);
+
+        assertTrue(directory.servers().isEmpty());
+    }
+
+    @Test
+    public void aRememberedServerThatIsAnnouncedInTheGraceStays() throws Exception {
+        directory.setRememberedServers(Collections.singletonList(manual("192.168.1.5:1705")));
+        directory.discoveryRestarted();
+
+        directory.serviceFound("Snapcast", ip(192, 168, 1, 5), 1705);
+        now.addAndGet(GRACE * 3);
+
+        List<SnapcastDirectory.Entry> servers = directory.servers();
+        assertEquals(1, servers.size());
+        assertTrue(servers.get(0).isDiscovered());
+        assertTrue(servers.get(0).isRemembered());
+    }
+
+    @Test
+    public void aServerThatIsNoLongerRememberedGoesWhenItIsNotAnnounced() {
+        directory.setRememberedServers(Collections.singletonList(manual("192.168.1.5:1705")));
+
+        directory.setRememberedServers(Collections.<SnapcastEndpoint>emptyList());
+
+        assertTrue(directory.servers().isEmpty());
+    }
+
+    @Test
+    public void aServerThatIsNoLongerRememberedStaysWhileItIsAnnounced() throws Exception {
+        directory.serviceFound("Snapcast", ip(192, 168, 1, 5), 1705);
+        directory.setRememberedServers(Collections.singletonList(manual("192.168.1.5:1705")));
+
+        directory.setRememberedServers(Collections.<SnapcastEndpoint>emptyList());
+
+        assertEquals(1, directory.servers().size());
+        assertFalse(directory.servers().get(0).isRemembered());
+    }
+
+    @Test
+    public void rememberingAManualServerDoesNotMakeItDisappearWithTheList() {
+        directory.setManualServers(Collections.singletonList(manual("192.168.1.5")));
+        directory.setRememberedServers(Collections.singletonList(manual("192.168.1.5")));
+
+        directory.setRememberedServers(Collections.<SnapcastEndpoint>emptyList());
+
+        assertEquals(1, directory.servers().size());
+        assertTrue(directory.servers().get(0).isManual());
+    }
+
+    @Test
+    public void aServerThatLeavesTheManualListStaysWhileItIsRemembered() {
+        directory.setManualServers(Collections.singletonList(manual("192.168.1.5")));
+        directory.setRememberedServers(Collections.singletonList(manual("192.168.1.5")));
+
+        directory.setManualServers(Collections.<SnapcastEndpoint>emptyList());
+
+        assertEquals(1, directory.servers().size());
+        assertFalse(directory.servers().get(0).isManual());
+    }
+
+    @Test
+    public void rememberedServersAreCappedAndNeverTakeTheRoomOfTheOthers() throws Exception {
+        for (int i = 1; i <= SnapcastDirectory.MAX_SERVERS; i++) {
+            directory.serviceFound("S" + i, ip(10, 0, 0, i), 1705);
+        }
+        List<SnapcastEndpoint> remembered = new ArrayList<>();
+        for (int i = 100; i < 140; i++) {
+            remembered.add(manual("10.0.1." + i));
+        }
+
+        directory.setRememberedServers(remembered);
+
+        assertEquals(SnapcastDirectory.MAX_SERVERS, directory.servers().size());
+        for (SnapcastDirectory.Entry entry : directory.servers()) {
+            assertTrue("the announced servers were not pushed out", entry.isDiscovered());
+        }
+    }
+
+    @Test
+    public void rememberedServersAreNotAcceptedWithoutAnAddress() {
+        // a host name has to be looked up; only an address that was seen (and filtered) is remembered
+        directory.setRememberedServers(Arrays.asList(manual("snap.local"), manual("8.8.8.8"), null));
+
+        assertTrue(directory.servers().isEmpty());
+    }
+
+    // ---- the quiet snapshot (for code that holds a lock of its own)
+
+    @Test
+    public void theSnapshotListsTheServersAndLeavesOutTheExpiredOnesWithoutTellingAnyone() throws Exception {
+        directory.serviceFound("A", ip(192, 168, 1, 5), 1705);
+        directory.serviceFound("B", ip(192, 168, 1, 6), 1705);
+        directory.serviceLost("B");
+        int told = notifications;
+
+        assertEquals(2, directory.snapshot().size());
+        now.addAndGet(GRACE);
+        List<SnapcastDirectory.Entry> snapshot = directory.snapshot();
+
+        assertEquals(1, snapshot.size());
+        assertEquals(key("192.168.1.5:1705"), snapshot.get(0).getKey());
+        assertEquals("a snapshot never calls a listener", told, notifications);
+        assertEquals("the entry is removed (and the listeners told) by the next real call", 1, directory.servers().size());
+        assertTrue(notifications > told);
+    }
+
+    @Test
+    public void theSnapshotIsSortedLikeTheList() throws Exception {
+        directory.serviceFound("B", ip(192, 168, 1, 9), 1705);
+        directory.serviceFound("A", ip(192, 168, 1, 5), 1705);
+
+        List<SnapcastDirectory.Entry> snapshot = directory.snapshot();
+
+        assertEquals(key("192.168.1.5:1705"), snapshot.get(0).getKey());
+        assertEquals(key("192.168.1.9:1705"), snapshot.get(1).getKey());
+    }
 }

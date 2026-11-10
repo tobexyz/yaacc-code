@@ -147,6 +147,21 @@ public class SnapcastEndpointTest {
     }
 
     @Test
+    public void aLeadingZeroInAnIpv4PartIsRefused() {
+        // inet_aton and many tools read 010 as octal 8: the same text must not mean two hosts
+        assertInvalid("010.0.0.1");
+        assertInvalid("10.00.0.1");
+        assertInvalid("10.0.000.1");
+        assertInvalid("10.0.0.01");
+        assertInvalid("192.168.001.5:1705");
+        assertInvalid("[::ffff:010.0.0.1]");
+        assertValid("10.0.0.1", "10.0.0.1", 1705);
+        assertValid("0.0.0.1", "0.0.0.1", 1705);
+        assertValid("10.0.0.0", "10.0.0.0", 1705);
+        assertValid("100.200.250.255", "100.200.250.255", 1705);
+    }
+
+    @Test
     public void aNumericLookingNameIsNotAHostName() {
         assertInvalid("1.2.3");
         assertInvalid("256.1.1.1");

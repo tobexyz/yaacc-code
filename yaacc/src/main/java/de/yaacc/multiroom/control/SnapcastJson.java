@@ -196,6 +196,10 @@ final class SnapcastJson {
             return null;
         }
         int length = Math.min(text.length(), max);
+        if (length > 0 && length < text.length() && Character.isHighSurrogate(text.charAt(length - 1))
+                && Character.isLowSurrogate(text.charAt(length))) {
+            length--; // the cut would leave half of a pair (a lone surrogate shows as a replacement glyph)
+        }
         StringBuilder out = new StringBuilder(length);
         for (int i = 0; i < length; i++) {
             char c = text.charAt(i);

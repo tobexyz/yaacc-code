@@ -56,7 +56,14 @@ import de.yaacc.multiroom.discovery.SnapcastServerKey;
  *   (its grace is over; a manual server never leaves) takes its groups with it; a group that is no longer in a fresh
  *   status disappears. At most {@value #MAX_GROUPS} groups are listed.</li>
  * </ul>
- * Thread safe; no lock is held while a link or a listener is called.
+ * Thread safe; no lock is held while a link or a listener is called. The list of servers is read under the lock (a quiet
+ * {@link SnapcastDirectory#snapshot snapshot}; the sweep of the expired ones happens before, outside the lock), so a
+ * server that left is never reconciled from an out-of-date list.
+ *
+ * <p><b>Identity.</b> {@link #groups()} and {@link #findGroup} return the same {@link SnapcastGroupDevice} instance for
+ * a group for as long as its name, offline flag, stream and number of members stay the same (the lists compare
+ * devices by identity); a changed group gets a new instance, a vanished one is forgotten.
+ * A stored selection of a group whose server is listed but has not answered yet is {@link #isPending pending}.
  */
 public final class SnapcastReceivers implements SnapcastGroupSource {
 
@@ -91,6 +98,8 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
     private final Map<SnapcastServerKey, Integer> retained = new HashMap<>();
     private final Set<SnapcastServerKey> woken = new HashSet<>();
     private final CopyOnWriteArrayList<ChangeListener> listeners = new CopyOnWriteArrayList<>();
+    // the last device made for each group id (guarded by lock); see deviceLocked
+    private final Map<String, SnapcastGroupDevice> cache = new HashMap<>();
     private int visible;
     private long closeGeneration;
     private boolean tickRunning;
@@ -117,9 +126,10 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
 
     /** A page that shows receivers became visible: connect to the listed servers (and retry the ones that are down). */
     public void pageStarted() {
-        List<SnapcastDirectory.Entry> entries = directory.servers();
+        directory.expire(); // sweeps and tells the listeners here, outside the lock; the list is read under the lock below
         Work work = new Work();
         synchronized (lock) {
+            List<SnapcastDirectory.Entry> entries = directory.snapshot();
             visible++;
             closeGeneration++; // a close that is waiting is out of date
             reconcileLocked(entries, true, work);
@@ -147,9 +157,10 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
 
     /** Keeps the link to a listed server open without a page (a player that feeds it); see {@link #release}. */
     public void retain(SnapcastServerKey key) {
-        List<SnapcastDirectory.Entry> entries = directory.servers();
+        directory.expire();
         Work work = new Work();
         synchronized (lock) {
+            List<SnapcastDirectory.Entry> entries = directory.snapshot();
             Integer count = retained.get(key);
             retained.put(key, count == null ? 1 : count + 1);
             reconcileLocked(entries, false, work);
@@ -187,10 +198,11 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
         if (wanted.isEmpty()) {
             return;
         }
-        List<SnapcastDirectory.Entry> entries = directory.servers();
+        directory.expire();
         Work work = new Work();
         boolean any = false;
         synchronized (lock) {
+            List<SnapcastDirectory.Entry> entries = directory.snapshot();
             for (SnapcastDirectory.Entry entry : entries) {
                 if (wanted.contains(entry.getKey())) {
                     woken.add(entry.getKey());
@@ -219,6 +231,7 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
             views.clear();
             retained.clear();
             woken.clear();
+            cache.clear();
         }
         work.run();
         fire();
@@ -367,9 +380,10 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
     }
 
     private void onServersChanged() {
-        List<SnapcastDirectory.Entry> entries = directory.servers();
         Work work = new Work();
         synchronized (lock) {
+            // read under the lock: two threads that are told of two changes apply them in the order of the lock
+            List<SnapcastDirectory.Entry> entries = directory.snapshot();
             reconcileLocked(entries, false, work);
         }
         work.run();
@@ -407,19 +421,27 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
     public List<SnapcastGroupDevice> groups() {
         List<SnapcastDirectory.Entry> entries = directory.servers();
         List<SnapcastGroupDevice> result = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
         synchronized (lock) {
+            SnapcastGroupDevice.Labels texts = labels.get();
+            servers:
             for (SnapcastDirectory.Entry entry : entries) {
                 View view = views.get(entry.getKey());
                 if (view == null || view.status == null) {
                     continue;
                 }
                 for (SnapcastGroup group : view.status.getGroups()) {
-                    SnapcastGroupDevice device = SnapcastGroupDevice.of(entry.getKey(), group, !view.online, labels.get());
+                    if (result.size() >= MAX_GROUPS) {
+                        break servers; // the rest would be cut anyway: do not build it
+                    }
+                    SnapcastGroupDevice device = deviceLocked(entry.getKey(), group, !view.online, texts);
                     if (device != null) {
                         result.add(device);
+                        seen.add(device.getIdentity().getUdn().getIdentifierString());
                     }
                 }
             }
+            cache.keySet().retainAll(seen); // a group that vanished takes its snapshot with it
         }
         Collections.sort(result, new Comparator<SnapcastGroupDevice>() {
             @Override
@@ -430,7 +452,29 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
                         .compareTo(b.getIdentity().getUdn().getIdentifierString());
             }
         });
-        return result.size() > MAX_GROUPS ? new ArrayList<>(result.subList(0, MAX_GROUPS)) : result;
+        return result;
+    }
+
+    /**
+     * The device of a group: the one made before while nothing visible changed (name, offline flag, stream and number
+     * of members), so that the lists, which compare devices by identity, see the same row; else a new one.
+     */
+    private SnapcastGroupDevice deviceLocked(SnapcastServerKey key, SnapcastGroup group, boolean offline,
+                                             SnapcastGroupDevice.Labels texts) {
+        if (!SnapcastGroupDevice.isSafeGroupId(group.getId())) {
+            return null;
+        }
+        String id = SnapcastGroupDevice.idOf(key, group.getId());
+        SnapcastGroupDevice known = cache.get(id);
+        if (known != null && known.showsSame(SnapcastGroupDevice.nameOf(group, offline, texts), offline, group.getStreamId(),
+                group.getClients().size())) {
+            return known;
+        }
+        SnapcastGroupDevice device = SnapcastGroupDevice.of(key, group, offline, texts);
+        if (device != null) {
+            cache.put(id, device);
+        }
+        return device;
     }
 
     @Override
@@ -445,7 +489,25 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
                 return null;
             }
             SnapcastGroup group = view.status.findGroup(id.getGroupId());
-            return group == null ? null : SnapcastGroupDevice.of(id.getServerKey(), group, !view.online, labels.get());
+            return group == null ? null : deviceLocked(id.getServerKey(), group, !view.online, labels.get());
         }
+    }
+
+    @Override
+    public boolean isPending(String receiverId) {
+        SnapcastGroupDevice.Id id = SnapcastGroupDevice.parseId(receiverId);
+        if (id == null || directory.find(id.getServerKey()) == null) {
+            return false;
+        }
+        synchronized (lock) {
+            View view = views.get(id.getServerKey());
+            return view == null || view.status == null; // answered: the group is there (found) or gone (not pending)
+        }
+    }
+
+    /** The selection is kept by {@link SnapcastSelectedServers} (the hub); the receivers have nothing to remember. */
+    @Override
+    public void selectionChanged(Collection<String> receiverIds) {
+        // nothing: see SnapcastHub
     }
 }

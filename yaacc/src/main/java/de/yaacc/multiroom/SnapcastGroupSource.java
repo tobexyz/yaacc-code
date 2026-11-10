@@ -44,6 +44,16 @@ public interface SnapcastGroupSource {
         public void wake(Collection<String> receiverIds) {
             // nothing to wake
         }
+
+        @Override
+        public boolean isPending(String receiverId) {
+            return false;
+        }
+
+        @Override
+        public void selectionChanged(Collection<String> receiverIds) {
+            // nothing to remember
+        }
     };
 
     /** The groups of the servers that are listed, as of the last status of each server. Cheap: no network. */
@@ -57,4 +67,18 @@ public interface SnapcastGroupSource {
      * {@code receiverIds} (and to no other), so that their groups are known soon. Does not block.
      */
     void wake(Collection<String> receiverIds);
+
+    /**
+     * True for the id of a group whose server is listed but has not delivered its status yet (a cold start, or a
+     * connection that is still coming up): the group is not known, but it is not gone either. The caller keeps such an
+     * id in a stored selection instead of dropping it. False for a group that is known, for a server that is not
+     * listed (any more), for a server that answered without the group, and for anything that is not a group id.
+     */
+    boolean isPending(String receiverId);
+
+    /**
+     * The stored selection changed (the ids of all selected receivers, of any kind): remember the servers of the
+     * selected groups across a restart, forget the others. Does not block on the network.
+     */
+    void selectionChanged(Collection<String> receiverIds);
 }

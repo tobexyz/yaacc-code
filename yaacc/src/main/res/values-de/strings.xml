@@ -297,4 +297,5 @@
     <string name="notification_download_to">Download nach: %1$s</string>
     <string name="snapcast_group">Snapcast-Gruppe</string>
     <string name="snapcast_offline">offline</string>
+    <string name="snapcast_play_not_available">Die Wiedergabe auf Snapcast-Gruppen ist noch nicht verfügbar</string>
 </resources>

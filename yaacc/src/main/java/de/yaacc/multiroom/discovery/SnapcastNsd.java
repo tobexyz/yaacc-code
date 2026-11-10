@@ -62,6 +62,7 @@ public final class SnapcastNsd {
     private NsdManager nsdManager;
     private WifiManager.MulticastLock multicastLock;
     private NsdManager.DiscoveryListener discoveryListener;
+    private SnapcastBrowseHandle browseHandle;
     private boolean started;
     private int generation;
 
@@ -87,9 +88,12 @@ public final class SnapcastNsd {
         acquireMulticastLock();
         directory.discoveryRestarted();
         final int myGeneration = ++generation;
+        final SnapcastBrowseHandle handle = new SnapcastBrowseHandle();
+        browseHandle = handle;
         discoveryListener = new NsdManager.DiscoveryListener() {
             @Override
             public void onStartDiscoveryFailed(String serviceType, int errorCode) {
+                handle.onStartFailed();
                 YaaccLogger.w(SnapcastNsd.class.getName(), "Snapcast discovery did not start, code " + errorCode);
                 stopIfCurrent(myGeneration);
             }
@@ -101,7 +105,10 @@ public final class SnapcastNsd {
 
             @Override
             public void onDiscoveryStarted(String serviceType) {
-                // nothing to do: the services arrive through onServiceFound
+                // the services arrive through onServiceFound; a stop that came before this is made now
+                if (handle.onStarted()) {
+                    stopBrowse(this);
+                }
             }
 
             @Override
@@ -111,8 +118,9 @@ public final class SnapcastNsd {
 
             @Override
             public void onServiceFound(NsdServiceInfo info) {
-                if (info == null || info.getServiceType() == null || !info.getServiceType().startsWith(SERVICE_TYPE)) {
-                    return; // another type
+                if (info == null || info.getServiceType() == null || !info.getServiceType().startsWith(SERVICE_TYPE)
+                        || !isCurrent(myGeneration)) {
+                    return; // another type, or an earlier browse whose stop is still waiting for its confirmation
                 }
                 if (queue.offer(info.getServiceName(), info)) {
                     pump();
@@ -121,7 +129,7 @@ public final class SnapcastNsd {
 
             @Override
             public void onServiceLost(NsdServiceInfo info) {
-                if (info != null) {
+                if (info != null && isCurrent(myGeneration)) {
                     directory.serviceLost(info.getServiceName());
                 }
             }
@@ -134,6 +142,7 @@ public final class SnapcastNsd {
             YaaccLogger.w(SnapcastNsd.class.getName(), "Snapcast discovery could not be started: " + e.getClass().getSimpleName());
             releaseMulticastLock();
             discoveryListener = null;
+            browseHandle = null;
         }
     }
 
@@ -146,15 +155,28 @@ public final class SnapcastNsd {
         generation++;
         handler.removeCallbacks(pump);
         queue.clear();
-        if (nsdManager != null && discoveryListener != null) {
-            try {
-                nsdManager.stopServiceDiscovery(discoveryListener);
-            } catch (IllegalArgumentException alreadyStopped) {
-                // the listener was not registered (the start failed meanwhile)
-            }
+        // an early stop (before the platform confirmed the start) is held back by the handle until onDiscoveryStarted
+        if (nsdManager != null && discoveryListener != null && browseHandle != null && browseHandle.requestStop()) {
+            stopBrowse(discoveryListener);
         }
         discoveryListener = null;
+        browseHandle = null;
         releaseMulticastLock();
+    }
+
+    private void stopBrowse(NsdManager.DiscoveryListener listener) {
+        final NsdManager manager;
+        synchronized (this) {
+            manager = nsdManager;
+        }
+        if (manager == null) {
+            return;
+        }
+        try {
+            manager.stopServiceDiscovery(listener);
+        } catch (IllegalArgumentException alreadyStopped) {
+            // the listener was not registered (the start failed meanwhile)
+        }
     }
 
     private synchronized void stopIfCurrent(int expectedGeneration) {
@@ -162,6 +184,7 @@ public final class SnapcastNsd {
             started = false;
             queue.clear();
             discoveryListener = null;
+            browseHandle = null;
             releaseMulticastLock();
         }
     }
@@ -182,18 +205,18 @@ public final class SnapcastNsd {
         if (next == null) {
             return;
         }
-        final String queuedName = next.getName();
+        final SnapcastResolveQueue.Pending<NsdServiceInfo> queued = next;
         try {
             manager.resolveService(next.getItem(), new NsdManager.ResolveListener() {
                 @Override
                 public void onResolveFailed(NsdServiceInfo info, int errorCode) {
-                    queue.done(queuedName);
+                    queue.done(queued);
                     pump();
                 }
 
                 @Override
                 public void onServiceResolved(NsdServiceInfo info) {
-                    queue.done(queuedName);
+                    queue.done(queued);
                     if (info != null && isCurrent(myGeneration)) {
                         InetAddress host = info.getHost(); // a number: no lookup
                         directory.serviceFound(info.getServiceName(), host, info.getPort());
@@ -205,7 +228,7 @@ public final class SnapcastNsd {
             handler.removeCallbacks(pump);
             handler.postDelayed(pump, RESOLVE_TIMEOUT_MILLIS + 100);
         } catch (RuntimeException e) {
-            queue.done(queuedName);
+            queue.done(queued);
         }
     }
 

@@ -120,4 +120,58 @@ public class SnapcastResolveQueueTest {
         assertEquals(0, queue.size());
         assertNull(queue.next());
     }
+
+    @Test
+    public void theEndOfAnOldResolutionDoesNotClearTheNewOneOfTheSameName() {
+        queue.offer("a", "A1");
+        SnapcastResolveQueue.Pending<String> old = queue.next();
+        queue.clear(); // the discovery was stopped ...
+        queue.offer("a", "A2"); // ... and started again, the same service is found again
+        SnapcastResolveQueue.Pending<String> fresh = queue.next();
+
+        queue.done(old); // the answer of the first resolution comes late
+
+        assertNull("the new resolution is still active", queue.next());
+        assertEquals(1, queue.size());
+        queue.done(fresh);
+        assertEquals(0, queue.size());
+    }
+
+    @Test
+    public void aResolutionThatWasGivenUpDoesNotClearTheNextOneOfTheSameName() {
+        queue.offer("a", "A1");
+        SnapcastResolveQueue.Pending<String> old = queue.next();
+        now.addAndGet(10_000L);
+        assertNull(queue.next()); // given up, nothing else waits
+        queue.offer("a", "A2");
+        SnapcastResolveQueue.Pending<String> fresh = queue.next();
+        assertEquals("A2", fresh.getItem());
+
+        queue.done(old);
+
+        assertEquals(1, queue.size());
+        queue.done(fresh);
+        assertEquals(0, queue.size());
+    }
+
+    @Test
+    public void theEndOfTheActiveResolutionFreesTheQueue() {
+        queue.offer("a", "A");
+        queue.offer("b", "B");
+        SnapcastResolveQueue.Pending<String> a = queue.next();
+
+        queue.done(a);
+
+        assertEquals("b", queue.next().getName());
+    }
+
+    @Test
+    public void doneWithNothingIsIgnored() {
+        queue.offer("a", "A");
+        queue.next();
+
+        queue.done((SnapcastResolveQueue.Pending<String>) null);
+
+        assertEquals(1, queue.size());
+    }
 }

@@ -301,4 +301,5 @@
     <string name="notification_download_to">Téléchargement vers : %1$s</string>
     <string name="snapcast_group">Groupe Snapcast</string>
     <string name="snapcast_offline">hors ligne</string>
+    <string name="snapcast_play_not_available">La lecture sur des groupes Snapcast n\'est pas encore disponible</string>
 </resources>

@@ -198,7 +198,7 @@ public final class SnapcastEndpoint {
         return value >= 1 && value <= 65535 ? value : -1;
     }
 
-    /** @return 4 bytes, or null when the text is not a dotted quad of four decimal numbers 0..255 */
+    /** @return 4 bytes, or null when the text is not a dotted quad of four decimal numbers 0..255 without leading zeros */
     private static byte[] parseIpv4(String text) {
         String[] parts = text.split("\\.", -1);
         if (parts.length != 4) {
@@ -207,8 +207,8 @@ public final class SnapcastEndpoint {
         byte[] raw = new byte[4];
         for (int i = 0; i < 4; i++) {
             String part = parts[i];
-            if (part.isEmpty() || part.length() > 3) {
-                return null;
+            if (part.isEmpty() || part.length() > 3 || (part.length() > 1 && part.charAt(0) == '0')) {
+                return null; // no leading zero: some tools read 010 as octal, so the text could mean two hosts
             }
             int value = 0;
             for (int j = 0; j < part.length(); j++) {

@@ -28,19 +28,28 @@ public final class SnapcastPreferencesStorage implements SnapcastManualServers.S
     /** The preference key; a plain list of {@code host:port} lines, nothing else. */
     public static final String KEY = "snapcast_manual_servers";
 
+    /** The key of the servers that hold a selected group (remembered across a restart); the same plain format. */
+    public static final String SELECTED_KEY = "snapcast_selected_servers";
+
     private final SharedPreferences preferences;
+    private final String key;
 
     public SnapcastPreferencesStorage(Context context) {
+        this(context, KEY);
+    }
+
+    public SnapcastPreferencesStorage(Context context, String key) {
         this.preferences = PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+        this.key = key;
     }
 
     @Override
     public String read() {
-        return preferences.getString(KEY, null);
+        return preferences.getString(key, null);
     }
 
     @Override
     public void write(String text) {
-        preferences.edit().putString(KEY, text).apply();
+        preferences.edit().putString(key, text).apply();
     }
 }

@@ -293,4 +293,5 @@
     <string name="notification_download_to">下载到：%1$s</string>
     <string name="snapcast_group">Snapcast 组</string>
     <string name="snapcast_offline">离线</string>
+    <string name="snapcast_play_not_available">尚不支持向 Snapcast 组播放</string>
 </resources>

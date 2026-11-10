@@ -110,6 +110,17 @@ public final class SnapcastResolveQueue<T> {
         return active;
     }
 
+    /**
+     * The resolution that was started with this entry ended (answer or failure). Only the entry that is active now is
+     * cleared: the late answer of a resolution that was dropped (the discovery was stopped, or the timeout gave it up)
+     * must not clear a newer resolution of the same name.
+     */
+    public synchronized void done(Pending<T> pending) {
+        if (pending != null && active == pending) {
+            active = null;
+        }
+    }
+
     /** The resolution of this name ended (answer or failure); an answer for any other name is ignored. */
     public synchronized void done(String name) {
         if (active != null && active.name.equals(name)) {

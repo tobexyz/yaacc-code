@@ -78,6 +78,8 @@ public class UpnpClientReceiversTest {
         final Map<String, SnapcastGroupDevice> byId = new HashMap<>();
         final List<SnapcastGroupDevice> ordered = new ArrayList<>();
         final List<Collection<String>> wakes = new ArrayList<>();
+        final Set<String> pending = new HashSet<>();
+        final List<Collection<String>> selections = new ArrayList<>();
 
         void add(SnapcastGroupDevice device) {
             ordered.add(device);
@@ -102,6 +104,16 @@ public class UpnpClientReceiversTest {
         @Override
         public void wake(Collection<String> receiverIds) {
             wakes.add(receiverIds);
+        }
+
+        @Override
+        public boolean isPending(String receiverId) {
+            return pending.contains(receiverId) && !byId.containsKey(receiverId);
+        }
+
+        @Override
+        public void selectionChanged(Collection<String> receiverIds) {
+            selections.add(new HashSet<>(receiverIds));
         }
     }
 
@@ -247,5 +259,96 @@ public class UpnpClientReceiversTest {
 
         assertEquals(1, client.getReceiverDevicesReadyCount());
         assertNotNull(client.getDevice(idOf(a)));
+    }
+
+    // ---- a stored selection before the first status of its server (a cold start)
+
+    @Test
+    public void aSelectedGroupThatIsPendingStaysInTheStoreAndIsNotADeviceYet() {
+        SnapcastGroupDevice a = group("g-a", "Attic");
+        groups.add(a);
+        String pendingId = "snapcast:192.168.1.5:1705:g-pending";
+        groups.pending.add(pendingId);
+        stored(UpnpClient.LOCAL_UID, idOf(a), pendingId);
+
+        Collection<Device<?, ?, ?>> receivers = client.getReceiverDevices();
+
+        assertEquals("the pending one is not a receiver yet", 2, receivers.size());
+        assertTrue(receivers.contains(a));
+        verify(editor, never()).putStringSet(nullable(String.class), any());
+    }
+
+    @Test
+    public void aPendingGroupBecomesADeviceWhenItsStatusArrives() {
+        String id = "snapcast:192.168.1.5:1705:g-late";
+        groups.pending.add(id);
+        stored(id);
+        assertEquals(0, client.getReceiverDevices().size());
+        verify(editor, never()).putStringSet(nullable(String.class), any());
+
+        SnapcastGroupDevice late = group("g-late", "Late");
+        groups.add(late);
+
+        Collection<Device<?, ?, ?>> receivers = client.getReceiverDevices();
+        assertEquals(1, receivers.size());
+        assertTrue(receivers.contains(late));
+    }
+
+    @Test
+    public void aPendingGroupWhoseServerWentIsDroppedFromTheStore() {
+        String id = "snapcast:192.168.1.5:1705:g-late";
+        groups.pending.add(id);
+        stored(UpnpClient.LOCAL_UID, id);
+        assertEquals(1, client.getReceiverDevices().size());
+        verify(editor, never()).putStringSet(nullable(String.class), any());
+
+        groups.pending.clear(); // the server left the list
+
+        assertEquals(1, client.getReceiverDevices().size());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Set<String>> captor = ArgumentCaptor.forClass(Set.class);
+        verify(editor).putStringSet(eq(KEY), captor.capture());
+        assertEquals(new HashSet<>(Collections.singletonList(UpnpClient.LOCAL_UID)), captor.getValue());
+    }
+
+    @Test
+    public void anIdThatIsNotKnownAndNotPendingIsStillDropped() {
+        stored(UpnpClient.LOCAL_UID, "uuid:gone", "snapcast:192.168.1.5:1705:g-gone");
+
+        client.getReceiverDevices();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Set<String>> captor = ArgumentCaptor.forClass(Set.class);
+        verify(editor).putStringSet(eq(KEY), captor.capture());
+        assertEquals(new HashSet<>(Collections.singletonList(UpnpClient.LOCAL_UID)), captor.getValue());
+    }
+
+    @Test
+    public void aPendingGroupIsNotCountedAsReady() {
+        String id = "snapcast:192.168.1.5:1705:g-late";
+        groups.pending.add(id);
+        stored(id);
+
+        assertEquals(0, client.getReceiverDevicesReadyCount());
+    }
+
+    @Test
+    public void theSourceIsToldWhatIsSelected() {
+        Set<String> ids = new HashSet<>(Arrays.asList(UpnpClient.LOCAL_UID, "snapcast:192.168.1.5:1705:g-a"));
+
+        client.setReceiverDeviceIds(ids);
+
+        assertEquals(1, groups.selections.size());
+        assertEquals(ids, groups.selections.get(0));
+    }
+
+    @Test
+    public void aStoredSelectionThatLosesAnIdTellsTheSourceToo() {
+        stored(UpnpClient.LOCAL_UID, "snapcast:192.168.1.5:1705:g-gone");
+
+        client.getReceiverDevices();
+
+        assertEquals(1, groups.selections.size());
+        assertEquals(new HashSet<>(Collections.singletonList(UpnpClient.LOCAL_UID)), groups.selections.get(0));
     }
 }

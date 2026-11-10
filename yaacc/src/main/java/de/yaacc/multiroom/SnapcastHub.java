@@ -55,6 +55,7 @@ public final class SnapcastHub implements SnapcastGroupSource {
     private final Context context;
     private final SnapcastDirectory directory = new SnapcastDirectory(MonotonicClock.SYSTEM, SnapcastDirectory.DEFAULT_GRACE_MILLIS);
     private final SnapcastManualServers manualServers;
+    private final SnapcastSelectedServers selectedServers;
     private final SnapcastNsd nsd;
     private final SnapcastReceivers receivers;
     private int pages;
@@ -62,6 +63,8 @@ public final class SnapcastHub implements SnapcastGroupSource {
     private SnapcastHub(Context context) {
         this.context = context.getApplicationContext();
         this.manualServers = new SnapcastManualServers(new SnapcastPreferencesStorage(this.context));
+        this.selectedServers = new SnapcastSelectedServers(
+                new SnapcastPreferencesStorage(this.context, SnapcastPreferencesStorage.SELECTED_KEY), directory);
         this.nsd = new SnapcastNsd(this.context, directory);
         final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(runnable -> {
             Thread thread = new Thread(runnable, "snapcast-hub");
@@ -83,6 +86,8 @@ public final class SnapcastHub implements SnapcastGroupSource {
                         this.context.getString(R.string.snapcast_offline)),
                 CLOSE_GRACE_MILLIS);
         directory.setManualServers(manualServers.list());
+        // the servers of the selected groups are known at once, without a scan (see SnapcastSelectedServers)
+        selectedServers.restore();
     }
 
     /** The app-wide hub. */
@@ -147,6 +152,17 @@ public final class SnapcastHub implements SnapcastGroupSource {
     @Override
     public SnapcastGroupDevice findGroup(String receiverId) {
         return receivers.findGroup(receiverId);
+    }
+
+    @Override
+    public boolean isPending(String receiverId) {
+        return receivers.isPending(receiverId);
+    }
+
+    /** Remembers the servers of the selected groups, so that the selection survives a restart. */
+    @Override
+    public void selectionChanged(Collection<String> receiverIds) {
+        selectedServers.selectionChanged(receiverIds);
     }
 
     /** Connects to the listed servers of the chosen groups. Does not start the discovery (that is the page's). */

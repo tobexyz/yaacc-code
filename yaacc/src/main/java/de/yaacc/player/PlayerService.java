@@ -564,6 +564,14 @@ public class PlayerService extends MediaSessionService {
     }
 
     /**
+     * True for a receiver that is listed but has no player yet: a Snapcast group, until the Snapcast player exists
+     * (it has no AVTransport service, so an {@code AVTransportPlayer} would silently do nothing).
+     */
+    static boolean isNotPlayableYet(Device<?, ?, ?> device) {
+        return device instanceof de.yaacc.multiroom.SnapcastGroupDevice;
+    }
+
+    /**
      * creates a player for the given device
      *
      * @param upnpClient     the upnpClient
@@ -579,6 +587,14 @@ public class PlayerService extends MediaSessionService {
         if (receiverDevice == null) {
             Toast toast = Toast.makeText(upnpClient.getContext(), upnpClient.getContext().getString(R.string.error_no_receiver_device_found), Toast.LENGTH_SHORT);
             toast.show();
+            return null;
+        }
+        if (isNotPlayableYet(receiverDevice)) {
+            // both callers skip a null player (the queue variant before it builds a share lease)
+            // callers may be on a worker thread, a toast needs the main looper
+            final android.content.Context context = upnpClient.getContext();
+            new android.os.Handler(Looper.getMainLooper()).post(() ->
+                    Toast.makeText(context, R.string.snapcast_play_not_available, Toast.LENGTH_LONG).show());
             return null;
         }
 

@@ -84,7 +84,7 @@ public final class SnapcastSession implements SnapcastServerLink {
     private final RetryScheduler scheduler;
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
     private final AtomicBoolean readQueued = new AtomicBoolean();
-    private final AtomicBoolean tickRunning = new AtomicBoolean();
+    private final SnapcastTickGate tickGate;
     private final AtomicBoolean started = new AtomicBoolean();
     private final AtomicInteger readFailures = new AtomicInteger();
     private volatile boolean closed;
@@ -121,6 +121,7 @@ public final class SnapcastSession implements SnapcastServerLink {
         this.rpc = new SnapcastRpc(transport, config, this.scheduler, listenerExecutor, clock);
         this.updater = new SnapcastModelUpdater(clock, this::submitRead);
         this.operations = new SnapcastOperations(new FiringCaller(rpc), updater);
+        this.tickGate = new SnapcastTickGate(this::scheduleTick);
         rpc.addListener(new SnapcastRpc.Listener() {
             @Override
             public void onConnected() {
@@ -350,20 +351,11 @@ public final class SnapcastSession implements SnapcastServerLink {
     // ---- the tick that delivers held-back re-reads
 
     private void startTick() {
-        if (tickRunning.compareAndSet(false, true)) {
-            scheduleTick();
-        }
+        tickGate.start();
     }
 
     private void scheduleTick() {
-        scheduler.schedule(() -> {
-            if (closed || !online) {
-                tickRunning.set(false);
-                return;
-            }
-            updater.poll();
-            scheduleTick();
-        }, TICK_MILLIS);
+        scheduler.schedule(() -> tickGate.run(() -> !closed && online, updater::poll), TICK_MILLIS);
     }
 
     private void fireChanged() {

@@ -157,7 +157,7 @@ public final class SnapcastGroupDevice extends Device {
         return SnapcastDisplayText.of(text, MAX_NAME_LENGTH).trim();
     }
 
-    private static boolean isSafeGroupId(String id) {
+    static boolean isSafeGroupId(String id) {
         if (id == null || id.isEmpty() || id.length() > MAX_GROUP_ID_LENGTH) {
             return false;
         }
@@ -208,6 +208,11 @@ public final class SnapcastGroupDevice extends Device {
 
     public String getGroupId() {
         return groupId;
+    }
+
+    /** True if a fresh snapshot with these values would look the same as this one (the id is equal already). */
+    boolean showsSame(String name, boolean offlineNow, String stream, int clients) {
+        return friendlyName.equals(name) && offline == offlineNow && streamId.equals(stream) && clientCount == clients;
     }
 
     /** The stream the group plays when the snapshot was taken (an id of the server: display text). */

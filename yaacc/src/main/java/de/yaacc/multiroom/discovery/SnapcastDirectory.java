@@ -47,6 +47,10 @@ import de.yaacc.multiroom.control.SnapcastDisplayText;
  *   (so that a server that restarts, or an mDNS hiccup, does not make its receivers flicker out of the list and out
  *   of the stored selection) and is then removed. A sighting inside the grace period cancels the loss. A manual entry
  *   is never removed by what discovery does.</li>
+ *   <li><b>Remembered.</b> The server of a selected group is remembered across a restart
+ *   ({@link #setRememberedServers}): it is listed from the start, without being announced, and is not aged out by
+ *   time (nothing is scanned outside the page lifetime, so nothing could confirm it). When discovery starts again it
+ *   gets the same grace as any discovered entry: seen in that time it stays, otherwise it goes.</li>
  *   <li><b>Cap.</b> At most {@link #MAX_SERVERS} entries. A lost entry makes room first; manual entries may also
  *   take the place of a discovered one, never the other way round.</li>
  *   <li><b>Trust.</b> A discovered address must pass {@link SnapcastAddressFilter}. Service names come from the
@@ -77,13 +81,16 @@ public final class SnapcastDirectory {
         private final boolean manual;
         private final boolean discovered;
         private final boolean lost;
+        private final boolean remembered;
 
-        Entry(SnapcastEndpoint endpoint, String displayName, boolean manual, boolean discovered, boolean lost) {
+        Entry(SnapcastEndpoint endpoint, String displayName, boolean manual, boolean discovered, boolean lost,
+              boolean remembered) {
             this.endpoint = endpoint;
             this.displayName = displayName;
             this.manual = manual;
             this.discovered = discovered;
             this.lost = lost;
+            this.remembered = remembered;
         }
 
         public SnapcastServerKey getKey() {
@@ -114,12 +121,18 @@ public final class SnapcastDirectory {
         public boolean isLost() {
             return lost;
         }
+
+        /** The server holds a selected group and was remembered from an earlier run (see {@link #setRememberedServers}). */
+        public boolean isRemembered() {
+            return remembered;
+        }
     }
 
     private static final class Node {
         SnapcastEndpoint endpoint;
         String displayName = "";
         boolean manual;
+        boolean remembered;
         final Set<String> services = new HashSet<>();
         long lostAt = -1;
         final long order;
@@ -282,7 +295,7 @@ public final class SnapcastDirectory {
                 if (node.manual && !wanted.contains(entry.getKey())) {
                     node.manual = false;
                     changed = true;
-                    if (node.services.isEmpty()) {
+                    if (node.services.isEmpty() && !node.remembered) {
                         it.remove();
                     }
                 }
@@ -301,6 +314,61 @@ public final class SnapcastDirectory {
                 if (!node.manual) {
                     node.manual = true;
                     node.lostAt = -1;
+                    changed = true;
+                }
+                accepted++;
+            }
+        }
+        finish(changed);
+        return accepted;
+    }
+
+    /**
+     * Replaces the remembered servers: the servers that hold a selected group, kept from an earlier run so that the
+     * selection can be reconnected. Only an endpoint with an address that passes {@link SnapcastAddressFilter} is
+     * taken (a remembered server was discovered once, so it was filtered then; it is filtered again, a stored value
+     * is not trusted). A remembered server is listed at once and does not age out by time; it never takes the
+     * place of another server. One that is no longer remembered goes unless it is announced or typed in.
+     *
+     * @return how many of the given servers are remembered now
+     */
+    public int setRememberedServers(Collection<SnapcastEndpoint> endpoints) {
+        boolean changed;
+        int accepted = 0;
+        synchronized (lock) {
+            changed = expireLocked();
+            Set<SnapcastServerKey> wanted = new HashSet<>();
+            List<SnapcastEndpoint> ordered = new ArrayList<>();
+            for (SnapcastEndpoint endpoint : endpoints == null ? Collections.<SnapcastEndpoint>emptyList() : endpoints) {
+                if (endpoint != null && ordered.size() < MAX_SERVERS && SnapcastAddressFilter.isAccepted(endpoint.getAddress())
+                        && wanted.add(endpoint.toKey())) {
+                    ordered.add(endpoint);
+                }
+            }
+            for (Iterator<Map.Entry<SnapcastServerKey, Node>> it = nodes.entrySet().iterator(); it.hasNext(); ) {
+                Map.Entry<SnapcastServerKey, Node> entry = it.next();
+                Node node = entry.getValue();
+                if (node.remembered && !wanted.contains(entry.getKey())) {
+                    node.remembered = false;
+                    changed = true;
+                    if (node.services.isEmpty() && !node.manual) {
+                        it.remove();
+                    }
+                }
+            }
+            for (SnapcastEndpoint endpoint : ordered) {
+                SnapcastServerKey key = endpoint.toKey();
+                Node node = nodes.get(key);
+                if (node == null) {
+                    if (!makeRoomLocked(false)) {
+                        continue;
+                    }
+                    node = new Node(endpoint, nextOrder++);
+                    nodes.put(key, node);
+                    changed = true;
+                }
+                if (!node.remembered) {
+                    node.remembered = true;
                     changed = true;
                 }
                 accepted++;
@@ -356,7 +424,7 @@ public final class SnapcastDirectory {
         List<SnapcastServerKey> gone = new ArrayList<>();
         for (Map.Entry<SnapcastServerKey, Node> entry : nodes.entrySet()) {
             Node node = entry.getValue();
-            if (!node.manual && node.lostAt >= 0 && now - node.lostAt >= graceMillis) {
+            if (isExpired(node, now)) {
                 gone.add(entry.getKey());
             }
         }
@@ -388,13 +456,41 @@ public final class SnapcastDirectory {
             }
         }
         finish(changed);
-        Collections.sort(result, new Comparator<Entry>() {
+        sortByKey(result);
+        return result;
+    }
+
+    /**
+     * Like {@link #servers()}, but quiet: servers past their grace period are left out instead of being removed, and no
+     * listener is called. For code that holds a lock of its own and must not run foreign code under it; whoever
+     * calls {@link #servers()}, {@link #expire()} or any change later sweeps the left-out entries and tells the
+     * listeners.
+     */
+    public List<Entry> snapshot() {
+        List<Entry> result = new ArrayList<>();
+        synchronized (lock) {
+            long now = clock.nowMillis();
+            for (Node node : nodes.values()) {
+                if (!isExpired(node, now)) {
+                    result.add(entryOf(node));
+                }
+            }
+        }
+        sortByKey(result);
+        return result;
+    }
+
+    private boolean isExpired(Node node, long now) {
+        return !node.manual && node.lostAt >= 0 && now - node.lostAt >= graceMillis;
+    }
+
+    private static void sortByKey(List<Entry> entries) {
+        Collections.sort(entries, new Comparator<Entry>() {
             @Override
             public int compare(Entry a, Entry b) {
                 return a.getKey().asString().compareTo(b.getKey().asString());
             }
         });
-        return result;
     }
 
     /** @return the entry for the key, or null */
@@ -411,7 +507,8 @@ public final class SnapcastDirectory {
     }
 
     private static Entry entryOf(Node node) {
-        return new Entry(node.endpoint, node.displayName, node.manual, !node.services.isEmpty(), node.lostAt >= 0);
+        return new Entry(node.endpoint, node.displayName, node.manual, !node.services.isEmpty(), node.lostAt >= 0,
+                node.remembered);
     }
 
     /** For tests: the number of service names remembered. */

@@ -1267,6 +1267,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Editor prefEdit = preferences.edit();
         prefEdit.putStringSet(getContext().getString(R.string.settings_selected_receivers_title), receiverDeviceIds);
         prefEdit.apply();
+        // the servers of the selected Snapcast groups are remembered across a restart (and forgotten again)
+        snapcastGroups.selectionChanged(receiverDeviceIds);
     }
 
     /**
@@ -1283,7 +1285,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             Device<?, ?, ?> receiver = this.getDevice(id);
             if (receiver != null) {
                 result.add(receiver);
-            } else {
+            } else if (!snapcastGroups.isPending(id)) {
+                // a Snapcast group whose server is listed but has not delivered its status yet (a cold start) is not
+                // unknown: it stays selected, and is no receiver until the status arrives
                 unknowsIds.add(id);
             }
         }

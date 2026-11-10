@@ -31,7 +31,9 @@ import org.junit.Test;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
@@ -83,9 +85,15 @@ public class SnapcastSessionTest {
     private final List<AutoCloseable> toClose = new ArrayList<>();
     private SessionFakeServer server;
     private SnapcastSession session;
+    private final Set<Thread> threadsBefore = new HashSet<>();
 
     @Before
     public void setUp() throws Exception {
+        for (Thread thread : Thread.getAllStackTraces().keySet()) {
+            if (thread.getName().startsWith("snapcast-session-") && thread.isAlive()) {
+                threadsBefore.add(thread);
+            }
+        }
         server = new SessionFakeServer("status_one_group.json");
         toClose.add(server);
     }
@@ -127,13 +135,16 @@ public class SnapcastSessionTest {
         return condition.getAsBoolean();
     }
 
-    private static boolean sessionThreadsAlive() {
+    /** True if a thread of a session that this test created is still running (threads that were there before do not count). */
+    private boolean sessionThreadsAlive() {
+        Set<Thread> current = new HashSet<>();
         for (Thread thread : Thread.getAllStackTraces().keySet()) {
             if (thread.getName().startsWith("snapcast-session-") && thread.isAlive()) {
-                return true;
+                current.add(thread);
             }
         }
-        return false;
+        current.removeAll(threadsBefore);
+        return !current.isEmpty();
     }
 
     @Test

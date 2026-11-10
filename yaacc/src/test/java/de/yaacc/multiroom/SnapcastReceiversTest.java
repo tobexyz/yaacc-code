@@ -21,7 +21,9 @@ package de.yaacc.multiroom;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Before;
@@ -562,5 +564,317 @@ public class SnapcastReceiversTest {
             assertTrue(link.closed);
         }
         assertTrue(receivers.groups().isEmpty());
+    }
+
+    // ---- a stored selection before the first status (a cold start)
+
+    @Test
+    public void aGroupOfAListedServerWithoutAStatusIsPending() throws Exception {
+        directory.setManualServers(Collections.singletonList(SnapcastEndpoint.parse("10.0.0.2")));
+
+        assertTrue(receivers.isPending(SnapcastGroupDevice.idOf(key(2), "g-a")));
+        assertNull("it is not a device yet", receivers.findGroup(SnapcastGroupDevice.idOf(key(2), "g-a")));
+        assertTrue(receivers.groups().isEmpty());
+    }
+
+    @Test
+    public void aGroupIsNotPendingOnceTheStatusIsThere() throws Exception {
+        server(2);
+        receivers.pageStarted();
+        String present = SnapcastGroupDevice.idOf(key(2), "g-a");
+        String absent = SnapcastGroupDevice.idOf(key(2), "g-zzz");
+        assertTrue(receivers.isPending(present));
+
+        linkOf(2).update(status(group("g-a", "Attic", "y")), true);
+
+        assertFalse("found: it is a device now", receivers.isPending(present));
+        assertNotNull(receivers.findGroup(present));
+        assertEquals(1, receivers.groups().size());
+        assertFalse("the server answered and does not have it: gone", receivers.isPending(absent));
+    }
+
+    @Test
+    public void aGroupOfAServerThatIsNotListedIsNotPending() throws Exception {
+        server(2);
+
+        assertFalse(receivers.isPending(SnapcastGroupDevice.idOf(key(9), "g-a")));
+    }
+
+    @Test
+    public void aGroupIsNotPendingAnyMoreWhenItsServerLeaves() throws Exception {
+        server(2);
+        String id = SnapcastGroupDevice.idOf(key(2), "g-a");
+        assertTrue(receivers.isPending(id));
+
+        directory.serviceLost("S2");
+        assertTrue("still listed during the grace", receivers.isPending(id));
+        now.addAndGet(GRACE);
+
+        assertFalse(receivers.isPending(id));
+    }
+
+    @Test
+    public void somethingThatIsNotAGroupIdIsNeverPending() throws Exception {
+        server(2);
+
+        assertFalse(receivers.isPending(null));
+        assertFalse(receivers.isPending("LOCAL_UID"));
+        assertFalse(receivers.isPending("uuid:abc"));
+        assertFalse(receivers.isPending("snapcast:garbage"));
+        assertFalse(receivers.isPending("snapcast:10.0.0.2:1705:bad id"));
+    }
+
+    @Test
+    public void noSourceHasAPendingGroup() {
+        assertFalse(SnapcastGroupSource.NONE.isPending("snapcast:10.0.0.2:1705:g-a"));
+    }
+
+    @Test
+    public void aRememberedServerIsConnectedWhenAPageStarts() throws Exception {
+        directory.setRememberedServers(Collections.singletonList(SnapcastEndpoint.parse("10.0.0.2")));
+        String id = SnapcastGroupDevice.idOf(key(2), "g-a");
+        assertTrue(receivers.isPending(id));
+        assertTrue("nothing is connected before a page or a wake", links.isEmpty());
+
+        receivers.pageStarted();
+
+        assertEquals(1, links.size());
+        assertTrue(links.get(0).started);
+        linkOf(2).update(status(group("g-a", "Attic", "y")), true);
+        assertNotNull(receivers.findGroup(id));
+    }
+
+    @Test
+    public void wakingTheChosenGroupConnectsARememberedServerWithoutAPage() throws Exception {
+        directory.setRememberedServers(Collections.singletonList(SnapcastEndpoint.parse("10.0.0.2")));
+
+        receivers.wake(Collections.singletonList(SnapcastGroupDevice.idOf(key(2), "g-a")));
+
+        assertEquals(1, links.size());
+        assertTrue(links.get(0).started);
+    }
+
+    // ---- one device per group while nothing changed
+
+    @Test
+    public void repeatedSnapshotsGiveTheSameInstances() throws Exception {
+        server(2);
+        receivers.pageStarted();
+        linkOf(2).update(status(group("g-a", "Attic", "y"), group("g-b", "Bath", "z")), true);
+
+        List<SnapcastGroupDevice> first = receivers.groups();
+        List<SnapcastGroupDevice> second = receivers.groups();
+
+        assertEquals(2, first.size());
+        assertSame(first.get(0), second.get(0));
+        assertSame(first.get(1), second.get(1));
+        assertSame("the UDN object is the same, DeviceDiffCallback compares it with ==",
+                first.get(0).getIdentity().getUdn(), second.get(0).getIdentity().getUdn());
+    }
+
+    @Test
+    public void aGroupFoundByIdIsTheInstanceOfTheList() throws Exception {
+        server(2);
+        receivers.pageStarted();
+        linkOf(2).update(status(group("g-a", "Attic", "y")), true);
+
+        assertSame(receivers.groups().get(0), receivers.findGroup(SnapcastGroupDevice.idOf(key(2), "g-a")));
+    }
+
+    @Test
+    public void aStatusThatChangesNothingVisibleKeepsTheInstances() throws Exception {
+        server(2);
+        receivers.pageStarted();
+        linkOf(2).update(status(group("g-a", "Attic", "y")), true);
+        SnapcastGroupDevice before = receivers.groups().get(0);
+
+        linkOf(2).update(status(group("g-a", "Attic", "y")), true); // a new status object, the same group
+
+        assertSame(before, receivers.groups().get(0));
+    }
+
+    @Test
+    public void aChangeGivesANewInstanceForThatGroupOnly() throws Exception {
+        server(2);
+        receivers.pageStarted();
+        linkOf(2).update(status(group("g-a", "Attic", "y"), group("g-b", "Bath", "z")), true);
+        SnapcastGroupDevice attic = receivers.groups().get(0);
+        SnapcastGroupDevice bath = receivers.groups().get(1);
+
+        linkOf(2).update(status(group("g-a", "Attic", "y", "y2"), group("g-b", "Bath", "z")), true);
+
+        List<SnapcastGroupDevice> after = receivers.groups();
+        assertNotSame("a member was added", attic, after.get(0));
+        assertEquals(2, after.get(0).getClientCount());
+        assertSame("the other group is untouched", bath, after.get(1));
+    }
+
+    @Test
+    public void aNewNameAGoingOfflineAndANewStreamEachGiveANewInstance() throws Exception {
+        server(2);
+        receivers.pageStarted();
+        linkOf(2).update(status(group("g-a", "Attic", "y")), true);
+        SnapcastGroupDevice first = receivers.groups().get(0);
+
+        linkOf(2).update(status(group("g-a", "Loft", "y")), true);
+        SnapcastGroupDevice renamed = receivers.groups().get(0);
+        assertNotSame(first, renamed);
+        assertEquals("Loft (Snapcast)", renamed.getDetails().getFriendlyName());
+
+        linkOf(2).update(linkOf(2).status, false);
+        SnapcastGroupDevice offline = receivers.groups().get(0);
+        assertNotSame(renamed, offline);
+        assertTrue(offline.isOffline());
+
+        linkOf(2).update(status(new SnapcastGroup("g-a", "Loft", false, "Other stream", Collections.singletonList(client("c", "y")))), true);
+        SnapcastGroupDevice otherStream = receivers.groups().get(0);
+        assertNotSame(offline, otherStream);
+        assertEquals("Other stream", otherStream.getStreamId());
+    }
+
+    @Test
+    public void anOfflineGroupKeepsItsInstance() throws Exception {
+        server(2);
+        receivers.pageStarted();
+        linkOf(2).update(status(group("g-a", "Attic", "y")), true);
+        linkOf(2).update(linkOf(2).status, false);
+        SnapcastGroupDevice offline = receivers.groups().get(0);
+
+        assertSame(offline, receivers.groups().get(0));
+    }
+
+    @Test
+    public void aVanishedGroupIsForgottenAndComesBackAsANewInstance() throws Exception {
+        server(2);
+        receivers.pageStarted();
+        linkOf(2).update(status(group("g-a", "Attic", "y"), group("g-b", "Bath", "z")), true);
+        SnapcastGroupDevice attic = receivers.groups().get(0);
+        linkOf(2).update(status(group("g-b", "Bath", "z")), true);
+        assertEquals(1, receivers.groups().size());
+
+        linkOf(2).update(status(group("g-a", "Attic", "y"), group("g-b", "Bath", "z")), true);
+
+        assertNotSame("the old snapshot was evicted", attic, receivers.groups().get(0));
+    }
+
+    @Test
+    public void aLanguageChangeGivesNewInstances() throws Exception {
+        final String[] offline = {"offline"};
+        SnapcastReceivers localized = new SnapcastReceivers(directory, endpoint -> {
+            FakeLink link = new FakeLink(endpoint.toKey());
+            links.add(link);
+            return link;
+        }, scheduler, () -> new SnapcastGroupDevice.Labels("Snapcast group", offline[0]), GRACE);
+        server(2);
+        localized.pageStarted();
+        linkOf(2).update(status(group("g-a", "Attic", "y")), true);
+        linkOf(2).update(linkOf(2).status, false);
+        SnapcastGroupDevice english = localized.groups().get(0);
+
+        offline[0] = "abgeschaltet";
+
+        SnapcastGroupDevice german = localized.groups().get(0);
+        assertNotSame(english, german);
+        assertEquals("Attic (Snapcast, abgeschaltet)", german.getDetails().getFriendlyName());
+    }
+
+    @Test
+    public void shutdownForgetsTheInstances() throws Exception {
+        server(2);
+        receivers.pageStarted();
+        linkOf(2).update(status(group("g-a", "Attic", "y")), true);
+        assertEquals(1, receivers.groups().size());
+
+        receivers.shutdown();
+
+        assertTrue(receivers.groups().isEmpty());
+    }
+
+    @Test
+    public void theFirst64GroupsInServerOrderAreListed() throws Exception {
+        server(2);
+        server(3);
+        receivers.pageStarted();
+        List<SnapcastGroup> many = new ArrayList<>();
+        List<SnapcastGroup> more = new ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            many.add(group("a" + i, "A" + i, "x"));
+            more.add(group("b" + i, "B" + i, "x"));
+        }
+        linkOf(2).update(status(many.toArray(new SnapcastGroup[0])), true);
+        linkOf(3).update(status(more.toArray(new SnapcastGroup[0])), true);
+
+        List<SnapcastGroupDevice> listed = receivers.groups();
+
+        assertEquals(SnapcastReceivers.MAX_GROUPS, listed.size());
+        int fromFirstServer = 0;
+        for (SnapcastGroupDevice device : listed) {
+            if (device.getServerKey().equals(key(2))) {
+                fromFirstServer++;
+            }
+        }
+        assertEquals("all 40 of the first server, then 24 of the second", 40, fromFirstServer);
+    }
+
+    // ---- the list of servers is read under the lock (no stale snapshot)
+
+    @Test
+    public void aServerThatLeavesWhileThePageStartsGetsNoLink() throws Exception {
+        // X is typed in; Y was lost and its grace is over, so reading the list sweeps Y and tells the listeners
+        directory.setManualServers(Collections.singletonList(SnapcastEndpoint.parse("10.0.0.2")));
+        server(3);
+        directory.serviceLost("S3");
+        now.addAndGet(GRACE);
+        final boolean[] removed = {false};
+        // runs first (before the receivers' own listener) on the thread that sweeps: X is taken off the manual list
+        // right after the sweep has built its answer - the answer is out of date when pageStarted gets it
+        directory.addListener(() -> {
+            if (!removed[0]) {
+                removed[0] = true;
+                directory.setManualServers(Collections.<SnapcastEndpoint>emptyList());
+            }
+        });
+
+        receivers.pageStarted();
+
+        assertTrue("the server is not listed any more: no link to it", links.isEmpty());
+    }
+
+    @Test
+    public void aServerThatLeavesWhileItIsRetainedGetsNoLink() throws Exception {
+        directory.setManualServers(Collections.singletonList(SnapcastEndpoint.parse("10.0.0.2")));
+        server(3);
+        directory.serviceLost("S3");
+        now.addAndGet(GRACE);
+        final boolean[] removed = {false};
+        directory.addListener(() -> {
+            if (!removed[0]) {
+                removed[0] = true;
+                directory.setManualServers(Collections.<SnapcastEndpoint>emptyList());
+            }
+        });
+
+        receivers.retain(key(2));
+
+        assertTrue(links.isEmpty());
+    }
+
+    @Test
+    public void aServerThatLeavesWhileItsGroupIsWokenGetsNoLink() throws Exception {
+        directory.setManualServers(Collections.singletonList(SnapcastEndpoint.parse("10.0.0.2")));
+        server(3);
+        directory.serviceLost("S3");
+        now.addAndGet(GRACE);
+        final boolean[] removed = {false};
+        directory.addListener(() -> {
+            if (!removed[0]) {
+                removed[0] = true;
+                directory.setManualServers(Collections.<SnapcastEndpoint>emptyList());
+            }
+        });
+
+        receivers.wake(Collections.singletonList(SnapcastGroupDevice.idOf(key(2), "g-a")));
+
+        assertTrue(links.isEmpty());
     }
 }
