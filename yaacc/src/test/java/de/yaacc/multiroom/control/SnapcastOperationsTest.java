@@ -316,6 +316,118 @@ public class SnapcastOperationsTest {
         assertFalse(caller.params.get(0).toString().contains("\n"));
     }
 
+    // ---- the model follows our own changes (the server does not tell the connection that made them)
+
+    private static final class Model {
+        final int[] reReads = {0};
+        final SnapcastModelUpdater updater = new SnapcastModelUpdater(() -> 0L, () -> reReads[0]++);
+    }
+
+    private static Model modelWithStatus() {
+        Model model = new Model();
+        model.updater.setStatus(SnapcastFixtures.status("status_one_group.json"));
+        return model;
+    }
+
+    @Test
+    public void ourOwnChangesPatchTheLocalModel() throws Exception {
+        Model model = modelWithStatus();
+        SnapcastOperations operations = new SnapcastOperations(new RecordingCaller(), model.updater);
+
+        operations.setClientVolume(CLIENT, new SnapcastVolume(33, true));
+        operations.setClientLatency(CLIENT, 40);
+        operations.setClientName(CLIENT, "Den");
+        operations.setGroupMute(GROUP, true);
+        operations.setGroupStream(GROUP, "Other");
+        operations.setGroupName(GROUP, "Floor");
+
+        SnapcastClient client = model.updater.getStatus().findClient(CLIENT);
+        assertEquals(new SnapcastVolume(33, true), client.getVolume());
+        assertEquals(40, client.getLatencyMs());
+        assertEquals("Den", client.getName());
+        SnapcastGroup group = model.updater.getStatus().findGroup(GROUP);
+        assertTrue(group.isMuted());
+        assertEquals("Other", group.getStreamId());
+        assertEquals("Floor", group.getName());
+        assertEquals("a patch that fits needs no re-read", 0, model.reReads[0]);
+    }
+
+    @Test
+    public void theStatusAnswerOfSetGroupClientsBecomesTheModel() throws Exception {
+        Model model = modelWithStatus();
+        RecordingCaller caller = new RecordingCaller().answer("Group.SetClients", "response_set_clients.json");
+
+        new SnapcastOperations(caller, model.updater).setGroupClients(GROUP, Arrays.asList(CLIENT));
+
+        assertEquals(SnapcastFixtures.status("response_set_clients.json"), model.updater.getStatus());
+    }
+
+    @Test
+    public void getStatusFeedsTheModel() throws Exception {
+        Model model = new Model();
+        RecordingCaller caller = new RecordingCaller().answer("Server.GetStatus", "status_three_groups.json");
+
+        SnapcastServerStatus status = new SnapcastOperations(caller, model.updater).getStatus();
+
+        assertEquals(status, model.updater.getStatus());
+    }
+
+    @Test
+    public void addingOrRemovingAStreamAsksForAReRead() throws Exception {
+        Model model = modelWithStatus();
+        RecordingCaller caller = new RecordingCaller().answer("Stream.AddStream", "response_add_stream.json");
+
+        new SnapcastOperations(caller, model.updater).addStream("tcp://0.0.0.0:4953?name=YAACC%20test%20phone&mode=server");
+
+        assertEquals("the server tells the other connections only", 1, model.reReads[0]);
+    }
+
+    @Test
+    public void withoutAModelThereIsNothingToPatchAndNoReRead() throws Exception {
+        Model model = new Model();
+
+        new SnapcastOperations(new RecordingCaller(), model.updater).setClientVolume(CLIENT, new SnapcastVolume(10, false));
+
+        assertNull(model.updater.getStatus());
+        assertEquals(0, model.reReads[0]);
+    }
+
+    @Test
+    public void aFailedCallLeavesTheModelAlone() throws Exception {
+        Model model = modelWithStatus();
+        SnapcastServerStatus before = model.updater.getStatus();
+        RecordingCaller caller = new RecordingCaller();
+        caller.failure = new SnapcastException(SnapcastException.Kind.TIMEOUT, 0, "slow", null, null);
+
+        try {
+            new SnapcastOperations(caller, model.updater).setClientVolume(CLIENT, new SnapcastVolume(10, false));
+            fail();
+        } catch (SnapcastException expected) {
+            assertEquals(SnapcastException.Kind.TIMEOUT, expected.getKind());
+        }
+        assertEquals(before, model.updater.getStatus());
+    }
+
+    @Test
+    public void setGroupClientsRefusesNullAndAnEmptyList() throws Exception {
+        RecordingCaller caller = new RecordingCaller();
+        SnapcastOperations operations = new SnapcastOperations(caller);
+
+        try {
+            operations.setGroupClients(GROUP, null);
+            fail("null");
+        } catch (IllegalArgumentException expected) {
+            // as documented
+        }
+        try {
+            operations.setGroupClients(GROUP, new ArrayList<String>());
+            fail("an empty list would dissolve the group");
+        } catch (IllegalArgumentException expected) {
+            // as documented
+        }
+        assertTrue(caller.methods.isEmpty());
+    }
+
     // ---- group volume through the server
 
     private static SnapcastGroup groupForVolume() {
@@ -383,5 +495,27 @@ public class SnapcastOperationsTest {
             assertEquals(SnapcastException.Kind.TIMEOUT, expected.getKind());
         }
         assertEquals("the second member was still set", Arrays.asList("A", "B"), ids);
+    }
+
+    @Test
+    public void aDragIsCalculatedFromTheStartLevelsAndDoesNotCompound() throws Exception {
+        RecordingCaller caller = new RecordingCaller();
+        SnapcastOperations operations = new SnapcastOperations(caller);
+        SnapcastGroup atStart = new SnapcastGroup(GROUP, "", false, "s", Arrays.asList(
+                new SnapcastClient("A", "A", "", true, new SnapcastVolume(100, false), 0),
+                new SnapcastClient("B", "B", "", true, new SnapcastVolume(50, false), 0)));
+        Map<String, Integer> start = GroupVolume.levels(atStart);
+
+        operations.setGroupVolume(atStart, start, 85); // A is at its edge, B goes to 70
+        SnapcastGroup afterStep = new SnapcastGroup(GROUP, "", false, "s", Arrays.asList(
+                new SnapcastClient("A", "A", "", true, new SnapcastVolume(100, false), 0),
+                new SnapcastClient("B", "B", "", true, new SnapcastVolume(70, false), 0)));
+        Map<String, Integer> changed = operations.setGroupVolume(afterStep, start, 75); // back to the start average
+
+        assertEquals(Arrays.asList("Client.SetVolume", "Client.SetVolume"), caller.methods);
+        assertParams("{\"id\":\"B\",\"volume\":{\"percent\":70,\"muted\":false}}", caller.params.get(0));
+        assertParams("{\"id\":\"B\",\"volume\":{\"percent\":50,\"muted\":false}}", caller.params.get(1));
+        assertEquals("B is back at its own start level, A is untouched", 1, changed.size());
+        assertEquals(50, (int) changed.get("B"));
     }
 }

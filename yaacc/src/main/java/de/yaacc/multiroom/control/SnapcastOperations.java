@@ -37,6 +37,12 @@ import java.util.Set;
  * <p>A wrong argument of the caller (a missing id) is an {@link IllegalArgumentException}; everything the server does is
  * a {@link SnapcastException}. Ids that are handed in come from the model (they were truncated when parsed); names are
  * cut at {@link SnapcastLimits#MAX_STRING_LENGTH} characters before they are sent.
+ *
+ * <p><b>The model.</b> With a {@link SnapcastModelUpdater} the status that a call returns, and every change of our own,
+ * are applied to the model through {@link SnapcastCaller#callOrdered}, so in the order of the lines of the connection.
+ * That is needed: the server tells every connection about a change except the one that made it, so without it the
+ * model would not show what we just did. A stream that was added or removed can not be patched; it asks for a re-read.
+ * A failed call changes nothing.
  */
 public final class SnapcastOperations {
 
@@ -44,14 +50,38 @@ public final class SnapcastOperations {
     private static final int MAX_URI_LENGTH = 2048;
 
     private final SnapcastCaller caller;
+    private final SnapcastModelUpdater updater;
 
+    /** Operations that do not keep a model. */
     public SnapcastOperations(SnapcastCaller caller) {
+        this(caller, null);
+    }
+
+    /** @param updater the model to keep up to date with the answers and our own changes; null for none */
+    public SnapcastOperations(SnapcastCaller caller, SnapcastModelUpdater updater) {
         this.caller = caller;
+        this.updater = updater;
+    }
+
+    /** Patches the model with what the server would have told the other connections. */
+    private void patch(String notification, JSONObject params) {
+        if (updater != null) {
+            updater.applyOwnChange(notification, params);
+        }
     }
 
     /** {@code Server.GetStatus}: the whole state of the server. */
     public SnapcastServerStatus getStatus() throws SnapcastException {
-        return SnapcastServerStatus.fromResult(caller.call("Server.GetStatus", null));
+        return caller.callOrdered("Server.GetStatus", null, this::takeStatus);
+    }
+
+    /** Parses a status answer and makes it the model (runs in line order). */
+    private SnapcastServerStatus takeStatus(JSONObject result) throws SnapcastException {
+        SnapcastServerStatus status = SnapcastServerStatus.fromResult(result);
+        if (updater != null) {
+            updater.setStatus(status);
+        }
+        return status;
     }
 
     /**
@@ -64,47 +94,70 @@ public final class SnapcastOperations {
         if (volume == null) {
             throw new IllegalArgumentException("no volume");
         }
-        JSONObject answer = caller.call("Client.SetVolume", json("id", clientId, "volume", volume.toJson()));
-        JSONObject answered = SnapcastJson.object(answer, "volume");
-        return answered == null ? volume : SnapcastVolume.fromJson(answered);
+        return caller.callOrdered("Client.SetVolume", json("id", clientId, "volume", volume.toJson()), answer -> {
+            JSONObject answered = SnapcastJson.object(answer, "volume");
+            SnapcastVolume actual = answered == null ? volume : SnapcastVolume.fromJson(answered);
+            patch("Client.OnVolumeChanged", json("id", clientId, "volume", actual.toJson()));
+            return actual;
+        });
     }
 
     /** {@code Client.SetLatency}; the latency is clamped into 0..10,000 ms. */
     public void setClientLatency(String clientId, int latencyMs) throws SnapcastException {
         requireId(clientId);
-        int clamped = Math.max(0, Math.min(SnapcastLimits.MAX_LATENCY_MS, latencyMs));
-        caller.call("Client.SetLatency", json("id", clientId, "latency", clamped));
+        final int clamped = Math.max(0, Math.min(SnapcastLimits.MAX_LATENCY_MS, latencyMs));
+        caller.callOrdered("Client.SetLatency", json("id", clientId, "latency", clamped), answer -> {
+            // the server may clamp further (to its buffer); the answer says what it did
+            int actual = SnapcastJson.isNumber(answer, "latency")
+                    ? SnapcastJson.integer(answer, "latency", 0, SnapcastLimits.MAX_LATENCY_MS, clamped) : clamped;
+            patch("Client.OnLatencyChanged", json("id", clientId, "latency", actual));
+            return null;
+        });
     }
 
     /** {@code Client.SetName}. */
     public void setClientName(String clientId, String name) throws SnapcastException {
         requireId(clientId);
-        caller.call("Client.SetName", json("id", clientId, "name", SnapcastJson.truncate(name == null ? "" : name)));
+        final String sent = SnapcastJson.truncate(name == null ? "" : name);
+        caller.callOrdered("Client.SetName", json("id", clientId, "name", sent), answer -> {
+            patch("Client.OnNameChanged", json("id", clientId, "name", sent));
+            return null;
+        });
     }
 
     /** {@code Group.SetMute}. */
     public void setGroupMute(String groupId, boolean muted) throws SnapcastException {
         requireId(groupId);
-        caller.call("Group.SetMute", json("id", groupId, "mute", muted));
+        caller.callOrdered("Group.SetMute", json("id", groupId, "mute", muted), answer -> {
+            patch("Group.OnMute", json("id", groupId, "mute", SnapcastJson.bool(answer, "mute", muted)));
+            return null;
+        });
     }
 
     /** {@code Group.SetStream}: the group plays this stream. */
     public void setGroupStream(String groupId, String streamId) throws SnapcastException {
         requireId(groupId);
         requireId(streamId);
-        caller.call("Group.SetStream", json("id", groupId, "stream_id", streamId));
+        caller.callOrdered("Group.SetStream", json("id", groupId, "stream_id", streamId), answer -> {
+            patch("Group.OnStreamChanged", json("id", groupId, "stream_id", streamId));
+            return null;
+        });
     }
 
     /**
      * {@code Group.SetClients}: the group gets <b>exactly</b> these members. Clients of the group that are not in the
      * list leave it (each gets a group of its own), the others are moved in. So the list must be the full wanted
      * membership; one that exceeds {@link SnapcastLimits#MAX_CLIENTS_PER_GROUP} is refused, not cut (a cut list would
-     * remove members).
+     * remove members). An empty list would dissolve the group and is refused too.
      *
-     * @return the status the server answered with
+     * @return the status the server answered with (it is also the new model)
+     * @throws IllegalArgumentException for {@code null}, an empty list or an empty id
      */
     public SnapcastServerStatus setGroupClients(String groupId, List<String> clientIds) throws SnapcastException {
         requireId(groupId);
+        if (clientIds == null || clientIds.isEmpty()) {
+            throw new IllegalArgumentException("no clients");
+        }
         Set<String> unique = new LinkedHashSet<>();
         for (String clientId : clientIds) {
             requireId(clientId);
@@ -117,13 +170,17 @@ public final class SnapcastOperations {
         for (String clientId : unique) {
             array.put(clientId);
         }
-        return SnapcastServerStatus.fromResult(caller.call("Group.SetClients", json("id", groupId, "clients", array)));
+        return caller.callOrdered("Group.SetClients", json("id", groupId, "clients", array), this::takeStatus);
     }
 
     /** {@code Group.SetName}. */
     public void setGroupName(String groupId, String name) throws SnapcastException {
         requireId(groupId);
-        caller.call("Group.SetName", json("id", groupId, "name", SnapcastJson.truncate(name == null ? "" : name)));
+        final String sent = SnapcastJson.truncate(name == null ? "" : name);
+        caller.callOrdered("Group.SetName", json("id", groupId, "name", sent), answer -> {
+            patch("Group.OnNameChanged", json("id", groupId, "name", sent));
+            return null;
+        });
     }
 
     /**
@@ -137,12 +194,21 @@ public final class SnapcastOperations {
         if (streamUri == null || streamUri.isEmpty() || streamUri.length() > MAX_URI_LENGTH) {
             throw new IllegalArgumentException("bad stream uri");
         }
-        JSONObject answer = caller.call("Stream.AddStream", json("streamUri", streamUri));
-        String id = streamIdOf(answer);
-        if (id == null) {
-            throw SnapcastException.malformed("the answer has no stream id");
+        return caller.callOrdered("Stream.AddStream", json("streamUri", streamUri), answer -> {
+            String id = streamIdOf(answer);
+            if (id == null) {
+                throw SnapcastException.malformed("the answer has no stream id");
+            }
+            requestReRead();
+            return id;
+        });
+    }
+
+    /** The stream list changed and the server does not tell this connection: ask for the status again. */
+    private void requestReRead() {
+        if (updater != null) {
+            updater.requestReRead();
         }
-        return id;
     }
 
     /**
@@ -152,9 +218,11 @@ public final class SnapcastOperations {
      */
     public String removeStream(String streamId) throws SnapcastException {
         requireId(streamId);
-        JSONObject answer = caller.call("Stream.RemoveStream", json("id", streamId));
-        String id = streamIdOf(answer);
-        return id == null ? streamId : id;
+        return caller.callOrdered("Stream.RemoveStream", json("id", streamId), answer -> {
+            String id = streamIdOf(answer);
+            requestReRead();
+            return id == null ? streamId : id;
+        });
     }
 
     private static String streamIdOf(JSONObject answer) {
@@ -166,21 +234,35 @@ public final class SnapcastOperations {
     }
 
     /**
+     * Sets the volume of a group (the server has none) from one snapshot: the start and the current levels are the
+     * levels of {@code group}. Fine for a single step; a drag uses {@link #setGroupVolume(SnapcastGroup, Map, int)}.
+     */
+    public Map<String, Integer> setGroupVolume(SnapcastGroup group, int percent) throws SnapcastException {
+        return setGroupVolume(group, GroupVolume.levels(group), percent);
+    }
+
+    /**
      * Sets the volume of a group (the server has none): the connected members move by the same number of points so that
      * their average becomes {@code percent}, see {@link GroupVolume}. A muted member gets its new level and stays muted. A
      * member whose level does not change gets no call. Every member is tried; if a call fails, the first failure is
-     * thrown after the others were sent.
+     * thrown after the others were sent (the members that were set are in the model already).
      *
+     * <p>For a drag, pass the levels from the <b>start</b> of the drag as {@code startLevels} and the group as it is
+     * <b>now</b> (the model) as {@code current}: the targets come from the start levels, so the steps do not add up
+     * and a member whose target is back at its start level gets that level again.
+     *
+     * @param current     the group as it is now; its clients are the ones that are set
+     * @param startLevels the levels the targets are calculated from, see {@link GroupVolume#levels}
      * @return the new level of every member that was changed, by client id
      */
-    public Map<String, Integer> setGroupVolume(SnapcastGroup group, int percent) throws SnapcastException {
-        Map<String, Integer> start = GroupVolume.levels(group);
-        Map<String, Integer> target = GroupVolume.target(start, percent);
+    public Map<String, Integer> setGroupVolume(SnapcastGroup current, Map<String, Integer> startLevels, int percent)
+            throws SnapcastException {
+        Map<String, Integer> changes = GroupVolume.changes(startLevels, GroupVolume.levels(current), percent);
         Map<String, Integer> changed = new LinkedHashMap<>();
         SnapcastException firstFailure = null;
-        for (SnapcastClient client : group.getClients()) {
-            Integer wanted = target.get(client.getId());
-            if (wanted == null || wanted.intValue() == client.getVolume().getPercent()) {
+        for (SnapcastClient client : current.getClients()) {
+            Integer wanted = changes.get(client.getId());
+            if (wanted == null) {
                 continue;
             }
             try {

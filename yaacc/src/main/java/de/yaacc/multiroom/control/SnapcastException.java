@@ -122,9 +122,12 @@ public final class SnapcastException extends Exception {
         return new SnapcastException(Kind.CLOSED, 0, message, null, null);
     }
 
-    /** The message names the exception class only: the text of a network exception can carry an address. */
+    /**
+     * The message names the exception class only, and the cause is not kept: the text of a network exception can carry
+     * the address of the server, and a stack trace that is logged later would carry it into the log.
+     */
     static SnapcastException io(IOException cause) {
-        return new SnapcastException(Kind.IO, 0, "I/O error (" + cause.getClass().getSimpleName() + ")", null, cause);
+        return new SnapcastException(Kind.IO, 0, "I/O error (" + cause.getClass().getSimpleName() + ")", null, null);
     }
 
     static SnapcastException internal(Throwable cause) {

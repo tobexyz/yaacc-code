@@ -190,12 +190,14 @@ Because the ports are loopback-only, the phone cannot reach them directly:
 The rig tests are skipped unless a rig host is given. With the rig running:
 
 ```sh
-./gradlew :yaacc:testDebugUnitTest -Dsnapcast.rig=localhost
+./gradlew :yaacc:testDebugUnitTest --tests 'de.yaacc.multiroom.control.SnapcastRigTest' -Dsnapcast.rig=localhost
 ```
 
-(How the property reaches the test JVM is wired in the Gradle test task when the
-first rig test is added in Group 2.) Without `-Dsnapcast.rig` the tests are not
-run, so CI needs no Docker. Tests expect exactly the layout of this rig: stream
+`yaacc/build.gradle` hands the property `snapcast.rig` on to the test JVM. It is
+the only switch. Without `-Dsnapcast.rig` the rig tests are reported as skipped,
+so CI needs no Docker; with it but without a running rig they fail with a
+connection error (they are attempted, not skipped), so a green run really
+talked to the rig. Tests expect exactly the layout of this rig: stream
 `Default`, clients `rig-host-1` and `rig-host-2#2`, ports as above.
 
 ## What the rig does not cover

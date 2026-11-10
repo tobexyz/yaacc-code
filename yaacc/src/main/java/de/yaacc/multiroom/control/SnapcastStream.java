@@ -173,8 +173,19 @@ public final class SnapcastStream {
         return Objects.hash(id, status, rawUri, scheme, host, port, path, query);
     }
 
+    /** Fixed words only: status and scheme are text of the server (up to 1 KiB, may hold line breaks or addresses). */
     @Override
     public String toString() {
-        return "SnapcastStream{status=" + status + ", scheme=" + scheme + "}";
+        return "SnapcastStream{status=" + known(status, "idle", "playing", "unknown") + ", scheme="
+                + known(scheme, "tcp", "pipe", "file", "alsa", "jack", "meta", "process") + "}";
+    }
+
+    private static String known(String value, String... words) {
+        for (String word : words) {
+            if (word.equals(value)) {
+                return word;
+            }
+        }
+        return "other";
     }
 }

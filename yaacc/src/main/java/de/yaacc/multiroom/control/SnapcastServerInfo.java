@@ -90,8 +90,9 @@ public final class SnapcastServerInfo {
         return Objects.hash(hostName, serverName, version, protocolVersion, controlProtocolVersion);
     }
 
+    /** Numbers only: host, name and version are text of the server. */
     @Override
     public String toString() {
-        return "SnapcastServerInfo{version=" + version + "}";
+        return "SnapcastServerInfo{protocolVersion=" + protocolVersion + ", controlProtocolVersion=" + controlProtocolVersion + "}";
     }
 }

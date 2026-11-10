@@ -48,6 +48,8 @@ public final class SnapcastLimits {
     public static final int MAX_PENDING_CALLS = 32;
     /** Notifications waiting for the listeners; further ones are dropped and reported as lost. */
     public static final int MAX_QUEUED_NOTIFICATIONS = 256;
+    /** Bytes (the size of their lines) of the notifications waiting for the listeners; the count alone is not a bound. */
+    public static final int MAX_QUEUED_NOTIFICATION_BYTES = 4 * 1024 * 1024;
     /** Characters of a JSON-RPC method name. */
     public static final int MAX_METHOD_LENGTH = 64;
     /** The largest latency setting of a client, in milliseconds. */

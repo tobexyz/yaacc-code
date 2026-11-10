@@ -126,6 +126,28 @@ public final class GroupVolume {
         return apply(start, Math.max(0, Math.min(100, newAverage)) - average(start));
     }
 
+    /**
+     * The members to set for a new group average, as a drag needs it: the targets are calculated from the levels at the
+     * <b>start</b> of the drag (so the steps do not add up and every member can return to its own level), and only the
+     * members whose target differs from their <b>current</b> level are returned. A member that is not in both maps
+     * (it left or joined meanwhile, or went offline) is not touched.
+     *
+     * @param start      the levels when the drag began, see {@link #levels}
+     * @param current    the levels now
+     * @param newAverage clamped into 0..100
+     * @return the new level by client id, in the order of {@code start}
+     */
+    public static Map<String, Integer> changes(Map<String, Integer> start, Map<String, Integer> current, int newAverage) {
+        Map<String, Integer> result = new LinkedHashMap<>();
+        for (Map.Entry<String, Integer> entry : target(start, newAverage).entrySet()) {
+            Integer now = current.get(entry.getKey());
+            if (now != null && now.intValue() != entry.getValue().intValue()) {
+                result.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return result;
+    }
+
     private static int clamp(long value) {
         return (int) Math.max(0, Math.min(100, value));
     }

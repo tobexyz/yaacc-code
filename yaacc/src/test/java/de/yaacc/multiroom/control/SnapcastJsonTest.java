@@ -112,13 +112,60 @@ public class SnapcastJsonTest {
     }
 
     @Test
+    public void theTokenCapHoldsOnThePathTheConnectionUses() {
+        try {
+            SnapcastMessage.parseLine(arrayOfZeros(SnapcastLimits.MAX_TOKENS + 1));
+            fail("a line over the token cap reached org.json");
+        } catch (SnapcastException expected) {
+            assertEquals(SnapcastException.Kind.LIMIT, expected.getKind());
+        }
+    }
+
+    @Test
     public void tokenCountIgnoresStructureInsideStrings() throws Exception {
         StringBuilder noise = new StringBuilder();
         for (int i = 0; i < 50_000; i++) {
             noise.append(",:{[");
         }
         assertTrue(SnapcastJson.parse("{\"a\":\"" + noise + "\"}") instanceof JSONObject);
-        assertEquals("{ : , : are four tokens", 4, SnapcastJson.tokenCount("{\"a\":1,\"b\":2}"));
+    }
+
+    private static void assertScanMalformed(CharSequence text) {
+        try {
+            SnapcastJson.scan(text.toString());
+            fail("the scan accepted a line that Android's parser reads differently");
+        } catch (SnapcastException expected) {
+            assertEquals(SnapcastException.Kind.MALFORMED, expected.getKind());
+        }
+    }
+
+    @Test
+    public void aQuoteInsideAnUnquotedLiteralIsNotTheStartOfAString() {
+        // Android's JSONTokener reads a" as one literal; a scan that opens a string there hides the nesting behind it
+        StringBuilder deep = new StringBuilder("[a\",");
+        for (int i = 0; i < 100_000; i++) {
+            deep.append('[');
+        }
+        assertScanMalformed(deep.append("\"]"));
+
+        StringBuilder wide = new StringBuilder("[a\",");
+        for (int i = 0; i < 300_000; i++) {
+            wide.append("[],");
+        }
+        assertScanMalformed(wide.append("b\"]"));
+    }
+
+    @Test
+    public void aQuoteOpensAStringOnlyAfterAnOpeningBracketCommaOrColon() throws Exception {
+        SnapcastJson.scan("{ \"a\" : [ \"x\" , \"y\" ] }");
+        SnapcastJson.scan("[\n\"a\"\t,\r\"b\"]");
+        SnapcastJson.scan("{\"a\":\"b\",\"c\":{\"d\":[\"e\"]}}");
+        assertScanMalformed("[\"a\" \"b\"]");
+        assertScanMalformed("{\"a\":\"b\"\"c\":\"d\"}");
+        assertScanMalformed("[1\"x\"]");
+        assertScanMalformed("[true\"x\"]");
+        assertScanMalformed("{\"a\"b\":1}");
+        assertScanMalformed("[a\"]");
     }
 
     private static String arrayOfZeros(int count) {

@@ -45,6 +45,11 @@ public final class SocketTransport implements SnapcastTransport {
         this.port = port;
     }
 
+    /**
+     * Opens the connection. A host <b>name</b> is resolved by the system resolver without a timeout of ours and
+     * {@code close()} can not end that wait; the calls are safe (they end at their deadline), the reader thread is
+     * held until the resolver returns. Prefer the address when it is known (a discovered server has one).
+     */
     @Override
     public Connection open(int connectTimeoutMillis) throws IOException {
         Socket socket = new Socket();

@@ -27,6 +27,9 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 
@@ -232,6 +235,95 @@ final class RpcTestSupport {
         @Override
         public void close() {
             // nothing
+        }
+    }
+
+    /** A listener that blocks inside the first notification until the test lets it go. */
+    static final class BlockingListener implements SnapcastRpc.Listener {
+        final AtomicInteger delivered = new AtomicInteger();
+        private final CountDownLatch release = new CountDownLatch(1);
+
+        @Override
+        public void onNotification(String method, JSONObject params) {
+            delivered.incrementAndGet();
+            try {
+                release.await(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        void release() {
+            release.countDown();
+        }
+    }
+
+    /**
+     * A connection to a server that has stopped reading: a write never returns (until the connection is closed) and
+     * nothing is ever received. This does not depend on the size of the socket buffers of the machine.
+     */
+    static final class StuckWriteConnection implements SnapcastTransport.Connection {
+        private final CountDownLatch closed = new CountDownLatch(1);
+
+        boolean isClosed() {
+            return closed.getCount() == 0;
+        }
+
+        private void blockUntilClosed() {
+            try {
+                closed.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return new InputStream() {
+                @Override
+                public int read() {
+                    blockUntilClosed();
+                    return -1;
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) {
+                    blockUntilClosed();
+                    return -1;
+                }
+            };
+        }
+
+        @Override
+        public OutputStream getOutputStream() {
+            return new OutputStream() {
+                @Override
+                public void write(int b) throws IOException {
+                    blockUntilClosed();
+                    throw new IOException("closed");
+                }
+
+                @Override
+                public void write(byte[] b, int off, int len) throws IOException {
+                    blockUntilClosed();
+                    throw new IOException("closed");
+                }
+            };
+        }
+
+        @Override
+        public void setReadTimeout(int millis) {
+            // nothing
+        }
+
+        @Override
+        public InetAddress getPeerAddress() {
+            return null;
+        }
+
+        @Override
+        public void close() {
+            closed.countDown();
         }
     }
 }

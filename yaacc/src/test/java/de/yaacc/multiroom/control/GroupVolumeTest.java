@@ -77,6 +77,29 @@ public class GroupVolumeTest {
                 levels("a", 70, "c", 30), GroupVolume.levels(group));
     }
 
+    // ---- changes of a drag: targets from the start levels, compared with the current levels
+
+    @Test
+    public void changesAreComputedFromTheStartLevelsAndComparedWithTheCurrentOnes() {
+        Map<String, Integer> start = levels("a", 100, "b", 50);
+
+        assertEquals("first step: a is at its edge, b takes the points", levels("b", 70), GroupVolume.changes(start, start, 85));
+
+        Map<String, Integer> current = levels("a", 100, "b", 70);
+        assertEquals("back to the start average: everyone returns to the start level, only b differs now",
+                levels("b", 50), GroupVolume.changes(start, current, 75));
+        assertTrue("computed from the current levels the members would not return to their start levels",
+                !levels("a", 100, "b", 50).equals(GroupVolume.target(current, 75)));
+    }
+
+    @Test
+    public void changesLeaveMembersAloneThatAreNotInBothMaps() {
+        assertEquals("a member that left", levels("b", 60), GroupVolume.changes(levels("a", 50, "b", 50), levels("b", 50), 60));
+        assertEquals("a member that joined", levels("a", 60), GroupVolume.changes(levels("a", 50), levels("a", 50, "c", 10), 60));
+        assertTrue(GroupVolume.changes(levels(), levels(), 60).isEmpty());
+        assertTrue(GroupVolume.changes(levels("a", 50), levels("a", 60), 60).isEmpty());
+    }
+
     // ---- relative change
 
     @Test

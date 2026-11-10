@@ -31,4 +31,22 @@ public interface SnapcastCaller {
      * @throws SnapcastException when the server answers an error or the call fails
      */
     JSONObject call(String method, JSONObject params) throws SnapcastException;
+
+    /** Turns the result of an answer into the value of the call; see {@link #callOrdered}. */
+    interface ResultHandler<T> {
+        T handle(JSONObject result) throws SnapcastException;
+    }
+
+    /**
+     * Calls a method and runs {@code handler} with the result <b>in the order of the lines of the connection</b>: after
+     * every notification that arrived before the answer and before every one that arrived behind it. The handler runs
+     * on the thread that delivers the notifications, and the call returns its value. Use it for everything that
+     * changes the model (a status read, a change of our own), so that an answer can never overwrite a newer
+     * notification. The default runs the handler on the calling thread (a fake without notifications needs no more).
+     *
+     * @throws SnapcastException when the call fails or the handler throws one
+     */
+    default <T> T callOrdered(String method, JSONObject params, ResultHandler<T> handler) throws SnapcastException {
+        return handler.handle(call(method, params));
+    }
 }

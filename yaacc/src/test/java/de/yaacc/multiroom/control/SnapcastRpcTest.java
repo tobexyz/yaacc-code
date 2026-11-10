@@ -29,10 +29,12 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import de.yaacc.multiroom.control.RpcTestSupport.BlockingListener;
 import de.yaacc.multiroom.control.RpcTestSupport.FailingTransport;
 import de.yaacc.multiroom.control.RpcTestSupport.ManualClock;
 import de.yaacc.multiroom.control.RpcTestSupport.ManualScheduler;
 import de.yaacc.multiroom.control.RpcTestSupport.RecordingListener;
+import de.yaacc.multiroom.control.RpcTestSupport.StuckWriteConnection;
 import de.yaacc.multiroom.control.RpcTestSupport.ThrowingConnection;
 
 import org.json.JSONObject;
@@ -40,11 +42,12 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -67,9 +70,12 @@ public class SnapcastRpcTest {
     private final RecordingListener listener = new RecordingListener();
     private final ManualClock clock = new ManualClock();
 
+    /** The rpc threads that existed before the test: only the ones the test created are looked at. */
+    private Set<Thread> threadsBefore;
+
     @Before
-    public void setUp() {
-        // nothing: every test builds what it needs
+    public void rememberThreads() {
+        threadsBefore = snapcastThreads();
     }
 
     @After
@@ -326,10 +332,10 @@ public class SnapcastRpcTest {
     // ---- deadlines
 
     @Test
-    public void aCallWithoutAnAnswerEndsAtTheDeadlineAndLeavesNothingPending() throws Exception {
+    public void aCallWithoutAnyReplyDropsTheConnectionAndStartsTheReconnectCycle() throws Exception {
         FakeSnapcastServer server = server(connection -> {
             while (connection.readLine() != null) {
-                // never answers
+                // reads, never answers, sends nothing: a box that was switched off looks like this
             }
         });
         SnapcastRpc rpc = connected(server, fastConfig().callTimeoutMs(300));
@@ -344,7 +350,31 @@ public class SnapcastRpcTest {
 
         assertTrue(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start) < 2_000);
         assertEquals(0, rpc.getPendingCount());
-        assertEquals("a slow answer is no reason to drop the connection", SnapcastRpc.State.CONNECTED, rpc.getState());
+        assertTrue(listener.awaitCount("disconnected:", 1, 3_000));
+        assertTrue(await(() -> scheduler.pending() == 1, 3_000));
+        assertEquals(SnapcastRpc.State.WAITING_RETRY, rpc.getState());
+        scheduler.runNext();
+        assertTrue(await(() -> rpc.getState() == SnapcastRpc.State.CONNECTED, 5_000));
+        assertEquals(2, server.acceptedCount());
+    }
+
+    @Test
+    public void aSlowAnswerOnALiveConnectionIsNoReasonToDropIt() throws Exception {
+        // the server sends other traffic (a notification) but not the answer: it is alive, only slow
+        FakeSnapcastServer server = responding(request ->
+                lines(SnapcastFixtures.read("notification_group_on_mute.json").replace("\n", " ")));
+        SnapcastRpc rpc = connected(server, fastConfig().callTimeoutMs(300));
+
+        try {
+            rpc.call("A.B", null);
+            fail();
+        } catch (SnapcastException e) {
+            assertEquals(SnapcastException.Kind.TIMEOUT, e.getKind());
+        }
+
+        assertEquals(SnapcastRpc.State.CONNECTED, rpc.getState());
+        assertEquals(0, listener.count("disconnected:"));
+        assertEquals(0, scheduler.pending());
     }
 
     @Test
@@ -352,7 +382,8 @@ public class SnapcastRpcTest {
         final AtomicInteger seen = new AtomicInteger();
         FakeSnapcastServer server = responding(request -> {
             if (seen.incrementAndGet() == 1) {
-                return null; // the first call gets no answer in time ...
+                // the first call gets no answer in time, but the server is alive (other traffic) ...
+                return lines(SnapcastFixtures.read("notification_group_on_mute.json").replace("\n", " "));
             }
             return lines(result(request.get("id") instanceof Number ? ((Number) request.get("id")).longValue() - 1 : 0, "{\"late\":1}"),
                     result(request.get("id"), "{\"now\":1}"));
@@ -413,6 +444,345 @@ public class SnapcastRpcTest {
         rpc.start();
 
         assertTrue(listener.awaitCount("disconnected:TIMEOUT", 1, 3_000));
+    }
+
+    // ---- order of an answer and the notifications behind it
+
+    private static final String FIRST_CLIENT = "02:00:00:00:00:01";
+
+    @Test
+    public void aStatusAnswerAndTheNotificationBehindItAreAppliedInLineOrder() throws Exception {
+        final String notification = SnapcastFixtures.read("notification_client_on_volume_changed.json").replace("\n", " ");
+        FakeSnapcastServer server = server(connection -> {
+            while (true) {
+                JSONObject request = connection.readRequest();
+                if (request == null) {
+                    return;
+                }
+                // the answer (volume 70) and the notification behind it (volume 74) in one write
+                String answer = fixtureWithId("status_one_group.json", request.get("id")).replace("\n", " ");
+                connection.sendRaw((answer + "\n" + notification + "\n").getBytes("UTF-8"));
+            }
+        });
+        final SnapcastModelUpdater updater = new SnapcastModelUpdater(clock, () -> { });
+        final AtomicInteger applied = new AtomicInteger();
+        // setStatus runs inside the ordered call, between the notifications, not on this thread afterwards
+        SnapcastRpc rpc = rpc(server.port(), fastConfig());
+        rpc.addListener(new SnapcastRpc.Listener() {
+            @Override
+            public void onNotification(String method, JSONObject params) {
+                updater.apply(method, params);
+                applied.incrementAndGet();
+            }
+        });
+        rpc.start();
+        assertTrue(await(() -> rpc.getState() == SnapcastRpc.State.CONNECTED, 5_000));
+        SnapcastOperations operations = new SnapcastOperations(rpc, updater);
+
+        for (int round = 1; round <= 1_500; round++) {
+            operations.getStatus();
+            final int expected = round;
+            assertTrue("round " + round, await(() -> applied.get() >= expected, 5_000));
+            assertEquals("round " + round + ": the older status must not overwrite the newer notification", 74,
+                    updater.getStatus().findClient(FIRST_CLIENT).getVolume().getPercent());
+        }
+    }
+
+    // ---- ordered results
+
+    @Test
+    public void ourOwnChangeIsAppliedToTheModelBecauseTheServerDoesNotNotifyUs() throws Exception {
+        FakeSnapcastServer server = responding(request -> {
+            if (request.getString("method").equals("Server.GetStatus")) {
+                return lines(fixtureWithId("status_one_group.json", request.get("id")).replace("\n", " "));
+            }
+            // the server answers the caller and tells the OTHER connections; this one hears nothing more
+            return lines(result(request.get("id"), "{\"volume\":{\"muted\":true,\"percent\":33}}"));
+        });
+        SnapcastRpc rpc = connected(server, fastConfig());
+        SnapcastModelUpdater updater = new SnapcastModelUpdater(clock, () -> { });
+        SnapcastOperations operations = new SnapcastOperations(rpc, updater);
+        operations.getStatus();
+
+        operations.setClientVolume(FIRST_CLIENT, new SnapcastVolume(33, true));
+
+        assertEquals(new SnapcastVolume(33, true), updater.getStatus().findClient(FIRST_CLIENT).getVolume());
+    }
+
+    @Test
+    public void anOrderedHandlerThatFailsFailsTheCallWithATypedException() throws Exception {
+        FakeSnapcastServer server = responding(request -> lines(result(request.get("id"), "{\"x\":1}")));
+        SnapcastRpc rpc = connected(server, fastConfig());
+
+        try {
+            rpc.callOrdered("A.B", null, (SnapcastCaller.ResultHandler<String>) value -> {
+                throw SnapcastException.malformed("handler says no");
+            });
+            fail();
+        } catch (SnapcastException e) {
+            assertEquals(SnapcastException.Kind.MALFORMED, e.getKind());
+        }
+        try {
+            rpc.callOrdered("A.B", null, (SnapcastCaller.ResultHandler<String>) value -> {
+                throw new IllegalStateException("bug in a handler");
+            });
+            fail();
+        } catch (SnapcastException e) {
+            assertEquals(SnapcastException.Kind.INTERNAL, e.getKind());
+        }
+        assertEquals("v", rpc.callOrdered("A.B", null, value -> "v"));
+        assertEquals(SnapcastRpc.State.CONNECTED, rpc.getState());
+    }
+
+    @Test
+    public void anOrderedCallFromAListenerFailsAtOnceInsteadOfWaitingForItself() throws Exception {
+        final String trigger = SnapcastFixtures.read("notification_group_on_mute.json").replace("\n", " ");
+        FakeSnapcastServer server = server(connection -> {
+            connection.send(trigger);
+            connection.readLine();
+        });
+        final AtomicReference<Throwable> seen = new AtomicReference<>();
+        final SnapcastRpc rpc = rpc(server.port(), fastConfig().callTimeoutMs(20_000));
+        rpc.addListener(new SnapcastRpc.Listener() {
+            @Override
+            public void onNotification(String method, JSONObject params) {
+                try {
+                    rpc.callOrdered("A.B", null, value -> "never");
+                } catch (Throwable t) {
+                    seen.set(t);
+                }
+            }
+        });
+        rpc.start();
+
+        assertTrue(await(() -> seen.get() != null, 5_000));
+        assertTrue(String.valueOf(seen.get()), seen.get() instanceof IllegalStateException);
+    }
+
+    @Test
+    public void closingFailsAnOrderedResultThatIsStillWaitingForTheListeners() throws Exception {
+        final String trigger = SnapcastFixtures.read("notification_group_on_mute.json").replace("\n", " ");
+        FakeSnapcastServer server = server(connection -> {
+            connection.send(trigger); // blocks the listener
+            JSONObject request = connection.readRequest();
+            connection.send(result(request.get("id"), "{}"));
+            connection.readLine();
+        });
+        BlockingListener blocking = new BlockingListener();
+        final SnapcastRpc rpc = rpc(server.port(), fastConfig().callTimeoutMs(20_000));
+        rpc.addListener(blocking);
+        rpc.start();
+        assertTrue(await(() -> blocking.delivered.get() == 1, 5_000));
+        ExecutorService caller = Executors.newSingleThreadExecutor();
+        toClose.add(caller::shutdownNow);
+        Future<String> waiting = caller.submit(() -> rpc.callOrdered("A.B", null, value -> "x"));
+        assertTrue("the answer waits behind the blocked listener", await(() -> rpc.getQueuedEventCount() == 1, 5_000));
+
+        rpc.close();
+
+        try {
+            waiting.get(3, TimeUnit.SECONDS);
+            fail();
+        } catch (java.util.concurrent.ExecutionException e) {
+            assertEquals(SnapcastException.Kind.CLOSED, ((SnapcastException) e.getCause()).getKind());
+        }
+        blocking.release();
+    }
+
+    // ---- forced reconnect and the peer address
+
+    @Test
+    public void aForcedReconnectReplacesAConnectionThatLooksAlive() throws Exception {
+        FakeSnapcastServer server = server(connection -> {
+            while (connection.readLine() != null) {
+                // never answers
+            }
+        });
+        final SnapcastRpc rpc = connected(server, fastConfig().callTimeoutMs(20_000));
+        ExecutorService caller = Executors.newSingleThreadExecutor();
+        toClose.add(caller::shutdownNow);
+        Future<JSONObject> waiting = caller.submit(() -> rpc.call("A.B", null));
+        assertTrue(await(() -> rpc.getPendingCount() == 1, 3_000));
+
+        rpc.reconnect();
+
+        try {
+            waiting.get(3, TimeUnit.SECONDS);
+            fail();
+        } catch (java.util.concurrent.ExecutionException e) {
+            assertEquals(SnapcastException.Kind.CLOSED, ((SnapcastException) e.getCause()).getKind());
+        }
+        assertTrue(await(() -> rpc.getState() == SnapcastRpc.State.CONNECTED && server.acceptedCount() == 2, 5_000));
+        assertTrue(listener.awaitCount("connected", 2, 3_000));
+        assertTrue(listener.awaitCount("disconnected:CLOSED", 1, 3_000));
+        assertEquals("a forced reconnect needs no backoff timer", 0, scheduler.pending());
+    }
+
+    @Test
+    public void aForcedReconnectAlsoSkipsTheWaitForARetry() throws Exception {
+        FailingTransport transport = new FailingTransport();
+        SnapcastRpc rpc = new SnapcastRpc(transport, fastConfig(), scheduler, listenerExecutor, clock);
+        toClose.add(rpc);
+        rpc.start();
+        assertTrue(await(() -> scheduler.pending() == 1, 3_000));
+
+        rpc.reconnect();
+
+        assertTrue(await(() -> transport.attempts == 2, 3_000));
+    }
+
+    @Test
+    public void aForcedReconnectOnAClosedClientDoesNothing() throws Exception {
+        FakeSnapcastServer server = server(connection -> connection.readLine());
+        SnapcastRpc rpc = connected(server, fastConfig());
+        rpc.close();
+
+        rpc.reconnect();
+
+        assertEquals(SnapcastRpc.State.CLOSED, rpc.getState());
+        assertEquals(1, server.acceptedCount());
+    }
+
+    @Test
+    public void thePeerAddressIsTheAddressOfTheControlConnection() throws Exception {
+        FakeSnapcastServer server = server(connection -> connection.readLine());
+        SnapcastRpc rpc = rpc(server.port(), fastConfig());
+        assertNull("not connected yet", rpc.getPeerAddress());
+
+        rpc.start();
+        assertTrue(await(() -> rpc.getState() == SnapcastRpc.State.CONNECTED, 3_000));
+
+        assertEquals("127.0.0.1", rpc.getPeerAddress().getHostAddress());
+        rpc.close();
+        assertNull(rpc.getPeerAddress());
+    }
+
+    // ---- notifications that nobody can use are not queued
+
+    private static String bigNotification(String method, int chars) {
+        StringBuilder blob = new StringBuilder(chars);
+        for (int i = 0; i < chars; i++) {
+            blob.append('x');
+        }
+        return "{\"jsonrpc\":\"2.0\",\"method\":\"" + method + "\",\"params\":{\"blob\":\"" + blob + "\"}}";
+    }
+
+    @Test
+    public void largeNotificationsOfUnknownMethodsAreDroppedAtTheReader() throws Exception {
+        final String trigger = SnapcastFixtures.read("notification_group_on_mute.json").replace("\n", " ");
+        final String unknown = bigNotification("Some.Unknown", 1_000_000);
+        FakeSnapcastServer server = server(connection -> {
+            connection.send(trigger); // blocks the listener
+            for (int i = 0; i < 20; i++) {
+                connection.send(unknown);
+            }
+            JSONObject request = connection.readRequest();
+            connection.send(result(request.get("id"), "{\"after\":true}"));
+            connection.readLine();
+        });
+        BlockingListener blocking = new BlockingListener();
+        SnapcastRpc rpc = rpc(server.port(), fastConfig().callTimeoutMs(20_000));
+        rpc.addListener(blocking);
+        rpc.start();
+
+        assertTrue(rpc.call("A.After", null).getBoolean("after"));
+
+        assertEquals("unknown notifications keep no params in the queue", 0, rpc.getQueuedEventCount());
+        assertEquals(0L, rpc.getQueuedNotificationBytes());
+        blocking.release();
+        assertTrue("the model is told to read again", listener.awaitCount("lost", 1, 10_000));
+        assertEquals("only the known notification reached the listeners", 1, blocking.delivered.get());
+        assertEquals(0, listener.count("disconnected:"));
+    }
+
+    @Test
+    public void largeKnownNotificationsAreBoundedByBytesNotOnlyByCount() throws Exception {
+        final String trigger = SnapcastFixtures.read("notification_group_on_mute.json").replace("\n", " ");
+        final String known = bigNotification("Stream.OnProperties", 1_000_000);
+        FakeSnapcastServer server = server(connection -> {
+            connection.send(trigger); // blocks the listener
+            for (int i = 0; i < 30; i++) {
+                connection.send(known);
+            }
+            JSONObject request = connection.readRequest();
+            connection.send(result(request.get("id"), "{\"after\":true}"));
+            connection.readLine();
+        });
+        BlockingListener blocking = new BlockingListener();
+        SnapcastRpc rpc = rpc(server.port(), fastConfig().callTimeoutMs(20_000));
+        rpc.addListener(blocking);
+        rpc.start();
+
+        assertTrue(rpc.call("A.After", null).getBoolean("after"));
+
+        assertTrue("queued: " + rpc.getQueuedEventCount(), rpc.getQueuedEventCount() <= 5);
+        assertTrue("queued bytes: " + rpc.getQueuedNotificationBytes(),
+                rpc.getQueuedNotificationBytes() <= SnapcastLimits.MAX_QUEUED_NOTIFICATION_BYTES);
+        assertEquals(4L * 1024 * 1024, new SnapcastRpc.Config().getNotificationQueueBytes());
+        blocking.release();
+        assertTrue(listener.awaitCount("lost", 1, 10_000));
+        assertTrue("delivered: " + blocking.delivered.get(), blocking.delivered.get() <= 6);
+        assertEquals(0, listener.count("disconnected:"));
+    }
+
+    // ---- a server that stops reading
+
+    @Test
+    public void aServerThatStopsReadingCostsTheConnectionNotTheCallers() throws Exception {
+        FakeSnapcastServer server = server(connection -> Thread.sleep(30_000)); // accepts, never reads
+        final SnapcastRpc rpc = connected(server, fastConfig().callTimeoutMs(1_000));
+        StringBuilder blob = new StringBuilder();
+        for (int i = 0; i < 200_000; i++) {
+            blob.append('x');
+        }
+        final JSONObject params = new JSONObject().put("blob", blob.toString());
+        ExecutorService callers = Executors.newFixedThreadPool(20);
+        toClose.add(callers::shutdownNow);
+        List<Future<JSONObject>> futures = new ArrayList<>();
+        long start = System.nanoTime();
+        for (int i = 0; i < 20; i++) {
+            futures.add(callers.submit((Callable<JSONObject>) () -> rpc.call("A.Big", params)));
+        }
+
+        for (Future<JSONObject> future : futures) {
+            try {
+                future.get(5, TimeUnit.SECONDS);
+                fail("answered by a server that does not read");
+            } catch (java.util.concurrent.ExecutionException e) {
+                SnapcastException.Kind kind = ((SnapcastException) e.getCause()).getKind();
+                assertTrue(kind.toString(), kind == SnapcastException.Kind.TIMEOUT
+                        || kind == SnapcastException.Kind.CLOSED || kind == SnapcastException.Kind.IO);
+            }
+        }
+
+        assertTrue("took " + TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start),
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start) < 3_000);
+        assertTrue("the connection is dropped", listener.awaitCount("disconnected:", 1, 3_000));
+        assertEquals(0, rpc.getPendingCount());
+    }
+
+    @Test
+    public void aWriteThatNeverReturnsEndsAtTheDeadlineAndDropsTheConnection() throws Exception {
+        final StuckWriteConnection stuck = new StuckWriteConnection();
+        SnapcastRpc rpc = new SnapcastRpc(connectTimeout -> stuck, fastConfig().callTimeoutMs(500), scheduler,
+                listenerExecutor, clock);
+        rpc.addListener(listener);
+        toClose.add(rpc);
+        rpc.start();
+        assertTrue(await(() -> rpc.getState() == SnapcastRpc.State.CONNECTED, 3_000));
+
+        long start = System.nanoTime();
+        try {
+            rpc.call("A.B", null);
+            fail();
+        } catch (SnapcastException e) {
+            assertEquals(SnapcastException.Kind.TIMEOUT, e.getKind());
+        }
+
+        assertTrue(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start) < 2_000);
+        assertTrue("the stuck connection was closed", await(stuck::isClosed, 3_000));
+        assertTrue(listener.awaitCount("disconnected:", 1, 3_000));
+        assertEquals(0, rpc.getPendingCount());
     }
 
     // ---- caps
@@ -589,7 +959,7 @@ public class SnapcastRpcTest {
         FakeSnapcastServer server = server(connection -> {
             StringBuilder batch = new StringBuilder("[");
             for (int i = 0; i < 64; i++) {
-                batch.append(i == 0 ? "" : ",").append("{\"jsonrpc\":\"2.0\",\"method\":\"A.B\",\"params\":{}}");
+                batch.append(i == 0 ? "" : ",").append("{\"jsonrpc\":\"2.0\",\"method\":\"Group.OnMute\",\"params\":{}}");
             }
             connection.send(batch.append(']').toString());
             connection.readLine();
@@ -901,7 +1271,7 @@ public class SnapcastRpcTest {
         assertEquals(SnapcastRpc.State.CLOSED, rpc.getState());
         assertTrue("the socket is closed", serverSawEof.await(3, TimeUnit.SECONDS));
         assertEquals(0, rpc.getPendingCount());
-        assertTrue("no reader thread is left", await(() -> !threadAlive("snapcast-rpc"), 3_000));
+        assertTrue("no reader thread is left", await(() -> !rpcThreadAlive(), 3_000));
         try {
             rpc.call("A.B", null);
             fail();
@@ -914,13 +1284,21 @@ public class SnapcastRpcTest {
         assertEquals(SnapcastRpc.State.CLOSED, rpc.getState());
     }
 
-    private static boolean threadAlive(String prefix) {
+    private static Set<Thread> snapcastThreads() {
+        Set<Thread> result = new HashSet<>();
         for (Thread thread : Thread.getAllStackTraces().keySet()) {
-            if (thread.getName().startsWith(prefix) && thread.isAlive()) {
-                return true;
+            if (thread.getName().startsWith("snapcast-rpc") && thread.isAlive()) {
+                result.add(thread);
             }
         }
-        return false;
+        return result;
+    }
+
+    /** True if a thread of an rpc client that this test created is still running. */
+    private boolean rpcThreadAlive() {
+        Set<Thread> now = snapcastThreads();
+        now.removeAll(threadsBefore);
+        return !now.isEmpty();
     }
 
     @Test
@@ -964,7 +1342,7 @@ public class SnapcastRpcTest {
         rpc.close();
         finish.countDown();
 
-        assertTrue(await(() -> !threadAlive("snapcast-rpc"), 3_000));
+        assertTrue(await(() -> !rpcThreadAlive(), 3_000));
         assertEquals("the late connection is not used", 0, listener.count("connected"));
         assertEquals(0, scheduler.pending());
     }

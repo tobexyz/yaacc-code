@@ -35,15 +35,15 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Opt-in integration test against a real snapserver (the Docker rig in {@code tools/snapcast-rig/}). It is skipped
- * unless the system property {@code snapcast.rig} (or the environment variable {@code SNAPCAST_RIG}) names the host,
- * so it never runs in the normal gate:
+ * unless the system property {@code snapcast.rig} names the host, so it never runs in the normal gate (the rig tests
+ * are reported as skipped). The one switch is a {@code -D} option on the Gradle command line, which
+ * {@code yaacc/build.gradle} hands on to the test JVM:
  * <pre>
- *   SNAPCAST_RIG=localhost ./gradlew :yaacc:testDebugUnitTest --offline --tests 'de.yaacc.multiroom.control.SnapcastRigTest'
+ *   ./gradlew :yaacc:testDebugUnitTest --offline --tests 'de.yaacc.multiroom.control.SnapcastRigTest' -Dsnapcast.rig=localhost
  * </pre>
- * (A {@code -D} option on the Gradle command line reaches the test JVM only if the build forwards it, so the
- * environment variable is the reliable switch.) It talks to the control port 1705 only and changes nothing that it
- * does not restore: the volume of one client is set and put back, and the stream named {@code YAACC rig test} is
- * added and removed again.
+ * With the switch but without a rig the tests fail with a connection error (they are attempted, not skipped). It
+ * talks to the control port 1705 only and changes nothing that it does not restore: the volume of one client is set
+ * and put back, and the stream named {@code YAACC rig test} is added and removed again.
  */
 public class SnapcastRigTest {
 
@@ -56,10 +56,7 @@ public class SnapcastRigTest {
     @Before
     public void requireTheRig() {
         host = System.getProperty("snapcast.rig");
-        if (host == null || host.trim().isEmpty()) {
-            host = System.getenv("SNAPCAST_RIG");
-        }
-        Assume.assumeTrue("no rig: set -Dsnapcast.rig=<host> or SNAPCAST_RIG=<host> to run this test",
+        Assume.assumeTrue("no rig: pass -Dsnapcast.rig=<host> to Gradle to run this test",
                 host != null && !host.trim().isEmpty());
         host = host.trim();
     }

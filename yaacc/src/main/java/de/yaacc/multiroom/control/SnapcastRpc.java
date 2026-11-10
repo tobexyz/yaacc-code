@@ -22,11 +22,15 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.Closeable;
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,15 +50,21 @@ import java.util.concurrent.TimeUnit;
  * requests (so a server that stops reading can not hold a caller beyond its deadline); the listeners are called, in
  * order, on a separate executor and never on the socket thread. Calls block the calling thread.
  *
+ * <p><b>Order.</b> Everything that changes the model is handed to the listener executor in the order of the lines of
+ * the connection: the notifications, and the results of {@link #callOrdered}. So an answer (a status) and the
+ * notification the server sent right behind it can not overtake each other.
+ *
  * <p><b>Hostile servers.</b> A line is read at the byte level and capped (1 MiB), the text is scanned before
- * {@code org.json} sees it ({@link SnapcastJson}), a batch is capped (64), the notification queue is capped (256, the
- * rest is dropped and reported through {@link Listener#onNotificationsLost()}), the pending requests are capped (32),
- * every call has an overall deadline, ids are made here, and a {@link Throwable} at the worker boundary drops the
- * connection instead of ending the thread.
+ * {@code org.json} sees it ({@link SnapcastJson}), a batch is capped (64), the notification queue is capped (256
+ * entries and 4 MiB of lines; the rest is dropped and reported through {@link Listener#onNotificationsLost()}),
+ * notifications of methods that the model does not know are not queued at all (they only report "read again"), the
+ * pending requests are capped (32), every call has an overall deadline, ids are made here, and a {@link Throwable} at
+ * the worker boundary drops the connection instead of ending the thread. A call that ends at its deadline although
+ * nothing at all was received since its request was written (a box that was switched off) drops the connection.
  *
  * <p><b>Reconnect.</b> A lost connection is retried with a doubling delay (1 s, 2 s, ... at most 30 s); after 5
  * failures in a row it stops ({@link State#GAVE_UP}) until {@link #retry()} is called. A connection that held for
- * {@link Config#stableConnectionMs} counts as a success.
+ * {@link Config#stableConnectionMs} counts as a success. {@link #reconnect()} replaces a connection that looks alive.
  */
 public final class SnapcastRpc implements SnapcastCaller, Closeable {
 
@@ -80,7 +90,10 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
         default void onConnected() {
         }
 
-        /** A notification of the server. */
+        /**
+         * A notification of the server, of a method that {@link SnapcastModelUpdater} knows. Notifications of other
+         * methods are not delivered: they only cause {@link #onNotificationsLost()}.
+         */
         default void onNotification(String method, JSONObject params) {
         }
 
@@ -108,6 +121,7 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
         private int maxPending = SnapcastLimits.MAX_PENDING_CALLS;
         private int maxBatch = SnapcastLimits.MAX_BATCH;
         private int notificationQueueSize = SnapcastLimits.MAX_QUEUED_NOTIFICATIONS;
+        private long notificationQueueBytes = SnapcastLimits.MAX_QUEUED_NOTIFICATION_BYTES;
         private int maxFailures = 5;
         private long backoffInitialMs = 1_000;
         private long backoffMaxMs = 30_000;
@@ -127,6 +141,7 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
             maxPending = other.maxPending;
             maxBatch = other.maxBatch;
             notificationQueueSize = other.notificationQueueSize;
+            notificationQueueBytes = other.notificationQueueBytes;
             maxFailures = other.maxFailures;
             backoffInitialMs = other.backoffInitialMs;
             backoffMaxMs = other.backoffMaxMs;
@@ -179,6 +194,15 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
 
         public Config notificationQueueSize(int value) {
             notificationQueueSize = value;
+            return this;
+        }
+
+        /**
+         * The bytes (the sizes of their lines) that notifications may occupy while they wait for the listeners
+         * (default 4 MiB). One notification is always accepted into an empty queue.
+         */
+        public Config notificationQueueBytes(long value) {
+            notificationQueueBytes = value;
             return this;
         }
 
@@ -242,6 +266,10 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
             return notificationQueueSize;
         }
 
+        public long getNotificationQueueBytes() {
+            return notificationQueueBytes;
+        }
+
         public int getMaxFailures() {
             return maxFailures;
         }
@@ -269,23 +297,51 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
     }
 
     private static final class QueuedEvent {
+        /** Told to every listener; null for an ordered result. */
         final Delivery delivery;
+        /** The call whose result is handled in line order; null for the others. */
+        final PendingCall orderedCall;
+        final Runnable orderedTask;
         final boolean notification;
+        /** The bytes a notification is charged. */
+        final int weight;
 
-        QueuedEvent(Delivery delivery, boolean notification) {
+        private QueuedEvent(Delivery delivery, PendingCall orderedCall, Runnable orderedTask, boolean notification, int weight) {
             this.delivery = delivery;
+            this.orderedCall = orderedCall;
+            this.orderedTask = orderedTask;
             this.notification = notification;
+            this.weight = weight;
+        }
+
+        static QueuedEvent lifecycle(Delivery delivery) {
+            return new QueuedEvent(delivery, null, null, false, 0);
+        }
+
+        static QueuedEvent notification(Delivery delivery, int weight) {
+            return new QueuedEvent(delivery, null, null, true, weight);
+        }
+
+        static QueuedEvent ordered(PendingCall call, Runnable task) {
+            return new QueuedEvent(null, call, task, false, 0);
         }
     }
 
     /** A call that waits for its answer. */
     private static final class PendingCall {
+        /** Handles the result in line order, or null for a plain call. */
+        final SnapcastCaller.ResultHandler<?> handler;
         private boolean done;
         private boolean written;
-        private JSONObject result;
+        private long writeStartedNanos;
+        private Object result;
         private SnapcastException error;
 
-        synchronized void complete(JSONObject value) {
+        PendingCall(SnapcastCaller.ResultHandler<?> handler) {
+            this.handler = handler;
+        }
+
+        synchronized void complete(Object value) {
             if (!done) {
                 result = value;
                 done = true;
@@ -301,6 +357,21 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
             }
         }
 
+        /** Runs the handler (on the listener executor) and ends the call with its value or its failure. */
+        void runHandler(JSONObject value) {
+            try {
+                complete(handler.handle(value));
+            } catch (SnapcastException e) {
+                fail(e);
+            } catch (Throwable t) {
+                fail(SnapcastException.internal(t));
+            }
+        }
+
+        synchronized void markWriteStarted() {
+            writeStartedNanos = System.nanoTime();
+        }
+
         synchronized void markWritten() {
             written = true;
         }
@@ -309,7 +380,15 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
             return written;
         }
 
-        synchronized JSONObject await(long deadlineNanos) throws SnapcastException {
+        /**
+         * True when the request is not out yet, or when no byte at all came in since it went out (so the peer is
+         * stuck or gone, not only slow).
+         */
+        synchronized boolean looksStuck(long lastReceivedNanos) {
+            return !written || lastReceivedNanos - writeStartedNanos < 0;
+        }
+
+        synchronized Object await(long deadlineNanos) throws SnapcastException {
             while (!done) {
                 long remaining = deadlineNanos - System.nanoTime();
                 if (remaining <= 0) {
@@ -329,6 +408,9 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
         }
     }
 
+    /** Set while a thread delivers events of that client: a call that waits for the delivery would wait for itself. */
+    private static final ThreadLocal<SnapcastRpc> DELIVERING = new ThreadLocal<>();
+
     private final SnapcastTransport transport;
     private final Config config;
     private final MonotonicClock clock;
@@ -345,12 +427,15 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
     private long generation;
     private int failures;
     private long connectedAt;
+    /** When a byte was last received on the connection (System.nanoTime), to tell a slow server from a gone one. */
+    private volatile long lastReceivedNanos = System.nanoTime();
     private long nextId = 1;
     private final Map<Long, PendingCall> pending = new HashMap<>();
 
     private final Object eventLock = new Object();
     private final ArrayDeque<QueuedEvent> events = new ArrayDeque<>();
     private int queuedNotifications;
+    private long queuedNotificationBytes;
     private boolean draining;
     private boolean lost;
     private boolean eventsClosed;
@@ -432,6 +517,23 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
         }
     }
 
+    /** The bytes the waiting notifications are charged (the bound is {@link Config#notificationQueueBytes}). */
+    public long getQueuedNotificationBytes() {
+        synchronized (eventLock) {
+            return queuedNotificationBytes;
+        }
+    }
+
+    /**
+     * The address that the control connection is connected to; null while there is no connection. The feed of a
+     * stream connects to this address and to no other (never to an address that a server reply names).
+     */
+    public InetAddress getPeerAddress() {
+        synchronized (lock) {
+            return connection == null ? null : connection.getPeerAddress();
+        }
+    }
+
     // ---- connection management
 
     /** Starts connecting; does nothing unless the client was not started yet. */
@@ -453,6 +555,39 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
                 failures = 0;
                 startAttemptLocked();
             }
+        }
+    }
+
+    /**
+     * Replaces the connection by a new one now, also from CONNECTED: use it when the connection looks alive but is
+     * not (the calls end in timeouts). Waiting calls fail as CLOSED, the failure count starts again. Does nothing
+     * while a connection is being opened, and after {@link #close()}.
+     */
+    public void reconnect() {
+        SnapcastTransport.Connection old = null;
+        List<PendingCall> toFail = Collections.emptyList();
+        boolean dropped = false;
+        synchronized (lock) {
+            if (state == State.CLOSED || state == State.CONNECTING) {
+                return;
+            }
+            if (state == State.CONNECTED) {
+                dropped = true;
+                old = connection;
+                connection = null;
+                toFail = new ArrayList<>(pending.values());
+                pending.clear();
+            }
+            failures = 0;
+            startAttemptLocked(); // a new generation makes the old reader and the old timers stale
+        }
+        final SnapcastException replaced = SnapcastException.closed("connection replaced");
+        for (PendingCall call : toFail) {
+            call.fail(replaced);
+        }
+        closeQuietly(old);
+        if (dropped) {
+            enqueue(QueuedEvent.lifecycle(listener -> listener.onDisconnected(replaced)));
         }
     }
 
@@ -491,7 +626,8 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
                 lock.notifyAll();
             }
             connectedOnce = true;
-            enqueue(new QueuedEvent(Listener::onConnected, false));
+            lastReceivedNanos = System.nanoTime();
+            enqueue(QueuedEvent.lifecycle(Listener::onConnected));
             opened.setReadTimeout(config.readTimeoutMs);
             readLoop(opened, attempt);
             ended = SnapcastException.closed("connection closed");
@@ -509,7 +645,26 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
     }
 
     private void readLoop(SnapcastTransport.Connection opened, long attempt) throws IOException, SnapcastException {
-        SnapcastLineReader reader = new SnapcastLineReader(opened.getInputStream(), config.maxLineBytes, config.lineDeadlineMs, clock);
+        InputStream counting = new FilterInputStream(opened.getInputStream()) {
+            @Override
+            public int read() throws IOException {
+                int value = super.read();
+                if (value >= 0) {
+                    lastReceivedNanos = System.nanoTime();
+                }
+                return value;
+            }
+
+            @Override
+            public int read(byte[] buffer, int offset, int length) throws IOException {
+                int count = super.read(buffer, offset, length);
+                if (count > 0) {
+                    lastReceivedNanos = System.nanoTime();
+                }
+                return count;
+            }
+        };
+        SnapcastLineReader reader = new SnapcastLineReader(counting, config.maxLineBytes, config.lineDeadlineMs, clock);
         int badLines = 0;
         while (true) {
             byte[] line;
@@ -530,7 +685,7 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
             if (line.length == 0) {
                 continue;
             }
-            if (handleLine(new String(line, StandardCharsets.UTF_8))) {
+            if (handleLine(new String(line, StandardCharsets.UTF_8), line.length)) {
                 badLines = 0;
             } else if (++badLines > config.maxBadLines) {
                 throw SnapcastException.malformed("too many unreadable lines in a row");
@@ -539,7 +694,7 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
     }
 
     /** @return false when the line was unreadable */
-    private boolean handleLine(String text) {
+    private boolean handleLine(String text, int lineBytes) {
         List<SnapcastMessage> messages;
         try {
             messages = SnapcastMessage.parseLine(text, config.maxBatch);
@@ -547,6 +702,8 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
             markLost();
             return false;
         }
+        // a batch shares the size of its line between its notifications
+        final int weight = Math.max(1, lineBytes / messages.size());
         for (SnapcastMessage message : messages) {
             switch (message.getType()) {
                 case RESPONSE:
@@ -554,8 +711,12 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
                     break;
                 case NOTIFICATION:
                     final String method = message.getMethod();
+                    if (!SnapcastModelUpdater.isKnown(method)) {
+                        markLost(); // nobody can use its params: keep none, only ask for a re-read
+                        break;
+                    }
                     final JSONObject params = message.getParams();
-                    enqueue(new QueuedEvent(listener -> listener.onNotification(method, params), true));
+                    enqueue(QueuedEvent.notification(listener -> listener.onNotification(method, params), weight));
                     break;
                 default:
                     break; // a request of the server: this client answers none
@@ -577,8 +738,15 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
         }
         if (response.getError() != null) {
             call.fail(response.getError());
-        } else {
+        } else if (call.handler == null) {
             call.complete(response.getResult());
+        } else {
+            // the handler runs between the notifications, in the order of the lines
+            final PendingCall ordered = call;
+            final JSONObject result = response.getResult();
+            if (!enqueue(QueuedEvent.ordered(ordered, () -> ordered.runHandler(result)))) {
+                ordered.fail(SnapcastException.closed("closed"));
+            }
         }
     }
 
@@ -612,9 +780,9 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
         for (PendingCall call : toFail) {
             call.fail(cause);
         }
-        enqueue(new QueuedEvent(listener -> listener.onDisconnected(cause), false));
+        enqueue(QueuedEvent.lifecycle(listener -> listener.onDisconnected(cause)));
         if (giveUp) {
-            enqueue(new QueuedEvent(listener -> listener.onGaveUp(cause), false));
+            enqueue(QueuedEvent.lifecycle(listener -> listener.onGaveUp(cause)));
         } else {
             scheduler.schedule(() -> retryTimerFired(token), delay);
         }
@@ -633,12 +801,33 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
 
     @Override
     public JSONObject call(String method, JSONObject params) throws SnapcastException {
+        return (JSONObject) execute(method, params, new PendingCall(null));
+    }
+
+    /**
+     * Calls a method and runs {@code handler} on the listener executor, in the order of the lines of the connection
+     * (see {@link SnapcastCaller#callOrdered}). The call returns when the handler has run, so the model is up to date
+     * when it returns. The overall deadline covers both. It must not be called from a listener: the delivery it waits
+     * for would be the thread it blocks (an {@link IllegalStateException} instead of a wait until the deadline).
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T callOrdered(String method, JSONObject params, ResultHandler<T> handler) throws SnapcastException {
+        if (handler == null) {
+            throw new IllegalArgumentException("no handler");
+        }
+        if (DELIVERING.get() == this) {
+            throw new IllegalStateException("callOrdered from a listener would wait for its own thread");
+        }
+        return (T) execute(method, params, new PendingCall(handler));
+    }
+
+    private Object execute(String method, JSONObject params, final PendingCall call) throws SnapcastException {
         if (method == null || method.isEmpty() || method.length() > SnapcastLimits.MAX_METHOD_LENGTH
                 || method.indexOf('\n') >= 0 || method.indexOf('\r') >= 0) {
             throw new IllegalArgumentException("bad method name");
         }
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(config.callTimeoutMs);
-        final PendingCall call = new PendingCall();
         final SnapcastTransport.Connection target;
         final long id;
         synchronized (lock) {
@@ -677,8 +866,10 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
             try {
                 return call.await(deadline);
             } catch (SnapcastException e) {
-                if (e.getKind() == SnapcastException.Kind.TIMEOUT && !call.isWritten()) {
-                    closeQuietly(target); // the request is stuck in the send buffer: the server does not read
+                if (e.getKind() == SnapcastException.Kind.TIMEOUT && call.looksStuck(lastReceivedNanos)) {
+                    // the request is stuck in the send buffer (the server does not read), or it went out and nothing
+                    // at all came back since (the server is gone): drop the connection, the reconnect cycle starts
+                    closeQuietly(target);
                 }
                 throw e;
             }
@@ -712,6 +903,7 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
 
     /** Runs on the writer thread. */
     private void write(SnapcastTransport.Connection target, byte[] bytes, PendingCall call) {
+        call.markWriteStarted();
         try {
             target.getOutputStream().write(bytes);
             target.getOutputStream().flush();
@@ -742,18 +934,20 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
         }
     }
 
-    private void enqueue(QueuedEvent event) {
+    /** @return false when the client is closed and the event was not taken (a dropped notification counts as taken) */
+    private boolean enqueue(QueuedEvent event) {
         boolean submit;
         synchronized (eventLock) {
             if (eventsClosed) {
-                return;
+                return false;
             }
-            if (event.notification && queuedNotifications >= config.notificationQueueSize) {
+            if (event.notification && !fitsLocked(event.weight)) {
                 lost = true; // dropped: the model is told to read again
             } else {
                 events.add(event);
                 if (event.notification) {
                     queuedNotifications++;
+                    queuedNotificationBytes += event.weight;
                 }
             }
             submit = !draining;
@@ -762,6 +956,15 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
         if (submit) {
             submitDrain();
         }
+        return true;
+    }
+
+    /** The count and the byte budget; a notification is always taken into an empty queue. */
+    private boolean fitsLocked(int weight) {
+        if (queuedNotifications >= config.notificationQueueSize) {
+            return false;
+        }
+        return queuedNotifications == 0 || queuedNotificationBytes + weight <= config.notificationQueueBytes;
     }
 
     private void submitDrain() {
@@ -776,26 +979,50 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
 
     /** Runs on the listener executor: delivers the queued events in order. */
     private void drain() {
+        DELIVERING.set(this);
+        try {
+            deliverAll();
+        } finally {
+            DELIVERING.remove();
+        }
+    }
+
+    private void deliverAll() {
         while (true) {
             QueuedEvent event;
             boolean reportLost = false;
+            List<PendingCall> abandoned = null;
             synchronized (eventLock) {
                 if (eventsClosed) {
-                    events.clear();
+                    abandoned = takeOrderedCallsLocked();
                     draining = false;
-                    return;
-                }
-                event = events.poll();
-                if (event == null) {
-                    if (!lost) {
-                        draining = false;
-                        return;
+                    event = null;
+                } else {
+                    event = events.poll();
+                    if (event == null) {
+                        if (!lost) {
+                            draining = false;
+                            return;
+                        }
+                        lost = false;
+                        reportLost = true;
+                    } else if (event.notification) {
+                        queuedNotifications--;
+                        queuedNotificationBytes -= event.weight;
                     }
-                    lost = false;
-                    reportLost = true;
-                } else if (event.notification) {
-                    queuedNotifications--;
                 }
+            }
+            if (abandoned != null) {
+                failAll(abandoned, SnapcastException.closed("closed"));
+                return;
+            }
+            if (event != null && event.orderedTask != null) {
+                try {
+                    event.orderedTask.run();
+                } catch (Throwable ignored) {
+                    // runHandler ends the call itself; nothing else can be done here
+                }
+                continue;
             }
             for (Listener listener : listeners) {
                 try {
@@ -808,6 +1035,26 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
                     // a faulty listener must not stop the delivery to the others; nothing to log without a logger
                 }
             }
+        }
+    }
+
+    /** Empties the queue; returns the calls whose result was waiting in it. */
+    private List<PendingCall> takeOrderedCallsLocked() {
+        List<PendingCall> calls = new ArrayList<>();
+        for (QueuedEvent event : events) {
+            if (event.orderedCall != null) {
+                calls.add(event.orderedCall);
+            }
+        }
+        events.clear();
+        queuedNotifications = 0;
+        queuedNotificationBytes = 0;
+        return calls;
+    }
+
+    private static void failAll(List<PendingCall> calls, SnapcastException failure) {
+        for (PendingCall call : calls) {
+            call.fail(failure);
         }
     }
 
@@ -836,11 +1083,12 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
             call.fail(closed);
         }
         closeQuietly(toClose);
+        List<PendingCall> undelivered;
         synchronized (eventLock) {
             eventsClosed = true;
-            events.clear();
-            queuedNotifications = 0;
+            undelivered = takeOrderedCallsLocked();
         }
+        failAll(undelivered, closed);
         writer.shutdownNow();
         if (ownScheduler != null) {
             ownScheduler.shutdownNow();

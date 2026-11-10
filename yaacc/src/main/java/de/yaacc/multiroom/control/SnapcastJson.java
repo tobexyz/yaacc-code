@@ -35,6 +35,13 @@ import java.util.List;
  * {@link SnapcastLimits#MAX_DEPTH}, more than {@link SnapcastLimits#MAX_TOKENS} tokens, the lenient forms and anything
  * after the one value. The {@code StackOverflowError} handler stays as the last line of defense (precedent:
  * {@code de.yaacc.yxc.YxcJson}).
+ *
+ * <p><b>Where a string starts.</b> The scan must agree with the parser that runs behind it. Android's
+ * {@code JSONTokener} reads a value that does not start with a quote as a literal up to one of {@code {}[]/\:,=;#} or
+ * a space, and a quote is not in that set, so in {@code a"} no string begins. A scan that opened a string at every
+ * quote would see one string where Android sees structure (and the other way round for the depth and the token cap).
+ * So a quote outside a string is accepted only where a value or a name can begin: directly after {@code {},
+ * {@code [}, {@code ,} or {@code :}, white space aside. Everything else is refused as malformed.
  */
 final class SnapcastJson {
 
@@ -58,13 +65,12 @@ final class SnapcastJson {
                 start++;
             }
             return text.charAt(start) == '{' ? new JSONObject(text) : new JSONArray(text);
-        } catch (JSONException e) {
-            throw SnapcastException.malformed("not valid JSON", e);
+        } catch (JSONException | RuntimeException e) {
+            // no cause: the message of a JSONException quotes the text of the server (up to 1 MiB, may hold addresses);
+            // another implementation of org.json may throw more than JSONException for odd input
+            throw SnapcastException.malformed("not valid JSON");
         } catch (StackOverflowError e) {
             throw SnapcastException.malformed("nested too deeply");
-        } catch (RuntimeException e) {
-            // another implementation of org.json may throw more than JSONException for odd input
-            throw SnapcastException.malformed("not valid JSON", e);
         }
     }
 
@@ -82,7 +88,8 @@ final class SnapcastJson {
 
     /**
      * Checks the structure without building anything: one object or array, balanced, not deeper than the limit, not more
-     * tokens than the limit, and none of the characters that only the lenient forms of the parser read outside a string.
+     * tokens than the limit, none of the characters that only the lenient forms of the parser read outside a string,
+     * and a quote only where a value or a name can begin (see the class description).
      */
     static void scan(String text) throws SnapcastException {
         char[] open = new char[SnapcastLimits.MAX_DEPTH + 1];
@@ -90,6 +97,7 @@ final class SnapcastJson {
         int tokens = 0;
         boolean inString = false;
         boolean finished = false;
+        char previous = 0; // the last character outside a string that is no white space; a closed string counts as a quote
         int length = text.length();
         for (int i = 0; i < length; i++) {
             char c = text.charAt(i);
@@ -98,6 +106,7 @@ final class SnapcastJson {
                     i++;
                 } else if (c == '"') {
                     inString = false;
+                    previous = '"';
                 }
                 continue;
             }
@@ -111,6 +120,9 @@ final class SnapcastJson {
                 case '"':
                     if (depth == 0) {
                         throw SnapcastException.malformed("not an object or array");
+                    }
+                    if (previous != '{' && previous != '[' && previous != ',' && previous != ':') {
+                        throw SnapcastException.malformed("quote where no value begins");
                     }
                     inString = true;
                     break;
@@ -152,6 +164,9 @@ final class SnapcastJson {
                     }
                     break;
             }
+            if (!isWhitespace(c)) {
+                previous = c;
+            }
             if (tokens > SnapcastLimits.MAX_TOKENS) {
                 throw SnapcastException.limit("too many tokens");
             }
@@ -159,27 +174,6 @@ final class SnapcastJson {
         if (inString || !finished) {
             throw SnapcastException.malformed("incomplete JSON");
         }
-    }
-
-    /** The number of opening brackets, commas and colons outside of strings. */
-    static int tokenCount(String text) {
-        int tokens = 0;
-        boolean inString = false;
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (inString) {
-                if (c == '\\') {
-                    i++;
-                } else if (c == '"') {
-                    inString = false;
-                }
-            } else if (c == '"') {
-                inString = true;
-            } else if (c == '{' || c == '[' || c == ',' || c == ':') {
-                tokens++;
-            }
-        }
-        return tokens;
     }
 
     // ---- tolerant accessors: a missing key, a JSON null or a value of an unexpected type gives the default

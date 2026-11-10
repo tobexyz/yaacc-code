@@ -35,6 +35,18 @@ import java.util.ArrayDeque;
  * {@code Client.OnNameChanged}, {@code Group.OnMute}, {@code Group.OnStreamChanged}, {@code Group.OnNameChanged},
  * {@code Stream.OnUpdate} and {@code Server.OnUpdate} (the whole status). {@code Stream.OnProperties} (metadata of a
  * stream) changes nothing in the model and is ignored. Thread safe.
+ *
+ * <p><b>Order.</b> The model is right only if {@link #setStatus} and {@link #apply} run in the order of the lines of the
+ * connection. Use {@link SnapcastOperations#SnapcastOperations(SnapcastCaller, SnapcastModelUpdater)} (the status and
+ * our own changes are applied through {@link SnapcastCaller#callOrdered}) and a listener that hands every notification
+ * to {@link #apply}: both run on the listener executor, one after the other, in line order. A status that is read
+ * elsewhere and set later can overwrite a newer notification.
+ *
+ * <p><b>Our own changes.</b> The server does not notify the connection that made a change, so the caller has to patch
+ * the model itself ({@link #applyOwnChange}; {@link SnapcastOperations} does it after every successful call).
+ *
+ * <p><b>Re-reads.</b> The re-read is requested, not made: it is the caller's to do, and to repeat if it fails (the
+ * wish is cleared when it is handed out). A new connection needs a fresh status as well.
  */
 public final class SnapcastModelUpdater {
 
@@ -95,6 +107,21 @@ public final class SnapcastModelUpdater {
     /** The server's notifications were dropped on the way (or a line was unreadable): the model may be behind. */
     public void onNotificationsLost() {
         requestReRead();
+    }
+
+    /**
+     * Applies a change that this client made itself, in the shape of the notification the server sends to the others
+     * (for example {@code Client.OnVolumeChanged}). Does nothing before the first status.
+     *
+     * @return the model after the change, null if there is none yet
+     */
+    public SnapcastServerStatus applyOwnChange(String method, JSONObject params) {
+        synchronized (this) {
+            if (status == null) {
+                return null;
+            }
+        }
+        return apply(method, params);
     }
 
     /**
@@ -244,7 +271,11 @@ public final class SnapcastModelUpdater {
         return fire;
     }
 
-    private void requestReRead() {
+    /**
+     * Asks for a full status now, within the rate limit (a request that is held back is delivered by {@link #poll()}).
+     * For changes that the model can not patch, such as a stream that was added.
+     */
+    public void requestReRead() {
         boolean fire;
         synchronized (this) {
             fire = grantLocked();

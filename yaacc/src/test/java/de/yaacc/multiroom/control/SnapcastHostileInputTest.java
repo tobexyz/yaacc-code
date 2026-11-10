@@ -226,7 +226,6 @@ public class SnapcastHostileInputTest {
 
         for (int i = 0; i < 200_000; i++) {
             updater.apply("Client.OnVolumeChanged", params);
-            now[0] += 0; // the time stands still: a flood within one instant
         }
 
         assertEquals("one re-read at most within one instant", 1, reReads[0]);

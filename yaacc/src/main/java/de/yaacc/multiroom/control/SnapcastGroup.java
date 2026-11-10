@@ -22,7 +22,6 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -51,12 +50,8 @@ public final class SnapcastGroup {
         this.clients = Collections.unmodifiableList(copy);
     }
 
-    /** @return the group, or null when the JSON has no id */
-    static SnapcastGroup fromJson(JSONObject json) {
-        return fromJson(json, new HashSet<String>());
-    }
-
     /**
+     * @return the group, or null when the JSON has no id
      * @param seenClientIds the ids of the clients of the groups read so far; a client that was seen already is skipped, so
      *                      that an id is found in one place only (the set grows with the clients of this group)
      */
