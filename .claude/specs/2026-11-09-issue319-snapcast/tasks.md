@@ -92,6 +92,12 @@ Status 2026-11-10: built, full gate green (3772 tests, 0 failures, lint unchange
   - **Accept**: rows follow server changes from a second controller within 2 s on the rig; stops when the page is hidden.
   - **Verify**: `ReceiverLiveUpdatesSnapcastTest` (fake target/source).
 
+## Fix Group 3: Address review cycle 1 of Group 3 (W1 to W3 in `review.md`, "Cycle 1 (Group 3)")
+- [ ] F3.1 Guard until Group 4: `PlayerService.createPlayer` returns null with a toast "not available yet" for a `SnapcastGroupDevice` (W1); one string in 7 locales; a test. Group 4 replaces the guard with the real branch.
+- [ ] F3.2 A stored selection of a Snapcast group survives a cold start (W2): keep an id whose server is still listed (manual servers; discovered servers that are listed) but has no status yet (`SnapcastGroupSource.isPending(id)` or equivalent, used by `getReceiverDevices()` so the id is not removed), wake the connection on page start; for a discovered-only server remember the endpoint of a server that holds a selected group in the preferences (plain endpoint, no credentials) so it is known after a restart, or document the loss. Test: stored selection, no status yet, id kept; status arrives, group listed; server removed, id dropped.
+- [ ] F3.3 Stable device identity across refreshes (W3): one `SnapcastGroupDevice` per id is reused while name, offline flag, stream and client count are unchanged, so `DeviceDiffCallback.areItemsTheSame` and `DeviceSheetAdapter` see the same item. Test: repeated snapshots give identical instances; a change gives a new one.
+- [ ] F3.4 Suggestions: reject leading zeros in IPv4 parts of manual entries (`010.0.0.1`); `SnapcastDisplayText` must not cut a surrogate pair; `groups()` stops building after 64 devices; `SnapcastSessionTest.sessionThreadsAlive` checks only threads of its own session; take the narrow races of the review (tick after reconnect, directory snapshot taken outside the lock, `SnapcastNsd` stop right after start, old resolve clearing a new queue's entry) if they can be fixed with a test; record the ones not taken in `decisions.md`.
+
 ## Group 4: Feed and the player (P1, spike first)
 - [ ] 4.1 Spike on a device: Media3 tap -> PCM at the stream format -> `PcmFeeder` -> rig | `de.yaacc.multiroom.feed` (draft)
   - **Accept**: 30 minutes of music from a UPnP server through YAACC audible on both rig clients, screen off, track changes without a gap longer than the server buffer; owner confirms by ear.
