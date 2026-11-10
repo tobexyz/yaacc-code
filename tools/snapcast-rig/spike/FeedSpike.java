@@ -26,14 +26,14 @@
 //      calls Server.GetStatus and prints what it sees
 //   2. Stream.AddStream with a tcp source in server mode named "YAACC spike" on the
 //      first accepted port from 4953 upward (the next port is tried on any error)
-//   3. optionally moves the first group (preferably one with connected clients) to
+//   3. optionally moves every group that has a connected client to
 //      the new stream with Group.SetStream, remembering the previous stream
 //   4. connects to that tcp port and writes a 440 Hz sine as raw PCM, 48000 Hz,
 //      16 bit little endian, 2 channels, no WAV header (the server reads raw bytes,
 //      server/streamreader/asio_stream.hpp), in REAL TIME: 20 ms chunks, each
 //      written at its exact deadline computed from System.nanoTime(), never early
 //   5. prints the stream status from Server.GetStatus every 10 s
-//   6. restores the group's previous stream and calls Stream.RemoveStream
+//   6. restores the groups' previous streams and calls Stream.RemoveStream
 //
 // --burst writes the same audio without pacing. The server reads its sources in
 // real time anyway, so TCP back pressure stops a burst writer, but only after the
@@ -172,8 +172,8 @@ public final class FeedSpike {
     private Control control;
     private String streamId;
     private int feedPort;
-    private String movedGroupId;
-    private String previousStreamId;
+    private final List<String> movedGroupIds = new ArrayList<>();
+    private final List<String> previousStreamIds = new ArrayList<>();
     private Socket feedSocket;
 
     private FeedSpike(String host, int seconds, boolean burst, boolean moveGroup) {
@@ -208,7 +208,7 @@ public final class FeedSpike {
 
             // 3. Group.SetStream so the clients receive the stream
             if (moveGroup) {
-                moveFirstGroup(status);
+                moveGroups(status);
             }
 
             // 4. feeder thread
@@ -298,8 +298,9 @@ public final class FeedSpike {
                 System.out.println("CHECK FAILED: no status sample was taken");
                 ok = false;
             }
-            System.out.println("The 'no underruns on the clients' criterion needs the client logs: run"
-                    + " 'docker compose logs snapclient-1 snapclient-2 | grep -c \"No chunks available\"' (expect 0).");
+            System.out.println("The 'no underruns on the clients' criterion needs the client logs, see the README: the line"
+                    + " 'No chunks available' is logged about once a second whenever a client has nothing to play, so look at"
+                    + " the timestamps: after the first seconds of the run no such line may appear for the moved groups.");
         }
         System.out.println(ok ? "RESULT: OK" : "RESULT: FAILED");
         return ok ? 0 : 1;
@@ -341,33 +342,35 @@ public final class FeedSpike {
                 + " (static source fallback, see design.md risk 3)");
     }
 
-    private void moveFirstGroup(Object status) throws Exception {
+    /**
+     * Moves every group that has a connected client to the new stream (a new snapclient gets a group of its own, so
+     * moving one group would feed only one of the two rig clients) and remembers each previous stream.
+     */
+    private void moveGroups(Object status) throws Exception {
         List<?> groups = Json.list(Json.at(status, "server", "groups"));
-        Object chosen = null;
+        int moved = 0;
         for (Object g : groups) {
+            boolean connected = false;
             for (Object c : Json.list(Json.at(g, "clients"))) {
                 if (Boolean.TRUE.equals(Json.at(c, "connected"))) {
-                    chosen = g;
+                    connected = true;
                     break;
                 }
             }
-            if (chosen != null) {
-                break;
+            String gid = Json.str(Json.at(g, "id"));
+            if (!connected || gid == null) {
+                continue;
             }
+            String prev = Json.str(Json.at(g, "stream_id"));
+            control.call("Group.SetStream", "{\"id\":" + q(gid) + ",\"stream_id\":" + q(streamId) + "}");
+            movedGroupIds.add(gid);
+            previousStreamIds.add(prev);
+            moved++;
+            System.out.println("group " + gid + " moved from stream '" + prev + "' to '" + streamId + "'");
         }
-        if (chosen == null && !groups.isEmpty()) {
-            chosen = groups.get(0);
+        if (moved == 0) {
+            System.out.println("no group with a connected client found, not moving any group (clients will not receive the stream)");
         }
-        String gid = Json.str(Json.at(chosen, "id"));
-        if (gid == null) {
-            System.out.println("no group found, not moving any group (clients will not receive the stream)");
-            return;
-        }
-        String prev = Json.str(Json.at(chosen, "stream_id"));
-        control.call("Group.SetStream", "{\"id\":" + q(gid) + ",\"stream_id\":" + q(streamId) + "}");
-        movedGroupId = gid;
-        previousStreamId = prev;
-        System.out.println("group " + gid + " moved from stream '" + prev + "' to '" + streamId + "'");
     }
 
     private void cleanup() {
@@ -381,12 +384,17 @@ public final class FeedSpike {
         if (control == null) {
             return;
         }
-        if (movedGroupId != null && previousStreamId != null) {
+        for (int i = 0; i < movedGroupIds.size(); i++) {
+            String gid = movedGroupIds.get(i);
+            String prev = previousStreamIds.get(i);
+            if (prev == null) {
+                continue;
+            }
             try {
-                control.call("Group.SetStream", "{\"id\":" + q(movedGroupId) + ",\"stream_id\":" + q(previousStreamId) + "}");
-                System.out.println("group " + movedGroupId + " restored to stream '" + previousStreamId + "'");
+                control.call("Group.SetStream", "{\"id\":" + q(gid) + ",\"stream_id\":" + q(prev) + "}");
+                System.out.println("group " + gid + " restored to stream '" + prev + "'");
             } catch (Exception e) {
-                System.out.println("could not restore the group: " + e);
+                System.out.println("could not restore the group " + gid + ": " + e);
             }
         }
         if (streamId != null) {
@@ -610,8 +618,10 @@ public final class FeedSpike {
                         Object err = m.get("error");
                         if (err != null) {
                             Object code = Json.at(err, "code");
-                            throw new RpcException(code instanceof Number ? ((Number) code).intValue() : 0,
-                                    String.valueOf(Json.at(err, "message")));
+                            // Snapcast puts a fixed title in "message" and the real reason in "data"
+                            Object data = Json.at(err, "data");
+                            String text = String.valueOf(Json.at(err, "message")) + (data == null ? "" : " (" + data + ")");
+                            throw new RpcException(code instanceof Number ? ((Number) code).intValue() : 0, text);
                         }
                         return m.get("result");
                     }

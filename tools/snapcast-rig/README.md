@@ -127,11 +127,15 @@ Reading the result:
   the writer was never more than one chunk late, and its lead over the clock
   stayed at about one chunk (20 ms).
 - The "no underruns on the clients" criterion needs the client logs, which the
-  spike cannot see:
-  `docker compose logs snapclient-1 snapclient-2 | grep -c "No chunks available"`
-  should print `0` for both (the message is logged at info level by the
-  client's `Stream` component). `docker compose logs snapserver | grep "State changed"`
-  shows the `idle => playing` transition of the stream.
+  spike cannot see. A client logs the info line `No chunks available` about
+  once a second whenever it has nothing to play (also while its group is on an
+  idle stream), so a plain count is meaningless. Use the timestamps instead:
+  `docker compose logs -t snapclient-1 snapclient-2 | grep "No chunks available" | tail -n 4`
+  The last such line must be older than the start of the run plus a few
+  seconds (the clients need about their buffer time to start). The spike moves
+  every group that has a connected client, so both rig clients take part.
+  `docker compose logs snapserver | grep "State changed"` shows the
+  `idle => playing` transition of the stream.
 - `--burst`: the producer finishes far ahead of the clock (the `lead` figure) because
   the data piles up in socket buffers. The server reads its sources in real
   time, so nothing is dropped, but the audio is heard that much late and a

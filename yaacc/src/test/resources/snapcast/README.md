@@ -4,7 +4,7 @@ Provenance: **derived**, not captured. The shapes come from the Snapcast documen
 
 Known divergences to confirm on the rig and then replace with real captures (`tools/snapcast-rig/`):
 - `response_add_stream.json` uses the shape of the source (`{"id": ...}`); `response_add_stream_doc_shape.json` uses the shape in the documentation (`{"stream_id": ...}`). The parser accepts both.
-- The error documents (`error_*.json`) use the standard JSON-RPC codes (-32601, -32602, -32603); the `data` texts are taken from the source's exception messages. The real code/text for a duplicate stream name is not confirmed.
+- The error documents (`error_*.json`) follow the server sources: a fixed `message` title and the reason in `data` (-32601, -32602, -32603), and 401 "Unauthorized" / 403 "Forbidden" without data. A duplicate stream name or a taken port gives -32603 with the exception text in `data` (settled from the source; the exact text is confirmed on the rig).
 - `batch_notifications.ndjson` is one JSON array on a line: the server may answer and notify in batches (documentation, "Batch"); the RPC reader must accept arrays.
 - The server may send `mac` and `ip` empty in `server.host`; `status_*.json` do so.
 

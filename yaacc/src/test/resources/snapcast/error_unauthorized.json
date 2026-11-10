@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": 401,
+    "message": "Unauthorized"
+  },
+  "id": 2,
+  "jsonrpc": "2.0"
+}
