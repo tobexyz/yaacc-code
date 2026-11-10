@@ -66,3 +66,32 @@ Verified fixed (no action):
 - [x] Coverage adequate for the change - n/a for Group 1; fixtures parse (python `json.load`), the spike was checked by two live runs against a fake server (multi-group move and restore, taken port with `data`, pre-existing stream).
 
 ### Verdict: FAIL
+
+## Cycle 3 - 2026-11-10
+Reviewing: the fixes of cycle 2 (commit 0aa126cc): `FeedSpike.java`, `tools/snapcast-rig/README.md`, `design.md`, `docs/tech.md`.
+
+Method: `FeedSpike.java` compiled with `javac` and run twice (12 s and 6 s, `slow` mode) against the throw-away fake server in the scratchpad (port 4953 refused, 4954 taken; one group with two connected clients). TXT claim checked in `server/publishZeroConf/publish_avahi.cpp:161-162` and `publish_bonjour.cpp:165`. Remaining `(verify` markers searched with grep. No Gradle, Docker or Snapcast build.
+
+Verified fixed (no action):
+- W1 (pass criterion as a window): the spike prints `started <UTC instant> (UTC)` at the top and, in the summary, `docker compose logs -t --since <start+5s> --until <end> snapclient-1 snapclient-2 | grep -c "No chunks available"`. Live run: start 12:55:09.62, `--since` 12:55:14.62 (exactly +5 s), `--until` after the restore; the instants are RFC 3339 with nanoseconds, which docker accepts. The README "Reading the result" explains the window (also before and after the run the groups sit on an idle stream), shows the same command shape and the 5 s reason. Same words in spike and README.
+- W2 (README intro): now "moves every group that has a connected client" and "restores the groups".
+- W3 (markers): `grep "(verify"` finds only the task 1.1 Verify line itself; design.md header now says items are marked "to check" with the settling task (rig items listed as **rig** in tech.md, on-device ones in the spikes of Groups 4 and 8); design.md item 4 says "to check in the on-device spike, task 4.1", and tasks 4.1 and 8.1 are the spikes.
+- Suggestions taken: FeedSpike header comment (name clash stops the run), batch-array note on the control reader, TXT records closed from the source (no TXT in avahi call, TXT length 0 in bonjour), once-a-second log line and window in tech.md, version note (`develop` `ea981ec` vs `v0.35.0`, pin `SNAPCAST_COMMIT` after the first build; the Dockerfile has the `SNAPCAST_REF`/`SNAPCAST_COMMIT` args).
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+- [FeedSpike.java:276] `feedEnd` is taken after `cleanup()`, i.e. after the groups were restored to their idle streams. A client could log `No chunks available` between the restore and `feedEnd` (a few milliseconds, so a small chance). Take `Instant.now()` before `cleanup()` (for example right after `feeder.join(2000)`), then the window ends with the feed.
+- [FeedSpike.java:312, README.md "Reading the result"] "expect 0 for each client" does not match the command: `grep -c` over the merged output of both containers prints one total. Say "expect 0" (a total of 0 means 0 for each client), or use `grep -c` per container.
+- [docs/tech.md:3585] Give the directory with the file names (`server/publishZeroConf/publish_avahi.cpp`, `publish_bonjour.cpp`).
+- Windows of runs shorter than about 6 s are empty or tiny (`--since` is start + 5 s); the acceptance run is 5 minutes, so this is only worth a word in the README.
+
+### Tests
+- [ ] All tests passing - not run: Group 1 has no production code and no test code; Gradle was not to be run.
+- [x] Coverage adequate for the change - n/a for Group 1; the spike compiles and two live runs against the fake server print the expected window and finish with RESULT: OK.
+
+### Verdict: PASS

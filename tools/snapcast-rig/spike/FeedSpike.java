@@ -269,11 +269,11 @@ public final class FeedSpike {
                 ok = false;
             }
         } finally {
+            feedEnd = Instant.now(); // before the groups go back to their idle streams
             cleanup();
         }
 
         long totalMs = t0 == 0 ? 0 : (System.nanoTime() - t0) / 1_000_000;
-        feedEnd = Instant.now();
         System.out.println();
         System.out.println("==== summary ====");
         System.out.println("mode                  : " + (burst ? "burst (no pacing)" : "real time, " + CHUNK_MS + " ms chunks"));
@@ -310,7 +310,7 @@ public final class FeedSpike {
             System.out.println("The 'no underruns on the clients' criterion needs the client logs (see the README). A client logs"
                     + " 'No chunks available' about once a second whenever it has nothing to play, so count only inside the run window:");
             System.out.println("  docker compose logs -t --since " + from + " --until " + feedEnd
-                    + " snapclient-1 snapclient-2 | grep -c \"No chunks available\"   (expect 0 for each client)");
+                    + " snapclient-1 snapclient-2 | grep -c \"No chunks available\"   (expect 0; run it per client to see which one)");
         }
         System.out.println(ok ? "RESULT: OK" : "RESULT: FAILED");
         return ok ? 0 : 1;

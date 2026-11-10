@@ -133,8 +133,10 @@ Reading the result:
   meaningful. The spike prints the UTC start and end of the run and the exact
   command; it has this shape:
   `docker compose logs -t --since <start+5s> --until <end> snapclient-1 snapclient-2 | grep -c "No chunks available"`
-  and must print `0` for each client (the clients need about their buffer time
-  to start, hence the 5 s). The spike moves every group that has a connected
+  and must print `0` (it counts both clients together; run it once per client to
+  see which one is at fault). The clients need about their buffer time to
+  start, hence the 5 s; runs shorter than about 10 s leave a tiny window and
+  prove nothing. The spike moves every group that has a connected
   client, so both rig clients take part.
   `docker compose logs snapserver | grep "State changed"` shows the
   `idle => playing` transition of the stream.

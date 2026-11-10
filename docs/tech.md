@@ -3582,7 +3582,7 @@ Verified 2026-11-10 by reading the Snapcast sources: the `develop` branch at `ea
 
 ### Ports, transports, discovery
 - Binary stream protocol: TCP 1704 (`tcp-streaming`, `server/server_settings.hpp`); JSON-RPC control: raw TCP 1705 (`tcp-control`), HTTP + WebSocket 1780 (`doc/json_rpc_api/control.md`). All bind to `::` by default, all published by default (`publish{true}`), `mdns_enabled{true}`.
-- mDNS (`server/snapserver.cpp`, lines 450 to 473): `_snapcast._tcp` (stream port), `_snapcast-ctrl._tcp` (TCP control port), `_snapcast-http._tcp`, `_snapcast-https._tcp`. The service name is "Snapcast". Published only if the matching service is enabled and its `publish` is true. No TXT records are published (`publish_avahi.cpp` passes none, `publish_bonjour.cpp` registers with an empty TXT).
+- mDNS (`server/snapserver.cpp`, lines 450 to 473): `_snapcast._tcp` (stream port), `_snapcast-ctrl._tcp` (TCP control port), `_snapcast-http._tcp`, `_snapcast-https._tcp`. The service name is "Snapcast". Published only if the matching service is enabled and its `publish` is true. No TXT records are published (`server/publishZeroConf/publish_avahi.cpp` passes none, `publish_bonjour.cpp` there registers with an empty TXT).
 - Clients take their server from one URI (`tcp://host:1704`, `ws://`, or the default `tcp://_snapcast._tcp` = mDNS, which takes the first server found); the mDNS name is browsed again on each reconnect (`client/controller.cpp`, `client/snapclient.cpp`). The server has no message that tells a client to connect elsewhere (checked: the client handles only WireChunk, ServerSettings, CodecHeader, Error and Time from the server). `Server.DeleteClient` only forgets a disconnected client's configuration.
 
 ### JSON-RPC control
