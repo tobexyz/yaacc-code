@@ -1,0 +1,108 @@
+# Snapcast test rig for YAACC integration tests. LOCAL TESTING ONLY, see README.md.
+#
+#   docker compose up --build
+#
+# One snapserver and two snapclients. The clients use Snapcast's "file" player
+# writing to /dev/null: they take part in the protocol (hello, time sync, chunks,
+# volume/mute/latency) but produce no sound and need no sound card.
+#
+# Every published port is bound to 127.0.0.1. The server has NO authentication.
+# Do not change the bind address unless you understand that anyone who can reach
+# the host can then control the rig.
+
+name: yaacc-snapcast-rig
+
+x-rig-hardening: &rig-hardening
+  # tini as PID 1 (signal forwarding, zombie reaping) so "docker compose down" is quick.
+  init: true
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  restart: on-failure
+  pids_limit: 128
+
+services:
+  snapserver:
+    <<: *rig-hardening
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Pinned Snapcast git ref. Override with SNAPCAST_REF=<tag> docker compose up --build
+        SNAPCAST_REF: ${SNAPCAST_REF:-v0.35.0}
+    image: yaacc-snapcast-rig:${SNAPCAST_REF:-v0.35.0}
+    hostname: rig-snapserver
+    command: ["snapserver", "-c", "/etc/snapserver/snapserver.conf"]
+    volumes:
+      - ./snapserver.conf:/etc/snapserver/snapserver.conf:ro
+    tmpfs:
+      # fifo of the "Default" source and the server's persistent state
+      - /tmp:mode=1777,size=64m
+    mem_limit: 256m
+    ports:
+      # stream protocol (snapclients)
+      - "127.0.0.1:1704:1704"
+      # JSON-RPC over TCP (newline-delimited), what YAACC's control library uses
+      - "127.0.0.1:1705:1705"
+      # HTTP JSON-RPC and websocket control
+      - "127.0.0.1:1780:1780"
+      # tcp stream sources created at runtime with Stream.AddStream
+      # (tcp://0.0.0.0:<port>?mode=server, the producer connects to the host port)
+      - "127.0.0.1:4953-4962:4953-4962"
+    healthcheck:
+      # plain bash TCP connect, the slim image has no nc/curl
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/1705"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  snapclient-1:
+    <<: *rig-hardening
+    # same image as the server, built by the snapserver service (never pulled)
+    image: yaacc-snapcast-rig:${SNAPCAST_REF:-v0.35.0}
+    pull_policy: never
+    hostname: rig-client-1
+    # Client id on the server = hostID (instance 1 adds no suffix): "rig-host-1".
+    # --player file:filename=/dev/null  discards the audio (no sound card needed).
+    # The URL is given explicitly, mDNS is compiled out.
+    command:
+      - snapclient
+      - --hostID
+      - rig-host-1
+      - --instance
+      - "1"
+      - --player
+      - file:filename=/dev/null
+      - --logsink
+      - stdout
+      - tcp://snapserver:1704
+    mem_limit: 128m
+    depends_on:
+      snapserver:
+        condition: service_healthy
+
+  snapclient-2:
+    <<: *rig-hardening
+    image: yaacc-snapcast-rig:${SNAPCAST_REF:-v0.35.0}
+    pull_policy: never
+    hostname: rig-client-2
+    # Instance 2 makes the server id "<hostID>#2" = "rig-host-2#2", so the rig also
+    # exercises client ids that contain '#'.
+    command:
+      - snapclient
+      - --hostID
+      - rig-host-2
+      - --instance
+      - "2"
+      - --player
+      - file:filename=/dev/null
+      - --logsink
+      - stdout
+      - tcp://snapserver:1704
+    mem_limit: 128m
+    depends_on:
+      snapserver:
+        condition: service_healthy
