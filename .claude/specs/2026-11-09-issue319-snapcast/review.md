@@ -33,3 +33,36 @@ Positives (verified, no action): tasks 1.2 and 1.5 are correctly left unticked; 
 - [x] Coverage adequate for the change - n/a for Group 1; the fixtures and FeedSpike were checked by reading, the spike additionally by a live run against a fake server (paced and burst modes, pre-existing stream case).
 
 ### Verdict: FAIL
+
+## Cycle 2 - 2026-11-10
+Reviewing: the fixes of cycle 1 (commit 6385f4bd): `docs/tech.md` (state bullet, new section "Error codes, layouts and tcp-source details"), `design.md`, `tasks.md`, fixtures, `tools/snapcast-rig/README.md`, `FeedSpike.java`.
+
+Method: new claims checked against `/home/user/snapcast/snapcast` (`pcm_stream.cpp:278`, `asio_stream.hpp:210-219`, `server.cpp:146-171`, `jsonrpcpp.hpp:1018-1019`, `control_requests.cpp:776-808`, `tcp_stream.cpp:40-62`, `stream_uri.cpp:173-179`, `stream_manager.cpp:84-88`, `doc/binary_protocol.md`, `client/stream.cpp:271-279`). `FeedSpike.java` compiled with `javac` and run against a new throw-away fake server (3 groups: two with a connected client on different streams, one with only a disconnected client; port 4953 answers -32603 with `data`; a variant with a pre-existing `YAACC spike` stream), scratchpad only. No Gradle, Docker or Snapcast build.
+
+Verified fixed (no action):
+- Silence/idle (W1): tech.md bullet and design.md items 2, 4, 6 now match the source (all-zero chunk is silent even with threshold 0, `idle` after `idle_threshold`, data keeps flowing); the idle cleanup is tied to our own activity.
+- `error.data` (W2): live run: the refused port prints `refused: JSON-RPC error -32603: Internal error (bind: Address already in use)` and the loop goes on to 4954; with a pre-existing stream the run stops at once with the "leftover of an earlier run" hint and removes nothing. The text checked ("already exists") is exactly the server's message (`stream_manager.cpp:88`).
+- Multi-group move and restore (W3, first half): live run moved `g1` (Default) and `g2` (Radio), left `g3` (disconnected client only) alone, and restored `g1 -> Default`, `g2 -> Radio` before `Stream.RemoveStream`; no restore for a null previous stream.
+- Fixtures (W4, W5): `error_unauthorized.json` (401) and `error_forbidden.json` (403) match `server.cpp:146-152` (no `data`), all JSON files parse, the fixtures README describes them; `uri.host` is `0.0.0.0:4953` as in `StreamUri::toJson`.
+- tech.md additions (W6): error codes, taken port -> -32603 at `AddStream` (acceptor in the constructor), `?port=`, `codec=` as transport codec, `controlscript` in `plugin_dir`, host:port shape, and the Hello/ServerSettings/CodecHeader/WireChunk/ClientInfo/Error layouts agree with `doc/binary_protocol.md` and the sources.
+- Inventory (W6): corrected counts (app code under `de/` only) and the added rows (`RendererStatusMonitor.pollDevice`, `ReceiverListFragment`, `BrowseReceiverDeviceAdapter`, `getDetails()/getDisplayString()`, `Player.getDeviceId()`) are present. Tasks 1.2, 1.4, 1.5 now carry status notes.
+
+### Critical
+- none
+
+### Warning
+- [tools/snapcast-rig/README.md:130-138 ("Reading the result"), FeedSpike.java:301-303] The replacement pass criterion for task 1.5 is still not usable. (a) "The last such line must be older than the start of the run plus a few seconds" cannot hold when read after the run: the spike restores the groups to their previous (idle, writer-less) streams at the end and the clients then log `No chunks available` again every second (`client/stream.cpp:274-279`), so the last line is always recent. The criterion has to be a window: no such line between (start + a few seconds) and the end of the feed. (b) The spike prints no wall-clock time (only `[ 3 s]` offsets), so nobody can name "the start of the run" to compare with `docker compose logs -t`. Fix: print UTC start and end instants (`Instant.now()`) from the spike, and give the README the command for the window, e.g. `docker compose logs -t --since <start+5s> --until <end> snapclient-1 snapclient-2 | grep -c "No chunks available"` expecting 0 (and the spike's final hint in the same words). The `--since/--until` flags are the non-interactive option the cycle 1 finding suggested.
+- [tools/snapcast-rig/README.md:111-114] The intro paragraph of "Feed spike" still says "moves the first group with connected clients to it" and "then restores the group", which contradicts the code and the new text a few lines below (every group with a connected client; all groups restored). A reader running the acceptance run is told that only one client takes part. Fix: "moves every group that has a connected client ... restores their previous streams".
+- [design.md:4 and :66, tasks.md 1.1 Verify] One `(verify: ...)` marker remains (Media3 tap / `AudioProcessor` / `SonicAudioProcessor`, design.md:66) and design.md:4 still says that every `(verify)` marker "Group 1 of `tasks.md` must confirm with the rig". Task 1.1 is ticked and its Verify line requires every marker resolved. The item is an Android question that belongs to task 4.1 (the on-device spike), as cycle 1 asked to be said. Fix: change the marker to "(checked in task 4.1, not in Group 1)" and amend line 4 to "markers are resolved in tech.md or assigned to a later task".
+
+### Suggestion
+- [FeedSpike.java:28] The header comment still says "the next port is tried on any error"; the code now stops on a name clash. Adjust the comment.
+- [docs/tech.md:3585] "TXT records: none seen in the source (rig)" can be closed from the source (`publish_avahi.cpp:161-162`, `publish_bonjour.cpp:165`), see cycle 1.
+- [docs/tech.md:3620] Say there that the client logs the line once a second while it has nothing to play, and that the criterion therefore is a time window (same as the README fix).
+- Carried over from cycle 1, still open and non-blocking: the ref-vs-tag note (notes read on `develop` `ea981ec`, rig builds `v0.35.0`), the batch-array comment in `Control.call`, the `host:port` id parsing note is now covered in the Player row of design.md.
+
+### Tests
+- [ ] All tests passing - not run: Group 1 still has no production code and no test code; Gradle was not to be run.
+- [x] Coverage adequate for the change - n/a for Group 1; fixtures parse (python `json.load`), the spike was checked by two live runs against a fake server (multi-group move and restore, taken port with `data`, pre-existing stream).
+
+### Verdict: FAIL

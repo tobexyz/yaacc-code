@@ -25,7 +25,8 @@
 //   1. talks newline-delimited JSON-RPC 2.0 to the snapserver control port 1705,
 //      calls Server.GetStatus and prints what it sees
 //   2. Stream.AddStream with a tcp source in server mode named "YAACC spike" on the
-//      first accepted port from 4953 upward (the next port is tried on any error)
+//      first accepted port from 4953 upward (the next port is tried when the call is refused, except when the
+//      name is already taken: then the run stops and tells you how to remove the leftover stream)
 //   3. optionally moves every group that has a connected client to
 //      the new stream with Group.SetStream, remembering the previous stream
 //   4. connects to that tcp port and writes a 440 Hz sine as raw PCM, 48000 Hz,
@@ -49,6 +50,7 @@
 // Needs a rig or snapserver whose control port and a tcp source port are reachable
 // from this machine (tools/snapcast-rig/README.md). No authentication support.
 //
+// Note: the control reader ignores JSON-RPC batch arrays (a throw-away spike; the real library accepts them).
 // Exit code: 0 = run completed and checks passed, 1 = a check failed or an error
 // occurred, 2 = usage error.
 
@@ -60,6 +62,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -175,6 +178,8 @@ public final class FeedSpike {
     private final List<String> movedGroupIds = new ArrayList<>();
     private final List<String> previousStreamIds = new ArrayList<>();
     private Socket feedSocket;
+    private Instant feedStart;
+    private Instant feedEnd;
 
     private FeedSpike(String host, int seconds, boolean burst, boolean moveGroup) {
         this.host = host;
@@ -192,7 +197,9 @@ public final class FeedSpike {
         long t0 = 0;
         try {
             control = new Control(host, CONTROL_PORT);
-            System.out.println("== " + (burst ? "BURST" : "real-time paced") + " feed, " + seconds + " s, host " + host);
+            feedStart = Instant.now();
+            System.out.println("== " + (burst ? "BURST" : "real-time paced") + " feed, " + seconds + " s, host " + host
+                    + ", started " + feedStart + " (UTC)");
 
             // 1. Server.GetStatus
             Object status = control.call("Server.GetStatus", null);
@@ -266,6 +273,7 @@ public final class FeedSpike {
         }
 
         long totalMs = t0 == 0 ? 0 : (System.nanoTime() - t0) / 1_000_000;
+        feedEnd = Instant.now();
         System.out.println();
         System.out.println("==== summary ====");
         System.out.println("mode                  : " + (burst ? "burst (no pacing)" : "real time, " + CHUNK_MS + " ms chunks"));
@@ -298,9 +306,11 @@ public final class FeedSpike {
                 System.out.println("CHECK FAILED: no status sample was taken");
                 ok = false;
             }
-            System.out.println("The 'no underruns on the clients' criterion needs the client logs, see the README: the line"
-                    + " 'No chunks available' is logged about once a second whenever a client has nothing to play, so look at"
-                    + " the timestamps: after the first seconds of the run no such line may appear for the moved groups.");
+            Instant from = feedStart == null ? null : feedStart.plusSeconds(5);
+            System.out.println("The 'no underruns on the clients' criterion needs the client logs (see the README). A client logs"
+                    + " 'No chunks available' about once a second whenever it has nothing to play, so count only inside the run window:");
+            System.out.println("  docker compose logs -t --since " + from + " --until " + feedEnd
+                    + " snapclient-1 snapclient-2 | grep -c \"No chunks available\"   (expect 0 for each client)");
         }
         System.out.println(ok ? "RESULT: OK" : "RESULT: FAILED");
         return ok ? 0 : 1;

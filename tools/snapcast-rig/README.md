@@ -108,11 +108,11 @@ docker compose logs snapserver | grep "State changed"
 `spike/FeedSpike.java` is a throw-away, dependency-free Java 17 program (not part
 of any Gradle module). It talks to the control port, creates the stream
 `YAACC spike` with `Stream.AddStream` (tcp, server mode, first free port from
-4953), moves the first group with connected clients to it, connects to the tcp
+4953), moves every group that has a connected client to it, connects to the tcp
 port and sends a 440 Hz sine as raw PCM (48000 Hz, 16 bit little endian, stereo,
 no WAV header) in **real time** (20 ms chunks, absolute deadlines from
 `System.nanoTime()`), prints the stream status every 10 s, then restores the
-group and calls `Stream.RemoveStream`.
+groups and calls `Stream.RemoveStream`.
 
 ```sh
 # 5 minutes, real-time paced (the acceptance run)
@@ -128,12 +128,14 @@ Reading the result:
   stayed at about one chunk (20 ms).
 - The "no underruns on the clients" criterion needs the client logs, which the
   spike cannot see. A client logs the info line `No chunks available` about
-  once a second whenever it has nothing to play (also while its group is on an
-  idle stream), so a plain count is meaningless. Use the timestamps instead:
-  `docker compose logs -t snapclient-1 snapclient-2 | grep "No chunks available" | tail -n 4`
-  The last such line must be older than the start of the run plus a few
-  seconds (the clients need about their buffer time to start). The spike moves
-  every group that has a connected client, so both rig clients take part.
+  once a second whenever it has nothing to play (also before and after the run,
+  when the groups are back on an idle stream), so only a **time window** is
+  meaningful. The spike prints the UTC start and end of the run and the exact
+  command; it has this shape:
+  `docker compose logs -t --since <start+5s> --until <end> snapclient-1 snapclient-2 | grep -c "No chunks available"`
+  and must print `0` for each client (the clients need about their buffer time
+  to start, hence the 5 s). The spike moves every group that has a connected
+  client, so both rig clients take part.
   `docker compose logs snapserver | grep "State changed"` shows the
   `idle => playing` transition of the stream.
 - `--burst`: the producer finishes far ahead of the clock (the `lead` figure) because
