@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": -32602,
+    "data": "Stream with id 'nope' not found",
+    "message": "Invalid params"
+  },
+  "id": 9,
+  "jsonrpc": "2.0"
+}

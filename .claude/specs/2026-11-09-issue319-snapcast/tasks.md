@@ -6,7 +6,7 @@ Rules: spec first, tests first for the pure parts; all new strings in values + d
 **Phase A (Groups 1-6): source + controls. Phase B (Groups 7-10): the phone as a client; starts only after the owner's gate at the end of Group 6.**
 
 ## Group 1: Research and rig (P0), no production code
-- [ ] 1.1 Verify protocol and control behavior from the Snapcast sources and the rig and write it to `docs/tech.md` (own words, version 0.35.0) | `docs/tech.md`
+- [x] 1.1 (done 2026-11-10, `docs/tech.md` section "Snapcast (issue #319)"; items marked **rig** still need the rig) Verify protocol and control behavior from the Snapcast sources and the rig and write it to `docs/tech.md` (own words, version 0.35.0) | `docs/tech.md`
   - **Accept**: notes cover JSON-RPC framing and error codes, the `Server.GetStatus` shape, every notification we use, the `Stream.AddStream` tcp URI (bind address, port choice, `codec`, `sampleformat`, raw PCM vs WAV header, which security limits apply), `Group.SetClients` semantics, mDNS service names and TXT, server identity fields, ServerSettings/Time/WireChunk layouts for Phase B; each item has a source (file/line in the Snapcast repo) or "verified on the rig".
   - **Verify**: a grep shows every `(verify)` marker of `design.md` resolved in `docs/tech.md`; nothing copied verbatim.
   - **Constraints**: Snapcast is GPL v3: no code copied; list the license.
@@ -14,10 +14,10 @@ Rules: spec first, tests first for the pure parts; all new strings in values + d
   - **Accept**: `docker compose up` starts one snapserver (control 1705, stream 1704, a pipe source) and two snapclients with a null/file audio backend; the README says how to see the streams and how the owner connects a real client.
   - **Verify**: `docker compose config` validates; (owner or CI) `Server.GetStatus` over `nc localhost 1705` lists two clients.
   - **Constraints**: images pinned by tag (no `latest`); only local ports; non-interactive; never commit audio files.
-- [ ] 1.3 Fixtures | `yaacc/src/test/resources/snapcast/` (`status_*.json`, notifications, errors)
+- [x] 1.3 (done 2026-11-10: derived from docs and sources, see the README there; real captures follow from the rig) Fixtures | `yaacc/src/test/resources/snapcast/` (`status_*.json`, notifications, errors)
   - **Accept**: `Server.GetStatus` with 0/1/3 groups, a disconnected client, a stream list, each notification we use, an AddStream error, an unauthorized error; names/IPs/MACs scrubbed (192.0.2.x).
   - **Verify**: a grep for real MAC/IP patterns finds nothing.
-- [ ] 1.4 Inventory: where a receiver must be a Cling `Device` | `.claude/specs/2026-11-09-issue319-snapcast/design.md` (section update)
+- [x] 1.4 (done 2026-11-10: GO for the synthetic device, see design.md "Inventory result") Inventory: where a receiver must be a Cling `Device` | `.claude/specs/2026-11-09-issue319-snapcast/design.md` (section update)
   - **Accept**: a list of every place that uses a receiver's services or registry (`UpnpClient.getDevice`, `RendererStatus`, `OpenHomeChoice`, `ShareAddressResolver`, `DeviceSessionGrouper`, volume, `DeviceSheetAdapter`, pick controllers) with the change needed for a synthetic device; a go/no-go for "synthetic device" vs "`ReceiverTarget` seam".
   - **Verify**: reviewed by the owner before Group 3 starts.
 - [ ] 1.5 Spike (throw-away, plain Java, not committed to `main` sources): feed a tone as raw PCM into a tcp source created by `Stream.AddStream` on the rig | `tools/snapcast-rig/spike/`

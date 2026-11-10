@@ -1,0 +1,10 @@
+{
+  "id": 6,
+  "jsonrpc": "2.0",
+  "result": {
+    "volume": {
+      "muted": false,
+      "percent": 42
+    }
+  }
+}

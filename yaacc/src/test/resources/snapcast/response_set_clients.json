@@ -1,0 +1,81 @@
+{
+  "id": 8,
+  "jsonrpc": "2.0",
+  "result": {
+    "server": {
+      "groups": [
+        {
+          "clients": [
+            {
+              "config": {
+                "instance": 1,
+                "latency": 0,
+                "name": "Kitchen",
+                "volume": {
+                  "muted": false,
+                  "percent": 70
+                }
+              },
+              "connected": true,
+              "host": {
+                "arch": "x86_64",
+                "ip": "192.0.2.11",
+                "mac": "02:00:00:00:00:01",
+                "name": "TEST-HOST-A",
+                "os": "Linux"
+              },
+              "id": "02:00:00:00:00:01",
+              "lastSeen": {
+                "sec": 1700000001,
+                "usec": 123456
+              },
+              "snapclient": {
+                "name": "Snapclient",
+                "protocolVersion": 2,
+                "version": "0.35.0"
+              }
+            }
+          ],
+          "id": "aaaaaaaa-0000-4000-8000-000000000001",
+          "muted": false,
+          "name": "",
+          "stream_id": "Default"
+        }
+      ],
+      "server": {
+        "host": {
+          "arch": "x86_64",
+          "ip": "",
+          "mac": "",
+          "name": "TEST-SERVER",
+          "os": "Linux"
+        },
+        "snapserver": {
+          "controlProtocolVersion": 1,
+          "name": "Snapserver",
+          "protocolVersion": 1,
+          "version": "0.35.0"
+        }
+      },
+      "streams": [
+        {
+          "id": "Default",
+          "status": "idle",
+          "uri": {
+            "fragment": "",
+            "host": "",
+            "path": "/tmp/snapfifo",
+            "query": {
+              "chunk_ms": "20",
+              "codec": "flac",
+              "name": "Default",
+              "sampleformat": "48000:16:2"
+            },
+            "raw": "pipe:///tmp/snapfifo?name=Default",
+            "scheme": "pipe"
+          }
+        }
+      ]
+    }
+  }
+}

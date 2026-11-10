@@ -1,0 +1,43 @@
+{
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "server": {
+      "groups": [],
+      "server": {
+        "host": {
+          "arch": "x86_64",
+          "ip": "",
+          "mac": "",
+          "name": "TEST-SERVER",
+          "os": "Linux"
+        },
+        "snapserver": {
+          "controlProtocolVersion": 1,
+          "name": "Snapserver",
+          "protocolVersion": 1,
+          "version": "0.35.0"
+        }
+      },
+      "streams": [
+        {
+          "id": "Default",
+          "status": "idle",
+          "uri": {
+            "fragment": "",
+            "host": "",
+            "path": "/tmp/snapfifo",
+            "query": {
+              "chunk_ms": "20",
+              "codec": "flac",
+              "name": "Default",
+              "sampleformat": "48000:16:2"
+            },
+            "raw": "pipe:///tmp/snapfifo?name=Default",
+            "scheme": "pipe"
+          }
+        }
+      ]
+    }
+  }
+}

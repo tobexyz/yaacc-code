@@ -1,0 +1,8 @@
+{
+  "jsonrpc": "2.0",
+  "method": "Client.OnLatencyChanged",
+  "params": {
+    "id": "02:00:00:00:00:01",
+    "latency": 10
+  }
+}

@@ -1,0 +1,231 @@
+{
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "server": {
+      "groups": [
+        {
+          "clients": [
+            {
+              "config": {
+                "instance": 1,
+                "latency": 0,
+                "name": "Kitchen",
+                "volume": {
+                  "muted": false,
+                  "percent": 70
+                }
+              },
+              "connected": true,
+              "host": {
+                "arch": "x86_64",
+                "ip": "192.0.2.11",
+                "mac": "02:00:00:00:00:01",
+                "name": "TEST-HOST-A",
+                "os": "Linux"
+              },
+              "id": "02:00:00:00:00:01",
+              "lastSeen": {
+                "sec": 1700000001,
+                "usec": 123456
+              },
+              "snapclient": {
+                "name": "Snapclient",
+                "protocolVersion": 2,
+                "version": "0.35.0"
+              }
+            },
+            {
+              "config": {
+                "instance": 1,
+                "latency": 20,
+                "name": "",
+                "volume": {
+                  "muted": false,
+                  "percent": 55
+                }
+              },
+              "connected": true,
+              "host": {
+                "arch": "x86_64",
+                "ip": "192.0.2.12",
+                "mac": "02:00:00:00:00:02",
+                "name": "TEST-HOST-B",
+                "os": "Linux"
+              },
+              "id": "02:00:00:00:00:02",
+              "lastSeen": {
+                "sec": 1700000002,
+                "usec": 123456
+              },
+              "snapclient": {
+                "name": "Snapclient",
+                "protocolVersion": 2,
+                "version": "0.35.0"
+              }
+            }
+          ],
+          "id": "aaaaaaaa-0000-4000-8000-000000000001",
+          "muted": false,
+          "name": "Ground floor",
+          "stream_id": "YAACC test phone"
+        },
+        {
+          "clients": [
+            {
+              "config": {
+                "instance": 1,
+                "latency": 0,
+                "name": "Bedroom",
+                "volume": {
+                  "muted": true,
+                  "percent": 30
+                }
+              },
+              "connected": true,
+              "host": {
+                "arch": "x86_64",
+                "ip": "192.0.2.13",
+                "mac": "02:00:00:00:00:03",
+                "name": "TEST-HOST-C",
+                "os": "Linux"
+              },
+              "id": "02:00:00:00:00:03",
+              "lastSeen": {
+                "sec": 1700000003,
+                "usec": 123456
+              },
+              "snapclient": {
+                "name": "Snapclient",
+                "protocolVersion": 2,
+                "version": "0.35.0"
+              }
+            },
+            {
+              "config": {
+                "instance": 2,
+                "latency": 0,
+                "name": "Study",
+                "volume": {
+                  "muted": false,
+                  "percent": 90
+                }
+              },
+              "connected": false,
+              "host": {
+                "arch": "x86_64",
+                "ip": "192.0.2.14",
+                "mac": "02:00:00:00:00:04",
+                "name": "TEST-HOST-D",
+                "os": "Linux"
+              },
+              "id": "02:00:00:00:00:04#2",
+              "lastSeen": {
+                "sec": 1700000004,
+                "usec": 123456
+              },
+              "snapclient": {
+                "name": "Snapclient",
+                "protocolVersion": 2,
+                "version": "0.35.0"
+              }
+            }
+          ],
+          "id": "aaaaaaaa-0000-4000-8000-000000000002",
+          "muted": true,
+          "name": "",
+          "stream_id": "Default"
+        },
+        {
+          "clients": [
+            {
+              "config": {
+                "instance": 1,
+                "latency": 0,
+                "name": "Garage",
+                "volume": {
+                  "muted": false,
+                  "percent": 100
+                }
+              },
+              "connected": true,
+              "host": {
+                "arch": "x86_64",
+                "ip": "192.0.2.15",
+                "mac": "02:00:00:00:00:05",
+                "name": "TEST-HOST-E",
+                "os": "Linux"
+              },
+              "id": "02:00:00:00:00:05",
+              "lastSeen": {
+                "sec": 1700000005,
+                "usec": 123456
+              },
+              "snapclient": {
+                "name": "Snapclient",
+                "protocolVersion": 2,
+                "version": "0.35.0"
+              }
+            }
+          ],
+          "id": "aaaaaaaa-0000-4000-8000-000000000003",
+          "muted": false,
+          "name": "Garage",
+          "stream_id": ""
+        }
+      ],
+      "server": {
+        "host": {
+          "arch": "x86_64",
+          "ip": "",
+          "mac": "",
+          "name": "TEST-SERVER",
+          "os": "Linux"
+        },
+        "snapserver": {
+          "controlProtocolVersion": 1,
+          "name": "Snapserver",
+          "protocolVersion": 1,
+          "version": "0.35.0"
+        }
+      },
+      "streams": [
+        {
+          "id": "Default",
+          "status": "idle",
+          "uri": {
+            "fragment": "",
+            "host": "",
+            "path": "/tmp/snapfifo",
+            "query": {
+              "chunk_ms": "20",
+              "codec": "flac",
+              "name": "Default",
+              "sampleformat": "48000:16:2"
+            },
+            "raw": "pipe:///tmp/snapfifo?name=Default",
+            "scheme": "pipe"
+          }
+        },
+        {
+          "id": "YAACC test phone",
+          "status": "playing",
+          "uri": {
+            "fragment": "",
+            "host": "0.0.0.0",
+            "path": "",
+            "query": {
+              "chunk_ms": "20",
+              "codec": "flac",
+              "mode": "server",
+              "name": "YAACC test phone",
+              "sampleformat": "48000:16:2"
+            },
+            "raw": "tcp://0.0.0.0:4953?name=YAACC test phone&mode=server",
+            "scheme": "tcp"
+          }
+        }
+      ]
+    }
+  }
+}

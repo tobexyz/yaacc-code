@@ -39,10 +39,26 @@ The synthetic receiver device (or a receiver seam), the PCM capture sink and the
 - `createPlayer` returns a `SnapcastPlayer` for these ids. Code paths that assume AVTransport/OpenHome services (status polling `RendererStatus`, `OpenHomeChoice`, share addresses, renderer volume) must tolerate a device without those services; Group 1 inventories every such place.
 - Members: each Snapcast client is shown in the sheet like a MusicCast member (name, connected, volume slider, mute, latency in a detail menu). Add/remove client uses `Group.SetClients` within the same server only.
 
+### Inventory result (task 1.4, 2026-11-10): synthetic device is a GO
+A receiver is a Cling `Device` throughout, but the code only needs a `Device` with an identity: `UpnpClient.LocalDummyDevice extends Device` (UDN `LOCAL_UID`, `getServices()` null) already is such a device and is handled everywhere. `SnapcastGroupDevice` follows it (UDN-shaped id `snapcast:<serverKey>:<groupId>`, `getServices()` null, never registered with Cling). Changes needed, by place:
+| Place | Change |
+|---|---|
+| `UpnpClient.getDevicesProvidingAvTransportService()` (~523) | append the groups of `SnapcastDirectory` after the registry devices (the local dummy stays first) |
+| `UpnpClient.getDevice(String)` (~575) | resolve `snapcast:` ids from `SnapcastDirectory` before the registry lookup |
+| `UpnpClient.getReceiverDevices()` (~1259) | none: unknown ids are dropped, and `ReceiverAvailabilityPolicy` already gives a vanished receiver a few looks |
+| `PlayerService.createPlayer` (~577) | new branch for Snapcast ids before the OpenHome/AVTransport choice |
+| `PlayerService.createQueuePlayers` (~422) | treat a Snapcast group like the direct local case (no share, the phone reads and decodes itself); skip `OpenHomeReceivers.isOpenHomeOnly` for it |
+| `ReceiverRowBinder` (~236, ~1112, ~1205-1262) | icon: already falls back when the device is no `RemoteDevice`; volume and status paths use `findService`/`RendererStatus`: add a Snapcast branch (group volume from the model, state from the player) |
+| `DeviceSheetAdapter` (~249) | the live list comes from `ReceiverLiveUpdates.watched(...)`: add the Snapcast source |
+| `ShareAddressResolver` (~81) | none for the feed (no share needed); guard the descriptor URL use for a device that is neither local nor remote |
+| `YxcPlayTargets`, `YxcRowFeed` | none (they act on `RemoteDevice`s only) |
+| `DeviceSessionGrouper`, `ReceiverPickController`, `LocalPickController` | none (string ids) |
+Inventory counts (main sources): `getDevice(` 97 uses in 26 files (most inside the vendored Cling code), `findService` 24 in 13, `getReceiverDevices` 14 in 4, `getIdentity().getUdn()` 86 in 27. Decision: no `ReceiverTarget` seam; build the synthetic device.
+
 ### Feed: playing into a group (Phase A)
 1. `SnapcastStreams.ensure(server)`: find a stream named `YAACC <phone name>`; if absent call `Stream.AddStream` with a tcp source in server mode, e.g. `tcp://0.0.0.0:<port>?name=YAACC%20<phone>&mode=server&sampleformat=48000:16:2&codec=flac` (src: `doc/configuration.md`; the server listens, the producer connects) (verify: bind address allowed by AddStream, free-port choice from the existing streams' URIs, `codec` meaning for tcp sources, whether a WAV header is expected or raw PCM).
 2. `Group.SetStream(group, stream)`; remember the group's previous stream id and restore it when playback ends and the stream goes idle.
-3. `PcmFeeder`: opens the TCP connection to the server and writes the PCM of what YAACC plays on this group. Pacing is the hard part: the server timestamps chunks from a running clock and expects real-time input (src: `streamreader/pcm_stream.cpp`, `tvEncodedChunk_` advances by chunk duration), so the feeder writes at real-time speed with a bounded look-ahead (about one `chunk_ms` plus jitter), never in bursts.
+3. `PcmFeeder`: opens the TCP connection to the server and writes the PCM of what YAACC plays on this group. Pacing (src, `streamreader/asio_stream.hpp`): the server reads one chunk (`chunk_ms`, default 20 ms) at a time and waits for each chunk's real-time deadline, so TCP back pressure already throttles a producer that is ahead; the stream clock starts at the first read after connect, and a late read makes the server resync (an audible break). The feeder therefore keeps a small queue of a few chunks, uses a small socket send buffer, never underruns, and never runs far ahead: every byte in flight delays pause/stop by bytes / 192000 B/s (48000:16:2). Only one producer connection is accepted at a time per tcp source, so each phone uses its own stream.
 4. Audio path: YAACC's local player decodes with Media3; a Phase A `AudioProcessor` tap converts to the stream's sample format and hands PCM to the feeder instead of (or besides) the local speaker; the local audio output is muted for a Snapcast-only play. (verify: `TeeAudioProcessor`/custom `AudioProcessor` in media3 1.11.1, resampling with `SonicAudioProcessor`, behavior at track changes: gapless, silence between tracks keeps the stream alive.)
 5. Transport semantics: pause/stop/seek act on the YAACC queue immediately but are audible after the server's buffer (default `bufferMs` 1000, src ServerSettings); document it. Volume of the group = group volume above; the phone's own volume is not touched.
 6. Cleanup: remove the stream with `Stream.RemoveStream` after an idle timeout (default 10 min) and on user request; never remove streams YAACC did not create (name prefix + a marker in the name).

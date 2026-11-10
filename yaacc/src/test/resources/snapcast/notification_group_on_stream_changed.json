@@ -1,0 +1,8 @@
+{
+  "jsonrpc": "2.0",
+  "method": "Group.OnStreamChanged",
+  "params": {
+    "id": "aaaaaaaa-0000-4000-8000-000000000001",
+    "stream_id": "Default"
+  }
+}
