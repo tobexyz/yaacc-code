@@ -112,7 +112,10 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
 
         /**
          * A notification of the server, of a method that {@link SnapcastModelUpdater} knows. Notifications of other
-         * methods are not delivered: they only cause {@link #onNotificationsLost()}.
+         * methods are not delivered: they only cause {@link #onNotificationsLost()}. {@code Stream.OnProperties} is
+         * delivered with empty params (the model ignores it and its payload is not kept).
+         * <p>The listener executor must outlive this client: if an external executor drops an accepted task (for example
+         * through {@code shutdownNow()}), no further events are delivered and ordered calls time out.
          */
         default void onNotification(String method, JSONObject params) {
         }

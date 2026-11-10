@@ -47,3 +47,8 @@
 - *Exceptions*: `SnapcastException.io` and the JSON syntax errors keep **no cause** (the text of a network exception or of an `org.json` error can hold the address or the server's text). `INTERNAL` keeps its cause: it comes from our own code or an `Error`. `toString()` of stream and server info prints fixed words and numbers only.
 - *`setGroupClients`*: `null` and an empty list are caller errors (`IllegalArgumentException`, as documented for a wrong argument); an empty list would dissolve the group.
 **Rationale**: smallest change that closes each finding without a second mechanism; the ordering fix also gives the own-change patch its ordering for free.
+
+## 2026-11-10 - Stream.OnProperties arrives without params
+**Context**: the model ignores the stream metadata; keeping 1 MB payloads in the notification queue only costs memory.
+**Decision**: `Stream.OnProperties` is delivered to listeners with empty params and weight 1. A later group that needs track metadata must add the params for that method deliberately.
+**Rationale**: security review rule "unknown or unused notifications are not queued with their payload"; found in review cycle 2/3 of Group 2.
