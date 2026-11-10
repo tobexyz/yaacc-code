@@ -65,6 +65,13 @@ Status 2026-11-10: gates passed (review cycle 3 PASS, security review cycle 2 PA
 - [x] F2.7 Suggestions taken: local model patch after our own calls (the server does not notify the caller's connection), `setGroupVolume` takes start levels and current levels separately, peer address accessor on `SnapcastRpc` for Group 4, null/empty checks in `setGroupClients`, no address text in exception causes or `toString()`, remove unused code and test leftovers; record the Group 2 choices in `decisions.md`.
   - **Verify**: `./gradlew :yaacc:testDebugUnitTest --offline --tests 'de.yaacc.multiroom.*'` green; full unit tests and lint without new issues.
 
+## Fix Group 2b: Address review cycle 2 of Group 2 (finding W7 in `review.md`, "Cycle 2 (Group 2)")
+- [ ] F2.8 Lifecycle events of `reconnect()` / `sessionEnded()` keep their order (W7) | `SnapcastRpc`
+  - **Accept**: `onDisconnected` (and in `sessionEnded` also `onGaveUp`) is enqueued before the next attempt can enqueue `onConnected`; events alternate disconnected, connected; after the last `reconnect()` the last event is "connected".
+  - **Verify**: a test calling `reconnect()` several hundred times against a loopback server asserts the alternation and the last event (the reviewer's probe delivered `[C, D]` in 14 of 2000 rounds on the old code).
+- [ ] F2.9 Suggestions of cycle 2: Javadoc for Group 3 (dedicated listener executor, `callOrdered` and every `SnapcastOperations` change or `getStatus` throws `IllegalStateException` inside a delivery, the re-read requester runs on the listener thread and must hand off to a worker, read a fresh status on `onConnected` and repeat a failed re-read, `reconnect()`/`retry()` reset the failure count, one slow call of 10 s without other traffic drops the connection); a rejected drain on an external executor fails ordered callers as CLOSED at once; drop the params of `Stream.OnProperties` at the reader; a test that one notification is always accepted when the byte budget is smaller than the line.
+  - **Verify**: `./gradlew :yaacc:testDebugUnitTest --offline --tests 'de.yaacc.multiroom.*' --rerun` green 3 times; full gate and lint without new issues.
+
 ## Group 3: Discovery and the receiver model (P1)
 - [ ] 3.1 `SnapcastDiscovery` (NsdManager for `_snapcast-ctrl._tcp`, manual servers from preferences, merge by server key) with a testable pure core | `de.yaacc.multiroom.discovery`, tests for the merge/key logic
   - **Accept**: two sightings of one server give one entry; a lost service is removed after the live-update grace; manual servers survive restarts; nothing is scanned outside the receivers page lifetime.
