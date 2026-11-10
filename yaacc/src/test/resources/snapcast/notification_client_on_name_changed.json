@@ -1,0 +1,8 @@
+{
+  "jsonrpc": "2.0",
+  "method": "Client.OnNameChanged",
+  "params": {
+    "id": "02:00:00:00:00:01",
+    "name": "Laptop"
+  }
+}

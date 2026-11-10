@@ -1,0 +1,1 @@
+[{"jsonrpc": "2.0", "method": "Client.OnVolumeChanged", "params": {"id": "02:00:00:00:00:01", "volume": {"muted": false, "percent": 10}}}, {"jsonrpc": "2.0", "method": "Client.OnVolumeChanged", "params": {"id": "02:00:00:00:00:02", "volume": {"muted": false, "percent": 10}}}]

@@ -1,0 +1,24 @@
+{
+  "jsonrpc": "2.0",
+  "method": "Stream.OnUpdate",
+  "params": {
+    "id": "Default",
+    "stream": {
+      "id": "Default",
+      "status": "playing",
+      "uri": {
+        "fragment": "",
+        "host": "",
+        "path": "/tmp/snapfifo",
+        "query": {
+          "chunk_ms": "20",
+          "codec": "flac",
+          "name": "Default",
+          "sampleformat": "48000:16:2"
+        },
+        "raw": "pipe:///tmp/snapfifo?name=Default",
+        "scheme": "pipe"
+      }
+    }
+  }
+}
