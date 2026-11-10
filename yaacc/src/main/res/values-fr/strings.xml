@@ -299,4 +299,6 @@
     <string name="notification_player_title">Lecteur Yaacc</string>
     <string name="notification_download_title">Téléchargement de fichier Yaacc</string>
     <string name="notification_download_to">Téléchargement vers : %1$s</string>
+    <string name="snapcast_group">Groupe Snapcast</string>
+    <string name="snapcast_offline">hors ligne</string>
 </resources>

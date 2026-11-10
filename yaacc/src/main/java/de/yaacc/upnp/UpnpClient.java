@@ -92,6 +92,9 @@ import de.yaacc.share.ShareLogRedactor;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.browser.Position;
+import de.yaacc.multiroom.SnapcastGroupDevice;
+import de.yaacc.multiroom.SnapcastGroupSource;
+import de.yaacc.multiroom.SnapcastHub;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlaylistTargets;
@@ -163,6 +166,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
     private PlayerService playerService;
     private Device<?, ?, ?> localDummyDevice;
+    // The Snapcast groups: receivers that are not in Cling's registry (and never advertised). NONE until initialize().
+    private SnapcastGroupSource snapcastGroups = SnapcastGroupSource.NONE;
     private YaaccUpnpServerService yaaccUpnpServerService;
     private YaaccMediaRouteProvider mediaRouteProvider;
 
@@ -188,6 +193,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (context != null) {
             this.context = context;
             this.preferences = PreferenceManager.getDefaultSharedPreferences(context);
+            this.snapcastGroups = SnapcastHub.getShared(context);
             addPlayerListChangeListener(shareLifetimeListener);
 
             // Initialize MediaRouteProvider for UPnP devices
@@ -534,7 +540,16 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Collections.reverse(result);
         result.add(getLocalDummyDevice());
         Collections.reverse(result);
+        // the Snapcast groups come after the registry's devices (they are sorted by name already); the local device stays first
+        for (SnapcastGroupDevice group : snapcastGroups.groups()) {
+            result.add(group);
+        }
         return result;
+    }
+
+    /** For tests: the source of the Snapcast groups. */
+    void setSnapcastGroups(SnapcastGroupSource groups) {
+        this.snapcastGroups = groups == null ? SnapcastGroupSource.NONE : groups;
     }
 
     private String lastDeviceSummary = "";
@@ -575,6 +590,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     public Device<?, ?, ?> getDevice(String identifier) {
         if (LOCAL_UID.equals(identifier)) {
             return getLocalDummyDevice();
+        }
+        if (SnapcastGroupDevice.isSnapcastId(identifier)) {
+            // a Snapcast group is never in Cling's registry: null when it is not known (any more)
+            return snapcastGroups.findGroup(identifier);
         }
         if (isInitialized()) {
             // Normalize UDN by stripping uuid: prefix if present
@@ -1295,6 +1314,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                     + attempt + " of " + ReceiverAvailabilityPolicy.MAX_ATTEMPTS + ")");
             reenableNetworkListenerIfStale();
             searchDevices();
+            snapcastGroups.wake(getReceiverDeviceIds()); // connects to the listed Snapcast servers of the selected groups, if any
         });
         if (missingAtFirstLook > 0) {
             YaaccLogger.d(getClass().getName(), missing == 0

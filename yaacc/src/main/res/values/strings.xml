@@ -300,4 +300,6 @@
     <string name="notification_player_title">Yaacc player</string>
     <string name="notification_download_title">Yaacc file download</string>
     <string name="notification_download_to">download to: %1$s</string>
+    <string name="snapcast_group">Snapcast group</string>
+    <string name="snapcast_offline">offline</string>
 </resources>

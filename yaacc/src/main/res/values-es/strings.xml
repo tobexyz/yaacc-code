@@ -299,4 +299,6 @@
     <string name="notification_player_title">Reproductor de Yaacc</string>
     <string name="notification_download_title">Descarga de archivo de Yaacc</string>
     <string name="notification_download_to">Descargando en: %1$s</string>
+    <string name="snapcast_group">Grupo de Snapcast</string>
+    <string name="snapcast_offline">sin conexión</string>
 </resources>

@@ -295,4 +295,6 @@
     <string name="notification_player_title">Yaacc-Spieler</string>
     <string name="notification_download_title">Yaacc-Dateidownload</string>
     <string name="notification_download_to">Download nach: %1$s</string>
+    <string name="snapcast_group">Snapcast-Gruppe</string>
+    <string name="snapcast_offline">offline</string>
 </resources>

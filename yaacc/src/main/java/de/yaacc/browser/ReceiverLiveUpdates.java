@@ -28,7 +28,7 @@ import de.yaacc.upnp.UpnpClient;
 /**
  * The live subscriptions of a list of receiver rows, shared by the device sheet and the receivers on the top-level page: the shared
  * {@link RendererStatusMonitor} (state and track of the receivers), the group state of receivers with group support
- * ({@link YxcRowFeed}), player add/remove events, a 2 s poll (local status, session titles, volume and mute) and the volume updater.
+ * ({@link YxcRowFeed}), the Snapcast groups ({@link SnapcastLiveSource}), player add/remove events, a 2 s poll (local status, session titles, volume and mute) and the volume updater.
  * <p>
  * {@link #start} subscribes everything once (a second call does nothing), {@link #stop} drops everything; a callback that still arrives
  * after {@link #stop} is ignored, and a poll that was already queued does not schedule itself again. Main thread only.
@@ -90,6 +90,17 @@ final class ReceiverLiveUpdates {
         void postDelayed(Runnable runnable, long delayMillis);
 
         void removeCallbacks(Runnable runnable);
+
+        /**
+         * Starts following the Snapcast groups (their servers' control connections are opened for as long as it runs);
+         * {@code onChanged} is told, on the main thread and coalesced, when the groups changed. Nothing by default.
+         */
+        default void startSnapcast(Runnable onChanged) {
+        }
+
+        /** Stops following the Snapcast groups. */
+        default void stopSnapcast() {
+        }
     }
 
     private final Sources sources;
@@ -126,6 +137,15 @@ final class ReceiverLiveUpdates {
         public void accept(String udn) {
             if (running) {
                 target.onGroupStateChanged(udn);
+            }
+        }
+    };
+
+    private final Runnable snapcastCallback = new Runnable() {
+        @Override
+        public void run() {
+            if (running) {
+                target.refresh();
             }
         }
     };
@@ -167,6 +187,7 @@ final class ReceiverLiveUpdates {
         sources.subscribeStatus(statusListener);
         sources.startGroupFeed(groupCallback);
         sources.addPlayerListener(playerListener);
+        sources.startSnapcast(snapcastCallback);
         target.startLiveVolume();
         sources.postDelayed(poller, POLL_INTERVAL_MS);
     }
@@ -193,12 +214,14 @@ final class ReceiverLiveUpdates {
         sources.unsubscribeStatus(statusListener);
         sources.stopGroupFeed();
         sources.removePlayerListener(playerListener);
+        sources.stopSnapcast();
     }
 
     /** The real world: the shared monitors, the client's player list and the main thread's handler. */
     static Sources forApp(UpnpClient upnpClient, Handler handler) {
         return new Sources() {
             private YxcRowFeed groupFeed;
+            private SnapcastLiveSource snapcast;
 
             @Override
             public void subscribeStatus(RendererStatusMonitor.StatusListener listener) {
@@ -235,6 +258,22 @@ final class ReceiverLiveUpdates {
             @Override
             public void removePlayerListener(PlayerListChangeNotifier.Listener listener) {
                 upnpClient.removePlayerListChangeListener(listener);
+            }
+
+            @Override
+            public void startSnapcast(Runnable onChanged) {
+                if (snapcast == null) {
+                    snapcast = SnapcastLiveSource.forApp(upnpClient.getContext(), handler, onChanged);
+                }
+                snapcast.start();
+            }
+
+            @Override
+            public void stopSnapcast() {
+                if (snapcast != null) {
+                    snapcast.stop();
+                    snapcast = null;
+                }
             }
 
             @Override

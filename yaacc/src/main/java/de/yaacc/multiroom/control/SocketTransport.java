@@ -25,14 +25,34 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 
-/** A plain TCP connection to the control port of a server (default 1705). */
+/**
+ * A plain TCP connection to the control port of a server (default 1705). No TLS and no authentication: it assumes a
+ * trusted local network.
+ */
 public final class SocketTransport implements SnapcastTransport {
 
     /** The default port of the raw TCP control interface. */
     public static final int DEFAULT_PORT = 1705;
 
     private final String host;
+    private final InetAddress address;
     private final int port;
+
+    /**
+     * Connects to an address that is known already (a discovered server, or a name that was resolved by the caller
+     * with a time limit): nothing is looked up. This is the constructor the app uses.
+     */
+    public SocketTransport(InetAddress address, int port) {
+        if (address == null) {
+            throw new IllegalArgumentException("no address");
+        }
+        if (port < 1 || port > 65535) {
+            throw new IllegalArgumentException("port out of range");
+        }
+        this.host = null;
+        this.address = address;
+        this.port = port;
+    }
 
     public SocketTransport(String host, int port) {
         if (host == null || host.trim().isEmpty()) {
@@ -42,6 +62,7 @@ public final class SocketTransport implements SnapcastTransport {
             throw new IllegalArgumentException("port out of range");
         }
         this.host = host.trim();
+        this.address = null;
         this.port = port;
     }
 
@@ -56,7 +77,8 @@ public final class SocketTransport implements SnapcastTransport {
         try {
             socket.setTcpNoDelay(true);
             socket.setKeepAlive(true);
-            socket.connect(new InetSocketAddress(host, port), connectTimeoutMillis);
+            socket.connect(address != null ? new InetSocketAddress(address, port) : new InetSocketAddress(host, port),
+                    connectTimeoutMillis);
         } catch (IOException | RuntimeException e) {
             try {
                 socket.close();

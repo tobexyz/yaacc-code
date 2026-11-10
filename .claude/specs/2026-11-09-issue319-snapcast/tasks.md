@@ -79,15 +79,16 @@ Status 2026-11-10: gates passed (review cycle 3 PASS, security review cycle 2 PA
   - **Verify**: `SnapcastRpcTest.aLimitOfZeroOrLessIsRefusedByTheConfig`; full gate 3618 tests, 0 failures, lint unchanged.
 
 ## Group 3: Discovery and the receiver model (P1)
-- [ ] 3.1 `SnapcastDiscovery` (NsdManager for `_snapcast-ctrl._tcp`, manual servers from preferences, merge by server key) with a testable pure core | `de.yaacc.multiroom.discovery`, tests for the merge/key logic
+Status 2026-11-10: built, full gate green (3772 tests, 0 failures, lint unchanged); review gates pending. Not verifiable in the sandbox: `SnapcastNsd` (NsdManager, multicast lock) and the 2 s row update on the rig; both wait for the owner's device.
+- [x] 3.1 `SnapcastDiscovery` (NsdManager for `_snapcast-ctrl._tcp`, manual servers from preferences, merge by server key) with a testable pure core | `de.yaacc.multiroom.discovery`, tests for the merge/key logic
   - **Accept**: two sightings of one server give one entry; a lost service is removed after the live-update grace; manual servers survive restarts; nothing is scanned outside the receivers page lifetime.
   - **Verify**: `SnapcastDirectoryTest`.
   - **Constraints**: multicast lock only while needed; no extra permission beyond what NsdManager needs.
   - **Constraints (security)**: only loopback/private/link-local/unique-local addresses, at most 16 servers, lazy connect, strict manual entry validation; names and ids from servers are display text only.
-- [ ] 3.2 `SnapcastGroupDevice` + `SnapcastDirectory` integrated into `UpnpClient` lists/lookups as decided in 1.4 | `de.yaacc.multiroom`, `de.yaacc.upnp.UpnpClient`
+- [x] 3.2 `SnapcastGroupDevice` + `SnapcastDirectory` integrated into `UpnpClient` lists/lookups as decided in 1.4 | `de.yaacc.multiroom`, `de.yaacc.upnp.UpnpClient`
   - **Accept**: a group appears in `getDevicesProvidingAvTransportService()` and resolves by `getDevice(id)`; it is never in Cling's registry (never advertised); a group that vanishes is dropped from the list and from stored receiver selections without a crash.
   - **Verify**: `SnapcastGroupDeviceTest`, `UpnpClientReceiversTest` (new), existing receiver tests unchanged.
-- [ ] 3.3 Live updates: `SnapcastLiveSource` for `ReceiverLiveUpdates` (control notifications, coalesced 300 ms, lifetime like MusicCast) | `de.yaacc.browser` / `de.yaacc.multiroom`
+- [x] 3.3 (unit part done; the 2 s check on the rig is the owner's) Live updates: `SnapcastLiveSource` for `ReceiverLiveUpdates` (control notifications, coalesced 300 ms, lifetime like MusicCast) | `de.yaacc.browser` / `de.yaacc.multiroom`
   - **Accept**: rows follow server changes from a second controller within 2 s on the rig; stops when the page is hidden.
   - **Verify**: `ReceiverLiveUpdatesSnapcastTest` (fake target/source).
 

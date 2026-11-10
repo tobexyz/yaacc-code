@@ -291,4 +291,6 @@
     <string name="notification_player_title">Yaacc 播放器</string>
     <string name="notification_download_title">Yaacc 文件下载</string>
     <string name="notification_download_to">下载到：%1$s</string>
+    <string name="snapcast_group">Snapcast 组</string>
+    <string name="snapcast_offline">离线</string>
 </resources>
