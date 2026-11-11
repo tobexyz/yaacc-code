@@ -70,6 +70,7 @@ public class SnapcastPlayerLogicTest {
         assertEquals(R.string.snapcast_feed_error_refused, SnapcastPlayerLogic.textFor(FeedError.Kind.NO_FREE_PORT));
         assertEquals(R.string.snapcast_feed_error_unauthorized, SnapcastPlayerLogic.textFor(FeedError.Kind.UNAUTHORIZED));
         assertEquals(R.string.snapcast_feed_error_busy, SnapcastPlayerLogic.textFor(FeedError.Kind.BUSY));
+        assertEquals(R.string.snapcast_feed_error_player, SnapcastPlayerLogic.textFor(FeedError.Kind.PLAYER_FAILED));
         assertEquals(R.string.snapcast_feed_error_group_gone, SnapcastPlayerLogic.textFor(FeedError.Kind.GROUP_GONE));
         assertEquals(R.string.snapcast_feed_error_connect, SnapcastPlayerLogic.textFor(FeedError.Kind.CONNECT_FAILED));
     }
@@ -103,7 +104,7 @@ public class SnapcastPlayerLogicTest {
     public void theTextsOfEveryErrorKindExistInEveryLocale() throws Exception {
         String[] names = {"snapcast_play_audio_only", "snapcast_play_delay_note", "snapcast_feed_error_unreachable",
                 "snapcast_feed_error_refused", "snapcast_feed_error_unauthorized", "snapcast_feed_error_group_gone",
-                "snapcast_feed_error_connect", "snapcast_feed_error_busy", "snapcast_feed_error_lost",
+                "snapcast_feed_error_connect", "snapcast_feed_error_busy", "snapcast_feed_error_lost", "snapcast_feed_error_player",
                 "snapcast_feed_static_source_hint", "snapcast_feed_authorization_hint"};
         for (String locale : new String[]{"values", "values-de", "values-es", "values-fr", "values-nl", "values-pt", "values-zh"}) {
             java.io.File file = new java.io.File("src/main/res/" + locale + "/strings.xml");

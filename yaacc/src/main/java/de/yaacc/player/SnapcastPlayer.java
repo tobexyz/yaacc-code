@@ -24,6 +24,7 @@ import android.os.Looper;
 import android.widget.Toast;
 
 import androidx.media3.common.C;
+import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.audio.AudioProcessor;
 import androidx.media3.common.util.UnstableApi;
@@ -39,6 +40,7 @@ import de.yaacc.R;
 import de.yaacc.multiroom.SnapcastGroupDevice;
 import de.yaacc.multiroom.feed.FeedError;
 import de.yaacc.multiroom.feed.FeedTapChain;
+import de.yaacc.multiroom.feed.PcmOnlyAudioSink;
 import de.yaacc.multiroom.feed.PcmSink;
 import de.yaacc.multiroom.feed.SnapcastFeedController;
 import de.yaacc.multiroom.feed.SnapcastStreams;
@@ -74,6 +76,20 @@ public class SnapcastPlayer extends LocalMediaSessionPlayer {
     private final int playerId = SnapcastPlayerLogic.playerIdFrom(UUID.randomUUID().hashCode());
     private volatile SnapcastFeedController controller;
     private volatile boolean delayNoted;
+    /** The item whose start was held back because the user paused while the feed was opening. */
+    private volatile Deferred deferred;
+
+    private static final class Deferred {
+        final PlayableItem item;
+        final Object loaded;
+        final int index;
+
+        Deferred(PlayableItem item, Object loaded, int index) {
+            this.item = item;
+            this.loaded = loaded;
+            this.index = index;
+        }
+    }
 
     // the tap is built before the controller can exist for sure (the service connects on another thread)
     private final PcmSink tapSink = new PcmSink() {
@@ -127,7 +143,7 @@ public class SnapcastPlayer extends LocalMediaSessionPlayer {
                 // the processors of the builder sit behind the sink's own trimming, channel mapping and 16 bit
                 // conversion and in front of silence skipping and speed, see docs/tech.md "Snapcast feed tap"
                 AudioProcessor[] chain = FeedTapChain.create(SnapcastStreams.FORMAT, tapSink, false);
-                return new DefaultAudioSink.Builder(context).setAudioProcessors(chain).build();
+                return newSink(context, chain);
             }
         };
         ExoPlayer player = new ExoPlayer.Builder(context, renderers)
@@ -145,14 +161,36 @@ public class SnapcastPlayer extends LocalMediaSessionPlayer {
                         current.pause();
                         break;
                     case START_FEED:
-                        current.start(startAnswer(null));
+                        current.start(startAnswer(null, null));
                         break;
                     default:
                         break;
                 }
             }
         });
+        player.addListener(new Player.Listener() {
+            @Override
+            public void onPlayerError(PlaybackException error) {
+                // only the name of the code: the message of a source error can hold a url
+                playerFailed(error.getErrorCodeName());
+            }
+        });
         return player;
+    }
+
+    /** ExoPlayer failed (a source that can not be read, a track the tap refuses): close the feed, tell the user, stop. */
+    void playerFailed(String errorCodeName) {
+        YaaccLogger.d(getClass().getName(), "ExoPlayer error: " + errorCodeName);
+        feedFailed(FeedError.of(FeedError.Kind.PLAYER_FAILED));
+    }
+
+    /**
+     * The sink of the player: the processors of the tap, behind a sink that takes raw PCM only (see
+     * {@link PcmOnlyAudioSink}: why pass-through must be refused, and why the audio capabilities of the builder can not
+     * do it). Offload stays off (ExoPlayer's default; nothing here enables it, and the sink refuses it too).
+     */
+    static AudioSink newSink(Context context, AudioProcessor[] chain) {
+        return new PcmOnlyAudioSink(new DefaultAudioSink.Builder(context).setAudioProcessors(chain).build());
     }
 
     // ---- transport
@@ -160,25 +198,34 @@ public class SnapcastPlayer extends LocalMediaSessionPlayer {
     @Override
     protected void startItem(final PlayableItem playableItem, final Object loadedItem, final int index) {
         SnapcastFeedController current = controller;
-        if (current == null || current.isFeeding()) {
-            startOnExoPlayer(playableItem, loadedItem, index);
-            return;
+        if (current == null) {
+            return; // destroyed
         }
-        current.start(startAnswer(() -> startOnExoPlayer(playableItem, loadedItem, index)));
+        deferred = null;
+        // always through the controller, which answers at once when the feed is open: a stop that is queued but has not
+        // run yet is then ordered before this start, and the feed is made again
+        current.start(startAnswer(() -> startOnExoPlayer(playableItem, loadedItem, index),
+                () -> deferred = new Deferred(playableItem, loadedItem, index)));
     }
 
     @Override
     protected void doResume() {
         SnapcastFeedController current = controller;
-        if (current == null || current.isFeeding()) {
-            resumeOnExoPlayer();
+        if (current == null) {
             return;
         }
-        current.start(startAnswer(this::resumeOnExoPlayer));
+        Deferred waiting = deferred;
+        if (waiting != null) {
+            // the user paused while the first start was in progress: ExoPlayer never started the item, start it now
+            startItem(waiting.item, waiting.loaded, waiting.index);
+            return;
+        }
+        current.start(startAnswer(this::resumeOnExoPlayer, null));
     }
 
     @Override
     protected void stopItem(PlayableItem playableItem) {
+        deferred = null;
         super.stopItem(playableItem);
         SnapcastFeedController current = controller;
         if (current != null) {
@@ -206,12 +253,22 @@ public class SnapcastPlayer extends LocalMediaSessionPlayer {
         super.doResume();
     }
 
-    /** The callback of a start: go on with {@code whenReady} (if any), or tell the user and stop. */
-    SnapcastFeedController.StartCallback startAnswer(final Runnable whenReady) {
+    /**
+     * The callback of a start: go on with {@code whenReady} (if any), or tell the user and stop. A pause that came while
+     * the feed was opening is honoured: ExoPlayer is not started (the feed stays open for the resume) and
+     * {@code whenPaused} remembers what was to be started.
+     */
+    SnapcastFeedController.StartCallback startAnswer(final Runnable whenReady, final Runnable whenPaused) {
         return new SnapcastFeedController.StartCallback() {
             @Override
             public void onReady() {
                 noteDelayOnce();
+                if (isPaused()) {
+                    if (whenPaused != null) {
+                        whenPaused.run();
+                    }
+                    return;
+                }
                 if (whenReady != null) {
                     whenReady.run();
                 }
@@ -236,8 +293,23 @@ public class SnapcastPlayer extends LocalMediaSessionPlayer {
         final Context context = getContext();
         YaaccLogger.d(getClass().getName(), "feed failed: " + error.getKind());
         toast(SnapcastPlayerLogic.errorMessage(error, context::getString));
-        postToMain(this::stop);
+        postToMain(() -> stopWhenFree(0));
     }
+
+    /**
+     * {@code stop()} is ignored while another command of the player runs; the failure would then leave a player that
+     * shows "playing" with a closed feed. So it is tried again a little later, a second at most.
+     */
+    void stopWhenFree(int attempt) {
+        if (isProcessingCommand() && attempt < STOP_RETRIES) {
+            postToMainDelayed(() -> stopWhenFree(attempt + 1), STOP_RETRY_MILLIS);
+            return;
+        }
+        stop();
+    }
+
+    private static final int STOP_RETRIES = 20;
+    private static final long STOP_RETRY_MILLIS = 50L;
 
     private void toast(final String text) {
         postToMain(() -> showToast(text));
@@ -251,6 +323,11 @@ public class SnapcastPlayer extends LocalMediaSessionPlayer {
     /** Runs on the main thread (a toast and ExoPlayer need it); a test runs the work at once. */
     void postToMain(Runnable work) {
         new Handler(Looper.getMainLooper()).post(work);
+    }
+
+    /** As {@link #postToMain}, after a delay; a test runs the work at once or collects it. */
+    void postToMainDelayed(Runnable work, long delayMillis) {
+        new Handler(Looper.getMainLooper()).postDelayed(work, delayMillis);
     }
 
     /** The sink that the audio tap of ExoPlayer writes to (a test writes to it directly). */

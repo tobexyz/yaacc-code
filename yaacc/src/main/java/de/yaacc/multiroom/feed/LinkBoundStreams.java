@@ -38,9 +38,10 @@ public final class LinkBoundStreams implements FeedStreams {
     private final String phoneName;
     private final SnapcastStreams.MarkerStore markerStore;
 
-    // guarded by this
+    // written under this; bound is volatile so that noteAudio (the playback thread) never waits for a monitor that is
+    // held while a SnapcastStreams is made (its marker is read from the preferences)
     private SnapcastOperations boundTo;
-    private SnapcastStreams bound;
+    private volatile SnapcastStreams bound;
 
     public LinkBoundStreams(FeedOperationsSource source, String phoneName, SnapcastStreams.MarkerStore markerStore) {
         if (source == null || markerStore == null) {
@@ -87,10 +88,7 @@ public final class LinkBoundStreams implements FeedStreams {
 
     @Override
     public void noteAudio() {
-        SnapcastStreams streams;
-        synchronized (this) {
-            streams = bound;
-        }
+        SnapcastStreams streams = bound;
         if (streams != null) {
             streams.noteAudio();
         }

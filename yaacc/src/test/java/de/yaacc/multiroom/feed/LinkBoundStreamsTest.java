@@ -120,4 +120,37 @@ public class LinkBoundStreamsTest {
     public void aMissingSourceIsRefused() {
         new LinkBoundStreams(null, "Phone", store);
     }
+
+    @Test
+    public void noteAudioNeverWaitsForTheMonitorThatMakesTheStreams() throws Exception {
+        server.bindRealListeners();
+        operations = new SnapcastOperations(server);
+        final LinkBoundStreams streams = new LinkBoundStreams(() -> operations, "Phone", new SnapcastStreams.MarkerStore() {
+            @Override
+            public String load() {
+                try {
+                    Thread.sleep(1_500); // a slow SharedPreferences read inside the monitor
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+                return null;
+            }
+
+            @Override
+            public void save(String marker) {
+                // not kept
+            }
+        });
+        Thread maker = new Thread(streams::ensure, "maker");
+        maker.setDaemon(true);
+        maker.start();
+        Thread.sleep(200); // the maker holds the monitor and reads the marker
+
+        long start = System.nanoTime();
+        streams.noteAudio();
+
+        assertTrue("noteAudio took " + (System.nanoTime() - start) / 1_000_000 + " ms",
+                System.nanoTime() - start < 500_000_000L);
+        maker.join(5_000);
+    }
 }

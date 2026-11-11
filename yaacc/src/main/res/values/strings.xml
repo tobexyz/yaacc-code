@@ -314,4 +314,5 @@
     <string name="snapcast_feed_error_lost">The connection to the Snapcast server was lost</string>
     <string name="snapcast_feed_static_source_hint">Add a TCP stream source to the server configuration instead (see the YAACC documentation).</string>
     <string name="snapcast_feed_authorization_hint">Switch off the login for the control connection of the server, or use a server without one.</string>
+    <string name="snapcast_feed_error_player">Playing to the Snapcast group stopped because of an error</string>
 </resources>

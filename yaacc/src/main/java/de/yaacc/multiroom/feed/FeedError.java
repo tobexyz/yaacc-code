@@ -49,7 +49,9 @@ public final class FeedError {
         /** The feed broke while playing (the server closed it, the network went away, a stall). */
         FEED_FAILED,
         /** The control connection was lost while playing. */
-        CONTROL_LOST
+        CONTROL_LOST,
+        /** ExoPlayer failed (a source that can not be read, a track the audio tap refuses). */
+        PLAYER_FAILED
     }
 
     private final Kind kind;

@@ -386,4 +386,49 @@ public class PlayerServiceSnapcastPlayTest {
         assertTrue(english.contains("<string name=\"snapcast_play_audio_only\">Only music can be played to Snapcast groups</string>"));
         assertEquals(1, english.split("snapcast_play_audio_only", -1).length - 1);
     }
+
+    // ---- two music players, two media sessions
+
+    @Test
+    public void theMediaSessionOfTheRemainingPlayerTakesOverWhenTheLastRegisteredOneEnds() {
+        PlayerService plain = new PlayerService();
+        androidx.media3.session.MediaSession local = mock(androidx.media3.session.MediaSession.class);
+        androidx.media3.session.MediaSession snapcast = mock(androidx.media3.session.MediaSession.class);
+
+        plain.registerMediaSession(local);
+        plain.registerMediaSession(snapcast);
+        assertSame(snapcast, plain.onGetSession(null));
+
+        plain.unregisterMediaSession(snapcast);
+        assertSame("the local player still plays: its session is active again", local, plain.onGetSession(null));
+
+        plain.unregisterMediaSession(local);
+        assertSame(null, plain.onGetSession(null));
+    }
+
+    @Test
+    public void theEarlierSessionEndingLeavesTheActiveOneAlone() {
+        PlayerService plain = new PlayerService();
+        androidx.media3.session.MediaSession local = mock(androidx.media3.session.MediaSession.class);
+        androidx.media3.session.MediaSession snapcast = mock(androidx.media3.session.MediaSession.class);
+        plain.registerMediaSession(local);
+        plain.registerMediaSession(snapcast);
+
+        plain.unregisterMediaSession(local);
+
+        assertSame(snapcast, plain.onGetSession(null));
+    }
+
+    @Test
+    public void aSingleSessionBehavesAsBefore() {
+        PlayerService plain = new PlayerService();
+        androidx.media3.session.MediaSession only = mock(androidx.media3.session.MediaSession.class);
+        plain.registerMediaSession(only);
+        assertSame(only, plain.onGetSession(null));
+
+        plain.unregisterMediaSession(mock(androidx.media3.session.MediaSession.class)); // one that never registered
+        assertSame(only, plain.onGetSession(null));
+        plain.unregisterMediaSession(only);
+        assertSame(null, plain.onGetSession(null));
+    }
 }

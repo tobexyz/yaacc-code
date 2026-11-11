@@ -309,4 +309,5 @@
     <string name="snapcast_feed_error_lost">De verbinding met de Snapcast-server is verbroken</string>
     <string name="snapcast_feed_static_source_hint">Voeg in plaats daarvan een TCP-streambron toe aan de serverconfiguratie (zie de YAACC-documentatie).</string>
     <string name="snapcast_feed_authorization_hint">Schakel het inloggen voor de besturingsverbinding van de server uit of gebruik een server zonder.</string>
+    <string name="snapcast_feed_error_player">Het afspelen op de Snapcast-groep is gestopt vanwege een fout</string>
 </resources>

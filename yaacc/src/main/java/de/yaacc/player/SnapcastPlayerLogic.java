@@ -67,6 +67,8 @@ final class SnapcastPlayerLogic {
                 return R.string.snapcast_feed_error_connect;
             case BUSY:
                 return R.string.snapcast_feed_error_busy;
+            case PLAYER_FAILED:
+                return R.string.snapcast_feed_error_player;
             case FEED_FAILED:
             case CONTROL_LOST:
             default:

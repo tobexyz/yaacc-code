@@ -313,4 +313,5 @@
     <string name="snapcast_feed_error_lost">Se perdió la conexión con el servidor de Snapcast</string>
     <string name="snapcast_feed_static_source_hint">Añada en su lugar una fuente de flujo TCP a la configuración del servidor (consulte la documentación de YAACC).</string>
     <string name="snapcast_feed_authorization_hint">Desactive el inicio de sesión de la conexión de control del servidor o use un servidor sin él.</string>
+    <string name="snapcast_feed_error_player">La reproducción en el grupo de Snapcast se detuvo por un error</string>
 </resources>

@@ -21,6 +21,7 @@ package de.yaacc.player;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -67,6 +68,7 @@ public class SnapcastPlayerTest {
     private final List<String> exoCalls = new ArrayList<>();
     private final List<String> mainThreadWork = new ArrayList<>();
     private final List<String> toasts = new ArrayList<>();
+    private final List<Runnable> delayed = new ArrayList<>();
     private PcmSink controllerSink;
 
     /** Records what would go to ExoPlayer and runs main-thread work at once. */
@@ -89,6 +91,11 @@ public class SnapcastPlayerTest {
         void postToMain(Runnable work) {
             mainThreadWork.add("work");
             work.run();
+        }
+
+        @Override
+        void postToMainDelayed(Runnable work, long delayMillis) {
+            delayed.add(work);
         }
 
         @Override
@@ -168,14 +175,18 @@ public class SnapcastPlayerTest {
     }
 
     @Test
-    public void anOpenFeedStartsAnItemAtOnce() {
+    public void anOpenFeedIsStillAskedForSoThatAQueuedStopComesBeforeTheStart() {
         TestPlayer player = player();
         when(controller.isFeeding()).thenReturn(true);
 
         player.startItem(item(), null, 1);
 
+        assertTrue("ExoPlayer waits for the answer of the controller", exoCalls.isEmpty());
+        ArgumentCaptor<SnapcastFeedController.StartCallback> callback =
+                ArgumentCaptor.forClass(SnapcastFeedController.StartCallback.class);
+        verify(controller).start(callback.capture());
+        callback.getValue().onReady();
         assertEquals(Collections.singletonList("start 1"), exoCalls);
-        verify(controller, never()).start(any());
     }
 
     @Test
@@ -194,21 +205,25 @@ public class SnapcastPlayerTest {
     }
 
     @Test
-    public void aResumeWithAnOpenFeedIsImmediate() {
+    public void aResumeWithAnOpenFeedIsAlsoAskedFromTheController() {
         TestPlayer player = player();
         when(controller.isFeeding()).thenReturn(true);
 
         player.doResume();
 
+        assertTrue(exoCalls.isEmpty());
+        ArgumentCaptor<SnapcastFeedController.StartCallback> callback =
+                ArgumentCaptor.forClass(SnapcastFeedController.StartCallback.class);
+        verify(controller).start(callback.capture());
+        callback.getValue().onReady();
         assertEquals(Collections.singletonList("resume"), exoCalls);
-        verify(controller, never()).start(any());
     }
 
     @Test
     public void theDelayOfTheServerBufferIsToldOncePerPlayer() {
         TestPlayer player = player();
-        SnapcastFeedController.StartCallback first = player.startAnswer(null);
-        SnapcastFeedController.StartCallback second = player.startAnswer(null);
+        SnapcastFeedController.StartCallback first = player.startAnswer(null, null);
+        SnapcastFeedController.StartCallback second = player.startAnswer(null, null);
 
         first.onReady();
         int afterFirst = mainThreadWork.size();
@@ -337,5 +352,149 @@ public class SnapcastPlayerTest {
 
         verify(controller, never()).setVolume(anyInt());
         verify(controller, never()).setMuted(org.mockito.ArgumentMatchers.anyBoolean());
+    }
+
+    // ---- a pause during the start (W2), with the real pause flag of AbstractPlayer
+
+    private static void awaitPaused(AbstractPlayer player) throws InterruptedException {
+        long end = System.nanoTime() + 3_000_000_000L;
+        while (!player.isPaused() && System.nanoTime() < end) {
+            Thread.sleep(5);
+        }
+        assertTrue("the real pause() set the flag", player.isPaused());
+    }
+
+    @Test
+    public void aPauseWhileTheFeedIsOpeningKeepsExoPlayerFromStarting() throws Exception {
+        TestPlayer player = player();
+        player.startItem(item(), null, 2);
+        ArgumentCaptor<SnapcastFeedController.StartCallback> callback =
+                ArgumentCaptor.forClass(SnapcastFeedController.StartCallback.class);
+        verify(controller).start(callback.capture());
+
+        player.pause(); // the real AbstractPlayer.pause(): sets the paused flag on its command thread
+        awaitPaused(player);
+        callback.getValue().onReady();
+
+        assertTrue("paused means paused: ExoPlayer does not start", exoCalls.isEmpty());
+    }
+
+    @Test
+    public void theResumeAfterThatPauseStartsTheItemThatWasHeldBack() throws Exception {
+        TestPlayer player = player();
+        player.startItem(item(), null, 2);
+        ArgumentCaptor<SnapcastFeedController.StartCallback> first =
+                ArgumentCaptor.forClass(SnapcastFeedController.StartCallback.class);
+        verify(controller).start(first.capture());
+        player.pause();
+        awaitPaused(player);
+        first.getValue().onReady();
+
+        player.setPaused(false); // what AbstractPlayer.play() does before it calls doResume()
+        player.doResume();
+
+        ArgumentCaptor<SnapcastFeedController.StartCallback> second =
+                ArgumentCaptor.forClass(SnapcastFeedController.StartCallback.class);
+        verify(controller, times(2)).start(second.capture());
+        second.getAllValues().get(1).onReady();
+        assertEquals("the item, not a resume of an ExoPlayer that never started it", Collections.singletonList("start 2"),
+                exoCalls);
+    }
+
+    @Test
+    public void aStopDropsTheItemThatWasHeldBack() throws Exception {
+        TestPlayer player = player();
+        player.startItem(item(), null, 2);
+        ArgumentCaptor<SnapcastFeedController.StartCallback> first =
+                ArgumentCaptor.forClass(SnapcastFeedController.StartCallback.class);
+        verify(controller).start(first.capture());
+        player.pause();
+        awaitPaused(player);
+        first.getValue().onReady();
+        player.stopItem(item());
+
+        player.setPaused(false);
+        player.doResume();
+
+        ArgumentCaptor<SnapcastFeedController.StartCallback> second =
+                ArgumentCaptor.forClass(SnapcastFeedController.StartCallback.class);
+        verify(controller, times(2)).start(second.capture()); // the stop's controller.stop() is separate
+        second.getAllValues().get(1).onReady();
+        assertEquals("a plain resume", Collections.singletonList("resume"), exoCalls);
+    }
+
+    @Test
+    public void aPlayerThatIsNotPausedStartsAsBefore() {
+        TestPlayer player = player();
+        player.startItem(item(), null, 0);
+        ArgumentCaptor<SnapcastFeedController.StartCallback> callback =
+                ArgumentCaptor.forClass(SnapcastFeedController.StartCallback.class);
+        verify(controller).start(callback.capture());
+
+        assertFalse(player.isPaused());
+        callback.getValue().onReady();
+
+        assertEquals(Collections.singletonList("start 0"), exoCalls);
+    }
+
+    @Test
+    public void aDestroyedPlayerStartsNothing() {
+        TestPlayer player = player();
+        player.onDestroy();
+
+        player.startItem(item(), null, 0);
+        player.doResume();
+
+        assertTrue(exoCalls.isEmpty());
+        verify(controller, never()).start(any());
+    }
+
+    // ---- a failure stops the player even while a command runs
+
+    @Test
+    public void aFailureWhileACommandRunsTriesTheStopAgainAndThenStops() {
+        TestPlayer player = new TestPlayer(l -> controller);
+        player.setProcessingCommand(true); // the real flag that makes AbstractPlayer.stop() return at once
+
+        player.feedFailed(FeedError.of(FeedError.Kind.CONTROL_LOST));
+
+        assertEquals("the stop is waiting", 1, delayed.size());
+        delayed.remove(0).run();
+        assertEquals("still busy: tried again", 1, delayed.size());
+        assertTrue(player.isProcessingCommand());
+
+        player.setProcessingCommand(false);
+        delayed.remove(0).run();
+
+        assertTrue("the real stop() was accepted: it takes the command flag", player.isProcessingCommand());
+        assertTrue(delayed.isEmpty());
+    }
+
+    @Test
+    public void theStopRetryGivesUpAfterAboutASecondAndStopsAnyway() {
+        TestPlayer player = new TestPlayer(l -> controller);
+        player.setProcessingCommand(true);
+        player.feedFailed(FeedError.of(FeedError.Kind.BUSY));
+
+        int retries = 0;
+        while (!delayed.isEmpty() && retries < 100) {
+            delayed.remove(0).run();
+            retries++;
+        }
+
+        assertEquals(20, retries); // twenty delayed tries, the last one calls stop() even if the player is still busy
+        assertTrue(delayed.isEmpty());
+    }
+
+    // ---- ExoPlayer errors
+
+    @Test
+    public void anExoPlayerErrorStopsThePlayerWithAToastAndNoDetailsInTheText() {
+        TestPlayer player = new TestPlayer(l -> controller);
+
+        player.playerFailed("ERROR_CODE_DECODING_FAILED");
+
+        assertEquals(Collections.singletonList("text" + R.string.snapcast_feed_error_player), toasts);
+        assertTrue("stop() was taken", player.isProcessingCommand());
     }
 }

@@ -83,8 +83,11 @@ public class PlayerService extends MediaSessionService {
 
     private PowerManager.WakeLock wakeLock;
 
-    // Track active MediaSession from LocalMediaSessionPlayer
-    private MediaSession activeMediaSession;
+    // Track active MediaSession from LocalMediaSessionPlayer. Two local music players can exist at once (the local one
+    // and a Snapcast player), each with its session: the one registered last is the active one, and when it goes the one
+    // before it takes over instead of leaving the media controllers with none.
+    private volatile MediaSession activeMediaSession;
+    private final List<MediaSession> registeredMediaSessions = new java.util.concurrent.CopyOnWriteArrayList<>();
 
 
     public PlayerService() {
@@ -100,17 +103,22 @@ public class PlayerService extends MediaSessionService {
      * Register MediaSession from LocalMediaSessionPlayer.
      * Called when player connects to service.
      */
-    public void registerMediaSession(MediaSession mediaSession) {
+    public synchronized void registerMediaSession(MediaSession mediaSession) {
+        registeredMediaSessions.remove(mediaSession);
+        registeredMediaSessions.add(mediaSession);
         this.activeMediaSession = mediaSession;
         YaaccLogger.d(getClass().getName(), "MediaSession registered: " + mediaSession.getId());
     }
 
     /**
-     * Unregister MediaSession when player is destroyed.
+     * Unregister MediaSession when player is destroyed. Only the player that registered a session removes it; if it was
+     * the active one, the session registered before it (if any) is active again.
      */
-    public void unregisterMediaSession(MediaSession mediaSession) {
+    public synchronized void unregisterMediaSession(MediaSession mediaSession) {
+        registeredMediaSessions.remove(mediaSession);
         if (this.activeMediaSession == mediaSession) {
-            this.activeMediaSession = null;
+            this.activeMediaSession = registeredMediaSessions.isEmpty() ? null
+                    : registeredMediaSessions.get(registeredMediaSessions.size() - 1);
             YaaccLogger.d(getClass().getName(), "MediaSession unregistered");
         }
     }
