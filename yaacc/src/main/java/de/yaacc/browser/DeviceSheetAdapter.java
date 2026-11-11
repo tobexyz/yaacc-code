@@ -47,6 +47,8 @@ import java.util.Set;
 import de.yaacc.R;
 import de.yaacc.browser.DeviceSessionGrouper.PlayerRef;
 import de.yaacc.browser.DeviceSessionGrouper.Row;
+import de.yaacc.multiroom.SnapcastGroupDevice;
+import de.yaacc.multiroom.ui.SnapcastRowText;
 import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.ThemeHelper;
@@ -84,6 +86,8 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         int primaryPlayerId;
         /** What the session row showed when last bound; see {@link #refreshLiveState()}. */
         String boundSignature;
+        /** A Snapcast group's row as last shown; a different one rebinds the row, see {@link #refreshSnapcastRows()}. */
+        SnapcastRowText.Row snapcastRow;
 
         Entry(Row.Kind kind, String deviceId, Device<?, ?, ?> device, Player player, boolean orphan, long stableId) {
             this.kind = kind;
@@ -315,6 +319,7 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
             for (Entry before : oldEntries) {
                 if (before.stableId == after.stableId && before.player == after.player) {
                     after.boundSignature = before.boundSignature;
+                    after.snapcastRow = before.snapcastRow;
                     break;
                 }
             }
@@ -322,8 +327,28 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         entries.clear();
         entries.addAll(newEntries);
         diff.dispatchUpdatesTo(this);
+        refreshSnapcastRows();
         if (onRefreshed != null) {
             onRefreshed.run();
+        }
+    }
+
+    /**
+     * A Snapcast group's device stays the same object while its name, stream and number of clients stay the same, so a
+     * change of its volume, mute or connected clients does not show in the diff. The row text is compared instead (it is
+     * built from the model in memory); only a row that looks different is rebound (its status part, the slider is not
+     * touched while the user drags it). Nothing is rebound when nothing Snapcast changed.
+     */
+    private void refreshSnapcastRows() {
+        for (int i = 0; i < entries.size(); i++) {
+            Entry entry = entries.get(i);
+            if (entry.kind == Row.Kind.RECEIVER && entry.device instanceof SnapcastGroupDevice) {
+                SnapcastRowText.Row now = rowBinder.snapcastRowOf((SnapcastGroupDevice) entry.device);
+                if (!now.equals(entry.snapcastRow)) {
+                    entry.snapcastRow = now;
+                    notifyItemChanged(i, ReceiverRowBinder.PAYLOAD_STATUS);
+                }
+            }
         }
     }
 
@@ -494,6 +519,9 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         } else if (holder instanceof ReceiverHolder) {
             ReceiverHolder receiverHolder = (ReceiverHolder) holder;
             rowBinder.bind(receiverHolder.views, entry.device);
+            if (entry.device instanceof SnapcastGroupDevice) {
+                entry.snapcastRow = rowBinder.snapcastRowOf((SnapcastGroupDevice) entry.device);
+            }
             requestFocusIfFirst(position, receiverHolder.itemView);
         } else {
             bindSession((SessionHolder) holder, entry);

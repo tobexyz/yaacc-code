@@ -63,6 +63,8 @@ public final class SnapcastOperations {
 
     private final SnapcastCaller caller;
     private final SnapcastModelUpdater updater;
+    // the time of the budget of a volume gesture; a test passes one it moves by hand
+    private final java.util.function.LongSupplier nanoClock;
 
     /** Operations that do not keep a model. */
     public SnapcastOperations(SnapcastCaller caller) {
@@ -71,8 +73,13 @@ public final class SnapcastOperations {
 
     /** @param updater the model to keep up to date with the answers and our own changes; null for none */
     public SnapcastOperations(SnapcastCaller caller, SnapcastModelUpdater updater) {
+        this(caller, updater, System::nanoTime);
+    }
+
+    SnapcastOperations(SnapcastCaller caller, SnapcastModelUpdater updater, java.util.function.LongSupplier nanoClock) {
         this.caller = caller;
         this.updater = updater;
+        this.nanoClock = nanoClock;
     }
 
     /** Patches the model with what the server would have told the other connections. */
@@ -85,6 +92,26 @@ public final class SnapcastOperations {
     /** {@code Server.GetStatus}: the whole state of the server. */
     public SnapcastServerStatus getStatus() throws SnapcastException {
         return caller.callOrdered("Server.GetStatus", null, this::takeStatus);
+    }
+
+    /**
+     * The status as fresh as the rate limit of the model allows: a full {@code Server.GetStatus} when the limit grants a
+     * read (it becomes the model), otherwise the model as it is. For a change that is destructive by protocol
+     * ({@code Group.SetClients} removes every client that is not in the list), so that it is computed from what the server
+     * has now and not from a model that a notification has not reached yet. A read that fails also gives the model.
+     * Blocks like every call: never on the main thread, never inside a delivery of the listeners.
+     *
+     * @return the status, or null when there is neither a fresh read nor a model
+     */
+    public SnapcastServerStatus freshStatusOrModel() {
+        if (updater != null && !updater.tryGrantRead()) {
+            return updater.getStatus();
+        }
+        try {
+            return getStatus();
+        } catch (SnapcastException | IllegalStateException unavailable) {
+            return updater == null ? null : updater.getStatus();
+        }
     }
 
     /** Parses a status answer and makes it the model (runs in line order). */
@@ -273,6 +300,18 @@ public final class SnapcastOperations {
      */
     public Map<String, Integer> setGroupVolume(SnapcastGroup current, Map<String, Integer> startLevels, int percent)
             throws SnapcastException {
+        return setGroupVolume(current, startLevels, percent, Long.MAX_VALUE);
+    }
+
+    /**
+     * As {@link #setGroupVolume(SnapcastGroup, Map, int)}, with an overall time budget for the whole gesture: once
+     * {@code budgetMillis} have passed, no further member is called and the call ends with a TIMEOUT (a server that
+     * answers each of up to 256 calls just before its 10 s deadline can not keep the caller for ever). The members that
+     * were set stay set.
+     */
+    public Map<String, Integer> setGroupVolume(SnapcastGroup current, Map<String, Integer> startLevels, int percent,
+                                               long budgetMillis) throws SnapcastException {
+        final long begun = nanoClock.getAsLong();
         Map<String, Integer> changes = GroupVolume.changes(startLevels, GroupVolume.levels(current), percent);
         Map<String, Integer> changed = new LinkedHashMap<>();
         SnapcastException firstFailure = null;
@@ -280,6 +319,12 @@ public final class SnapcastOperations {
             Integer wanted = changes.get(client.getId());
             if (wanted == null) {
                 continue;
+            }
+            if (budgetMillis != Long.MAX_VALUE && (nanoClock.getAsLong() - begun) / 1_000_000L >= budgetMillis) {
+                if (firstFailure == null) {
+                    firstFailure = SnapcastException.timeout("the volume change took too long");
+                }
+                break;
             }
             try {
                 setClientVolume(client.getId(), client.getVolume().withPercent(wanted));

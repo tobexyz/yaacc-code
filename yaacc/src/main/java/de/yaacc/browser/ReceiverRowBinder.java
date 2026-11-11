@@ -55,6 +55,8 @@ import java.util.concurrent.Executors;
 
 import de.yaacc.R;
 import de.yaacc.browser.DeviceSessionGrouper.PlayerRef;
+import de.yaacc.multiroom.SnapcastGroupDevice;
+import de.yaacc.multiroom.ui.SnapcastRowText;
 import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.callback.avtransport.Pause;
@@ -179,9 +181,13 @@ final class ReceiverRowBinder {
     // What the user is doing to the rows and when a receiver is read next; see ReceiverVolumeLiveUpdater.
     private final ReceiverStateRefreshPlan refreshPlan = new ReceiverStateRefreshPlan();
 
+    // the part of the rows that belong to a Snapcast group (see SnapcastRowBinder)
+    private final SnapcastRowBinder snapcastRows;
+
     ReceiverRowBinder(Context context, UpnpClient upnpClient) {
         this.context = context;
         this.upnpClient = upnpClient;
+        this.snapcastRows = new SnapcastRowBinder(context, this);
     }
 
     /**
@@ -260,19 +266,24 @@ final class ReceiverRowBinder {
             holder.checkBox.setOnClickListener((it) -> {
                 boolean checked = ((CheckBox) it).isChecked();
                 if (!checked) {
-                    YaaccLogger.d(getClass().getName(), "isNotChecked:" + device.getDisplayString());
+                    YaaccLogger.d(getClass().getName(), "isNotChecked:" + logName(device));
                     upnpClient.removeReceiverDevice(device);
                 } else {
-                    YaaccLogger.d(getClass().getName(), "isChecked:" + device.getDisplayString());
+                    YaaccLogger.d(getClass().getName(), "isChecked:" + logName(device));
                     upnpClient.addReceiverDevice(device);
                 }
                 selectionListener.onSelectionChanged(device, checked);
             });
             holder.checkBox.setChecked(selected);
         }
-        wireVolumeAndMute(holder, device, deviceId);
-        new DeviceVolumeStateLoadTask(holder, this, upnpClient).execute(device);
-        new DeviceMuteStateLoadTask(holder, this, upnpClient).execute(device);
+        if (device instanceof SnapcastGroupDevice) {
+            // the slider and the box are the group's volume and mute on the server (a model in memory, no UPnP read)
+            snapcastRows.bind(holder, (SnapcastGroupDevice) device);
+        } else {
+            wireVolumeAndMute(holder, device, deviceId);
+            new DeviceVolumeStateLoadTask(holder, this, upnpClient).execute(device);
+            new DeviceMuteStateLoadTask(holder, this, upnpClient).execute(device);
+        }
 
         // Wire up playback controls
         holder.btnPlay.setOnClickListener(v -> executeAction(device, ACTION_PLAY));
@@ -316,8 +327,12 @@ final class ReceiverRowBinder {
      */
     void bindStatus(RowViews holder, Device<?, ?, ?> device) {
         String deviceId = device.getIdentity().getUdn().getIdentifierString();
-        bindGroupState(holder, deviceId);
-        bindSourceControls(holder, device, deviceId);
+        if (device instanceof SnapcastGroupDevice) {
+            snapcastRows.show(holder, (SnapcastGroupDevice) device);
+        } else {
+            bindGroupState(holder, deviceId);
+            bindSourceControls(holder, device, deviceId);
+        }
         Player player = primaryPlayer(device);
         RendererStatus status = statusMap.get(device);
         if (status != null) {
@@ -379,6 +394,16 @@ final class ReceiverRowBinder {
                 holder.statusBadge.setVisibility(View.GONE);
             }
         }
+    }
+
+    /** Shows a group's volume, mute state and text in a bound row (the poll of the live volume calls this). */
+    void showSnapcast(RowViews views, SnapcastGroupDevice device) {
+        snapcastRows.show(views, device);
+    }
+
+    /** How a group's row looks now; the host compares it with the last one to see whether the row needs a new look. */
+    SnapcastRowText.Row snapcastRowOf(SnapcastGroupDevice device) {
+        return snapcastRows.rowOf(device);
     }
 
     /**
@@ -702,6 +727,8 @@ final class ReceiverRowBinder {
         }
         boolean available = state != null && state.isReachable();
         holder.yxcSettings.setVisibility(available ? View.VISIBLE : View.GONE);
+        // a recycled holder may have been a Snapcast group row, whose button says something else
+        holder.yxcSettings.setContentDescription(context.getString(R.string.yxc_action_settings));
         holder.yxcSettings.setOnClickListener(available ? v -> {
             if (settingsDialog != null && settingsDialog.isShowing()) {
                 return;
@@ -1086,6 +1113,7 @@ final class ReceiverRowBinder {
         if (linkDialog != null && linkDialog.isShowing()) {
             linkDialog.dismiss();
         }
+        snapcastRows.shutdown();
     }
 
     /**
@@ -1105,6 +1133,14 @@ final class ReceiverRowBinder {
         }
         PlayerRef primary = DeviceSessionGrouper.primarySession(deviceId, refs);
         return primary == null ? null : playersById.get(primary.playerId());
+    }
+
+    /**
+     * What a debug line may say about a receiver: its display string, except for a Snapcast group, whose display string is
+     * cleaned text of the server (or a host name): nothing of it goes to a log (security review S45).
+     */
+    static String logName(Device<?, ?, ?> device) {
+        return device instanceof SnapcastGroupDevice ? "Snapcast group" : device.getDisplayString();
     }
 
     /** This phone's volume: the dummy device of the local row and yaacc's own renderer; both are {@code SystemVolume}. */
@@ -1177,8 +1213,8 @@ final class ReceiverRowBinder {
                 return; // never the UPnP call: the source would not do what the button says
             }
         }
-        // Handle local device differently
-        if (isLocalDevice(device)) {
+        // The phone, and a Snapcast group (it has no UPnP service): through the player
+        if (isLocalDevice(device) || device instanceof SnapcastGroupDevice) {
             Player player = primaryPlayer(device);
             if (player == null) return;
 

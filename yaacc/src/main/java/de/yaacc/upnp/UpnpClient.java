@@ -92,6 +92,9 @@ import de.yaacc.share.ShareLogRedactor;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.browser.Position;
+import de.yaacc.multiroom.SnapcastGroupDevice;
+import de.yaacc.multiroom.SnapcastGroupSource;
+import de.yaacc.multiroom.SnapcastHub;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlaylistTargets;
@@ -163,6 +166,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
     private PlayerService playerService;
     private Device<?, ?, ?> localDummyDevice;
+    // The Snapcast groups: receivers that are not in Cling's registry (and never advertised). NONE until initialize().
+    private SnapcastGroupSource snapcastGroups = SnapcastGroupSource.NONE;
     private YaaccUpnpServerService yaaccUpnpServerService;
     private YaaccMediaRouteProvider mediaRouteProvider;
 
@@ -188,6 +193,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (context != null) {
             this.context = context;
             this.preferences = PreferenceManager.getDefaultSharedPreferences(context);
+            this.snapcastGroups = SnapcastHub.getShared(context);
             addPlayerListChangeListener(shareLifetimeListener);
 
             // Initialize MediaRouteProvider for UPnP devices
@@ -534,7 +540,16 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Collections.reverse(result);
         result.add(getLocalDummyDevice());
         Collections.reverse(result);
+        // the Snapcast groups come after the registry's devices (they are sorted by name already); the local device stays first
+        for (SnapcastGroupDevice group : snapcastGroups.groups()) {
+            result.add(group);
+        }
         return result;
+    }
+
+    /** For tests: the source of the Snapcast groups. */
+    void setSnapcastGroups(SnapcastGroupSource groups) {
+        this.snapcastGroups = groups == null ? SnapcastGroupSource.NONE : groups;
     }
 
     private String lastDeviceSummary = "";
@@ -575,6 +590,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     public Device<?, ?, ?> getDevice(String identifier) {
         if (LOCAL_UID.equals(identifier)) {
             return getLocalDummyDevice();
+        }
+        if (SnapcastGroupDevice.isSnapcastId(identifier)) {
+            // a Snapcast group is never in Cling's registry: null when it is not known (any more)
+            return snapcastGroups.findGroup(identifier);
         }
         if (isInitialized()) {
             // Normalize UDN by stripping uuid: prefix if present
@@ -1248,6 +1267,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Editor prefEdit = preferences.edit();
         prefEdit.putStringSet(getContext().getString(R.string.settings_selected_receivers_title), receiverDeviceIds);
         prefEdit.apply();
+        // the servers of the selected Snapcast groups are remembered across a restart (and forgotten again)
+        snapcastGroups.selectionChanged(receiverDeviceIds);
     }
 
     /**
@@ -1264,7 +1285,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             Device<?, ?, ?> receiver = this.getDevice(id);
             if (receiver != null) {
                 result.add(receiver);
-            } else {
+            } else if (!snapcastGroups.isPending(id)) {
+                // a Snapcast group whose server is listed but has not delivered its status yet (a cold start) is not
+                // unknown: it stays selected, and is no receiver until the status arrives
                 unknowsIds.add(id);
             }
         }
@@ -1281,7 +1304,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * registry right now a few seconds to come back ({@link ReceiverAvailabilityPolicy}: three looks,
      * 2.5 s apart, a search before each wait). After a suspend the registry may have dropped the
      * renderer; {@link #getReceiverDevices()} would remove it from the stored selection for good.
-     * What is still missing after the last look is dropped as before.
+     * What is still missing after the last look is dropped as before. A pending Snapcast group (its server has not
+     * answered yet) is neither waited for nor dropped; its connection is woken once.
      * <p>
      * Waits, so worker threads only; on the main thread it does not wait.
      */
@@ -1289,6 +1313,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (isOnMainThread()) {
             return getReceiverDevices();
         }
+        // connects to the listed servers of the selected Snapcast groups, if any; does not block and is not waited for
+        // (see countMissingReceivers): a group whose server is silent must not cost a wait at every play
+        snapcastGroups.wake(getReceiverDeviceIds());
         int missingAtFirstLook = countMissingReceivers();
         int missing = receiverAvailabilityPolicy.await(this::countMissingReceivers, attempt -> {
             YaaccLogger.d(getClass().getName(), "Resume: " + countMissingReceivers() + " selected receiver(s) not in the registry, searching (look "
@@ -1304,10 +1331,16 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return getReceiverDevices();
     }
 
+    /**
+     * How many selected receivers are not there. A Snapcast group that is pending (its server is listed but has not
+     * delivered a status) is not counted: a search of the registry cannot bring it back, and a server that never
+     * answers (switched off, unreachable) would otherwise cost the full wait at every play for ever. It is not a ready
+     * receiver either, so it is simply not played; {@code awaitReceiverDevices} wakes its connection once.
+     */
     private int countMissingReceivers() {
         int missing = 0;
         for (String id : getReceiverDeviceIds()) {
-            if (!LOCAL_UID.equals(id) && getDevice(id) == null) {
+            if (!LOCAL_UID.equals(id) && getDevice(id) == null && !snapcastGroups.isPending(id)) {
                 missing++;
             }
         }

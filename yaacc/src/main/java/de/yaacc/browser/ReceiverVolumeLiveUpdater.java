@@ -144,6 +144,8 @@ final class ReceiverVolumeLiveUpdater {
         Map<Device<?, ?, ?>, ReceiverRowBinder.RowViews> visible = rows.visibleRows();
         showLocalRows(visible);
 
+        showSnapcastRows(visible);
+
         Map<String, Device<?, ?, ?>> candidates = new LinkedHashMap<>();
         for (Device<?, ?, ?> device : visible.keySet()) {
             if (!ReceiverRowBinder.isLocalDevice(device)
@@ -155,6 +157,19 @@ final class ReceiverVolumeLiveUpdater {
         List<String> due = binder.refreshPlan().dueForRefresh(candidates.keySet(), now);
         for (String id : due) {
             startRead(id, candidates.get(id), now);
+        }
+    }
+
+    /**
+     * The Snapcast groups: their volume, mute and text come from the model of their server, which is in memory (no read, no
+     * network), so every tick just shows it again. This is what puts the slider on the real average a little after the
+     * user let go of it.
+     */
+    private void showSnapcastRows(Map<Device<?, ?, ?>, ReceiverRowBinder.RowViews> visible) {
+        for (Map.Entry<Device<?, ?, ?>, ReceiverRowBinder.RowViews> row : visible.entrySet()) {
+            if (row.getKey() instanceof de.yaacc.multiroom.SnapcastGroupDevice) {
+                binder.showSnapcast(row.getValue(), (de.yaacc.multiroom.SnapcastGroupDevice) row.getKey());
+            }
         }
     }
 

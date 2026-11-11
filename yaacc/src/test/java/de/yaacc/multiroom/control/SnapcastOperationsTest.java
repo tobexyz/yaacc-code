@@ -518,4 +518,44 @@ public class SnapcastOperationsTest {
         assertEquals("B is back at its own start level, A is untouched", 1, changed.size());
         assertEquals(50, (int) changed.get("B"));
     }
+
+    @Test
+    public void aGroupVolumeGestureStopsAfterItsBudgetWhenTheServerAnswersSlowly() throws Exception {
+        List<SnapcastClient> clients = new ArrayList<>();
+        Map<String, Integer> start = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < 12; i++) {
+            clients.add(new SnapcastClient("c" + i, "c" + i, "", true, new SnapcastVolume(10, false), 0));
+            start.put("c" + i, 10);
+        }
+        SnapcastGroup group = new SnapcastGroup(GROUP, "", false, "s", clients);
+        final List<String> ids = new ArrayList<>();
+        final java.util.concurrent.atomic.AtomicLong clockNanos = new java.util.concurrent.atomic.AtomicLong(5_000_000_000L);
+        SnapcastCaller slow = (method, params) -> {
+            ids.add(params.optString("id"));
+            clockNanos.addAndGet(60_000_000L); // every answer takes 60 ms on the clock the test moves; no real waiting
+            return new JSONObject();
+        };
+
+        try {
+            new SnapcastOperations(slow, null, clockNanos::get).setGroupVolume(group, start, 60, 200);
+            fail("the budget ran out");
+        } catch (SnapcastException expected) {
+            assertEquals(SnapcastException.Kind.TIMEOUT, expected.getKind());
+        }
+
+        // members are called at 0, 60, 120 and 180 ms; at 240 ms the 200 ms budget is over
+        assertEquals(4, ids.size());
+    }
+
+    @Test
+    public void aGroupVolumeGestureWithinItsBudgetIsComplete() throws Exception {
+        RecordingCaller caller = new RecordingCaller();
+        SnapcastGroup group = groupForVolume();
+
+        Map<String, Integer> applied = new SnapcastOperations(caller).setGroupVolume(group,
+                GroupVolume.levels(group), 73, 5_000);
+
+        assertEquals(2, applied.size());
+        assertEquals(Arrays.asList("Client.SetVolume", "Client.SetVolume"), caller.methods);
+    }
 }
