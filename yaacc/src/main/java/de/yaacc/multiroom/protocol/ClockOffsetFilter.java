@@ -76,6 +76,7 @@ public final class ClockOffsetFilter implements OffsetSource {
     private long jitter;
     private long minRoundTrip;
     private final long[] strange = new long[RESYNC_SAMPLES];
+    private final long[] strangeRoundTrips = new long[RESYNC_SAMPLES];
     private int strangeCount;
     private int epoch;
     private int resyncs;
@@ -114,11 +115,13 @@ public final class ClockOffsetFilter implements OffsetSource {
         jumpSamples++;
         if (strangeCount == RESYNC_SAMPLES) { // keep the newest candidates
             System.arraycopy(strange, 1, strange, 0, RESYNC_SAMPLES - 1);
+            System.arraycopy(strangeRoundTrips, 1, strangeRoundTrips, 0, RESYNC_SAMPLES - 1);
             strangeCount--;
         }
-        strange[strangeCount++] = sample;
+        strange[strangeCount] = sample;
+        strangeRoundTrips[strangeCount++] = roundTrip;
         if (strangeCount == RESYNC_SAMPLES && spread(strange) <= RESYNC_AGREEMENT_MICROS) {
-            resynchronise(roundTrip);
+            resynchronise();
             return true; // the three samples are the start of the new window
         }
         return false;
@@ -134,11 +137,12 @@ public final class ClockOffsetFilter implements OffsetSource {
         return max - min;
     }
 
-    private void resynchronise(long lastRoundTrip) {
+    private void resynchronise() {
         long[] kept = strange.clone();
+        long[] keptRoundTrips = strangeRoundTrips.clone();
         clearWindow();
-        for (long sample : kept) {
-            push(sample, lastRoundTrip);
+        for (int i = 0; i < kept.length; i++) {
+            push(kept[i], keptRoundTrips[i]);
         }
         strangeCount = 0;
         epoch++;

@@ -43,6 +43,7 @@ public class FrameReaderTest {
         private final ManualClock clock;
         private final long advanceMicrosPerRead;
         long consumed;
+        int maxBuffer;
 
         ScriptedStream(ManualClock clock, long advanceMicrosPerRead) {
             this.clock = clock;
@@ -76,6 +77,7 @@ public class FrameReaderTest {
 
         @Override
         public int read(byte[] buffer, int offset, int length) throws IOException {
+            maxBuffer = Math.max(maxBuffer, buffer.length);
             if (clock != null) {
                 clock.advanceMicros(advanceMicrosPerRead);
             }
@@ -182,6 +184,7 @@ public class FrameReaderTest {
         } catch (SnapcastProtocolException e) {
             assertEquals(SnapcastProtocolException.Kind.TRUNCATED, e.getKind());
         }
+        assertTrue("the body buffer grows with the bytes that arrive: " + stream.maxBuffer, stream.maxBuffer <= 64 * 1024);
     }
 
     @Test
@@ -212,6 +215,26 @@ public class FrameReaderTest {
             }
         }
         assertEquals(new TimeMessage(3, 4), reader.read().getMessage());
+    }
+
+    @Test
+    public void insideAFrameTheReceiveTimeoutIsTheTimeLeftOfTheDeadline() throws Exception {
+        byte[] frame = SnapcastMessageCodec.encode(new TimeMessage(3, 4), 1, 0, 0, 0, 0, 0);
+        ManualClock clock = new ManualClock(0);
+        java.util.List<Integer> timeouts = new java.util.ArrayList<>();
+        // every read takes 1 s of the clock; the frame comes in single bytes
+        ScriptedStream stream = new ScriptedStream(clock, 1_000_000).drip(frame);
+        FrameReader reader = new FrameReader(stream, clock, 10_000, timeouts::add);
+
+        try {
+            reader.read();
+            fail();
+        } catch (SnapcastProtocolException e) {
+            assertEquals(SnapcastProtocolException.Kind.DEADLINE, e.getKind());
+        }
+
+        // not asked before the first byte (the caller's wait), then the time left of the 10 s from the first byte
+        assertEquals(java.util.Arrays.asList(10000, 9000, 8000, 7000, 6000, 5000, 4000, 3000, 2000, 1000), timeouts);
     }
 
     @Test

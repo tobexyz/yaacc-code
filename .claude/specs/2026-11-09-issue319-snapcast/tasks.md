@@ -184,6 +184,12 @@ Carried over from the security review of Group 3 (`security-review.md` S17 to S2
   - **Accept**: a simulated asymmetric/jittery network keeps the offset within a stated bound; late chunks are dropped, early chunks wait.
   - **Verify**: `ClockOffsetFilterTest`, `ChunkSchedulerTest`.
 
+## Fix Group 7b: Address review cycle 1 of Group 7 (W1 to W3, S1 to S8 in `review.md`, "Cycle 1 (Group 7)")
+- [x] F7.1 (W1) A stall inside a frame is bounded by the message deadline, not by the wake-up timeout of the time-sync timer (`FrameReader.ReadTimeout`); tests `aPauseInsideAChunkIsNotCutShortByTheTimerOfTheNextTimeRequest`, `aStallInsideAChunkBeyondTheMessageDeadlineStillDropsTheConnection`, `insideAFrameTheReceiveTimeoutIsTheTimeLeftOfTheDeadline`.
+- [x] F7.2 (W2) Every kind of listener event is bounded: settings and offset updates keep the latest, codec headers are limited to 8 waiting (a ninth drops the connection as PROTOCOL_ERROR), chunks as before; four flood tests with a stuck listener.
+- [x] F7.3 (W3) The shortest-round-trip rule is pinned by two tests (the mutation "median of all samples" is caught); the misleading comment is corrected.
+- [x] F7.4 Suggestions taken: S1 (`UNSUPPORTED_FORMAT` is permanent), S2 (`design.md` wording), S3 (four public methods of `SnapcastJson`), S4 (tests for the stable-connection reset and the 16 outstanding requests), S5 (javadoc of `close()`), S6 (candidates keep their round trips), S7 (scheduler actions asserted, reader growth asserted), S8 (decisions sentence). Not done: S9 (the rig run stays with the owner).
+
 ## Group 8 (Phase B): Audio engine (P1, spike first)
 - [ ] 8.1 Spike: `AudioTrack` engine playing rig chunks (PCM, then FLAC via `MediaCodec`) in sync with a Raspberry Pi/rig client | `de.yaacc.multiroom.client` (draft)
   - **Accept**: owner hears no offset against another client after 10 minutes; drift correction is inaudible.

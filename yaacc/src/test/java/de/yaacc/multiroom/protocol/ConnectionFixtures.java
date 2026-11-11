@@ -340,6 +340,13 @@ final class ConnectionFixtures {
             return tasks.size();
         }
 
+        /** Waits for the next scheduled task and returns it without running it. */
+        Runnable take() throws InterruptedException {
+            Runnable task = tasks.poll(WAIT_SECONDS, TimeUnit.SECONDS);
+            assertNotNull("no retry was scheduled", task);
+            return task;
+        }
+
         /** Waits for the next scheduled task and runs it on the calling thread. */
         void runNext() throws InterruptedException {
             Runnable task = tasks.poll(WAIT_SECONDS, TimeUnit.SECONDS);

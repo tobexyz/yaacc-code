@@ -135,7 +135,8 @@ public class ClockOffsetFilterTest {
     @Test
     public void slowRoundTripsAreNotAllowedToPullTheEstimate() {
         // one sample in five waits 300 ms in one direction (a Wi-Fi power save wake up): a single such sample is wrong
-        // by 150 ms, and the round trip selection keeps it out of the estimate
+        // by 150 ms. This shows that outliers do not matter; that the shortest round trips decide is pinned by the two
+        // tests after this one (a plain median of the window would pass this test as well)
         Random random = new Random(11);
         ClockOffsetFilter filter = new ClockOffsetFilter();
         long worst = 0;
@@ -152,6 +153,44 @@ public class ClockOffsetFilterTest {
         }
 
         assertTrue("worst error " + worst + " us (bound 5 ms = half of the 10 ms spread)", worst <= 5 * MS);
+    }
+
+    @Test
+    public void theShortestRoundTripsDecideAndNotTheMedianOfAllSamples() {
+        // eight exact samples (round trip 10 ms) and eight with a long uplink (round trip 200 ms, each 90 ms off): the
+        // median of all sixteen would be 45 ms off, the median of the eight shortest round trips is exact
+        ClockOffsetFilter filter = new ClockOffsetFilter();
+        for (int i = 0; i < 8; i++) {
+            feed(filter, OFFSET, 5 * MS, 5 * MS);
+            feed(filter, OFFSET, 190 * MS, 10 * MS);
+        }
+
+        assertEquals(ClockOffsetFilter.WINDOW, filter.sampleCount());
+        assertEquals(OFFSET, filter.offsetMicros());
+        assertEquals(10 * MS, filter.minRoundTripMicros());
+    }
+
+    @Test
+    public void whenTheErrorGrowsWithTheRoundTripTheEstimateBeatsTheMedianOfAllSamples() {
+        // a long and varying uplink and a constant downlink: the error of a sample is half the extra uplink delay
+        for (long seed = 1; seed <= 25; seed++) {
+            Random random = new Random(seed);
+            ClockOffsetFilter filter = new ClockOffsetFilter();
+            long[] samples = new long[ClockOffsetFilter.WINDOW];
+            for (int i = 0; i < samples.length; i++) {
+                long up = 5 * MS + (long) (random.nextDouble() * 55 * MS);
+                long down = 5 * MS;
+                feed(filter, OFFSET, up, down);
+                samples[i] = ((OFFSET + up) - (-OFFSET + down)) / 2;
+            }
+            java.util.Arrays.sort(samples);
+            long medianOfAll = (samples[7] + samples[8]) / 2;
+
+            long filterError = Math.abs(filter.offsetMicros() - OFFSET);
+            long plainMedianError = Math.abs(medianOfAll - OFFSET);
+            assertTrue("seed " + seed + ": filter " + filterError + " us, median of all " + plainMedianError + " us",
+                    filterError < plainMedianError);
+        }
     }
 
     @Test

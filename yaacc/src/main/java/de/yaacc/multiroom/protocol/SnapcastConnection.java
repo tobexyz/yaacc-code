@@ -42,6 +42,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -63,8 +65,12 @@ import java.util.function.Consumer;
  *
  * <p><b>Threads.</b> One reader thread per connection attempt reads, decodes, answers the time sync and writes the
  * Hello; it never calls a listener. Listeners run on a serial executor (an own thread unless the caller gives one),
- * in the order of the stream. The chunks waiting for a slow listener are bounded in count and bytes; a chunk beyond the
- * bounds is dropped and counted. A listener that throws is skipped for that call.
+ * in the order of the stream. What waits for a slow listener is bounded for every kind of event: chunks in count and bytes
+ * (a chunk beyond the bounds is dropped and counted), server settings and offset updates keep only the latest value,
+ * and codec headers (never replaced or dropped silently, the order to the chunks matters) are limited to
+ * {@code maxPendingHeaders} (8); more waiting than that is a flood and ends the connection as PROTOCOL_ERROR. The
+ * outage events {@code onLost} and {@code onGaveUp} are limited by the reconnect rules (one report per outage, five
+ * failures in a row). A listener that throws is skipped for that call.
  *
  * <p><b>Reconnect.</b> As in the control client ({@code SnapcastRpc}): a lost connection is retried after 1 s, 2 s,
  * 4 s ... at most 30 s; after 5 failures in a row it stops ({@link State#GAVE_UP}) until {@link #retry()}; a connection
@@ -123,6 +129,8 @@ public final class SnapcastConnection implements Closeable {
         UNAUTHORIZED,
         /** The server uses a codec that is not on the allow-list. Permanent. */
         UNSUPPORTED_CODEC,
+        /** The codec header has values the engine does not support (sample rate, bit depth, channels). Permanent. */
+        UNSUPPORTED_FORMAT,
         /** A bug on our side. */
         INTERNAL
     }
@@ -148,7 +156,8 @@ public final class SnapcastConnection implements Closeable {
 
         /** True when a retry would meet the same answer. */
         public boolean isPermanent() {
-            return reason == LossReason.UNAUTHORIZED || reason == LossReason.UNSUPPORTED_CODEC;
+            return reason == LossReason.UNAUTHORIZED || reason == LossReason.UNSUPPORTED_CODEC
+                    || reason == LossReason.UNSUPPORTED_FORMAT;
         }
     }
 
@@ -192,6 +201,7 @@ public final class SnapcastConnection implements Closeable {
         private long stableConnectionMs = 10_000;
         private int maxPendingChunks = 256;
         private long maxPendingChunkBytes = 4L * 1024 * 1024;
+        private int maxPendingHeaders = 8;
 
         private static long positive(String name, long value) {
             if (value < 1) {
@@ -281,6 +291,15 @@ public final class SnapcastConnection implements Closeable {
             return this;
         }
 
+        /**
+         * Codec headers that may wait for a slow listener (default 8). A server sends one per stream; more waiting than
+         * that is a flood and the connection is dropped as PROTOCOL_ERROR (a header is never dropped silently).
+         */
+        public Config maxPendingHeaders(int value) {
+            maxPendingHeaders = (int) positive("maxPendingHeaders", value);
+            return this;
+        }
+
         private Config copy() {
             Config c = new Config();
             c.connectTimeoutMs = connectTimeoutMs;
@@ -297,6 +316,7 @@ public final class SnapcastConnection implements Closeable {
             c.stableConnectionMs = stableConnectionMs;
             c.maxPendingChunks = maxPendingChunks;
             c.maxPendingChunkBytes = maxPendingChunkBytes;
+            c.maxPendingHeaders = maxPendingHeaders;
             return c;
         }
     }
@@ -328,6 +348,9 @@ public final class SnapcastConnection implements Closeable {
 
     private final AtomicInteger pendingChunks = new AtomicInteger();
     private final AtomicLong pendingChunkBytes = new AtomicLong();
+    private final AtomicInteger pendingHeaders = new AtomicInteger();
+    private final AtomicReference<ServerSettingsMessage> latestSettings = new AtomicReference<>();
+    private final AtomicReference<long[]> latestOffset = new AtomicReference<>();
     private final AtomicLong droppedChunks = new AtomicLong();
     private final AtomicLong droppedBeforeHeader = new AtomicLong();
     private final AtomicLong unsolicitedTime = new AtomicLong();
@@ -479,6 +502,10 @@ public final class SnapcastConnection implements Closeable {
         return thread != null && thread.isAlive();
     }
 
+    /**
+     * Ends the connection for good. Not for the main thread: it waits up to 2 s for the reader thread, which can be
+     * held that long by a connect that is in progress.
+     */
     @Override
     public void close() {
         SnapcastTransport.Connection toClose;
@@ -665,6 +692,51 @@ public final class SnapcastConnection implements Closeable {
         }
     }
 
+    /**
+     * Keeps only the latest value of a kind of event that a slow listener has not heard yet: the first value queues a
+     * task, later ones replace the value, and the task delivers whatever is newest when it runs.
+     */
+    private <T> void dispatchLatest(final AtomicReference<T> slot, T value, final BiConsumer<Listener, T> call) {
+        if (closed || slot.getAndSet(value) != null) {
+            return; // a task is queued already and will take the newest value
+        }
+        try {
+            listenerExecutor.execute(() -> {
+                final T latest = slot.getAndSet(null);
+                if (latest != null) {
+                    deliver(listener -> call.accept(listener, latest));
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            slot.set(null);
+        }
+    }
+
+    /**
+     * Codec headers keep their order relative to the chunks and are never replaced or dropped silently; the number
+     * waiting is bounded instead.
+     *
+     * @return false when too many wait: the caller drops the connection
+     */
+    private boolean dispatchHeader(final CodecHeaderMessage header) {
+        if (pendingHeaders.incrementAndGet() > config.maxPendingHeaders) {
+            pendingHeaders.decrementAndGet();
+            return false;
+        }
+        try {
+            listenerExecutor.execute(() -> {
+                try {
+                    deliver(listener -> listener.onCodecHeader(header));
+                } finally {
+                    pendingHeaders.decrementAndGet();
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            pendingHeaders.decrementAndGet();
+        }
+        return true;
+    }
+
     private void dispatchChunk(final WireChunkMessage chunk) {
         final int size = chunk.getPayloadLength();
         if (pendingChunks.get() >= config.maxPendingChunks || pendingChunkBytes.get() + size > config.maxPendingChunkBytes) {
@@ -764,7 +836,7 @@ public final class SnapcastConnection implements Closeable {
                 synchronized (writeLock) {
                     activeOut = out;
                 }
-                FrameReader reader = new FrameReader(in, clock, config.messageDeadlineMs);
+                FrameReader reader = new FrameReader(in, clock, config.messageDeadlineMs, socket::setReadTimeout);
                 startedAt = clock.nowMicros();
                 lastReceivedAt = startedAt;
                 write(SnapcastMessageCodec.encode(hello, nextMessageId(), 0, startedAt));
@@ -814,6 +886,8 @@ public final class SnapcastConnection implements Closeable {
             switch (e.getKind()) {
                 case UNSUPPORTED_CODEC:
                     return new Loss(LossReason.UNSUPPORTED_CODEC, e.getMessage());
+                case UNSUPPORTED_FORMAT:
+                    return new Loss(LossReason.UNSUPPORTED_FORMAT, e.getMessage());
                 case TIMEOUT:
                 case DEADLINE:
                     return new Loss(LossReason.TIMEOUT, "");
@@ -871,7 +945,7 @@ public final class SnapcastConnection implements Closeable {
                         nextTimeSyncAt = now;
                     }
                     if (isCurrent(attempt)) {
-                        dispatch(listener -> listener.onServerSettings(settings));
+                        dispatchLatest(latestSettings, settings, Listener::onServerSettings);
                     }
                     checkHandshake();
                     return null;
@@ -880,8 +954,8 @@ public final class SnapcastConnection implements Closeable {
                     consecutiveUnexpected = 0;
                     final CodecHeaderMessage header = (CodecHeaderMessage) message;
                     headerSeen = true;
-                    if (isCurrent(attempt)) {
-                        dispatch(listener -> listener.onCodecHeader(header));
+                    if (isCurrent(attempt) && !dispatchHeader(header)) {
+                        return new Loss(LossReason.PROTOCOL_ERROR, "too many codec headers");
                     }
                     checkHandshake();
                     return null;
@@ -944,9 +1018,8 @@ public final class SnapcastConnection implements Closeable {
                 accepted = offsetFilter.addSample(c2s, s2c);
             }
             if (accepted && offsetFilter.isSynchronized() && isCurrent(attempt)) {
-                final long offset = offsetFilter.offsetMicros();
-                final long jitter = offsetFilter.jitterMicros();
-                dispatch(listener -> listener.onOffsetUpdate(offset, jitter));
+                dispatchLatest(latestOffset, new long[]{offsetFilter.offsetMicros(), offsetFilter.jitterMicros()},
+                        (listener, values) -> listener.onOffsetUpdate(values[0], values[1]));
             }
             noteTimeAnswer();
         }

@@ -143,7 +143,7 @@ public class ChunkSchedulerTest {
 
     @Test
     public void aChunkStampedMoreThanFiveSecondsAheadIsDropped() {
-        // bufferMs + 5 s after the corrected clock: 1000 + 5000 ms
+        // 5 s after the corrected clock, whatever the buffer is (that is bufferMs + 5 s of play time at latency 0)
         ChunkScheduler.Decision edge = scheduler.offer(chunkAt(SERVER_NOW + 5_000_000L));
         ChunkScheduler.Decision beyond = scheduler.offer(chunkAt(SERVER_NOW + 5_000_001L));
 
@@ -316,14 +316,17 @@ public class ChunkSchedulerTest {
         assertEquals(ChunkScheduler.Action.DROP_LATE,
                 scheduler.offer(new WireChunkMessage(Integer.MIN_VALUE, -999_999, new byte[1])).getAction());
 
+        // a huge positive offset puts the corrected clock far ahead of every timestamp: everything is late
         offsets.offset = Long.MAX_VALUE / 2;
-        scheduler.offer(new WireChunkMessage(Integer.MAX_VALUE, 0, new byte[1]));
-        offsets.offset = Long.MIN_VALUE / 2;
-        scheduler.offer(new WireChunkMessage(Integer.MIN_VALUE, 0, new byte[1]));
+        assertEquals(ChunkScheduler.Action.DROP_LATE, scheduler.offer(new WireChunkMessage(Integer.MAX_VALUE, 0, new byte[1])).getAction());
         offsets.offset = Long.MAX_VALUE;
-        scheduler.offer(new WireChunkMessage(0, 0, new byte[1]));
+        assertEquals(ChunkScheduler.Action.DROP_LATE, scheduler.offer(new WireChunkMessage(0, 0, new byte[1])).getAction());
+        // a huge negative one puts it far behind: everything is stamped too far ahead
+        offsets.offset = Long.MIN_VALUE / 2;
+        assertEquals(ChunkScheduler.Action.DROP_TOO_FAR_AHEAD, scheduler.offer(new WireChunkMessage(Integer.MIN_VALUE, 0, new byte[1])).getAction());
         offsets.offset = Long.MIN_VALUE;
-        scheduler.offer(new WireChunkMessage(0, 0, new byte[1]));
-        scheduler.releaseDue();
+        assertEquals(ChunkScheduler.Action.DROP_TOO_FAR_AHEAD, scheduler.offer(new WireChunkMessage(0, 0, new byte[1])).getAction());
+        assertTrue(scheduler.releaseDue().isEmpty());
+        assertEquals(0, scheduler.queuedChunks());
     }
 }

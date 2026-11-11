@@ -21,6 +21,7 @@ package de.yaacc.multiroom.protocol;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -416,7 +417,43 @@ public class SnapcastConnectionTest {
             handshake(connection);
             connection.send(Bytes.of(0x02)); // the first byte of a header, then silence for as long as the client waits
             connection.awaitClientClose();
-        }, quick().readTimeoutMs(100), new ManualScheduler());
+        }, quick().readTimeoutMs(100).messageDeadlineMs(300).idleTimeoutMs(60_000), new ManualScheduler());
+
+        assertEquals(SnapcastConnection.LossReason.TIMEOUT, loss.getReason());
+    }
+
+    @Test
+    public void aPauseInsideAChunkIsNotCutShortByTheTimerOfTheNextTimeRequest() throws Exception {
+        // the clock stands still, so the next time request is "due in 100 ms" for the whole test: the loop wakes every
+        // 100 ms to look at it, which must not decide how long a stall inside a message is tolerated
+        ManualClock clock = new ManualClock(10_000_000L);
+        final byte[] frame = SnapcastMessageCodec.encode(new WireChunkMessage(7, 0, new byte[200]), 0, 0, 0);
+        FakeServer server = serve(connection -> {
+            handshake(connection);
+            connection.send(java.util.Arrays.copyOfRange(frame, 0, 40));
+            Thread.sleep(300); // the pause of a retransmission, pacing of the sender and not a synchronisation
+            connection.send(java.util.Arrays.copyOfRange(frame, 40, frame.length));
+            connection.awaitClientClose();
+        });
+        Recorder recorder = new Recorder();
+        SnapcastConnection.Config config = new SnapcastConnection.Config().readTimeoutMs(5_000).timeSyncBurstCount(1)
+                .timeSyncIntervalMs(100);
+        SnapcastConnection connection = connect(new SnapcastTransportHolder(server, 0), config, clock, new ManualScheduler(), recorder);
+
+        connection.start();
+
+        assertEquals(7, recorder.nextOf(WireChunkMessage.class).getTimestampSec());
+        assertEquals(SnapcastConnection.State.CONNECTED, connection.getState());
+    }
+
+    @Test
+    public void aStallInsideAChunkBeyondTheMessageDeadlineStillDropsTheConnection() throws Exception {
+        final byte[] frame = SnapcastMessageCodec.encode(new WireChunkMessage(7, 0, new byte[200]), 0, 0, 0);
+        SnapcastConnection.Loss loss = lostAfterHostile(connection -> {
+            handshake(connection);
+            connection.send(java.util.Arrays.copyOfRange(frame, 0, 40));
+            connection.awaitClientClose();
+        }, new SnapcastConnection.Config().readTimeoutMs(5_000).messageDeadlineMs(300).idleTimeoutMs(60_000), new ManualScheduler());
 
         assertEquals(SnapcastConnection.LossReason.TIMEOUT, loss.getReason());
     }
@@ -709,6 +746,262 @@ public class SnapcastConnectionTest {
         assertEquals(SnapcastConnection.LossReason.CONNECT_FAILED, lost.getReason());
         assertEquals(SnapcastConnection.LossReason.CONNECT_FAILED, gaveUp.loss.getReason());
         assertNull(recorder.events.poll());
+    }
+
+    @Test
+    public void aHeaderTheEngineCannotPlayEndsTheConnectionForGoodWithATypedReason() throws Exception {
+        ManualScheduler scheduler = new ManualScheduler();
+        byte[] wave8Bit = Bytes.WAVE_48000_STEREO_16.clone();
+        wave8Bit[34] = 8;  // bits per sample
+        wave8Bit[32] = 2;  // block align stays channels * bits / 8 = 2
+        FakeServer server = serve(connection -> {
+            connection.readFrame();
+            connection.send(SETTINGS);
+            connection.send(Bytes.frame(1, Bytes.concat(Bytes.lengthPrefixed(Bytes.ascii("pcm")), Bytes.lengthPrefixed(wave8Bit))));
+            connection.awaitClientClose();
+        });
+        Recorder recorder = new Recorder();
+        SnapcastConnection connection = connect(new SnapcastTransportHolder(server, 0), quick(), new ManualClock(1_000_000), scheduler, recorder);
+
+        connection.start();
+
+        recorder.next(ServerSettingsMessage.class);
+        SnapcastConnection.Loss lost = recorder.next(SnapcastConnection.Loss.class);
+        recorder.next(GaveUp.class);
+        assertEquals(SnapcastConnection.LossReason.UNSUPPORTED_FORMAT, lost.getReason());
+        assertTrue(lost.isPermanent());
+        assertEquals(SnapcastConnection.State.GAVE_UP, connection.getState());
+        assertEquals(0, scheduler.pending());
+    }
+
+    // ---- every kind of event is bounded for a stuck listener
+
+    /** A recorder whose first call of a kind blocks until the test lets it go. */
+    private static class StuckRecorder extends Recorder {
+        final CountDownLatch release = new CountDownLatch(1);
+        final CountDownLatch stuck = new CountDownLatch(1);
+        final List<Object> delivered = java.util.Collections.synchronizedList(new ArrayList<Object>());
+        private final java.util.concurrent.atomic.AtomicBoolean first = new java.util.concurrent.atomic.AtomicBoolean(true);
+
+        void block() {
+            if (first.getAndSet(false)) {
+                stuck.countDown();
+                try {
+                    // only the test (or close(), which interrupts) ends the wait
+                    release.await(5, TimeUnit.MINUTES);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+    }
+
+    @Test
+    public void aFloodOfSettingsWithAStuckListenerKeepsTheLatestOnly() throws Exception {
+        final int total = 3000;
+        final CountDownLatch finish = new CountDownLatch(1);
+        FakeServer server = serve(connection -> {
+            handshake(connection);
+            for (int i = 0; i < total; i++) {
+                connection.send(new ServerSettingsMessage(i, 0, false, 50));
+            }
+            finish.await(ConnectionFixtures.WAIT_SECONDS, TimeUnit.SECONDS);
+            connection.shutdownOutput();
+            connection.awaitClientClose();
+        });
+        StuckRecorder recorder = new StuckRecorder() {
+            @Override
+            public void onServerSettings(ServerSettingsMessage settings) {
+                block();
+                delivered.add(settings);
+            }
+        };
+        SnapcastConnection connection = connect(new SnapcastTransportHolder(server, 0), quick(), MicroClock.monotonic(),
+                new ManualScheduler(), recorder);
+
+        connection.start();
+
+        assertTrue(recorder.stuck.await(ConnectionFixtures.WAIT_SECONDS, TimeUnit.SECONDS));
+        assertTrue("the socket thread kept reading", connection.awaitFramesRead(total + 2, ConnectionFixtures.WAIT_SECONDS * 1000));
+        assertEquals(SnapcastConnection.State.CONNECTED, connection.getState());
+        finish.countDown();
+        recorder.release.countDown();
+        recorder.nextOf(SnapcastConnection.Loss.class); // after the last settings callback
+        assertTrue("delivered " + recorder.delivered.size(), recorder.delivered.size() <= 2);
+        assertEquals("the latest value wins", total - 1,
+                ((ServerSettingsMessage) recorder.delivered.get(recorder.delivered.size() - 1)).getBufferMs());
+    }
+
+    @Test
+    public void aLongRunOfOffsetUpdatesWithAStuckListenerKeepsTheLatestOnly() throws Exception {
+        ManualClock clock = new ManualClock(10_000_000L);
+        FakeServer server = timeServer(clock, new java.util.concurrent.LinkedBlockingQueue<Long>(), 0);
+        final int requests = 40;
+        StuckRecorder recorder = new StuckRecorder() {
+            @Override
+            public void onOffsetUpdate(long offsetMicros, long jitterMicros) {
+                block();
+                delivered.add(new OffsetUpdate(offsetMicros, jitterMicros));
+            }
+        };
+        SnapcastConnection.Config config = quick().timeSyncBurstCount(1000).timeSyncBurstIntervalMs(100);
+        // an executor of our own, so that a task put behind the events shows when all of them have run
+        java.util.concurrent.ExecutorService events = java.util.concurrent.Executors.newSingleThreadExecutor();
+        toClose.add(events::shutdownNow);
+        SnapcastConnection connection = new SnapcastConnection(new SnapcastTransportHolder(server, 0).transport, HELLO, config,
+                clock, new ManualScheduler(), events);
+        connection.addListener(recorder);
+        toClose.add(connection);
+
+        connection.start();
+        assertTrue(connection.awaitTimeSamples(1, ConnectionFixtures.WAIT_SECONDS * 1000));
+        for (int n = 2; n <= requests; n++) {
+            clock.advanceMillis(100);
+            assertTrue(connection.awaitTimeSamples(n, ConnectionFixtures.WAIT_SECONDS * 1000));
+        }
+        assertTrue("the first update is stuck in the listener", recorder.stuck.await(ConnectionFixtures.WAIT_SECONDS, TimeUnit.SECONDS));
+        recorder.release.countDown();
+        events.submit(() -> { }).get(ConnectionFixtures.WAIT_SECONDS, TimeUnit.SECONDS); // behind every event queued so far
+
+        assertTrue("delivered " + recorder.delivered.size(), recorder.delivered.size() <= 2);
+    }
+
+    @Test
+    public void aFloodOfCodecHeadersWithAStuckListenerDropsTheConnectionWithATypedReason() throws Exception {
+        ManualScheduler scheduler = new ManualScheduler();
+        final CountDownLatch finish = new CountDownLatch(1);
+        FakeServer server = serve(connection -> {
+            handshake(connection);
+            for (int i = 0; i < 40; i++) {
+                connection.send(pcmHeader());
+            }
+            finish.await(ConnectionFixtures.WAIT_SECONDS, TimeUnit.SECONDS);
+            connection.shutdownOutput();
+            connection.awaitClientClose();
+        });
+        StuckRecorder recorder = new StuckRecorder() {
+            @Override
+            public void onCodecHeader(CodecHeaderMessage header) {
+                block();
+                delivered.add(header);
+            }
+        };
+        SnapcastConnection connection = connect(new SnapcastTransportHolder(server, 0), quick(), new ManualClock(1_000_000), scheduler, recorder);
+
+        connection.start();
+
+        assertTrue(recorder.stuck.await(ConnectionFixtures.WAIT_SECONDS, TimeUnit.SECONDS));
+        scheduler.take(); // the connection was dropped and a retry is set up, while the listener is still stuck
+        assertEquals(SnapcastConnection.State.WAITING_RETRY, connection.getState());
+        finish.countDown();
+        recorder.release.countDown();
+        SnapcastConnection.Loss loss = recorder.nextOf(SnapcastConnection.Loss.class);
+        assertEquals(SnapcastConnection.LossReason.PROTOCOL_ERROR, loss.getReason());
+        assertEquals("the bound of pending headers", 8, recorder.delivered.size());
+    }
+
+    @Test
+    public void codecHeadersWithinTheBoundAreAllDeliveredInOrderToASlowListener() throws Exception {
+        CodecHeaderMessage flac = CodecHeaderMessage.of(Codec.FLAC, Bytes.FLAC_48000_STEREO_16);
+        final CountDownLatch finish = new CountDownLatch(1);
+        FakeServer server = serve(connection -> {
+            handshake(connection);
+            for (int i = 0; i < 5; i++) {
+                connection.send(i % 2 == 0 ? flac : pcmHeader());
+                connection.send(chunk(i));
+            }
+            finish.await(ConnectionFixtures.WAIT_SECONDS, TimeUnit.SECONDS);
+            connection.shutdownOutput();
+            connection.awaitClientClose();
+        });
+        StuckRecorder recorder = new StuckRecorder() {
+            @Override
+            public void onCodecHeader(CodecHeaderMessage header) {
+                block();
+                delivered.add(header);
+            }
+        };
+        SnapcastConnection connection = connect(new SnapcastTransportHolder(server, 0), quick(), new ManualClock(1_000_000), new ManualScheduler(), recorder);
+
+        connection.start();
+
+        assertTrue(recorder.stuck.await(ConnectionFixtures.WAIT_SECONDS, TimeUnit.SECONDS));
+        assertTrue(connection.awaitFramesRead(2 + 10, ConnectionFixtures.WAIT_SECONDS * 1000));
+        finish.countDown();
+        recorder.release.countDown();
+        recorder.nextOf(SnapcastConnection.Loss.class);
+        assertEquals(java.util.Arrays.<Object>asList(pcmHeader(), flac, pcmHeader(), flac, pcmHeader(), flac), recorder.delivered);
+        assertEquals(0, connection.getDroppedChunks());
+    }
+
+    // ---- the failure count and the outstanding time requests
+
+    @Test
+    public void aConnectionThatHeldLongEnoughStartsTheFailureCountAgain() throws Exception {
+        ManualClock clock = new ManualClock(1_000_000);
+        ManualScheduler scheduler = new ManualScheduler();
+        final java.util.concurrent.atomic.AtomicInteger index = new java.util.concurrent.atomic.AtomicInteger();
+        final CountDownLatch[] closeNow = {new CountDownLatch(1), new CountDownLatch(1)};
+        FakeServer server = serve(connection -> {
+            int mine = index.getAndIncrement();
+            handshake(connection);
+            closeNow[mine].await(ConnectionFixtures.WAIT_SECONDS, TimeUnit.SECONDS);
+        });
+        Recorder recorder = new Recorder();
+        SnapcastConnection.Config config = quick().maxFailures(2).stableConnectionMs(5_000).idleTimeoutMs(600_000)
+                .handshakeTimeoutMs(600_000);
+        SnapcastConnection connection = connect(new SnapcastTransportHolder(server, 0), config, clock, scheduler, recorder);
+
+        connection.start();
+        recorder.nextOf(CodecHeaderMessage.class);
+        closeNow[0].countDown(); // the first connection fails at once: one failure
+        recorder.nextOf(SnapcastConnection.Loss.class);
+        scheduler.runNext();
+        recorder.nextOf(CodecHeaderMessage.class);
+        clock.advanceMillis(5_000); // the second one holds for the stable time
+        closeNow[1].countDown();
+        scheduler.take(); // a retry is set up: the failure was counted from zero, so one failure is below the maximum of two
+
+        assertEquals(SnapcastConnection.State.WAITING_RETRY, connection.getState());
+        assertEquals(SnapcastConnection.LossReason.SERVER_CLOSED, recorder.nextOf(SnapcastConnection.Loss.class).getReason());
+    }
+
+    @Test
+    public void onlySixteenTimeRequestsStayOutstanding() throws Exception {
+        ManualClock clock = new ManualClock(10_000_000L);
+        final java.util.concurrent.BlockingQueue<Frame> requests = new java.util.concurrent.LinkedBlockingQueue<>();
+        final CountDownLatch answerNow = new CountDownLatch(1);
+        FakeServer server = serve(connection -> {
+            handshake(connection);
+            List<Frame> seen = new ArrayList<>();
+            while (seen.size() < 20) {
+                Frame request = connection.readTimeRequest();
+                seen.add(request);
+                requests.add(request);
+            }
+            answerNow.await(ConnectionFixtures.WAIT_SECONDS, TimeUnit.SECONDS);
+            // the oldest request was forgotten (20 sent, 16 kept): its answer is not one we are waiting for; the newest is
+            for (Frame request : new Frame[]{seen.get(0), seen.get(19)}) {
+                long serverNow = clock.nowMicros() + OFFSET;
+                connection.send(TimeMessage.ofMicros(serverNow - request.getHeader().sentMicros()), 0,
+                        request.getHeader().getId(), serverNow);
+            }
+            connection.awaitClientClose();
+        });
+        SnapcastConnection.Config config = quick().timeSyncBurstCount(1000).timeSyncBurstIntervalMs(100);
+        SnapcastConnection connection = connect(new SnapcastTransportHolder(server, 0), config, clock, new ManualScheduler(), new Recorder());
+
+        connection.start();
+        assertNotNull(requests.poll(ConnectionFixtures.WAIT_SECONDS, TimeUnit.SECONDS));
+        for (int n = 2; n <= 20; n++) {
+            clock.advanceMillis(100);
+            assertNotNull(requests.poll(ConnectionFixtures.WAIT_SECONDS, TimeUnit.SECONDS));
+        }
+        answerNow.countDown();
+
+        assertTrue(connection.awaitTimeSamples(1, ConnectionFixtures.WAIT_SECONDS * 1000));
+        assertEquals(1, connection.getUnsolicitedTime());
+        assertEquals(1, connection.getOffsetFilter().sampleCount());
     }
 
     // ---- closing

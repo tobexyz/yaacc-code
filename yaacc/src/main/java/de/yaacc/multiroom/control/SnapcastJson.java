@@ -35,8 +35,8 @@ import java.util.List;
  * {@link SnapcastLimits#MAX_DEPTH}, more than {@link SnapcastLimits#MAX_TOKENS} tokens, the lenient forms and anything
  * after the one value. The {@code StackOverflowError} handler stays as the last line of defense (precedent:
  * {@code de.yaacc.yxc.YxcJson}). The class is public only because the binary protocol client
- * ({@code de.yaacc.multiroom.protocol}) reads its JSON messages through the same guard; just the entry points it needs
- * are public.
+ * ({@code de.yaacc.multiroom.protocol}) reads its JSON messages through the same guard; just the four entry points it needs
+ * ({@code parseObject}, {@code string}, {@code integer}, {@code bool}) are public.
  *
  * <p><b>Where a string starts.</b> The scan must agree with the parser that runs behind it. Android's
  * {@code JSONTokener} reads a value that does not start with a quote as a literal up to one of {@code {}[]/\:,=;#} or
@@ -197,7 +197,7 @@ public final class SnapcastJson {
      * same on the screen are the same text, or show a {@code ?} where they differ. It is still the server's text (display
      * only, never an identity, never a log line). The result is never longer than {@code max}.
      */
-    public static String displayText(String text, int max) {
+    static String displayText(String text, int max) {
         if (text == null) {
             return null;
         }
@@ -252,7 +252,7 @@ public final class SnapcastJson {
     }
 
     /** Cuts a string at {@link SnapcastLimits#MAX_STRING_LENGTH} characters, never inside a surrogate pair. */
-    public static String truncate(String text) {
+    static String truncate(String text) {
         if (text == null) {
             return null;
         }

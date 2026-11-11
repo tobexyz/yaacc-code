@@ -33,7 +33,8 @@ import java.util.Arrays;
  * <p><b>Time.</b> The socket's read timeout bounds one read; this class adds a deadline for a whole frame, counted from
  * its first byte, so a sender that drips a byte inside every read timeout still ends. A read timeout before the first
  * byte of a frame is passed on as the {@link SocketTimeoutException} that it is (nothing was consumed, the caller may
- * read again); inside a frame it is a TIMEOUT error. A clean end between two frames is an {@link EOFException}, an end
+ * read again); inside a frame it is a TIMEOUT error, and with a {@link ReadTimeout} the receive timeout inside a frame is
+ * the time left of the deadline, not the (possibly short) timeout that was set for waiting. A clean end between two frames is an {@link EOFException}, an end
  * inside a frame is TRUNCATED. One reader belongs to one thread.
  */
 public final class FrameReader {
@@ -41,8 +42,14 @@ public final class FrameReader {
     private static final int INITIAL_BODY = 64 * 1024;
     private static final int SKIP_BUFFER = 4096;
 
+    /** Sets how long the next read of the stream may block (the socket's receive timeout). */
+    public interface ReadTimeout {
+        void set(int millis) throws IOException;
+    }
+
     private final InputStream in;
     private final MicroClock clock;
+    private final ReadTimeout timeout;
     private final long deadlineMicros;
     private final byte[] headerBuffer = new byte[SnapcastProtocolLimits.HEADER_SIZE];
     private byte[] skipBuffer;
@@ -53,9 +60,20 @@ public final class FrameReader {
      * @param messageDeadlineMillis how long a frame may take from its first byte to its last
      */
     public FrameReader(InputStream in, MicroClock clock, long messageDeadlineMillis) {
+        this(in, clock, messageDeadlineMillis, null);
+    }
+
+    /**
+     * @param timeout when given, it is called before every read after the first byte of a frame with the time that is
+     *                left of the message deadline: a stall inside a frame is then tolerated up to the deadline, whatever
+     *                receive timeout the caller set for the wait before the frame (that one may be short, for example
+     *                to wake up for a timer). The stall that exceeds it ends as TIMEOUT.
+     */
+    public FrameReader(InputStream in, MicroClock clock, long messageDeadlineMillis, ReadTimeout timeout) {
         this.in = in;
         this.clock = clock;
         this.deadlineMicros = messageDeadlineMillis * 1000L;
+        this.timeout = timeout;
     }
 
     /**
@@ -102,6 +120,13 @@ public final class FrameReader {
 
     /** One read of at least one byte, with the timeout, end of stream and deadline rules of this class. */
     private int readSome(byte[] buffer, int offset, int length) throws IOException, SnapcastProtocolException {
+        if (frameStarted && timeout != null) {
+            long leftMicros = deadlineMicros - (clock.nowMicros() - frameStartMicros);
+            if (leftMicros <= 0) {
+                throw new SnapcastProtocolException(SnapcastProtocolException.Kind.DEADLINE, "message took too long");
+            }
+            timeout.set((int) Math.max(1, Math.min(Integer.MAX_VALUE, (leftMicros + 999) / 1000)));
+        }
         int count;
         try {
             count = in.read(buffer, offset, length);
