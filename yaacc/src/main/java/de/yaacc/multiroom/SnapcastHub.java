@@ -19,6 +19,9 @@
 package de.yaacc.multiroom;
 
 import android.content.Context;
+import android.content.SharedPreferences;
+
+import androidx.preference.PreferenceManager;
 
 import java.util.Collection;
 import java.util.List;
@@ -29,12 +32,15 @@ import java.util.concurrent.TimeUnit;
 
 import de.yaacc.R;
 import de.yaacc.multiroom.control.MonotonicClock;
+import de.yaacc.multiroom.control.RetryScheduler;
 import de.yaacc.multiroom.control.SnapcastRpc;
 import de.yaacc.multiroom.discovery.SnapcastDirectory;
 import de.yaacc.multiroom.discovery.SnapcastManualServers;
 import de.yaacc.multiroom.discovery.SnapcastNsd;
 import de.yaacc.multiroom.discovery.SnapcastPreferencesStorage;
 import de.yaacc.multiroom.discovery.SnapcastResolver;
+import de.yaacc.multiroom.feed.PcmFeederOutput;
+import de.yaacc.multiroom.feed.SnapcastFeedController;
 
 /**
  * The app-wide Snapcast part, the counterpart of {@code YxcMonitor.getShared()}: the directory of servers, the manual
@@ -58,6 +64,7 @@ public final class SnapcastHub implements SnapcastGroupSource {
     private final SnapcastSelectedServers selectedServers;
     private final SnapcastNsd nsd;
     private final SnapcastReceivers receivers;
+    private final SnapcastFeedSessions feeds;
     private int pages;
 
     private SnapcastHub(Context context) {
@@ -72,22 +79,40 @@ public final class SnapcastHub implements SnapcastGroupSource {
             return thread;
         });
         final SnapcastResolver resolver = SnapcastResolver.system();
+        final RetryScheduler scheduler = (task, delayMillis) -> {
+            try {
+                timer.schedule(task, delayMillis, TimeUnit.MILLISECONDS);
+            } catch (RejectedExecutionException closed) {
+                // not expected: the hub lives as long as the process
+            }
+        };
         this.receivers = new SnapcastReceivers(directory,
                 endpoint -> new SnapcastSession(endpoint.toKey(), new ResolvingTransport(endpoint, resolver),
                         new SnapcastRpc.Config(), MonotonicClock.SYSTEM, null),
-                (task, delayMillis) -> {
-                    try {
-                        timer.schedule(task, delayMillis, TimeUnit.MILLISECONDS);
-                    } catch (RejectedExecutionException closed) {
-                        // not expected: the hub lives as long as the process
-                    }
-                },
+                scheduler,
                 () -> new SnapcastGroupDevice.Labels(this.context.getString(R.string.snapcast_group),
                         this.context.getString(R.string.snapcast_offline)),
                 CLOSE_GRACE_MILLIS);
+        this.feeds = new SnapcastFeedSessions(receivers, SnapcastMarkerStore.forContext(this.context), scheduler,
+                PcmFeederOutput.FACTORY);
         directory.setManualServers(manualServers.list());
         // the servers of the selected groups are known at once, without a scan (see SnapcastSelectedServers)
         selectedServers.restore();
+    }
+
+    /**
+     * The controller that plays into a group (task 4.4). The name of this phone in the stream name is the one the UPnP
+     * server announces (the same preference and default as {@code YaaccUpnpServerService.getLocalServerName}), so
+     * nothing new about the phone is disclosed to the Snapcast server and its controllers. The caller must
+     * {@link SnapcastFeedController#release() release} it when its player ends.
+     */
+    public SnapcastFeedController newFeedController(SnapcastGroupDevice group, SnapcastFeedController.Listener listener) {
+        return feeds.newController(group, phoneName(), listener);
+    }
+
+    private String phoneName() {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        return preferences.getString(context.getString(R.string.settings_local_server_name_key), "Yaacc");
     }
 
     /** The app-wide hub. */

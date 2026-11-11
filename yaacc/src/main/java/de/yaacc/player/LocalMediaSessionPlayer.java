@@ -133,6 +133,15 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         }
     }
 
+    /**
+     * Builds the ExoPlayer of this player. A plain one here; a subclass that needs its own renderers (the Snapcast player
+     * taps the decoded audio) overrides this and returns a player built for it. Called once, on the thread that
+     * initializes the player, with the context of the player available; the result is used as ExoPlayer was before.
+     */
+    protected ExoPlayer createExoPlayer() {
+        return new ExoPlayer.Builder(getContext()).build();
+    }
+
     private void initializeExoPlayer() {
         if (exoPlayer != null) {
             return; // Already initialized
@@ -140,7 +149,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         YaaccLogger.d(getClass().getName(), "Initializing ExoPlayer");
         // Create ExoPlayer with audio attributes
         // A local reference: onDestroy (any thread) sets the field to null, also while this runs
-        final ExoPlayer player = new ExoPlayer.Builder(getContext()).build();
+        final ExoPlayer player = createExoPlayer();
         exoPlayer = player;
 
         androidx.media3.common.AudioAttributes audioAttributes =

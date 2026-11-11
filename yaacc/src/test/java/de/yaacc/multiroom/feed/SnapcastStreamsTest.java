@@ -607,6 +607,41 @@ public class SnapcastStreamsTest {
     }
 
     @Test
+    public void aFailedMoveKeepsTheRecordSoThatAMoveThatWasAppliedAfterAllCanBeUndone() {
+        server.addPipeStream("Default");
+        server.addGroup("g1", "Default", "c1");
+        SnapcastStreams streams = ready();
+        server.failNextCallOf("Group.SetStream",
+                new SnapcastException(SnapcastException.Kind.TIMEOUT, 0, "timeout", null, null));
+
+        assertEquals(SnapcastStreams.UseResult.FAILED, streams.useFor("g1"));
+        assertEquals("the record of the previous stream is still there", 1, streams.recordedGroupCount());
+        try {
+            // the server had applied the move; only the answer was lost
+            server.call("Group.SetStream", new JSONObject().put("id", "g1").put("stream_id", streams.getStreamName()));
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+
+        assertEquals(SnapcastStreams.ReleaseResult.RESTORED, streams.release("g1"));
+        assertEquals("Default", server.groupStream("g1"));
+    }
+
+    @Test
+    public void aFailedMoveThatWasNotAppliedLeavesNoStaleRecordAfterTheNextRelease() {
+        server.addPipeStream("Default");
+        server.addGroup("g1", "Default", "c1");
+        SnapcastStreams streams = ready();
+        server.failNextCallOf("Group.SetStream",
+                new SnapcastException(SnapcastException.Kind.IO, 0, "io", null, null));
+        assertEquals(SnapcastStreams.UseResult.FAILED, streams.useFor("g1"));
+
+        assertEquals("the group never left its stream", SnapcastStreams.ReleaseResult.LEFT_ALONE, streams.release("g1"));
+        assertEquals(0, streams.recordedGroupCount());
+        assertEquals("Default", server.groupStream("g1"));
+    }
+
+    @Test
     public void useForWithoutAPreviousStreamRestoresNothing() {
         server.addGroup("g1", "", "c1");
         SnapcastStreams streams = ready();

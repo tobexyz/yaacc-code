@@ -119,6 +119,13 @@
             android:key="@string/image_viewer_settings_duration_key"
             android:title="@string/image_viewer_settings_duration" />
     </PreferenceCategory>
+    <PreferenceCategory android:title="@string/settings_snapcast_category">
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="@string/settings_snapcast_play_experimental"
+            android:summary="@string/settings_snapcast_play_experimental_summary"
+            android:title="@string/settings_snapcast_play_experimental_title" />
+    </PreferenceCategory>
     <PreferenceCategory android:title="@string/settings_upnp_server_title">
         <CheckBoxPreference
             android:key="@string/settings_local_server_chkbx"

@@ -267,7 +267,17 @@ public class MusicPlayerActivity extends AppCompatActivity implements ServiceCon
 
     @OptIn(markerClass = UnstableApi.class)
     private Player getPlayer() {
-        return playerService == null ? null : playerService.getFirstCurrentPlayerOfType(LocalMediaSessionPlayer.class);
+        if (playerService == null) {
+            return null;
+        }
+        // the notification and the receiver rows name the player they open; a Snapcast player is a music player too,
+        // but "the local music player" is never one of them
+        int playerId = getIntent() == null ? 0 : getIntent().getIntExtra(AbstractPlayer.PLAYER_ID, 0);
+        Player named = playerId == 0 ? null : playerService.getCurrentPlayerById(playerId);
+        if (named instanceof LocalMediaSessionPlayer) {
+            return named;
+        }
+        return playerService.getFirstCurrentPlayerOfType(LocalMediaSessionPlayer.class);
     }
 
     @Override

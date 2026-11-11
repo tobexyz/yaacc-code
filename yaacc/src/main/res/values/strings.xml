@@ -303,4 +303,15 @@
     <string name="snapcast_group">Snapcast group</string>
     <string name="snapcast_offline">offline</string>
     <string name="snapcast_play_not_available">Playing to Snapcast groups is not available yet</string>
+    <string name="snapcast_play_audio_only">Only music can be played to Snapcast groups</string>
+    <string name="snapcast_play_delay_note">Snapcast plays about a second behind the display (the buffer of the server)</string>
+    <string name="snapcast_feed_error_unreachable">The Snapcast server cannot be reached</string>
+    <string name="snapcast_feed_error_refused">The Snapcast server did not accept a stream from YAACC</string>
+    <string name="snapcast_feed_error_unauthorized">The Snapcast server asks for a login, which YAACC does not support</string>
+    <string name="snapcast_feed_error_group_gone">The Snapcast group is no longer available</string>
+    <string name="snapcast_feed_error_connect">Could not connect to the stream of the Snapcast server</string>
+    <string name="snapcast_feed_error_busy">Another group of this Snapcast server is already being played from this phone</string>
+    <string name="snapcast_feed_error_lost">The connection to the Snapcast server was lost</string>
+    <string name="snapcast_feed_static_source_hint">Add a TCP stream source to the server configuration instead (see the YAACC documentation).</string>
+    <string name="snapcast_feed_authorization_hint">Switch off the login for the control connection of the server, or use a server without one.</string>
 </resources>

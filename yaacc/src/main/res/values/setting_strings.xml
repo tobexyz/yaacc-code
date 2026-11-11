@@ -167,4 +167,8 @@
     <string name="settings_duration_format_key" translatable="false">settings_duration_format_key</string>
     <string name="settings_local_server_if_filter_names">interfaces blacklisted for obtaining IP addresses</string>
     <string name="settings_local_server_title">local server configuration</string>
+    <string name="settings_snapcast_category">Snapcast (experimental)</string>
+    <string name="settings_snapcast_play_experimental_title">Play to Snapcast groups</string>
+    <string name="settings_snapcast_play_experimental_summary">Experimental: music from the player is sent to a Snapcast server so that a group plays it. The audio is sent unencrypted to the server. Not tested on a device yet.</string>
+    <string name="settings_snapcast_play_experimental" translatable="false">settings_snapcast_play_experimental</string>
 </resources>

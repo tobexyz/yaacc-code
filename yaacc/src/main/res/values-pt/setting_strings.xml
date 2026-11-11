@@ -121,4 +121,7 @@
     <string name="settings_upnp_selected_interface_summary">Selecione a interface de rede específica para UPnP (vazio = deteção automática)</string>
     <string name="settings_upnp_selected_interface_none">Detecção automática (melhor esforço)</string>
     <string name="settings_upnp_selected_interface_blacklisted_warning">⚠️ A interface selecionada está na lista negra e pode não funcionar!</string>
+    <string name="settings_snapcast_category">Snapcast (experimental)</string>
+    <string name="settings_snapcast_play_experimental_title">Reproduzir em grupos do Snapcast</string>
+    <string name="settings_snapcast_play_experimental_summary">Experimental: a música do leitor é enviada para um servidor Snapcast para que um grupo a reproduza. O áudio é enviado sem encriptação para o servidor. Ainda não foi testado num dispositivo.</string>
 </resources>

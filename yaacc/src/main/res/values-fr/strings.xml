@@ -302,4 +302,15 @@
     <string name="snapcast_group">Groupe Snapcast</string>
     <string name="snapcast_offline">hors ligne</string>
     <string name="snapcast_play_not_available">La lecture sur des groupes Snapcast n\'est pas encore disponible</string>
+    <string name="snapcast_play_audio_only">Seule la musique peut être lue sur des groupes Snapcast</string>
+    <string name="snapcast_play_delay_note">Snapcast joue environ une seconde après l\'affichage (tampon du serveur)</string>
+    <string name="snapcast_feed_error_unreachable">Le serveur Snapcast est injoignable</string>
+    <string name="snapcast_feed_error_refused">Le serveur Snapcast n\'a pas accepté de flux de YAACC</string>
+    <string name="snapcast_feed_error_unauthorized">Le serveur Snapcast demande une connexion, que YAACC ne prend pas en charge</string>
+    <string name="snapcast_feed_error_group_gone">Le groupe Snapcast n\'est plus disponible</string>
+    <string name="snapcast_feed_error_connect">Impossible de se connecter au flux du serveur Snapcast</string>
+    <string name="snapcast_feed_error_busy">Ce téléphone joue déjà sur un autre groupe de ce serveur Snapcast</string>
+    <string name="snapcast_feed_error_lost">La connexion au serveur Snapcast a été perdue</string>
+    <string name="snapcast_feed_static_source_hint">Ajoutez plutôt une source de flux TCP dans la configuration du serveur (voir la documentation de YAACC).</string>
+    <string name="snapcast_feed_authorization_hint">Désactivez la connexion pour la liaison de contrôle du serveur, ou utilisez un serveur sans connexion.</string>
 </resources>

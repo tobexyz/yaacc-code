@@ -121,4 +121,7 @@
     <string name="settings_upnp_selected_interface_summary">Wählen Sie eine spezifische Netzwerkschnittstelle für UPnP (leer = automatische Erkennung)</string>
     <string name="settings_upnp_selected_interface_none">Automatische Erkennung (bestmögliche Annäherung)</string>
     <string name="settings_upnp_selected_interface_blacklisted_warning">⚠️ Die ausgewählte Schnittstelle steht auf der Blacklist. Um sie zu verwenden, müssen Sie sie von der Liste entfernen!</string>
+    <string name="settings_snapcast_category">Snapcast (experimentell)</string>
+    <string name="settings_snapcast_play_experimental_title">Auf Snapcast-Gruppen abspielen</string>
+    <string name="settings_snapcast_play_experimental_summary">Experimentell: Die Musik des Players wird an einen Snapcast-Server gesendet, damit eine Gruppe sie abspielt. Das Audio wird unverschlüsselt an den Server gesendet. Auf einem Gerät noch nicht getestet.</string>
 </resources>

@@ -67,7 +67,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p>Instances are thread safe; the control calls run one at a time.
  */
-public final class SnapcastStreams {
+public final class SnapcastStreams implements FeedStreams {
 
     /** The first port YAACC asks for. */
     public static final int FIRST_PORT = 4953;
@@ -217,9 +217,11 @@ public final class SnapcastStreams {
      * @param clock            the time source for the idle timeout
      * @param idleTimeoutMillis the time without audio after which {@link #removeIfIdle()} removes the stream
      * @param random           the source of the marker; a {@link SecureRandom} in the app
+     *                         (package-private on purpose: a predictable marker would make a stream of ours easy to
+     *                         forge, so the app can only use the constructor with the {@link SecureRandom})
      */
-    public SnapcastStreams(SnapcastOperations operations, String phoneName, MarkerStore markerStore,
-                           MonotonicClock clock, long idleTimeoutMillis, Random random) {
+    SnapcastStreams(SnapcastOperations operations, String phoneName, MarkerStore markerStore,
+                    MonotonicClock clock, long idleTimeoutMillis, Random random) {
         if (operations == null || markerStore == null || clock == null || random == null || idleTimeoutMillis < 0) {
             throw new IllegalArgumentException("bad arguments");
         }
@@ -392,6 +394,7 @@ public final class SnapcastStreams {
      * Makes sure the stream exists: adopts our own, or adds one (see the class comment). Also removes leftovers of
      * ours that no group uses (crash recovery). Never throws for what a server does.
      */
+    @Override
     public synchronized EnsureResult ensure() {
         final SnapcastServerStatus status;
         try {
@@ -478,8 +481,10 @@ public final class SnapcastStreams {
 
     /**
      * Lets a group play our stream and remembers the stream it played before. A group that is on our stream already
-     * is left as it is (and its remembered previous stream is kept).
+     * is left as it is (and its remembered previous stream is kept). When the move fails the record of the previous
+     * stream is kept as well (the server may have applied the move before the answer was lost).
      */
+    @Override
     public synchronized UseResult useFor(String groupId) {
         if (currentId == null) {
             return UseResult.NOT_READY;
@@ -507,7 +512,9 @@ public final class SnapcastStreams {
             try {
                 operations.setGroupStream(groupId, currentId);
             } catch (SnapcastException failure) {
-                previousByGroup.remove(groupId);
+                // The record stays: after a timeout or a lost answer the server may have moved the group all the same,
+                // and then only the record can give it back. A group that was not moved is dropped from the records
+                // by restore() (it is not on our stream), and a second useFor() replaces the record.
                 return UseResult.FAILED;
             }
         }
@@ -519,6 +526,7 @@ public final class SnapcastStreams {
      * Puts a group back on the stream it played before {@link #useFor}, but only if it is still on our stream and
      * the previous stream still exists. A group that someone moved elsewhere in the meantime is left alone.
      */
+    @Override
     public synchronized ReleaseResult release(String groupId) {
         if (groupId == null || !previousByGroup.containsKey(groupId)) {
             return ReleaseResult.LEFT_ALONE;
@@ -569,6 +577,7 @@ public final class SnapcastStreams {
     /**
      * Tells that audio was written: restarts the idle timer. Cheap, never blocks, callable from any thread.
      */
+    @Override
     public void noteAudio() {
         lastAudioMillis.set(clock.nowMillis());
     }
@@ -579,6 +588,7 @@ public final class SnapcastStreams {
      *
      * @return true if the stream is gone now; false if it is not idle yet, or could not be removed (see {@link #shutdown()})
      */
+    @Override
     public synchronized boolean removeIfIdle() {
         if (currentId == null || clock.nowMillis() - lastAudioMillis.get() < idleTimeoutMillis) {
             return false;
@@ -595,6 +605,7 @@ public final class SnapcastStreams {
      * @return true if the stream is gone, was never made or is no longer ours; false if a call failed or a group still
      * uses it, in which case the records are kept and a second call continues
      */
+    @Override
     public synchronized boolean shutdown() {
         if (currentId == null && previousByGroup.isEmpty()) {
             return true;

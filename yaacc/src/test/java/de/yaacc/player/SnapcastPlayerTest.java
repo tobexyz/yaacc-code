@@ -1,0 +1,341 @@
+/*
+ *
+ * Copyright (C) 2026 Tobias Schoene www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
+package de.yaacc.player;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import android.content.Context;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Function;
+
+import de.yaacc.R;
+import de.yaacc.multiroom.SnapcastGroupDevice;
+import de.yaacc.multiroom.control.SnapcastClient;
+import de.yaacc.multiroom.control.SnapcastGroup;
+import de.yaacc.multiroom.control.SnapcastVolume;
+import de.yaacc.multiroom.discovery.SnapcastEndpoint;
+import de.yaacc.multiroom.feed.FeedError;
+import de.yaacc.multiroom.feed.PcmSink;
+import de.yaacc.multiroom.feed.SnapcastFeedController;
+import de.yaacc.upnp.UpnpClient;
+
+/**
+ * The glue of the Snapcast player with a mocked feed controller: ExoPlayer starts only after the feed is open, a failure
+ * stops the player and tells the user, stop and destroy reach the controller, the volume is the group's, and the id is
+ * the receiver id of the group. ExoPlayer itself is not built here (no device), see the spike checklist in docs/tech.md.
+ */
+public class SnapcastPlayerTest {
+
+    private Context context;
+    private UpnpClient upnpClient;
+    private SnapcastFeedController controller;
+    private SnapcastFeedController.Listener listener;
+    private SnapcastGroupDevice device;
+    private final List<String> exoCalls = new ArrayList<>();
+    private final List<String> mainThreadWork = new ArrayList<>();
+    private final List<String> toasts = new ArrayList<>();
+    private PcmSink controllerSink;
+
+    /** Records what would go to ExoPlayer and runs main-thread work at once. */
+    private class TestPlayer extends SnapcastPlayer {
+        TestPlayer(Function<SnapcastFeedController.Listener, SnapcastFeedController> factory) {
+            super(upnpClient, device, "Music@Room", "Room", factory);
+        }
+
+        @Override
+        void startOnExoPlayer(PlayableItem playableItem, Object loadedItem, int index) {
+            exoCalls.add("start " + index);
+        }
+
+        @Override
+        void resumeOnExoPlayer() {
+            exoCalls.add("resume");
+        }
+
+        @Override
+        void postToMain(Runnable work) {
+            mainThreadWork.add("work");
+            work.run();
+        }
+
+        @Override
+        void showToast(String text) {
+            toasts.add(text);
+        }
+    }
+
+    @Before
+    public void setUp() {
+        context = mock(Context.class);
+        when(context.getString(anyInt())).thenAnswer(call -> "text" + call.getArgument(0));
+        when(context.getSystemService(Context.NOTIFICATION_SERVICE)).thenReturn(mock(android.app.NotificationManager.class));
+        when(context.getApplicationContext()).thenReturn(mock(de.yaacc.Yaacc.class));
+        upnpClient = mock(UpnpClient.class);
+        when(upnpClient.getContext()).thenReturn(context);
+        controller = mock(SnapcastFeedController.class);
+        controllerSink = mock(PcmSink.class);
+        when(controller.sink()).thenReturn(controllerSink);
+        SnapcastClient member = new SnapcastClient("m", "member", "", true, new SnapcastVolume(50, false), 0);
+        SnapcastGroup group = new SnapcastGroup("g-a", "Attic", false, "Default", Collections.singletonList(member));
+        device = SnapcastGroupDevice.of(SnapcastEndpoint.parse("192.168.1.5:1705").toKey(), group, false,
+                new SnapcastGroupDevice.Labels("Snapcast group", "offline"));
+    }
+
+    private TestPlayer player() {
+        return new TestPlayer(l -> {
+            listener = l;
+            return controller;
+        });
+    }
+
+    private static PlayableItem item() {
+        return new PlayableItem();
+    }
+
+    // ---- identity
+
+    @Test
+    public void theDeviceIdIsTheReceiverIdOfTheGroupSoTheRowsFindThePlayer() {
+        TestPlayer player = player();
+
+        assertEquals(device.getIdentity().getUdn().getIdentifierString(), player.getDeviceId());
+        assertTrue(SnapcastGroupDevice.isSnapcastId(player.getDeviceId()));
+    }
+
+    @Test
+    public void everyPlayerHasItsOwnIdAboveTheFixedOnesAndNeverTheLocalMusicPlayersId() {
+        TestPlayer first = player();
+        TestPlayer second = player();
+
+        assertNotEquals(first.getId(), second.getId());
+        assertTrue(first.getId() >= 100);
+        assertNotEquals(de.yaacc.util.NotificationId.LOCAL_BACKGROUND_MUSIC_PLAYER.getId(), first.getId());
+    }
+
+    @Test
+    public void thePlayerIsAMusicPlayerOfTheLocalKind() {
+        assertTrue(player() instanceof LocalMediaSessionPlayer);
+    }
+
+    // ---- starting
+
+    @Test
+    public void exoPlayerStartsOnlyAfterTheFeedIsOpen() {
+        TestPlayer player = player();
+        when(controller.isFeeding()).thenReturn(false);
+
+        player.startItem(item(), null, 3);
+
+        assertTrue("not before the feed is ready", exoCalls.isEmpty());
+        ArgumentCaptor<SnapcastFeedController.StartCallback> callback =
+                ArgumentCaptor.forClass(SnapcastFeedController.StartCallback.class);
+        verify(controller).start(callback.capture());
+        callback.getValue().onReady();
+        assertEquals(Collections.singletonList("start 3"), exoCalls);
+    }
+
+    @Test
+    public void anOpenFeedStartsAnItemAtOnce() {
+        TestPlayer player = player();
+        when(controller.isFeeding()).thenReturn(true);
+
+        player.startItem(item(), null, 1);
+
+        assertEquals(Collections.singletonList("start 1"), exoCalls);
+        verify(controller, never()).start(any());
+    }
+
+    @Test
+    public void aResumeOpensTheFeedFirstWhenItWasClosed() {
+        TestPlayer player = player();
+        when(controller.isFeeding()).thenReturn(false);
+
+        player.doResume();
+
+        assertTrue(exoCalls.isEmpty());
+        ArgumentCaptor<SnapcastFeedController.StartCallback> callback =
+                ArgumentCaptor.forClass(SnapcastFeedController.StartCallback.class);
+        verify(controller).start(callback.capture());
+        callback.getValue().onReady();
+        assertEquals(Collections.singletonList("resume"), exoCalls);
+    }
+
+    @Test
+    public void aResumeWithAnOpenFeedIsImmediate() {
+        TestPlayer player = player();
+        when(controller.isFeeding()).thenReturn(true);
+
+        player.doResume();
+
+        assertEquals(Collections.singletonList("resume"), exoCalls);
+        verify(controller, never()).start(any());
+    }
+
+    @Test
+    public void theDelayOfTheServerBufferIsToldOncePerPlayer() {
+        TestPlayer player = player();
+        SnapcastFeedController.StartCallback first = player.startAnswer(null);
+        SnapcastFeedController.StartCallback second = player.startAnswer(null);
+
+        first.onReady();
+        int afterFirst = mainThreadWork.size();
+        second.onReady();
+
+        assertEquals("one toast, with the text of the note", Collections.singletonList("text" + R.string.snapcast_play_delay_note), toasts);
+        assertEquals("none the second time", afterFirst, mainThreadWork.size());
+        assertEquals(1, toasts.size());
+    }
+
+    // ---- failures
+
+    @Test
+    public void aFailedStartDoesNotStartExoPlayerAndStopsThePlayer() {
+        final int[] stops = new int[1];
+        TestPlayer player = new TestPlayer(l -> controller) {
+            @Override
+            public void stop() {
+                stops[0]++;
+            }
+        };
+        when(controller.isFeeding()).thenReturn(false);
+        player.startItem(item(), null, 0);
+        ArgumentCaptor<SnapcastFeedController.StartCallback> callback =
+                ArgumentCaptor.forClass(SnapcastFeedController.StartCallback.class);
+        verify(controller).start(callback.capture());
+
+        callback.getValue().onFailed(FeedError.of(FeedError.Kind.BUSY));
+
+        assertTrue(exoCalls.isEmpty());
+        assertEquals(1, stops[0]);
+        assertEquals("the user is told why", Collections.singletonList("text" + R.string.snapcast_feed_error_busy), toasts);
+    }
+
+    @Test
+    public void aFeedThatIsLostWhilePlayingStopsThePlayerToo() {
+        final int[] stops = new int[1];
+        new TestPlayer(l -> {
+            listener = l;
+            return controller;
+        }) {
+            @Override
+            public void stop() {
+                stops[0]++;
+            }
+        };
+
+        listener.onFeedLost(FeedError.of(FeedError.Kind.CONTROL_LOST));
+
+        assertEquals(1, stops[0]);
+        assertEquals(Collections.singletonList("text" + R.string.snapcast_feed_error_lost), toasts);
+    }
+
+    // ---- stop, destroy
+
+    @Test
+    public void stoppingAnItemClosesTheFeed() {
+        TestPlayer player = player();
+
+        player.stopItem(item());
+
+        verify(controller).stop();
+    }
+
+    @Test
+    public void destroyingThePlayerReleasesTheControllerOnceAndTheSinkRefusesAfterwards() {
+        TestPlayer player = player();
+        PcmSink sink = player.tapSink();
+        when(controllerSink.write(any(), anyInt(), anyInt())).thenReturn(true);
+        assertTrue(sink.write(new byte[4], 0, 4));
+
+        player.onDestroy();
+
+        verify(controller, times(1)).release();
+        assertFalse("nothing reaches a released controller", sink.write(new byte[4], 0, 4));
+        verify(controllerSink, times(1)).write(any(), anyInt(), anyInt());
+    }
+
+    // ---- the tap's sink
+
+    @Test
+    public void theTapWritesToTheControllersSinkAndDiscardsThere() {
+        TestPlayer player = player();
+        when(controllerSink.write(any(), anyInt(), anyInt())).thenReturn(true);
+        byte[] audio = new byte[16];
+
+        assertTrue(player.tapSink().write(audio, 4, 8));
+        player.tapSink().discard();
+
+        verify(controllerSink).write(audio, 4, 8);
+        verify(controllerSink).discard();
+    }
+
+    // ---- the volume is the group's
+
+    @Test
+    public void theVolumeAndTheMuteAreThoseOfTheGroupAndThePhonesVolumeIsNeverTouched() {
+        TestPlayer player = player();
+        when(controller.getVolume()).thenReturn(42);
+        when(controller.isMuted()).thenReturn(true);
+
+        assertEquals(42, player.getVolume());
+        assertTrue(player.getMute());
+        player.setVolume(77);
+        player.setMute(false);
+
+        verify(controller).setVolume(77);
+        verify(controller).setMuted(false);
+        assertTrue(player.hasActionGetVolume());
+        assertTrue(player.hasActionGetMute());
+        verify(upnpClient, never()).setVolume(anyInt());
+        verify(upnpClient, never()).getVolume();
+        verify(upnpClient, never()).setMute(org.mockito.ArgumentMatchers.anyBoolean());
+        verify(upnpClient, never()).isMute();
+    }
+
+    @Test
+    public void afterADestroyTheVolumeCallsDoNothing() {
+        TestPlayer player = player();
+        player.onDestroy();
+
+        assertEquals(0, player.getVolume());
+        assertFalse(player.getMute());
+        player.setVolume(10);
+        player.setMute(true);
+
+        verify(controller, never()).setVolume(anyInt());
+        verify(controller, never()).setMuted(org.mockito.ArgumentMatchers.anyBoolean());
+    }
+}

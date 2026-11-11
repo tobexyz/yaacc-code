@@ -19,7 +19,9 @@
 package de.yaacc.multiroom;
 
 import java.io.Closeable;
+import java.net.InetAddress;
 
+import de.yaacc.multiroom.control.SnapcastOperations;
 import de.yaacc.multiroom.control.SnapcastServerStatus;
 import de.yaacc.multiroom.discovery.SnapcastServerKey;
 
@@ -46,6 +48,23 @@ public interface SnapcastServerLink extends Closeable {
     void addListener(Listener listener);
 
     void removeListener(Listener listener);
+
+    /**
+     * The control calls of the server (they block: never on the main thread), or null for a link that has none (a fake
+     * in a test). {@link SnapcastSession} has them for as long as it is open.
+     */
+    default SnapcastOperations getOperations() {
+        return null;
+    }
+
+    /**
+     * The address the control connection is connected to, or null without one. The feed of a stream connects to this
+     * address and to no other. It is an address of the local network: never log it. A link that has none (a fake)
+     * answers null.
+     */
+    default InetAddress getPeerAddress() {
+        return null;
+    }
 
     /** Opens the connection (does nothing when started already). */
     void start();

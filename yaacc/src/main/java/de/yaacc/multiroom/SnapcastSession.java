@@ -219,6 +219,7 @@ public final class SnapcastSession implements SnapcastServerLink {
     }
 
     /** The calls that change the server. They block: make them on a worker, never on the main thread. */
+    @Override
     public SnapcastOperations getOperations() {
         return operations;
     }
@@ -252,6 +253,7 @@ public final class SnapcastSession implements SnapcastServerLink {
      * The address of the control connection, or null without one. The feed of a stream connects to this address
      * and to no other. It is an address of the local network: never log it.
      */
+    @Override
     public InetAddress getPeerAddress() {
         return rpc.getPeerAddress();
     }

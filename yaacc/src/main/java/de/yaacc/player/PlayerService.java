@@ -29,6 +29,8 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.widget.Toast;
 
+import androidx.preference.PreferenceManager;
+
 import androidx.annotation.OptIn;
 import androidx.core.app.NotificationCompat;
 import androidx.media3.common.util.UnstableApi;
@@ -48,6 +50,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.browser.BrowserLauncher;
+import de.yaacc.multiroom.SnapcastGroupDevice;
+import de.yaacc.multiroom.SnapcastHub;
 import de.yaacc.share.ContentDuration;
 import de.yaacc.share.PickedQueue;
 import de.yaacc.share.QueueItems;
@@ -391,6 +395,10 @@ public class PlayerService extends MediaSessionService {
             }
         }
         YaaccLogger.d(getClass().getName(), "video:" + video + " image: " + image + " audio:" + music);
+        if (video || image || !music) {
+            // a Snapcast group plays music only: it is left out, and the user is told once
+            devices = withoutSnapcastGroups(upnpClient, devices, true);
+        }
         for (Device<?, ?, ?> device : devices) {
             Player result = createPlayer(upnpClient, device, video, image, music);
             if (result != null) {
@@ -415,9 +423,12 @@ public class PlayerService extends MediaSessionService {
         devices = withoutNotPlayableYet(upnpClient, devices);
         // a client of a group plays what its server plays: the send goes to the server (see YxcPlaybackRedirect)
         devices = YxcPlayTargets.resolve(upnpClient, devices);
+        // a Snapcast group plays the music of the queue; for video and images it is left out, and the user is told once
+        java.util.Collection<Device<?, ?, ?>> withoutGroups = withoutSnapcastGroups(upnpClient, devices,
+                !queue.video().isEmpty() || !queue.image().isEmpty());
         createQueuePlayers(upnpClient, queue.audio(), false, false, true, devices, resultList);
-        createQueuePlayers(upnpClient, queue.video(), true, false, false, devices, resultList);
-        createQueuePlayers(upnpClient, queue.image(), false, true, false, devices, resultList);
+        createQueuePlayers(upnpClient, queue.video(), true, false, false, withoutGroups, resultList);
+        createQueuePlayers(upnpClient, queue.image(), false, true, false, withoutGroups, resultList);
         return resultList;
     }
 
@@ -433,13 +444,15 @@ public class PlayerService extends MediaSessionService {
         for (Device<?, ?, ?> device : devices) {
             String deviceId = device.getIdentity().getUdn().getIdentifierString();
             boolean local = UpnpClient.LOCAL_UID.equals(deviceId);
+            // a Snapcast group is fed by this phone, which reads and decodes the music itself: no share either
+            boolean snapcast = device instanceof SnapcastGroupDevice;
             // this phone reads its own audio and images with the grant of the app, no share needed
-            boolean direct = local && !video;
+            boolean direct = (local || snapcast) && !video;
             QueueItems.Built built = direct ? QueueItems.direct(entries) : QueueItems.placeholders(entries, imageMillis);
             if (built.items().isEmpty()) {
                 continue;
             }
-            if (!local && OpenHomeReceivers.isOpenHomeOnly(device) && !(music && !video && !image)) {
+            if (!local && !snapcast && OpenHomeReceivers.isOpenHomeOnly(device) && !(music && !video && !image)) {
                 // an OpenHome device plays music only, and has no AVTransport for the rest
                 notifyFilesNotSupported(upnpClient);
                 continue;
@@ -567,14 +580,16 @@ public class PlayerService extends MediaSessionService {
 
     /**
      * Takes the receivers that have no player yet out of the list and tells the user once (not once per receiver).
-     * The same list when there is none of them.
+     * The same list when there is none of them. A Snapcast group has a player only when the experimental option is on
+     * ({@link #snapcastPlayEnabled}); without it the group is dropped here and the user hears "not available yet".
      */
-    private java.util.Collection<Device<?, ?, ?>> withoutNotPlayableYet(UpnpClient upnpClient,
-                                                                       java.util.Collection<Device<?, ?, ?>> devices) {
+    java.util.Collection<Device<?, ?, ?>> withoutNotPlayableYet(UpnpClient upnpClient,
+                                                                java.util.Collection<Device<?, ?, ?>> devices) {
+        boolean enabled = snapcastPlayEnabled(upnpClient);
         List<Device<?, ?, ?>> playable = new ArrayList<>();
         boolean dropped = false;
         for (Device<?, ?, ?> device : devices) {
-            if (isNotPlayableYet(device)) {
+            if (isNotPlayableYet(device, enabled)) {
                 dropped = true;
             } else {
                 playable.add(device);
@@ -594,12 +609,93 @@ public class PlayerService extends MediaSessionService {
                 Toast.makeText(context, R.string.snapcast_play_not_available, Toast.LENGTH_LONG).show());
     }
 
+    /** "Only music can be played to Snapcast groups" (once per call of a batch method). */
+    void notifySnapcastAudioOnly(UpnpClient upnpClient) {
+        final android.content.Context context = upnpClient.getContext();
+        new android.os.Handler(Looper.getMainLooper()).post(() ->
+                Toast.makeText(context, R.string.snapcast_play_audio_only, Toast.LENGTH_LONG).show());
+    }
+
     /**
-     * True for a receiver that is listed but has no player yet: a Snapcast group, until the Snapcast player exists
-     * (it has no AVTransport service, so an {@code AVTransportPlayer} would silently do nothing).
+     * Whether the experimental option "Play to Snapcast groups" is on (off by default). Read at every call, so that
+     * switching it takes effect at the next play. False when the preferences can not be read.
+     */
+    boolean snapcastPlayEnabled(UpnpClient upnpClient) {
+        android.content.Context context = upnpClient == null ? null : upnpClient.getContext();
+        if (context == null) {
+            return false;
+        }
+        android.content.SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        return preferences != null && preferences.getBoolean(context.getString(R.string.settings_snapcast_play_experimental), false);
+    }
+
+    /**
+     * Takes the Snapcast groups out of the list when the content is not music, and tells the user once. The same list
+     * when there is no group in it (or when the content is music).
+     */
+    java.util.Collection<Device<?, ?, ?>> withoutSnapcastGroups(UpnpClient upnpClient,
+                                                                java.util.Collection<Device<?, ?, ?>> devices,
+                                                                boolean contentIsNotMusic) {
+        if (!contentIsNotMusic) {
+            return devices;
+        }
+        List<Device<?, ?, ?>> kept = new ArrayList<>();
+        boolean dropped = false;
+        for (Device<?, ?, ?> device : devices) {
+            if (device instanceof SnapcastGroupDevice) {
+                dropped = true;
+            } else {
+                kept.add(device);
+            }
+        }
+        if (!dropped) {
+            return devices;
+        }
+        notifySnapcastAudioOnly(upnpClient);
+        return kept;
+    }
+
+    /**
+     * True for a receiver that is listed but has no player: a Snapcast group while the experimental option is off (it
+     * has no AVTransport service, so an {@code AVTransportPlayer} would silently do nothing).
      */
     static boolean isNotPlayableYet(Device<?, ?, ?> device) {
-        return device instanceof de.yaacc.multiroom.SnapcastGroupDevice;
+        return isNotPlayableYet(device, false);
+    }
+
+    /** As {@link #isNotPlayableYet(Device)}, with the state of the experimental option. */
+    static boolean isNotPlayableYet(Device<?, ?, ?> device, boolean snapcastPlayEnabled) {
+        return !snapcastPlayEnabled && device instanceof SnapcastGroupDevice;
+    }
+
+    /**
+     * Makes the player of a Snapcast group (the seam of the tests): the group's feed controller comes from the hub, the
+     * phone name from the same preference as the UPnP server name.
+     */
+    @OptIn(markerClass = UnstableApi.class)
+    Player newSnapcastPlayer(UpnpClient upnpClient, SnapcastGroupDevice device) {
+        android.content.Context context = upnpClient.getContext();
+        String friendlyName = device.getDetails().getFriendlyName();
+        final SnapcastHub hub = SnapcastHub.getShared(context);
+        return new SnapcastPlayer(upnpClient, device, context.getString(R.string.playerNameMusic) + "@" + friendlyName,
+                friendlyName, listener -> hub.newFeedController(device, listener));
+    }
+
+    /** One player per group: an earlier one for the same group ends first. Music only. */
+    @OptIn(markerClass = UnstableApi.class)
+    private Player createSnapcastPlayer(UpnpClient upnpClient, SnapcastGroupDevice device,
+                                        boolean video, boolean image, boolean music) {
+        if (video || image || !music) {
+            notifySnapcastAudioOnly(upnpClient);
+            return null;
+        }
+        String deviceId = device.getIdentity().getUdn().getIdentifierString();
+        for (Player player : getCurrentPlayersOfType(SnapcastPlayer.class)) {
+            if (deviceId.equals(player.getDeviceId())) {
+                shutdown(player);
+            }
+        }
+        return newSnapcastPlayer(upnpClient, device);
     }
 
     /**
@@ -620,9 +716,12 @@ public class PlayerService extends MediaSessionService {
             toast.show();
             return null;
         }
-        if (isNotPlayableYet(receiverDevice)) {
+        if (isNotPlayableYet(receiverDevice, snapcastPlayEnabled(upnpClient))) {
             // the batch methods have told the user already (once per call); both callers skip a null player
             return null;
+        }
+        if (receiverDevice instanceof SnapcastGroupDevice) {
+            return createSnapcastPlayer(upnpClient, (SnapcastGroupDevice) receiverDevice, video, image, music);
         }
 
         Player result;
@@ -734,7 +833,7 @@ public class PlayerService extends MediaSessionService {
     public List<Player> getCurrentPlayersOfType(Class<?> typeClazz) {
         List<Player> players = new ArrayList<>();
         for (Player player : getCurrentPlayers()) {
-            if (typeClazz.isInstance(player)) {
+            if (isOfType(typeClazz, player)) {
                 players.add(player);
             }
         }
@@ -749,11 +848,21 @@ public class PlayerService extends MediaSessionService {
      */
     public Player getFirstCurrentPlayerOfType(Class typeClazz) {
         for (Player player : getCurrentPlayers()) {
-            if (typeClazz.isInstance(player)) {
+            if (isOfType(typeClazz, player)) {
                 return player;
             }
         }
         return null;
+    }
+
+    /**
+     * A Snapcast player is built on the local music player, but it is not "the local music player" to the code that
+     * looks for that one (a new local play, the media renderer's transport commands, the music screen): it answers
+     * only to its own class.
+     */
+    @OptIn(markerClass = UnstableApi.class)
+    static boolean isOfType(Class<?> typeClazz, Player player) {
+        return typeClazz.isInstance(player) && (!(player instanceof SnapcastPlayer) || typeClazz == SnapcastPlayer.class);
     }
 
     /**

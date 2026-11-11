@@ -121,4 +121,7 @@
     <string name="settings_upnp_selected_interface_summary">Selecteer een specifieke netwerkinterface voor UPnP (leeg = automatisch detecteren)</string>
     <string name="settings_upnp_selected_interface_none">Automatische detectie (naar beste vermogen)</string>
     <string name="settings_upnp_selected_interface_blacklisted_warning">⚠️ De geselecteerde interface staat op de zwarte lijst; verwijder deze van de lijst om hem te kunnen gebruiken!</string>
+    <string name="settings_snapcast_category">Snapcast (experimenteel)</string>
+    <string name="settings_snapcast_play_experimental_title">Afspelen op Snapcast-groepen</string>
+    <string name="settings_snapcast_play_experimental_summary">Experimenteel: de muziek van de speler wordt naar een Snapcast-server gestuurd zodat een groep deze afspeelt. De audio wordt onversleuteld naar de server gestuurd. Nog niet op een apparaat getest.</string>
 </resources>

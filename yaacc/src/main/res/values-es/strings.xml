@@ -302,4 +302,15 @@
     <string name="snapcast_group">Grupo de Snapcast</string>
     <string name="snapcast_offline">sin conexión</string>
     <string name="snapcast_play_not_available">La reproducción en grupos de Snapcast aún no está disponible</string>
+    <string name="snapcast_play_audio_only">En los grupos de Snapcast solo se puede reproducir música</string>
+    <string name="snapcast_play_delay_note">Snapcast reproduce con un segundo de retraso respecto a la pantalla (búfer del servidor)</string>
+    <string name="snapcast_feed_error_unreachable">No se puede acceder al servidor de Snapcast</string>
+    <string name="snapcast_feed_error_refused">El servidor de Snapcast no aceptó un flujo de YAACC</string>
+    <string name="snapcast_feed_error_unauthorized">El servidor de Snapcast exige un inicio de sesión, que YAACC no admite</string>
+    <string name="snapcast_feed_error_group_gone">El grupo de Snapcast ya no está disponible</string>
+    <string name="snapcast_feed_error_connect">No se pudo conectar con el flujo del servidor de Snapcast</string>
+    <string name="snapcast_feed_error_busy">Este teléfono ya está reproduciendo en otro grupo de este servidor de Snapcast</string>
+    <string name="snapcast_feed_error_lost">Se perdió la conexión con el servidor de Snapcast</string>
+    <string name="snapcast_feed_static_source_hint">Añada en su lugar una fuente de flujo TCP a la configuración del servidor (consulte la documentación de YAACC).</string>
+    <string name="snapcast_feed_authorization_hint">Desactive el inicio de sesión de la conexión de control del servidor o use un servidor sin él.</string>
 </resources>

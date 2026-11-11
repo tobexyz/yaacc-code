@@ -121,4 +121,7 @@
     <string name="settings_upnp_selected_interface_summary">选择用于 UPnP 的特定网络接口（留空 = 自动检测）</string>
     <string name="settings_upnp_selected_interface_none">"  自动检测（尽力而为）"</string>
     <string name="settings_upnp_selected_interface_blacklisted_warning">⚠️ 所选接口已被列入黑名单，若要使用该接口，请将其从列表中移除!</string>
+    <string name="settings_snapcast_category">Snapcast（实验性）</string>
+    <string name="settings_snapcast_play_experimental_title">向 Snapcast 组播放</string>
+    <string name="settings_snapcast_play_experimental_summary">实验性功能：播放器的音乐会发送到 Snapcast 服务器，由某个组播放。音频以未加密方式发送到服务器。尚未在设备上测试。</string>
 </resources>
