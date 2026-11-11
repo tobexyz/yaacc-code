@@ -66,6 +66,14 @@ public final class SnapcastDirectory {
     /** How long a lost server stays listed. */
     public static final long DEFAULT_GRACE_MILLIS = 30_000L;
 
+    /**
+     * The lowest port taken from an announcement. Any host of the network (or an app on the phone) can announce a
+     * service, and a port below 1024 is never a Snapcast control port in practice (the default is 1705): the phone
+     * would be made to open connections to system services (security review S18). A server the user types in may use
+     * any port.
+     */
+    public static final int MIN_DISCOVERED_PORT = 1024;
+
     private static final int MAX_DISPLAY_NAME = 64;
     private static final int MAX_SERVICE_NAME = 256;
 
@@ -168,11 +176,12 @@ public final class SnapcastDirectory {
      * A service was found and resolved.
      *
      * @return true if the server is listed now (new or already known), false if it was refused: an address outside
-     * the local ranges, a port outside 1 to 65535, no or an oversized service name, or the list is full
+     * the local ranges, a port outside {@value #MIN_DISCOVERED_PORT} to 65535, no or an oversized service name, or the
+     * list is full
      */
     public boolean serviceFound(String serviceName, InetAddress address, int port) {
         if (serviceName == null || serviceName.isEmpty() || serviceName.length() > MAX_SERVICE_NAME
-                || !SnapcastAddressFilter.isAccepted(address)) {
+                || !SnapcastAddressFilter.isAccepted(address) || port < MIN_DISCOVERED_PORT) {
             return false;
         }
         SnapcastEndpoint endpoint = SnapcastEndpoint.fromAddress(address, port);
@@ -264,6 +273,34 @@ public final class SnapcastDirectory {
                 }
                 if (!node.manual && node.lostAt < 0) {
                     node.lostAt = now;
+                    changed = true;
+                }
+            }
+        }
+        finish(changed);
+    }
+
+    /**
+     * Discovery is switched off (the setting, or no page is visible and it is not wanted): nothing is announced any more
+     * as far as this list can know. A server that only discovery knew goes at once (its grace period is for a hiccup,
+     * not for a switch); a typed-in or remembered server stays, and stays for good: it is no longer waiting for a sighting
+     * that can not come, so the grace period it got when the scan began is cancelled.
+     */
+    public void discoveryStopped() {
+        boolean changed;
+        synchronized (lock) {
+            changed = expireLocked();
+            byServiceName.clear();
+            for (Iterator<Map.Entry<SnapcastServerKey, Node>> it = nodes.entrySet().iterator(); it.hasNext(); ) {
+                Node node = it.next().getValue();
+                if (!node.manual && !node.remembered) {
+                    it.remove();
+                    changed = true;
+                    continue;
+                }
+                if (!node.services.isEmpty() || node.lostAt >= 0) {
+                    node.services.clear();
+                    node.lostAt = -1;
                     changed = true;
                 }
             }

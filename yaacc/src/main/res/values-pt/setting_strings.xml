@@ -124,4 +124,10 @@
     <string name="settings_snapcast_category">Snapcast (experimental)</string>
     <string name="settings_snapcast_play_experimental_title">Reproduzir em grupos do Snapcast</string>
     <string name="settings_snapcast_play_experimental_summary">Experimental: a música do leitor é enviada para um servidor Snapcast para que um grupo a reproduza. O áudio é enviado sem encriptação para o servidor. Ainda não foi testado num dispositivo.</string>
+    <string name="settings_snapcast_discovery_title">Procurar servidores Snapcast</string>
+    <string name="settings_snapcast_discovery_summary">Procura servidores Snapcast na rede local. Isto contacta todos os servidores que se anunciam aí, por isso deixe desligado em redes em que não confia. Desligado: só são usados os servidores da lista abaixo.</string>
+    <string name="settings_snapcast_servers_title">Servidores Snapcast</string>
+    <string name="settings_snapcast_servers_summary">Adicionar servidores por endereço ou removê-los</string>
+    <string name="settings_snapcast_about_title">O que o Snapcast precisa</string>
+    <string name="settings_snapcast_about_summary">O YAACC reproduz num servidor Snapcast existente; precisa de um acessível na sua rede.</string>
 </resources>

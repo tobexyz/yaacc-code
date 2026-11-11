@@ -124,4 +124,10 @@
     <string name="settings_snapcast_category">Snapcast (experimentell)</string>
     <string name="settings_snapcast_play_experimental_title">Auf Snapcast-Gruppen abspielen</string>
     <string name="settings_snapcast_play_experimental_summary">Experimentell: Die Musik des Players wird an einen Snapcast-Server gesendet, damit eine Gruppe sie abspielt. Das Audio wird unverschlüsselt an den Server gesendet. Auf einem Gerät noch nicht getestet.</string>
+    <string name="settings_snapcast_discovery_title">Snapcast-Server suchen</string>
+    <string name="settings_snapcast_discovery_summary">Sucht im lokalen Netzwerk nach Snapcast-Servern. Dabei wird jeder Server kontaktiert, der sich dort meldet; in Netzwerken, denen Sie nicht trauen, sollte die Suche aus bleiben. Aus: Es werden nur die unten aufgeführten Server verwendet.</string>
+    <string name="settings_snapcast_servers_title">Snapcast-Server</string>
+    <string name="settings_snapcast_servers_summary">Server per Adresse hinzufügen oder entfernen</string>
+    <string name="settings_snapcast_about_title">Was Snapcast braucht</string>
+    <string name="settings_snapcast_about_summary">YAACC spielt auf einen vorhandenen Snapcast-Server; ein Server muss in Ihrem Netzwerk erreichbar sein.</string>
 </resources>

@@ -187,9 +187,13 @@ final class SnapcastJson {
     }
 
     /**
-     * Server text made safe for an error row: control characters, line and paragraph separators, bidi controls and the
-     * C1 range become {@code ?}; the text is cut at {@code max} characters. It is still the server's text (display
-     * only, never an identity, never a log line).
+     * Server text made safe to show: control characters, line and paragraph separators, bidi controls, the C1 range,
+     * the invisible format characters (zero width space and joiners U+200B to U+200D, word joiner and invisible
+     * operators U+2060 to U+2064, soft hyphen U+00AD, U+180E, the byte order mark, the interlinear annotation marks,
+     * the non-characters U+FFFE and U+FFFF), tag characters (U+E0000 to U+E007F) and unpaired surrogates become
+     * {@code ?}; the text is cut at {@code max} characters (never inside a surrogate pair). So two names that look the
+     * same on the screen are the same text, or show a {@code ?} where they differ. It is still the server's text (display
+     * only, never an identity, never a log line). The result is never longer than {@code max}.
      */
     static String displayText(String text, int max) {
         if (text == null) {
@@ -203,12 +207,32 @@ final class SnapcastJson {
         StringBuilder out = new StringBuilder(length);
         for (int i = 0; i < length; i++) {
             char c = text.charAt(i);
-            boolean unsafe = c < 0x20 || c == 0x7f || (c >= 0x80 && c <= 0x9f) || c == 0x2028 || c == 0x2029
-                    || (c >= 0x202a && c <= 0x202e) || (c >= 0x2066 && c <= 0x2069) || c == 0x200e || c == 0x200f
-                    || c == 0x061c || c == 0xfeff;
-            out.append(unsafe ? '?' : c);
+            if (Character.isHighSurrogate(c)) {
+                if (i + 1 < length && Character.isLowSurrogate(text.charAt(i + 1))) {
+                    int codePoint = Character.toCodePoint(c, text.charAt(i + 1));
+                    if (codePoint >= 0xE0000 && codePoint <= 0xE007F) {
+                        out.append('?'); // a tag character: invisible
+                    } else {
+                        out.append(c).append(text.charAt(i + 1));
+                    }
+                    i++;
+                } else {
+                    out.append('?'); // unpaired
+                }
+                continue;
+            }
+            out.append(isUnsafeForDisplay(c) ? '?' : c);
         }
         return out.toString();
+    }
+
+    private static boolean isUnsafeForDisplay(char c) {
+        return c < 0x20 || c == 0x7f || (c >= 0x80 && c <= 0x9f) || c == 0x2028 || c == 0x2029
+                || (c >= 0x202a && c <= 0x202e) || (c >= 0x2066 && c <= 0x2069) || c == 0x200e || c == 0x200f
+                || c == 0x061c || c == 0xfeff
+                || (c >= 0x200b && c <= 0x200d) || (c >= 0x2060 && c <= 0x2064) || c == 0x00ad || c == 0x180e
+                || (c >= 0xfff9 && c <= 0xfffb) || c == 0xfffe || c == 0xffff
+                || Character.isLowSurrogate(c);
     }
 
     /** The title of a server error: printable ASCII only and at most 64 characters (the titles are fixed texts). */

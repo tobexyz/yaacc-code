@@ -24,7 +24,9 @@ import android.content.SharedPreferences;
 import androidx.preference.PreferenceManager;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -41,13 +43,17 @@ import de.yaacc.multiroom.discovery.SnapcastPreferencesStorage;
 import de.yaacc.multiroom.discovery.SnapcastResolver;
 import de.yaacc.multiroom.feed.PcmFeederOutput;
 import de.yaacc.multiroom.feed.SnapcastFeedController;
+import de.yaacc.multiroom.ui.SnapcastServerListModel;
 
 /**
  * The app-wide Snapcast part, the counterpart of {@code YxcMonitor.getShared()}: the directory of servers, the manual
  * server list, the mDNS discovery, and the receivers that join them. It holds the application context only, and it
- * does nothing until a page tells it to: {@link #pageStarted()} (the receivers page is visible) starts the discovery
- * (and with it the multicast lock) and opens the connections to the listed servers; {@link #pageStopped()} stops the
- * discovery at once and closes the connections after a grace period.
+ * does nothing until a page tells it to: {@link #pageStarted()} (the receivers page is visible) opens the connections to
+ * the listed servers and, <b>only when the setting {@link SnapcastSettings#KEY_DISCOVERY} is on</b> (default off), starts
+ * the discovery (and with it the multicast lock); {@link #pageStopped()} stops the discovery at once and closes the
+ * connections after a grace period. The setting is read live ({@link SnapcastDiscoveryGate}): switching it off stops the
+ * scan and drops the servers that only the scan knew, so with it off only the typed-in and the remembered servers are
+ * used.
  *
  * <p>This is the thin Android glue; every decision is in the classes it wires together, which are tested on the JVM.
  */
@@ -65,7 +71,9 @@ public final class SnapcastHub implements SnapcastGroupSource {
     private final SnapcastNsd nsd;
     private final SnapcastReceivers receivers;
     private final SnapcastFeedSessions feeds;
-    private int pages;
+    private final SnapcastDiscoveryGate gate;
+    // kept in a field: the preferences hold their listeners weakly
+    private final SharedPreferences.OnSharedPreferenceChangeListener settingListener;
 
     private SnapcastHub(Context context) {
         this.context = context.getApplicationContext();
@@ -98,6 +106,48 @@ public final class SnapcastHub implements SnapcastGroupSource {
         directory.setManualServers(manualServers.list());
         // the servers of the selected groups are known at once, without a scan (see SnapcastSelectedServers)
         selectedServers.restore();
+        final SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this.context);
+        this.gate = new SnapcastDiscoveryGate(() -> SnapcastSettings.isDiscoveryEnabled(preferences::getBoolean),
+                new SnapcastDiscoveryGate.Discovery() {
+                    @Override
+                    public void start() {
+                        nsd.start();
+                    }
+
+                    @Override
+                    public void stop() {
+                        nsd.stop();
+                    }
+                }, directory::discoveryStopped);
+        this.settingListener = (changed, key) -> {
+            if (SnapcastSettings.isDiscoveryKey(key)) {
+                gate.settingChanged();
+            }
+        };
+        preferences.registerOnSharedPreferenceChangeListener(settingListener);
+    }
+
+    /**
+     * The server list of the settings: typed-in servers (validated strictly, at most 16), the ones the network or a
+     * selected group brought, and "remove", which also clears the remembered flag and the selected groups of the server.
+     */
+    public SnapcastServerListModel newServerListModel() {
+        final SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        final String key = context.getString(R.string.settings_selected_receivers_title);
+        SnapcastServerAdmin admin = new SnapcastServerAdmin(manualServers, directory, selectedServers,
+                new SnapcastServerAdmin.SelectionStore() {
+                    @Override
+                    public Set<String> read() {
+                        Set<String> stored = preferences.getStringSet(key, null);
+                        return stored == null ? new HashSet<String>() : new HashSet<>(stored);
+                    }
+
+                    @Override
+                    public void write(Set<String> receiverIds) {
+                        preferences.edit().putStringSet(key, new HashSet<>(receiverIds)).apply();
+                    }
+                });
+        return new SnapcastServerListModel(manualServers, directory, admin);
     }
 
     /**
@@ -128,31 +178,16 @@ public final class SnapcastHub implements SnapcastGroupSource {
         return manualServers;
     }
 
-    /** The receivers page is visible: discover, and connect to the listed servers. */
+    /** The receivers page is visible: connect to the listed servers, and discover if the setting is on. */
     public void pageStarted() {
-        boolean first;
-        synchronized (this) {
-            first = ++pages == 1;
-        }
         directory.setManualServers(manualServers.list());
-        if (first) {
-            nsd.start();
-        }
+        gate.pageStarted();
         receivers.pageStarted();
     }
 
     /** A receivers page was hidden: the discovery stops with the last one, the connections close after the grace. */
     public void pageStopped() {
-        boolean last;
-        synchronized (this) {
-            if (pages == 0) {
-                return;
-            }
-            last = --pages == 0;
-        }
-        if (last) {
-            nsd.stop();
-        }
+        gate.pageStopped();
         receivers.pageStopped();
     }
 

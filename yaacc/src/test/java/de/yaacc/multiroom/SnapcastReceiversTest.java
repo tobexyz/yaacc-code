@@ -877,4 +877,75 @@ public class SnapcastReceiversTest {
 
         assertTrue(links.isEmpty());
     }
+
+    // ---- the state of one group for the rows and the sheet
+
+    @Test
+    public void theStateOfAGroupHasTheGroupTheStatusAndTheEndpoint() throws Exception {
+        server(2);
+        receivers.pageStarted();
+        linkOf(2).update(status(group("g-a", "Attic", "y")), true);
+
+        SnapcastReceivers.GroupState state = receivers.stateOf(SnapcastGroupDevice.idOf(key(2), "g-a"));
+
+        assertNotNull(state);
+        assertEquals("g-a", state.getGroup().getId());
+        assertEquals(1, state.getStatus().getGroups().size());
+        assertTrue(state.isOnline());
+        assertEquals("10.0.0.2:1705", state.getEndpointText());
+        assertEquals(key(2), state.getServerKey());
+        assertEquals("g-a", state.getGroupId());
+    }
+
+    @Test
+    public void anUnreachableServersGroupIsNotRemovedAtOnceItIsMarkedOffline() throws Exception {
+        server(2);
+        receivers.pageStarted();
+        linkOf(2).update(status(group("g-a", "Attic", "y")), true);
+
+        linkOf(2).update(linkOf(2).status, false);
+        now.addAndGet(5 * GRACE); // the server is still listed (a manual or remembered server, or just seen)
+        SnapcastReceivers.GroupState state = receivers.stateOf(SnapcastGroupDevice.idOf(key(2), "g-a"));
+
+        assertFalse(state.isOnline());
+        assertNotNull("the last known group is still there", state.getGroup());
+        assertEquals(1, receivers.groups().size());
+    }
+
+    @Test
+    public void theStateOfAGroupThatTheServerNoLongerReportsHasNoGroup() throws Exception {
+        server(2);
+        receivers.pageStarted();
+        linkOf(2).update(status(group("g-a", "Attic", "y")), true);
+        linkOf(2).update(status(group("g-b", "Cellar", "z")), true);
+
+        SnapcastReceivers.GroupState state = receivers.stateOf(SnapcastGroupDevice.idOf(key(2), "g-a"));
+
+        assertNotNull(state);
+        assertNull(state.getGroup());
+        assertNotNull(state.getStatus());
+    }
+
+    @Test
+    public void theStateOfAGroupOfAServerThatHasNotAnsweredYetHasNoStatus() throws Exception {
+        server(2);
+        receivers.pageStarted();
+
+        SnapcastReceivers.GroupState state = receivers.stateOf(SnapcastGroupDevice.idOf(key(2), "g-a"));
+
+        assertNotNull(state);
+        assertNull(state.getGroup());
+        assertNull(state.getStatus());
+    }
+
+    @Test
+    public void thereIsNoStateForAnIdThatIsMalformedOrOfAServerThatIsNotListed() throws Exception {
+        server(2);
+        receivers.pageStarted();
+
+        assertNull(receivers.stateOf(null));
+        assertNull(receivers.stateOf("not-a-snapcast-id"));
+        assertNull(receivers.stateOf("snapcast:10.0.0.2:1705:bad id"));
+        assertNull(receivers.stateOf(SnapcastGroupDevice.idOf(key(9), "g-a")));
+    }
 }

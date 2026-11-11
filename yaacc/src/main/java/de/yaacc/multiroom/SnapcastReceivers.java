@@ -493,6 +493,74 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
         }
     }
 
+    /**
+     * What one group looks like right now, for the rows and the group sheet: the group and the status of its server as
+     * of the last status that was read, whether the control connection is up, and the endpoint of the server. All
+     * values are immutable snapshots; nothing is looked up on the network.
+     */
+    public static final class GroupState {
+        private final SnapcastServerKey serverKey;
+        private final String groupId;
+        private final SnapcastGroup group;
+        private final SnapcastServerStatus status;
+        private final boolean online;
+
+        GroupState(SnapcastServerKey serverKey, String groupId, SnapcastGroup group, SnapcastServerStatus status,
+                   boolean online) {
+            this.serverKey = serverKey;
+            this.groupId = groupId;
+            this.group = group;
+            this.status = status;
+            this.online = online;
+        }
+
+        public SnapcastServerKey getServerKey() {
+            return serverKey;
+        }
+
+        public String getGroupId() {
+            return groupId;
+        }
+
+        /** The group as of the last status, or null when the server has not answered yet or no longer has the group. */
+        public SnapcastGroup getGroup() {
+            return group;
+        }
+
+        /** The last status of the server (its streams, its other groups); null before the first answer. */
+        public SnapcastServerStatus getStatus() {
+            return status;
+        }
+
+        /** True while the control connection is up. False: the values are the last known ones. */
+        public boolean isOnline() {
+            return online;
+        }
+
+        /** The endpoint of the server ({@code host:port}) as text. */
+        public String getEndpointText() {
+            return serverKey.asString();
+        }
+    }
+
+    /**
+     * The state of a group by its receiver id.
+     *
+     * @return the state; null when the id is no well-formed group id, or its server is not listed (any more)
+     */
+    public GroupState stateOf(String receiverId) {
+        SnapcastGroupDevice.Id id = SnapcastGroupDevice.parseId(receiverId);
+        if (id == null || directory.find(id.getServerKey()) == null) {
+            return null;
+        }
+        synchronized (lock) {
+            View view = views.get(id.getServerKey());
+            SnapcastServerStatus status = view == null ? null : view.status;
+            SnapcastGroup group = status == null ? null : status.findGroup(id.getGroupId());
+            return new GroupState(id.getServerKey(), id.getGroupId(), group, status, view != null && view.online);
+        }
+    }
+
     @Override
     public boolean isPending(String receiverId) {
         SnapcastGroupDevice.Id id = SnapcastGroupDevice.parseId(receiverId);

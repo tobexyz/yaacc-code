@@ -120,11 +120,24 @@
             android:title="@string/image_viewer_settings_duration" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/settings_snapcast_category">
+        <Preference
+            android:selectable="false"
+            android:summary="@string/settings_snapcast_about_summary"
+            android:title="@string/settings_snapcast_about_title" />
         <CheckBoxPreference
             android:defaultValue="false"
             android:key="@string/settings_snapcast_play_experimental"
             android:summary="@string/settings_snapcast_play_experimental_summary"
             android:title="@string/settings_snapcast_play_experimental_title" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="@string/settings_snapcast_discovery"
+            android:summary="@string/settings_snapcast_discovery_summary"
+            android:title="@string/settings_snapcast_discovery_title" />
+        <Preference
+            android:key="@string/settings_snapcast_servers"
+            android:summary="@string/settings_snapcast_servers_summary"
+            android:title="@string/settings_snapcast_servers_title" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/settings_upnp_server_title">
         <CheckBoxPreference

@@ -124,4 +124,10 @@
     <string name="settings_snapcast_category">Snapcast（实验性）</string>
     <string name="settings_snapcast_play_experimental_title">向 Snapcast 组播放</string>
     <string name="settings_snapcast_play_experimental_summary">实验性功能：播放器的音乐会发送到 Snapcast 服务器，由某个组播放。音频以未加密方式发送到服务器。尚未在设备上测试。</string>
+    <string name="settings_snapcast_discovery_title">查找 Snapcast 服务器</string>
+    <string name="settings_snapcast_discovery_summary">在本地网络中搜索 Snapcast 服务器。这会连接网络中所有主动声明自己的服务器，因此在你不信任的网络上请保持关闭。关闭时：只使用下方列出的服务器。</string>
+    <string name="settings_snapcast_servers_title">Snapcast 服务器</string>
+    <string name="settings_snapcast_servers_summary">按地址添加服务器，或移除服务器</string>
+    <string name="settings_snapcast_about_title">Snapcast 的要求</string>
+    <string name="settings_snapcast_about_summary">YAACC 向现有的 Snapcast 服务器播放；你的网络中需要有一台可访问的服务器。</string>
 </resources>

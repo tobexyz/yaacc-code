@@ -80,6 +80,14 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
+        androidx.preference.Preference snapcastServers = findPreference(getString(R.string.settings_snapcast_servers));
+        if (snapcastServers != null) {
+            snapcastServers.setOnPreferenceClickListener(preference -> {
+                SnapcastServersDialog.show(requireContext());
+                return true;
+            });
+        }
+
         // Populate renderer settings dynamically
         populateRendererSettings();
 

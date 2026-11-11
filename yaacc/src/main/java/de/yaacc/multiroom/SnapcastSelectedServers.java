@@ -102,6 +102,29 @@ public final class SnapcastSelectedServers {
         directory.setRememberedServers(next);
     }
 
+    /**
+     * Forgets one server: its endpoint leaves the store and its remembered flag goes. For "remove server" when the
+     * stored selection can not be read; the other remembered servers are left alone.
+     */
+    public void forget(SnapcastServerKey key) {
+        if (key == null) {
+            return;
+        }
+        List<SnapcastEndpoint> next = new ArrayList<>();
+        synchronized (lock) {
+            List<SnapcastEndpoint> stored = readLocked();
+            for (SnapcastEndpoint endpoint : stored) {
+                if (!endpoint.toKey().equals(key)) {
+                    next.add(endpoint);
+                }
+            }
+            if (next.size() != stored.size()) {
+                writeLocked(next);
+            }
+        }
+        directory.setRememberedServers(next);
+    }
+
     private static boolean isRememberable(SnapcastEndpoint endpoint) {
         return endpoint != null && endpoint.getAddress() != null && SnapcastAddressFilter.isAccepted(endpoint.getAddress());
     }

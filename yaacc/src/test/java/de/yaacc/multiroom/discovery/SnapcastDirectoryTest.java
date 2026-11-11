@@ -498,4 +498,93 @@ public class SnapcastDirectoryTest {
         assertEquals(key("192.168.1.5:1705"), snapshot.get(0).getKey());
         assertEquals(key("192.168.1.9:1705"), snapshot.get(1).getKey());
     }
+
+    // ---- discovery switched off (settings_snapcast_discovery)
+
+    @Test
+    public void whenDiscoveryIsStoppedTheServersOnlyItKnewGoAtOnce() throws Exception {
+        directory.serviceFound("A", ip(10, 0, 0, 2), 1705);
+        directory.serviceFound("B", ip(10, 0, 0, 3), 1705);
+        directory.serviceLost("B"); // in its grace period
+
+        directory.discoveryStopped();
+
+        assertTrue(directory.servers().isEmpty());
+        assertNull(directory.find(key("10.0.0.2")));
+    }
+
+    @Test
+    public void whenDiscoveryIsStoppedManualServersStayAndAreNoLongerDiscovered() throws Exception {
+        directory.setManualServers(Collections.singletonList(manual("10.0.0.2")));
+        directory.serviceFound("A", ip(10, 0, 0, 2), 1705);
+
+        directory.discoveryStopped();
+
+        assertEquals(1, directory.servers().size());
+        SnapcastDirectory.Entry entry = directory.servers().get(0);
+        assertTrue(entry.isManual());
+        assertFalse(entry.isDiscovered());
+    }
+
+    @Test
+    public void whenDiscoveryIsStoppedARememberedServerStaysEvenAfterTheGraceTime() throws Exception {
+        directory.setRememberedServers(Collections.singletonList(manual("10.0.0.2:1705")));
+        directory.discoveryRestarted(); // a scan began: the remembered server got its grace period
+        directory.discoveryStopped();   // and the scan was switched off before it could confirm anything
+        now.addAndGet(10 * GRACE);
+
+        assertEquals(1, directory.servers().size());
+        assertTrue(directory.servers().get(0).isRemembered());
+        assertFalse(directory.servers().get(0).isLost());
+    }
+
+    @Test
+    public void whenDiscoveryIsStoppedALateLostEventForAnOldServiceDoesNothing() throws Exception {
+        directory.setManualServers(Collections.singletonList(manual("10.0.0.2")));
+        directory.serviceFound("A", ip(10, 0, 0, 2), 1705);
+        directory.discoveryStopped();
+        int before = notifications;
+
+        directory.serviceLost("A");
+
+        assertEquals(before, notifications);
+        assertEquals(1, directory.servers().size());
+    }
+
+    @Test
+    public void stoppingDiscoveryTellsTheListenersOnlyWhenSomethingChanged() throws Exception {
+        directory.setManualServers(Collections.singletonList(manual("10.0.0.2")));
+        int before = notifications;
+        directory.discoveryStopped();
+        assertEquals("nothing was discovered", before, notifications);
+
+        directory.serviceFound("A", ip(10, 0, 0, 3), 1705);
+        before = notifications;
+        directory.discoveryStopped();
+        assertEquals(before + 1, notifications);
+    }
+
+    // ---- ports of discovered services (security review S18)
+
+    @Test
+    public void aDiscoveredServiceOnAPortBelow1024IsRefused() throws Exception {
+        assertFalse(directory.serviceFound("Web", ip(10, 0, 0, 2), 80));
+        assertFalse(directory.serviceFound("Ssh", ip(10, 0, 0, 2), 22));
+        assertFalse(directory.serviceFound("Edge", ip(10, 0, 0, 2), 1023));
+
+        assertTrue(directory.servers().isEmpty());
+    }
+
+    @Test
+    public void thePortsFrom1024UpAreAccepted() throws Exception {
+        assertTrue(directory.serviceFound("Low", ip(10, 0, 0, 2), 1024));
+        assertTrue(directory.serviceFound("Default", ip(10, 0, 0, 3), 1705));
+        assertTrue(directory.serviceFound("High", ip(10, 0, 0, 4), 65535));
+    }
+
+    @Test
+    public void aServerTheUserTypedInMayUseAnyPort() {
+        assertEquals(1, directory.setManualServers(Collections.singletonList(manual("10.0.0.2:80"))));
+        assertEquals(1, directory.servers().size());
+    }
 }
