@@ -174,15 +174,32 @@ Carried over from the security review of Group 3 (`security-review.md` S17 to S2
 - [ ] A.3 Task 6.3 (hint) and the remaining open checks of `docs/tech.md` "Open checks for the owner".
 
 ## Group 7 (Phase B): Binary protocol and time sync (P1, pure Java, tests first)
-- [ ] 7.1 Message codec: Base, Hello, ServerSettings, CodecHeader, WireChunk, Time, ClientInfo, Error (little endian) | `de.yaacc.multiroom.protocol`, tests with byte fixtures
+- [x] 7.1 (done 2026-11-11: `SnapcastMessageCodec`, `FrameReader`, message classes, `PcmFormat`, `FlacStreamInfo`; tests `SnapcastMessageCodecTest`, `FrameReaderTest`, `HelloMessageTest`, `ServerSettingsMessageTest`, `PcmFormatTest`, `FlacStreamInfoTest`; see `decisions.md`) Message codec: Base, Hello, ServerSettings, CodecHeader, WireChunk, Time, ClientInfo, Error (little endian) | `de.yaacc.multiroom.protocol`, tests with byte fixtures
   - **Accept**: round trip of every message; truncated/oversized messages give a typed error; payload size caps (e.g. 8 MiB) hold; unknown types are skipped by size.
   - **Verify**: `SnapcastMessageCodecTest`.
-- [ ] 7.2 `SnapcastConnection` (TCP 1704: Hello, settings, header, chunks, time sync loop, reconnect) | same package, loopback fake server tests, opt-in rig test
+- [x] 7.2 (done 2026-11-11 with `SnapcastConnectionTest` on a loopback fake server; **the rig run is still the owner's**: `SnapcastBinaryRigTest` is written and skipped here) `SnapcastConnection` (TCP 1704: Hello, settings, header, chunks, time sync loop, reconnect) | same package, loopback fake server tests, opt-in rig test
   - **Accept**: against the rig a Java client receives chunks for 10 minutes and its offset converges (jitter reported); no chunk is played before the codec header; server loss is reported once.
   - **Verify**: `SnapcastConnectionTest`; rig test output.
-- [ ] 7.3 `ClockOffsetFilter` and `ChunkScheduler` (pure) | same package
+- [x] 7.3 (done 2026-11-11: bound proven in `ClockOffsetFilterTest`, scheduler in `ChunkSchedulerTest`) `ClockOffsetFilter` and `ChunkScheduler` (pure) | same package
   - **Accept**: a simulated asymmetric/jittery network keeps the offset within a stated bound; late chunks are dropped, early chunks wait.
   - **Verify**: `ClockOffsetFilterTest`, `ChunkSchedulerTest`.
+
+## Fix Group 7b: Address review cycle 1 of Group 7 (W1 to W3, S1 to S8 in `review.md`, "Cycle 1 (Group 7)")
+- [x] F7.1 (W1) A stall inside a frame is bounded by the message deadline, not by the wake-up timeout of the time-sync timer (`FrameReader.ReadTimeout`); tests `aPauseInsideAChunkIsNotCutShortByTheTimerOfTheNextTimeRequest`, `aStallInsideAChunkBeyondTheMessageDeadlineStillDropsTheConnection`, `insideAFrameTheReceiveTimeoutIsTheTimeLeftOfTheDeadline`.
+- [x] F7.2 (W2) Every kind of listener event is bounded: settings and offset updates keep the latest, codec headers are limited to 8 waiting (a ninth drops the connection as PROTOCOL_ERROR), chunks as before; four flood tests with a stuck listener.
+- [x] F7.3 (W3) The shortest-round-trip rule is pinned by two tests (the mutation "median of all samples" is caught); the misleading comment is corrected.
+- [x] F7.4 Suggestions taken: S1 (`UNSUPPORTED_FORMAT` is permanent), S2 (`design.md` wording), S3 (four public methods of `SnapcastJson`), S4 (tests for the stable-connection reset and the 16 outstanding requests), S5 (javadoc of `close()`), S6 (candidates keep their round trips), S7 (scheduler actions asserted, reader growth asserted), S8 (decisions sentence). Not done: S9 (the rig run stays with the owner).
+
+## Fix Group 7c: Address the security review of Group 7 (W1, S56, S57, S60, S62 in `security-review.md`, "Cycle 1 (Group 7)"; with S10 of the general review)
+- [x] F7.5 (W1) Frame floods: a budget of 2000 frames per second of the injected clock for every frame (chunks, Time answers, unknown ones; `Config.maxFramesPerSecond`), an unsolicited Time answer counts as unexpected and does not forgive the unknown frames, Hello and ClientInfo frames are skipped by size (`FrameReader.forClient`). Tests: 99 unknown frames + 1 unsolicited Time repeated, 5000 valid 1-byte chunks, a legitimate minute (a chunk every 20 ms and a Time answer every second) that must pass, Hello/ClientInfo with garbage JSON skipped.
+- [x] F7.6 (S56) A CodecHeader above 64 KiB + 64 is refused at its header (before 8 MiB are read and copied); a WireChunk above the client's backlog budget (`maxPendingChunkBytes`, 4 MiB) is refused at its header instead of being read and dropped; the payload of a chunk is copied once less.
+- [x] F7.7 (S57) A writer thread per connection with a bounded queue (32): `sendClientInfo` never blocks (latest value wins), the reader never writes, a full queue (a server that does not read) ends the connection as TIMEOUT. Tests with a loopback server that stops reading and with a transport whose writes never finish.
+- [x] F7.8 (S60, S62, S10) `forAddress` refuses the wildcard, multicast and bad ports (and says: pass a resolved address); `MicroClock.fromNanoSource` is the seam for Android's `elapsedRealtimeNanos`; a test delivers 21 headers one by one to a listener that keeps up (the counter of pending headers is released).
+- Hand-offs, not done here (see the notes of Groups 8 and 9 below): S58, S59, S60 (Group 9 passes a resolved address; `forAddress` itself now refuses the wildcard and multicast), S61, S13, S62 (Android clock).
+
+## Fix Group 7d: Address the security review cycle 2 of Group 7 (S63, S64; the review passed)
+- [x] F7.9 (S63) `activeWriter` is published only after the Hello is queued, and cleared with compare-and-set (the end of an attempt no longer clears the writer of a newer one). Test: 150 rounds, another thread calls `sendClientInfo` from before the start; the first frame the server sees is always the Hello (it was a ClientInfo in round 4 before the fix).
+- [x] F7.10 (S64) The writer catches `Throwable`, closes the socket and the attempt ends as `INTERNAL` (retried like other losses); it never reaches the uncaught handler. Test with an output stream that throws a RuntimeException.
 
 ## Group 8 (Phase B): Audio engine (P1, spike first)
 - [ ] 8.1 Spike: `AudioTrack` engine playing rig chunks (PCM, then FLAC via `MediaCodec`) in sync with a Raspberry Pi/rig client | `de.yaacc.multiroom.client` (draft)
@@ -191,11 +208,13 @@ Carried over from the security review of Group 3 (`security-review.md` S17 to S2
 - [ ] 8.2 `SnapcastClientEngine` with latency setting (manual per device), buffer handling, foreground service/wake and Wi-Fi lock only while playing | `de.yaacc.multiroom.client`, `AndroidManifest.xml` (service)
   - **Accept**: survives screen off; stops cleanly; no wake lock when idle.
   - **Verify**: `SnapcastClientEngineTest` (pure parts), lint clean.
+  - **Hand-offs from the Group 7 reviews (to settle in 8.1/8.2, with tests)**: (S58) ignore a CodecHeader that is byte-identical to the current one, limit decoder restarts (for example one per second, more ends the session; test with 1000 headers/s), and do not re-create the `AudioTrack` on an `epoch()` change (a server that moves its clock every three samples makes 19 resyncs in 60 samples); (S59) size buffers only from the validated rate, channels and bits (at most 8 x 32 bit x 192 kHz), never from the FLAC min/max block sizes (not validated: 0 to 65 535) or from payload lengths, and drop a trailing partial frame of a chunk (`PcmFormat.getFrameBytes()`); (S13) a coalesced ServerSettings value is delivered at the place of the first unheard one, so settings that arrived after a codec header can be heard before that header: do not pair a settings value with a particular header; (S62) build the engine's `MicroClock` with `MicroClock.fromNanoSource(SystemClock::elapsedRealtimeNanos)` (it counts while the CPU sleeps; `System.nanoTime` does not).
 
 ## Group 9 (Phase B): Renderer integration (P2)
 - [ ] 9.1 Output "Snapcast group" for the YAACC renderer: the renderer feeds the group and the phone plays as a member; renderer volume/mute map to the client volume; the direct local output is off | `de.yaacc.upnp.server`, `de.yaacc.player`
   - **Accept**: a UPnP controller playing to the YAACC renderer is heard on the group in sync, including on the phone; volume from the controller moves the phone's client volume on the server.
   - **Verify**: `SnapcastRendererOutputTest` (pure mapping), owner's device test.
+  - **Hand-offs from the Group 7 reviews**: (S60) build the `SnapcastConnection` with an already resolved `InetAddress` (the one the control connection uses, `SnapcastRpc.getPeerAddress()`, or one resolved once), never a host name; `forAddress` refuses the wildcard and multicast; (S61) derive the Hello `ID` per server (for example a keyed hash of the device UDN and the server key, truncated) instead of one value for every server, pass generic strings for `OS`, `Arch` and `Version` (not the device model), and say in the README/settings text that the ID, the UPnP device name and the program name are shown to the server and its controllers.
 
 ## Group 10 (Phase B): Documentation
 - [ ] 10.1 Update documentation for Phase B | `README.md`, `docs/`, `CHANGELOG.md`
