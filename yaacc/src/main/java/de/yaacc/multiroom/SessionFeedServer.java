@@ -41,6 +41,8 @@ import de.yaacc.multiroom.feed.SnapcastFeedController;
 final class SessionFeedServer implements FeedServer, FeedOperationsSource {
 
     private static final long POLL_MILLIS = 50L;
+    /** The most time one volume gesture may take in all (up to 256 control calls). */
+    static final long VOLUME_BUDGET_MILLIS = 5_000L;
 
     private final SnapcastReceivers receivers;
     private final SnapcastServerKey key;
@@ -135,6 +137,12 @@ final class SessionFeedServer implements FeedServer, FeedOperationsSource {
     }
 
     @Override
+    public long connectionGeneration() {
+        SnapcastServerLink link = link();
+        return link == null ? -1 : link.getConnectionGeneration();
+    }
+
+    @Override
     public InetAddress peerAddress() {
         SnapcastServerLink link = link();
         return link == null || !link.isOnline() ? null : link.getPeerAddress();
@@ -160,7 +168,7 @@ final class SessionFeedServer implements FeedServer, FeedOperationsSource {
     @Override
     public void setGroupVolume(SnapcastGroup current, Map<String, Integer> startLevels, int percent)
             throws SnapcastException {
-        requireOperations().setGroupVolume(current, startLevels, percent);
+        requireOperations().setGroupVolume(current, startLevels, percent, VOLUME_BUDGET_MILLIS);
     }
 
     @Override

@@ -147,4 +147,46 @@ public class SnapcastPlayerLogicTest {
             assertNotEquals(name, en.group(1), de.group(1));
         }
     }
+
+    // ---- S34: the server's words in a toast
+
+    @Test
+    public void zeroWidthAndOtherFormatCharactersOfTheServersReasonAreRemoved() {
+        String hostile = "ab\u200Bc\u200Cd\u200De\u2060f\u2061g\u2062h\u2063i\u2064j\u00ADk\uFEFFl\u202Em\u2066n";
+        FeedError error = new FeedError(FeedError.Kind.REFUSED, hostile, null);
+
+        String message = SnapcastPlayerLogic.errorMessage(error, id -> "T");
+
+        assertEquals("T (abcdefghijklmn)", message);
+    }
+
+    @Test
+    public void theReasonIsCutToEightyCharactersWithoutCuttingAPair() {
+        StringBuilder reason = new StringBuilder();
+        for (int i = 0; i < 79; i++) {
+            reason.append('x');
+        }
+        reason.append("\uD83C\uDFB5\uD83C\uDFB5"); // two music notes, 4 chars: the first one starts at char 79
+
+        String message = SnapcastPlayerLogic.errorMessage(new FeedError(FeedError.Kind.REFUSED, reason.toString(), null),
+                id -> "T");
+
+        String shown = message.substring("T (".length(), message.length() - 1);
+        assertTrue("at most 80 code points: " + shown.codePointCount(0, shown.length()), shown.codePointCount(0, shown.length()) <= 80);
+        assertTrue("no lone surrogate", !Character.isHighSurrogate(shown.charAt(shown.length() - 1)));
+    }
+
+    @Test
+    public void aReasonThatIsOnlyFormatCharactersLeavesNoEmptyBrackets() {
+        FeedError error = new FeedError(FeedError.Kind.REFUSED, "\u200B\u200C\u2060", null);
+
+        assertEquals("T", SnapcastPlayerLogic.errorMessage(error, id -> "T"));
+    }
+
+    @Test
+    public void aShortPlainReasonIsShownAsBefore() {
+        FeedError error = new FeedError(FeedError.Kind.REFUSED, "tcp sources are off", SnapcastStreams.HINT_STATIC_SOURCE);
+
+        assertEquals("T (tcp sources are off)\nT", SnapcastPlayerLogic.errorMessage(error, id -> "T"));
+    }
 }

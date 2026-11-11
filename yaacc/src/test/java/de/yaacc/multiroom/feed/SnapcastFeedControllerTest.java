@@ -77,6 +77,7 @@ public class SnapcastFeedControllerTest {
         boolean removeIfIdleResult = true;
         boolean shutdownResult = true;
         RuntimeException ensureFailure;
+        RuntimeException shutdownFailure;
         int ensureCalls;
         int useForCalls;
         int releaseCalls;
@@ -125,6 +126,9 @@ public class SnapcastFeedControllerTest {
         public boolean shutdown() {
             shutdownCalls++;
             calls.add("shutdown");
+            if (shutdownFailure != null) {
+                throw shutdownFailure;
+            }
             return shutdownResult;
         }
     }
@@ -144,6 +148,15 @@ public class SnapcastFeedControllerTest {
         final List<Object[]> volumeCalls = new ArrayList<>();
         final List<Boolean> muteCalls = new ArrayList<>();
         Runnable duringAwait;
+        long generation = 7;
+        /** The control connection is replaced while the start reads the peer address. */
+        boolean reconnectWhileReadingPeer;
+
+        @Override
+        public long connectionGeneration() {
+            calls.add("generation");
+            return generation;
+        }
 
         @Override
         public boolean awaitControl(long timeoutMillis) {
@@ -157,6 +170,9 @@ public class SnapcastFeedControllerTest {
         @Override
         public InetAddress peerAddress() {
             calls.add("peer");
+            if (reconnectWhileReadingPeer) {
+                generation++;
+            }
             return peer;
         }
 
@@ -194,6 +210,7 @@ public class SnapcastFeedControllerTest {
         int queued;
         int queuedDrainPerSleep = Integer.MAX_VALUE;
         boolean accept = true;
+        RuntimeException closeFailure;
         final InetAddress address;
         final int port;
         final Runnable onFailed;
@@ -232,6 +249,9 @@ public class SnapcastFeedControllerTest {
         public void close() {
             closed = true;
             calls.add("close");
+            if (closeFailure != null) {
+                throw closeFailure;
+            }
         }
 
         @Override
@@ -414,7 +434,7 @@ public class SnapcastFeedControllerTest {
 
         controller.start(answer);
 
-        assertEquals(Arrays.asList("awaitControl", "ensure", "useFor", "peer", "open"), calls);
+        assertEquals(Arrays.asList("awaitControl", "generation", "ensure", "useFor", "peer", "generation", "open"), calls);
         assertEquals(1, answer.ready);
         assertTrue(controller.isFeeding());
         assertEquals(SnapcastFeedController.State.READY, controller.getState());
@@ -1288,5 +1308,139 @@ public class SnapcastFeedControllerTest {
 
         assertTrue("it waited for the release", b.tryAcquire(3_000));
         releaser.join(2_000);
+    }
+
+    // ---- S36: the cleanup always finishes, also when closing the feed throws
+
+    @Test
+    public void aFeedThatThrowsWhenItIsClosedStillLetsAStopFreeTheSlotAndGiveTheGroupBack() {
+        SnapcastFeedController controller = started(new Answer());
+        outputs.last().closeFailure = new IllegalStateException("boom");
+
+        controller.stop();
+
+        assertFalse("the slot is free", slot.held);
+        assertEquals(1, streams.releaseCalls);
+        assertEquals(SnapcastFeedController.State.IDLE, controller.getState());
+        assertFalse(controller.sink().write(new byte[4], 0, 4));
+    }
+
+    @Test
+    public void aFeedThatThrowsWhenItIsClosedStillLetsAReleaseRemoveTheStreamAndTellTheOwner() {
+        SnapcastFeedController controller = started(new Answer());
+        outputs.last().closeFailure = new IllegalStateException("boom");
+
+        controller.release();
+
+        assertEquals(1, streams.shutdownCalls);
+        assertFalse(slot.held);
+        assertTrue("the owner ended the worker and let go of the link", released[0]);
+        assertEquals(SnapcastFeedController.State.RELEASED, controller.getState());
+    }
+
+    @Test
+    public void aReleaseWhoseShutdownThrowsStillTellsTheOwner() {
+        SnapcastFeedController controller = started(new Answer());
+        streams.shutdownFailure = new IllegalStateException("boom");
+
+        controller.release();
+
+        assertTrue(released[0]);
+        assertFalse(slot.held);
+    }
+
+    @Test
+    public void aThrowingCloseDoesNotKeepTheSlotAfterAFeedFailureALostControlOrAnIdleTeardown() {
+        SnapcastFeedController controller = started(new Answer());
+        outputs.last().closeFailure = new IllegalStateException("boom");
+        outputs.last().onFailed.run();
+        assertFalse("feed failure", slot.held);
+        assertEquals(1, events.lost.size());
+
+        controller.start(new Answer());
+        outputs.last().closeFailure = new IllegalStateException("boom");
+        controller.controlLost();
+        assertFalse("lost control", slot.held);
+        assertEquals(2, events.lost.size());
+
+        config = new SnapcastFeedController.Config().idleTimeoutMillis(600_000).idleCheckMillis(60_000);
+        SnapcastFeedController idle = controller();
+        idle.start(new Answer());
+        outputs.last().closeFailure = new IllegalStateException("boom");
+        clock.advanceMillis(600_000);
+        scheduler.runNext();
+        scheduler.runNext();
+        assertFalse("idle teardown", slot.held);
+    }
+
+    // ---- S35: a volume gesture has its own executor and a budget, and never holds up stop or release
+
+    @Test
+    public void aVolumeGestureRunsOnItsOwnExecutorWhileTheWorkerIsBusy() {
+        QueueExecutor busyWorker = new QueueExecutor();
+        executor = busyWorker;
+        config = new SnapcastFeedController.Config().volumeExecutor(Runnable::run);
+        SnapcastFeedController controller = controller();
+        controller.stop(); // the worker has work that has not run
+
+        controller.setVolume(33);
+        controller.setMuted(true);
+
+        assertEquals("the volume was sent at once", 1, server.volumeCalls.size());
+        assertEquals(33, server.volumeCalls.get(0)[2]);
+        assertEquals(Arrays.asList(true), server.muteCalls);
+        assertEquals("and the stop is still waiting on the worker", 1, busyWorker.queue.size());
+    }
+
+    @Test
+    public void withoutAnExecutorOfItsOwnTheVolumeUsesTheWorkerAsBefore() {
+        QueueExecutor worker = new QueueExecutor();
+        executor = worker;
+        SnapcastFeedController controller = controller();
+
+        controller.setVolume(10);
+
+        assertTrue(server.volumeCalls.isEmpty());
+        worker.runAll();
+        assertEquals(1, server.volumeCalls.size());
+    }
+
+    @Test
+    public void aRejectingVolumeExecutorIsNotAProblem() {
+        config = new SnapcastFeedController.Config().volumeExecutor(command -> {
+            throw new java.util.concurrent.RejectedExecutionException();
+        });
+        SnapcastFeedController controller = controller();
+
+        controller.setVolume(10);
+        controller.setMuted(false);
+
+        assertTrue(server.volumeCalls.isEmpty());
+    }
+
+    // ---- S38: the peer address belongs to the connection that was there before the stream was made
+
+    @Test
+    public void aControlConnectionThatWasReplacedBeforeThePeerWasReadEndsTheStartWithoutConnecting() {
+        server.reconnectWhileReadingPeer = true;
+        Answer answer = new Answer();
+        SnapcastFeedController controller = controller();
+
+        controller.start(answer);
+
+        assertEquals(FeedError.Kind.NO_CONTROL, answer.failures.get(0).getKind());
+        assertTrue("the feed never connected", outputs.opened.isEmpty());
+        assertEquals("the group was given back", 1, streams.releaseCalls);
+        assertNothingLeftRunning(controller);
+    }
+
+    @Test
+    public void aGenerationThatDoesNotChangeLetsTheFeedConnect() {
+        Answer answer = new Answer();
+
+        controller().start(answer);
+
+        assertEquals(1, answer.ready);
+        assertEquals(1, outputs.opened.size());
     }
 }

@@ -518,4 +518,49 @@ public class SnapcastOperationsTest {
         assertEquals("B is back at its own start level, A is untouched", 1, changed.size());
         assertEquals(50, (int) changed.get("B"));
     }
+
+    @Test
+    public void aGroupVolumeGestureStopsAfterItsBudgetWhenTheServerAnswersSlowly() throws Exception {
+        List<SnapcastClient> clients = new ArrayList<>();
+        Map<String, Integer> start = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < 12; i++) {
+            clients.add(new SnapcastClient("c" + i, "c" + i, "", true, new SnapcastVolume(10, false), 0));
+            start.put("c" + i, 10);
+        }
+        SnapcastGroup group = new SnapcastGroup(GROUP, "", false, "s", clients);
+        final List<String> ids = new ArrayList<>();
+        SnapcastCaller slow = (method, params) -> {
+            ids.add(params.optString("id"));
+            try {
+                Thread.sleep(60);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return new JSONObject();
+        };
+
+        long begun = System.nanoTime();
+        try {
+            new SnapcastOperations(slow).setGroupVolume(group, start, 60, 200);
+            fail("the budget ran out");
+        } catch (SnapcastException expected) {
+            assertEquals(SnapcastException.Kind.TIMEOUT, expected.getKind());
+        }
+
+        assertTrue("fewer than all members: " + ids.size(), ids.size() < 12 && ids.size() >= 1);
+        assertTrue("it did not go on for the 12 x 60 ms: " + (System.nanoTime() - begun) / 1_000_000 + " ms",
+                (System.nanoTime() - begun) < 600_000_000L);
+    }
+
+    @Test
+    public void aGroupVolumeGestureWithinItsBudgetIsComplete() throws Exception {
+        RecordingCaller caller = new RecordingCaller();
+        SnapcastGroup group = groupForVolume();
+
+        Map<String, Integer> applied = new SnapcastOperations(caller).setGroupVolume(group,
+                GroupVolume.levels(group), 73, 5_000);
+
+        assertEquals(2, applied.size());
+        assertEquals(Arrays.asList("Client.SetVolume", "Client.SetVolume"), caller.methods);
+    }
 }

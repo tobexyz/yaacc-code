@@ -102,6 +102,21 @@ public final class SnapcastStreams implements FeedStreams {
 
         /** Stores the marker. */
         void save(String marker);
+
+        /**
+         * Returns the stored marker, or makes one with {@code maker}, stores it and returns it. The app's store does
+         * this atomically (two servers started at the same moment get the same marker); this default is for stores
+         * that need no such guarantee (a test).
+         */
+        default String loadOrCreate(java.util.function.Supplier<String> maker) {
+            String stored = load();
+            if (stored != null) {
+                return stored;
+            }
+            String fresh = maker.get();
+            save(fresh);
+            return fresh;
+        }
     }
 
     /** The outcome of {@link #ensure()}. */
@@ -234,20 +249,22 @@ public final class SnapcastStreams implements FeedStreams {
     }
 
     private static String loadOrCreateMarker(MarkerStore store, Random random) {
-        String stored = null;
+        final String fresh = String.format(Locale.ROOT, "%08x", random.nextInt());
+        String marker = null;
         try {
-            stored = store.load();
+            marker = store.loadOrCreate(() -> fresh);
         } catch (RuntimeException e) {
-            // an unreadable store gives a new marker below
+            // an unreadable or unwritable store: the marker lives in memory only (streams of an earlier run are not
+            // recognised as ours)
         }
-        if (isMarker(stored)) {
-            return stored;
+        if (isMarker(marker)) {
+            return marker;
         }
-        String fresh = String.format(Locale.ROOT, "%08x", random.nextInt());
+        // the store gave back something that is no marker: replace it by a new one
         try {
             store.save(fresh);
         } catch (RuntimeException e) {
-            // the marker lives in memory only: streams of an earlier run are not recognised as ours
+            // in memory only
         }
         return fresh;
     }

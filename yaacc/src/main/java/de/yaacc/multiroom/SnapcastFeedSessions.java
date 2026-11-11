@@ -81,14 +81,22 @@ public final class SnapcastFeedSessions {
             thread.setDaemon(true);
             return thread;
         });
+        // volume and mute have an executor of their own: a gesture is many control calls and must not hold up a stop
+        final ExecutorService volumeWorker = Executors.newSingleThreadExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "snapcast-feed-volume");
+            thread.setDaemon(true);
+            return thread;
+        });
         final SessionFeedServer server = new SessionFeedServer(receivers, key);
         SnapcastFeedController controller = new SnapcastFeedController(
                 new LinkBoundStreams(server, phoneName, markerStore), server, outputs,
-                slots.slotFor(key.asString()), group.getGroupId(), FeedClock.SYSTEM, scheduler, worker, listener, config,
+                slots.slotFor(key.asString()), group.getGroupId(), FeedClock.SYSTEM, scheduler, worker, listener,
+                config.volumeExecutor(volumeWorker),
                 () -> {
                     server.detach();
                     receivers.release(key);
                     worker.shutdown();
+                    volumeWorker.shutdownNow(); // a gesture that is still running is interrupted
                 });
         server.attach(controller);
         receivers.retain(key);

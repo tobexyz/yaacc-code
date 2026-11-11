@@ -497,4 +497,51 @@ public class SnapcastPlayerTest {
         assertEquals(Collections.singletonList("text" + R.string.snapcast_feed_error_player), toasts);
         assertTrue("stop() was taken", player.isProcessingCommand());
     }
+
+    // ---- S39: the last retry of the stop leaves a flag and a log line
+
+    @Test
+    public void whenEvenTheLastRetryFindsThePlayerBusyAFlagSaysThatAStopIsOutstanding() {
+        TestPlayer player = new TestPlayer(l -> controller);
+        player.setProcessingCommand(true);
+        assertFalse(player.isStopOutstanding());
+        player.feedFailed(FeedError.of(FeedError.Kind.BUSY));
+
+        while (!delayed.isEmpty()) {
+            delayed.remove(0).run();
+        }
+
+        assertTrue(player.isStopOutstanding());
+    }
+
+    @Test
+    public void aStopThatWentThroughLeavesNoFlag() {
+        TestPlayer player = new TestPlayer(l -> controller);
+        player.feedFailed(FeedError.of(FeedError.Kind.BUSY));
+
+        assertFalse(player.isStopOutstanding());
+    }
+
+    @Test
+    public void theNextUserActionClearsTheFlag() {
+        for (int action = 0; action < 3; action++) {
+            TestPlayer player = new TestPlayer(l -> controller);
+            player.setProcessingCommand(true);
+            player.feedFailed(FeedError.of(FeedError.Kind.BUSY));
+            while (!delayed.isEmpty()) {
+                delayed.remove(0).run();
+            }
+            assertTrue(player.isStopOutstanding());
+
+            if (action == 0) {
+                player.pause();
+            } else if (action == 1) {
+                player.play();
+            } else {
+                player.stop();
+            }
+
+            assertFalse("action " + action, player.isStopOutstanding());
+        }
+    }
 }

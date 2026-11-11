@@ -39,6 +39,16 @@ public interface FeedServer {
     boolean awaitControl(long timeoutMillis);
 
     /**
+     * A number that changes whenever the control connection is replaced (a reconnect), and never goes back. The feed
+     * target is the peer address of the connection that was there when the stream was made: the controller reads this
+     * after the control connection came up and again right after it read {@link #peerAddress()}, and aborts when it
+     * changed. A server without such a number answers 0 for ever (a fake).
+     */
+    default long connectionGeneration() {
+        return 0;
+    }
+
+    /**
      * The address that the control connection is connected to, or null while there is none. Read it right before the
      * feed connects, after the last control call: it is the only address a feed may connect to. It is an address of
      * the local network: never log it, never put it into a message.

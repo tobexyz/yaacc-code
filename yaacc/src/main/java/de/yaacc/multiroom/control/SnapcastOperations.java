@@ -273,6 +273,18 @@ public final class SnapcastOperations {
      */
     public Map<String, Integer> setGroupVolume(SnapcastGroup current, Map<String, Integer> startLevels, int percent)
             throws SnapcastException {
+        return setGroupVolume(current, startLevels, percent, Long.MAX_VALUE);
+    }
+
+    /**
+     * As {@link #setGroupVolume(SnapcastGroup, Map, int)}, with an overall time budget for the whole gesture: once
+     * {@code budgetMillis} have passed, no further member is called and the call ends with a TIMEOUT (a server that
+     * answers each of up to 256 calls just before its 10 s deadline can not keep the caller for ever). The members that
+     * were set stay set.
+     */
+    public Map<String, Integer> setGroupVolume(SnapcastGroup current, Map<String, Integer> startLevels, int percent,
+                                               long budgetMillis) throws SnapcastException {
+        final long begun = System.nanoTime();
         Map<String, Integer> changes = GroupVolume.changes(startLevels, GroupVolume.levels(current), percent);
         Map<String, Integer> changed = new LinkedHashMap<>();
         SnapcastException firstFailure = null;
@@ -280,6 +292,12 @@ public final class SnapcastOperations {
             Integer wanted = changes.get(client.getId());
             if (wanted == null) {
                 continue;
+            }
+            if (budgetMillis != Long.MAX_VALUE && (System.nanoTime() - begun) / 1_000_000L >= budgetMillis) {
+                if (firstFailure == null) {
+                    firstFailure = SnapcastException.timeout("the volume change took too long");
+                }
+                break;
             }
             try {
                 setClientVolume(client.getId(), client.getVolume().withPercent(wanted));

@@ -89,8 +89,18 @@ public final class SnapcastFeedController {
         long drainMaxMillis = 250L;
         long drainGraceMillis = 60L;
         long volumeGestureGapMillis = 2_000L;
+        Executor volumeExecutor;
 
         public Config() {
+        }
+
+        /**
+         * Where volume and mute run (default: the worker of the controller). A volume gesture is up to 256 control
+         * calls, so the app gives it an executor of its own: a slow server can then not hold up a stop or a release.
+         */
+        public Config volumeExecutor(Executor value) {
+            volumeExecutor = value;
+            return this;
         }
 
         public Config idleTimeoutMillis(long value) {
@@ -178,6 +188,7 @@ public final class SnapcastFeedController {
     private final Executor worker;
     private final Listener listener;
     private final Config config;
+    private final Executor volumeWorker;
     private final Runnable onReleased;
 
     private volatile State state = State.IDLE;
@@ -219,6 +230,7 @@ public final class SnapcastFeedController {
         this.worker = worker;
         this.listener = listener;
         this.config = config == null ? new Config() : config;
+        this.volumeWorker = this.config.volumeExecutor == null ? worker : this.config.volumeExecutor;
         this.onReleased = onReleased;
         this.lastAudioMillis = new AtomicLong(nowMillis());
         this.removalBackoffMillis = this.config.idleCheckMillis;
@@ -307,10 +319,13 @@ public final class SnapcastFeedController {
     public void controlLost() {
         execute(() -> {
             if (state == State.READY) {
-                closeOutput(false, "control connection lost");
-                releaseSlot();
-                state = State.IDLE;
-                scheduleIdleCheck(config.idleCheckMillis);
+                try {
+                    closeOutput(false, "control connection lost");
+                } finally {
+                    releaseSlot();
+                    state = State.IDLE;
+                    scheduleIdleCheck(config.idleCheckMillis);
+                }
                 listener.onFeedLost(FeedError.of(FeedError.Kind.CONTROL_LOST));
             }
         });
@@ -337,13 +352,13 @@ public final class SnapcastFeedController {
     public void setVolume(int percent) {
         wantedVolume.set(Math.max(0, Math.min(100, percent)));
         if (volumeQueued.compareAndSet(false, true)) {
-            execute(this::applyVolume);
+            executeOn(volumeWorker, this::applyVolume);
         }
     }
 
     /** Mutes or unmutes the group on the server. Returns at once. */
     public void setMuted(final boolean muted) {
-        execute(() -> {
+        executeOn(volumeWorker, () -> {
             try {
                 server.setGroupMuted(groupId, muted);
             } catch (SnapcastException | RuntimeException failure) {
@@ -377,8 +392,12 @@ public final class SnapcastFeedController {
     // ---- the work, on the worker
 
     private void execute(final Runnable task) {
+        executeOn(worker, task);
+    }
+
+    private void executeOn(Executor target, final Runnable task) {
         try {
-            worker.execute(() -> {
+            target.execute(() -> {
                 try {
                     task.run();
                 } catch (RuntimeException unexpected) {
@@ -386,7 +405,7 @@ public final class SnapcastFeedController {
                 }
             });
         } catch (RejectedExecutionException ended) {
-            // released: the worker is gone
+            // released: the executor is gone
         }
     }
 
@@ -448,6 +467,7 @@ public final class SnapcastFeedController {
         if (!server.awaitControl(config.controlWaitMillis)) {
             return FeedError.of(FeedError.Kind.NO_CONTROL);
         }
+        final long connection = server.connectionGeneration();
         SnapcastStreams.EnsureResult ensured = streams.ensure();
         if (!ensured.isReady()) {
             return errorOf(ensured);
@@ -476,7 +496,8 @@ public final class SnapcastFeedController {
         }
         // the last step before connecting: the peer of the control connection as it is now, and no other address
         InetAddress peer = server.peerAddress();
-        if (peer == null) {
+        if (peer == null || server.connectionGeneration() != connection) {
+            // no connection, or a reconnect since the stream was made: the address may be another host's
             return FeedError.of(FeedError.Kind.NO_CONTROL);
         }
         final int generation = ++outputGeneration;
@@ -541,29 +562,37 @@ public final class SnapcastFeedController {
         if (state == State.RELEASED) {
             return;
         }
-        closeOutput(true, "stopped");
-        giveGroupBack();
-        releaseSlot();
-        state = State.IDLE;
-        scheduleIdleCheck(config.idleCheckMillis);
+        try {
+            closeOutput(true, "stopped");
+            giveGroupBack();
+        } finally {
+            // whatever went wrong above: the slot is free and the state is right
+            releaseSlot();
+            state = State.IDLE;
+            scheduleIdleCheck(config.idleCheckMillis);
+        }
     }
 
     private void runRelease() {
         if (state == State.RELEASED) {
             return;
         }
-        closeOutput(true, "released");
         try {
-            streams.shutdown(); // restores every group it moved and removes the stream; false: left for the next run
-        } catch (RuntimeException ignored) {
-            // nothing more can be done
-        }
-        groupMoved = false;
-        streamHeld = false;
-        releaseSlot();
-        state = State.RELEASED;
-        if (onReleased != null) {
-            onReleased.run();
+            closeOutput(true, "released");
+            try {
+                streams.shutdown(); // restores every group it moved and removes the stream; false: left for the next run
+            } catch (RuntimeException ignored) {
+                // nothing more can be done
+            }
+        } finally {
+            // the owner must always hear of the release: it lets go of the link and ends the workers
+            groupMoved = false;
+            streamHeld = false;
+            releaseSlot();
+            state = State.RELEASED;
+            if (onReleased != null) {
+                onReleased.run();
+            }
         }
     }
 
@@ -571,15 +600,21 @@ public final class SnapcastFeedController {
         if (generation != outputGeneration || output == null || state == State.RELEASED) {
             return; // an older feed, or one that was closed on purpose
         }
-        closeOutput(false, "feed failed");
-        giveGroupBack();
-        releaseSlot();
-        state = State.IDLE;
-        scheduleIdleCheck(config.idleCheckMillis);
+        try {
+            closeOutput(false, "feed failed");
+            giveGroupBack();
+        } finally {
+            releaseSlot();
+            state = State.IDLE;
+            scheduleIdleCheck(config.idleCheckMillis);
+        }
         listener.onFeedLost(FeedError.of(FeedError.Kind.FEED_FAILED));
     }
 
-    /** Closes the feed if there is one; with {@code drain} first waits for its queue (bounded). Worker only. */
+    /**
+     * Closes the feed if there is one; with {@code drain} first waits for its queue (bounded). Worker only. A feed that
+     * throws while it is drained or closed is dropped all the same: the caller's cleanup goes on.
+     */
     private void closeOutput(boolean drain, String why) {
         FeedOutput closing = output;
         output = null;
@@ -587,12 +622,21 @@ public final class SnapcastFeedController {
         if (closing == null) {
             return;
         }
-        if (drain) {
-            drain(closing);
+        String statistics = "";
+        try {
+            if (drain) {
+                drain(closing);
+            }
+            statistics = closing.statistics();
+        } catch (RuntimeException unexpected) {
+            listener.onLog("feed drain failed: " + unexpected.getClass().getSimpleName());
         }
-        String statistics = closing.statistics();
-        closing.close();
-        listener.onLog("feed closed (" + why + ")" + (statistics.isEmpty() ? "" : " " + statistics));
+        try {
+            closing.close();
+        } catch (RuntimeException unexpected) {
+            listener.onLog("feed close failed: " + unexpected.getClass().getSimpleName());
+        }
+        listener.onLog("feed closed (" + why + ")" + (statistics == null || statistics.isEmpty() ? "" : " " + statistics));
     }
 
     /**
@@ -642,10 +686,13 @@ public final class SnapcastFeedController {
             return;
         }
         if (state == State.READY) {
-            closeOutput(false, "idle");
-            giveGroupBack();
-            releaseSlot();
-            state = State.IDLE;
+            try {
+                closeOutput(false, "idle");
+                giveGroupBack();
+            } finally {
+                releaseSlot();
+                state = State.IDLE;
+            }
         }
         boolean removed = streams.removeIfIdle();
         if (removed) {

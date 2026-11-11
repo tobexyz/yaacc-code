@@ -95,14 +95,48 @@ final class SnapcastPlayerLogic {
      */
     static String errorMessage(FeedError error, java.util.function.IntFunction<String> texts) {
         StringBuilder message = new StringBuilder(texts.apply(textFor(error.getKind())));
-        if (error.getReason() != null && !error.getReason().isEmpty()) {
-            message.append(" (").append(error.getReason()).append(')');
+        String reason = toastReason(error.getReason());
+        if (!reason.isEmpty()) {
+            message.append(" (").append(reason).append(')');
         }
         int hint = hintFor(error.getHintKey());
         if (hint != 0) {
             message.append('\n').append(texts.apply(hint));
         }
         return message.toString();
+    }
+
+    /** The most code points of a server's reason that a toast shows. */
+    static final int MAX_REASON_CODE_POINTS = 80;
+
+    /**
+     * The server's own words, as little of them as makes sense in a toast that looks like the app's: the characters of
+     * the category "format" (zero width space and joiners, word joiner and invisible operators, soft hyphen, byte order
+     * mark, bidi controls) are removed, and at most {@value #MAX_REASON_CODE_POINTS} code points are kept (a pair is never
+     * cut). The stream handling has replaced control characters and line separators already. Empty when nothing is left.
+     */
+    static String toastReason(String reason) {
+        if (reason == null) {
+            return "";
+        }
+        StringBuilder kept = new StringBuilder();
+        int count = 0;
+        int i = 0;
+        while (i < reason.length() && count < MAX_REASON_CODE_POINTS) {
+            int codePoint = reason.codePointAt(i);
+            i += Character.charCount(codePoint);
+            if (Character.getType(codePoint) == Character.FORMAT || isInvisibleFormat(codePoint)) {
+                continue;
+            }
+            kept.appendCodePoint(codePoint);
+            count++;
+        }
+        return kept.toString().trim();
+    }
+
+    /** The invisible characters that must go even where a platform's character table does not class them as format. */
+    private static boolean isInvisibleFormat(int c) {
+        return (c >= 0x200B && c <= 0x200D) || (c >= 0x2060 && c <= 0x2064) || c == 0x00AD || c == 0xFEFF;
     }
 
     /**

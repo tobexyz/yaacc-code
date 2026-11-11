@@ -259,6 +259,11 @@ public final class SnapcastSession implements SnapcastServerLink {
     }
 
     @Override
+    public long getConnectionGeneration() {
+        return rpc.getConnectionGeneration();
+    }
+
+    @Override
     public void addListener(Listener listener) {
         listeners.add(listener);
     }

@@ -70,6 +70,28 @@ public final class SnapcastMarkerStore implements SnapcastStreams.MarkerStore {
         });
     }
 
+    /** One lock for the process: every store object over the same file takes it. */
+    private static final Object LOCK = new Object();
+
+    /**
+     * Returns the stored marker or makes the first one, atomically in this process: the workers of two servers that
+     * start at the same moment on the first use ever get the same marker, and only one value is ever written. The
+     * value is committed with {@code apply}, which updates the in-memory preferences at once, so the next reader in the
+     * lock sees it.
+     */
+    @Override
+    public String loadOrCreate(java.util.function.Supplier<String> maker) {
+        synchronized (LOCK) {
+            String stored = load();
+            if (stored != null) {
+                return stored;
+            }
+            String fresh = maker.get();
+            save(fresh); // refuses what is not a marker; the caller checks the result
+            return fresh;
+        }
+    }
+
     @Override
     public String load() {
         String stored = storage.read();

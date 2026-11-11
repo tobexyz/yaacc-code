@@ -573,6 +573,17 @@ public final class SnapcastRpc implements SnapcastCaller, Closeable {
         }
     }
 
+    /**
+     * A number that grows with every connection attempt and with the close: it differs between two connections to the
+     * same server, and never goes back. The feed uses it to be sure that the peer address it reads belongs to the
+     * connection that was up when its stream was made.
+     */
+    public long getConnectionGeneration() {
+        synchronized (lock) {
+            return generation;
+        }
+    }
+
     // ---- connection management
 
     /** Starts connecting; does nothing unless the client was not started yet. */

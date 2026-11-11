@@ -66,6 +66,11 @@ public interface SnapcastServerLink extends Closeable {
         return null;
     }
 
+    /** A number that changes with every new control connection of this link and never goes back; 0 for a fake. */
+    default long getConnectionGeneration() {
+        return 0;
+    }
+
     /** Opens the connection (does nothing when started already). */
     void start();
 

@@ -76,6 +76,7 @@ public class SnapcastPlayer extends LocalMediaSessionPlayer {
     private final int playerId = SnapcastPlayerLogic.playerIdFrom(UUID.randomUUID().hashCode());
     private volatile SnapcastFeedController controller;
     private volatile boolean delayNoted;
+    private volatile boolean stopOutstanding;
     /** The item whose start was held back because the user paused while the feed was opening. */
     private volatile Deferred deferred;
 
@@ -305,7 +306,48 @@ public class SnapcastPlayer extends LocalMediaSessionPlayer {
             postToMainDelayed(() -> stopWhenFree(attempt + 1), STOP_RETRY_MILLIS);
             return;
         }
-        stop();
+        boolean busy = isProcessingCommand();
+        stop(); // clears the flag like every user action
+        if (busy) {
+            // the last try was ignored as well. Say so, and remember it until the user does something
+            YaaccLogger.d(getClass().getName(), "stop after a failure was not possible, a command was still running");
+            stopOutstanding = true;
+        }
+    }
+
+    /** True when a stop after a failure could not be carried out; the next user action clears it. */
+    boolean isStopOutstanding() {
+        return stopOutstanding;
+    }
+
+    @Override
+    public void play() {
+        stopOutstanding = false;
+        super.play();
+    }
+
+    @Override
+    public void pause() {
+        stopOutstanding = false;
+        super.pause();
+    }
+
+    @Override
+    public void stop() {
+        stopOutstanding = false;
+        super.stop();
+    }
+
+    @Override
+    public void next() {
+        stopOutstanding = false;
+        super.next();
+    }
+
+    @Override
+    public void previous() {
+        stopOutstanding = false;
+        super.previous();
     }
 
     private static final int STOP_RETRIES = 20;

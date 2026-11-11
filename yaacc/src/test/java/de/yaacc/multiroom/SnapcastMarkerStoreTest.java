@@ -33,12 +33,21 @@ import org.junit.Test;
 public class SnapcastMarkerStoreTest {
 
     private static final class Memory implements SnapcastMarkerStore.Storage {
-        String value;
-        int writes;
+        volatile String value;
+        volatile int writes;
+        volatile long readDelayMillis;
 
         @Override
         public String read() {
-            return value;
+            String seen = value;
+            if (readDelayMillis > 0) {
+                try {
+                    Thread.sleep(readDelayMillis);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            return seen;
         }
 
         @Override
@@ -140,5 +149,60 @@ public class SnapcastMarkerStoreTest {
             seen.add(memory.value);
         }
         assertTrue("20 installs, " + seen.size() + " different markers", seen.size() >= 19);
+    }
+
+    @Test
+    public void twoServersStartedAtTheSameMomentShareOneMarker() throws Exception {
+        // first use ever: two workers make the stream handling of two servers at once, from two store objects
+        final Memory memory = new Memory();
+        memory.readDelayMillis = 150; // widens the window between "nothing stored" and "stored"
+        final SnapcastOperations operations = new SnapcastOperations((method, params) -> {
+            throw new AssertionError("no call expected");
+        });
+        final String[] markers = new String[2];
+        Thread[] threads = new Thread[2];
+        for (int i = 0; i < 2; i++) {
+            final int index = i;
+            threads[i] = new Thread(() -> markers[index] =
+                    new SnapcastStreams(operations, "Phone", new SnapcastMarkerStore(memory)).getMarker());
+            threads[i].start();
+        }
+        for (Thread thread : threads) {
+            thread.join(10_000);
+        }
+
+        assertEquals("one marker for the install", markers[0], markers[1]);
+        assertEquals("written once", 1, memory.writes);
+        assertEquals(markers[0], memory.value);
+    }
+
+    @Test
+    public void loadOrCreateReturnsWhatIsStoredAndMakesTheMarkerOnlyWhenNothingIs() {
+        Memory memory = new Memory();
+        SnapcastMarkerStore store = new SnapcastMarkerStore(memory);
+        int[] made = new int[1];
+
+        assertEquals("0123abcd", store.loadOrCreate(() -> {
+            made[0]++;
+            return "0123abcd";
+        }));
+        assertEquals("0123abcd", store.loadOrCreate(() -> {
+            made[0]++;
+            return "ffffffff";
+        }));
+
+        assertEquals(1, made[0]);
+        assertEquals(1, memory.writes);
+    }
+
+    @Test
+    public void aMarkerThatIsNotValidIsNeverWritten() {
+        Memory memory = new Memory();
+        SnapcastMarkerStore store = new SnapcastMarkerStore(memory);
+
+        store.loadOrCreate(() -> "not a marker");
+
+        assertEquals(0, memory.writes);
+        assertNull(store.load());
     }
 }
