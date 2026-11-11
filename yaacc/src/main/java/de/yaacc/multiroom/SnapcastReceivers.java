@@ -50,7 +50,9 @@ import de.yaacc.multiroom.discovery.SnapcastServerKey;
  *   receiver of it is {@link #wake woken}. Nothing connects to a server that is not listed, and the directory holds
  *   only addresses that passed the range filter or that the user typed in.</li>
  *   <li><b>Grace.</b> When the last page is hidden the links close after {@code closeGraceMillis} (so that switching
- *   between the tab and the sheet does not reconnect), except retained ones.</li>
+ *   between the tab and the sheet does not reconnect), except retained ones. A server that <b>leaves the directory</b>
+ *   (removed in the settings, discovery switched off, its grace over) has its link closed even when it is retained: the
+ *   close tells the link's listeners, so a feed that runs to it ends ({@code SnapcastSession#close}).</li>
  *   <li><b>Last known state.</b> The last status of a server is kept when its link is closed or down, and its groups
  *   stay listed marked as offline, so a stored selection survives a hidden page. A server that leaves the directory
  *   (its grace is over; a manual server never leaves) takes its groups with it; a group that is no longer in a fresh
@@ -345,6 +347,10 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
         }
         for (SnapcastServerKey key : gone) {
             work.detach(views.remove(key));
+            // a removed server is removed for good: no player keeps it open and no woken group wakes it again if it
+            // comes back before the grace has run (the link is closed, which tells the feed that depends on it)
+            retained.remove(key);
+            woken.remove(key);
         }
         for (SnapcastDirectory.Entry entry : entries) {
             SnapcastServerKey key = entry.getKey();

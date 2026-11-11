@@ -305,10 +305,7 @@ public final class SnapcastControls {
         final List<String> added = clientIds == null ? new ArrayList<String>() : new ArrayList<>(clientIds);
         submit(actions, Action.GROUP_CLIENTS, () -> {
             Linked linked = linked(key);
-            SnapcastGroup group = linked.status == null ? null : linked.status.findGroup(groupId);
-            if (group == null) {
-                throw new Gone();
-            }
+            SnapcastGroup group = freshGroup(linked, groupId);
             List<String> wanted = SnapcastClientCandidates.wantedWith(group, added);
             if (wanted == null) {
                 throw new NotPossible();
@@ -324,16 +321,29 @@ public final class SnapcastControls {
     public void removeClient(final SnapcastServerKey key, final String groupId, final String clientId) {
         submit(actions, Action.GROUP_CLIENTS, () -> {
             Linked linked = linked(key);
-            SnapcastGroup group = linked.status == null ? null : linked.status.findGroup(groupId);
-            if (group == null) {
-                throw new Gone();
-            }
+            SnapcastGroup group = freshGroup(linked, groupId);
             List<String> wanted = SnapcastClientCandidates.wantedWithout(group, clientId);
             if (wanted == null) {
                 throw new NotPossible();
             }
             linked.operations.setGroupClients(groupId, wanted);
         });
+    }
+
+    /**
+     * The group as the server has it now, for a change of its members: {@code Group.SetClients} takes the full list and
+     * removes every client that is not in it, so the list is computed from a fresh status (one round trip, within the rate
+     * limit of the model; the cached model when the limit refuses or the read fails). A candidate list that a picker
+     * showed is only a snapshot of the moment it was opened; this is what keeps a client that another controller added
+     * meanwhile from being dropped.
+     */
+    private static SnapcastGroup freshGroup(Linked linked, String groupId) throws Gone {
+        SnapcastServerStatus fresh = linked.operations.freshStatusOrModel();
+        SnapcastGroup group = fresh == null ? null : fresh.findGroup(groupId);
+        if (group == null) {
+            throw new Gone();
+        }
+        return group;
     }
 
     // ---- plumbing

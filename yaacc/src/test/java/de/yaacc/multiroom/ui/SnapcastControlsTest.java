@@ -69,14 +69,31 @@ public class SnapcastControlsTest {
         final List<String> methods = new ArrayList<>();
         final List<JSONObject> params = new ArrayList<>();
         SnapcastException failure;
+        /** Fails only this method (the others work). */
+        String failOnly;
+        /** The members (ids) that a fresh {@code Server.GetStatus} reports for group g1; null: no such answer. */
+        String[] serverMembers;
 
         @Override
         public synchronized JSONObject call(String method, JSONObject callParams) throws SnapcastException {
             methods.add(method);
             try {
                 params.add(callParams == null ? null : new JSONObject(callParams.toString()));
-                if (failure != null) {
+                if (failure != null && (failOnly == null || failOnly.equals(method))) {
                     throw failure;
+                }
+                if ("Server.GetStatus".equals(method) && serverMembers != null) {
+                    StringBuilder clients = new StringBuilder();
+                    for (String id : serverMembers) {
+                        clients.append(clients.length() == 0 ? "" : ",").append("{\"id\":\"").append(id)
+                                .append("\",\"connected\":true,\"config\":{\"name\":\"").append(id)
+                                .append("\",\"volume\":{\"percent\":40,\"muted\":false},\"latency\":0}}");
+                    }
+                    return new JSONObject("{\"server\":{\"groups\":[{\"id\":\"g1\",\"name\":\"Living\",\"muted\":false,"
+                            + "\"stream_id\":\"Default\",\"clients\":[" + clients + "]},{\"id\":\"g2\",\"name\":\"Other\","
+                            + "\"muted\":false,\"stream_id\":\"Default\",\"clients\":[{\"id\":\"d\",\"connected\":true,"
+                            + "\"config\":{\"name\":\"Desk\",\"volume\":{\"percent\":10,\"muted\":false},\"latency\":0}}]}],"
+                            + "\"streams\":[]}}");
                 }
                 if ("Group.SetClients".equals(method)) {
                     return new JSONObject("{\"server\":{\"groups\":[],\"streams\":[]}}");
@@ -119,7 +136,8 @@ public class SnapcastControlsTest {
 
     /** A link whose model is kept up to date by our own calls, like the real session. */
     private static class ModelLink implements SnapcastServerLink {
-        final SnapcastModelUpdater updater = new SnapcastModelUpdater(() -> 0L, () -> { });
+        final AtomicLong updaterClock = new AtomicLong(0);
+        final SnapcastModelUpdater updater = new SnapcastModelUpdater(updaterClock::get, () -> { });
         final SnapcastOperations operations;
 
         ModelLink(RecordingCaller caller, SnapcastServerStatus status) {
@@ -592,5 +610,92 @@ public class SnapcastControlsTest {
 
         assertNull(controls.pendingVolumeFor(KEY, GROUP));
         assertEquals(0, volumes.tasks.size());
+    }
+
+    // ---- a fresh status before a change of the members (security review S42)
+
+    @Test
+    public void addingAClientUsesTheMembersTheServerHasNowNotTheCachedOnes() {
+        caller.serverMembers = new String[]{"a", "b", "c", "e"}; // another controller added "e" behind the model
+
+        controls.addClients(KEY, GROUP, Arrays.asList("d"));
+        actions.runAll();
+
+        assertEquals(1, caller.count("Server.GetStatus"));
+        assertEquals("[\"a\",\"b\",\"c\",\"e\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    @Test
+    public void removingAClientUsesTheMembersTheServerHasNow() {
+        caller.serverMembers = new String[]{"a", "b", "c", "e"};
+
+        controls.removeClient(KEY, GROUP, "b");
+        actions.runAll();
+
+        assertEquals("[\"a\",\"c\",\"e\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    @Test
+    public void aStaleRemovalOfSomeoneWhoLeftIsStillRefused() {
+        caller.serverMembers = new String[]{"a", "c"}; // "b" left the group meanwhile
+
+        controls.removeClient(KEY, GROUP, "b");
+        actions.runAll();
+
+        assertEquals(0, caller.count("Group.SetClients"));
+        assertEquals(SnapcastControls.Failure.Kind.NOT_POSSIBLE, failures.get(0).getKind());
+    }
+
+    @Test
+    public void whenTheRateLimitRefusesTheReadTheCachedModelIsUsed() {
+        caller.serverMembers = new String[]{"a", "b", "c", "e"};
+        controls.addClients(KEY, GROUP, Arrays.asList("d")); // takes the one read that the limit allows in this second
+        actions.runAll();
+        caller.methods.clear();
+        caller.params.clear();
+        link.updater.setStatus(status(Arrays.asList(
+                group(GROUP, "Living", "Default", client("a", "Kitchen", true, 40, false), client("b", "Hall", true, 60, true)),
+                group("g2", "Other", "Default", client("d", "Desk", true, 10, false))), stream("Default", "idle")));
+
+        controls.addClients(KEY, GROUP, Arrays.asList("d"));
+        actions.runAll();
+
+        assertEquals("no second read inside the limit", 0, caller.count("Server.GetStatus"));
+        assertEquals("[\"a\",\"b\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    @Test
+    public void aReadThatFailsFallsBackToTheCachedModel() {
+        caller.failure = new SnapcastException(SnapcastException.Kind.TIMEOUT, 0, "slow", null, null);
+        caller.failOnly = "Server.GetStatus";
+
+        controls.removeClient(KEY, GROUP, "b");
+        actions.runAll();
+
+        assertEquals(1, caller.count("Server.GetStatus"));
+        assertEquals("[\"a\",\"c\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+        assertTrue("the failed read is no failure of the change", failures.isEmpty());
+    }
+
+    @Test
+    public void anAnswerThatIsNoStatusFallsBackToTheCachedModel() {
+        // the recording caller answers an empty object when no members are set: the library reports it as malformed
+        controls.addClients(KEY, GROUP, Arrays.asList("d"));
+        actions.runAll();
+
+        assertEquals("[\"a\",\"b\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+        assertTrue(failures.isEmpty());
+    }
+
+    @Test
+    public void theOtherChangesDoNotReadTheStatus() {
+        caller.serverMembers = new String[]{"a"};
+
+        controls.setGroupMuted(KEY, GROUP, true);
+        controls.setClientLatency(KEY, "a", 5);
+        controls.setGroupStream(KEY, GROUP, "Radio");
+        actions.runAll();
+
+        assertEquals(0, caller.count("Server.GetStatus"));
     }
 }

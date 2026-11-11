@@ -125,11 +125,14 @@ public class LinkBoundStreamsTest {
     public void noteAudioNeverWaitsForTheMonitorThatMakesTheStreams() throws Exception {
         server.bindRealListeners();
         operations = new SnapcastOperations(server);
+        final java.util.concurrent.CountDownLatch insideTheMonitor = new java.util.concurrent.CountDownLatch(1);
+        final java.util.concurrent.CountDownLatch letTheMarkerGo = new java.util.concurrent.CountDownLatch(1);
         final LinkBoundStreams streams = new LinkBoundStreams(() -> operations, "Phone", new SnapcastStreams.MarkerStore() {
             @Override
             public String load() {
+                insideTheMonitor.countDown(); // the maker holds the monitor and reads the marker (a slow SharedPreferences read)
                 try {
-                    Thread.sleep(1_500); // a slow SharedPreferences read inside the monitor
+                    letTheMarkerGo.await(30, java.util.concurrent.TimeUnit.SECONDS);
                 } catch (InterruptedException ignored) {
                     Thread.currentThread().interrupt();
                 }
@@ -144,13 +147,20 @@ public class LinkBoundStreamsTest {
         Thread maker = new Thread(streams::ensure, "maker");
         maker.setDaemon(true);
         maker.start();
-        Thread.sleep(200); // the maker holds the monitor and reads the marker
+        assertTrue("the maker is inside the monitor", insideTheMonitor.await(10, java.util.concurrent.TimeUnit.SECONDS));
 
-        long start = System.nanoTime();
-        streams.noteAudio();
+        // noteAudio runs on a thread of its own: if it waited for the monitor it could not finish while the maker is held
+        final java.util.concurrent.CountDownLatch noted = new java.util.concurrent.CountDownLatch(1);
+        Thread noter = new Thread(() -> {
+            streams.noteAudio();
+            noted.countDown();
+        }, "noter");
+        noter.setDaemon(true);
+        noter.start();
+        boolean finishedWhileHeld = noted.await(10, java.util.concurrent.TimeUnit.SECONDS);
+        letTheMarkerGo.countDown();
+        maker.join(10_000);
 
-        assertTrue("noteAudio took " + (System.nanoTime() - start) / 1_000_000 + " ms",
-                System.nanoTime() - start < 500_000_000L);
-        maker.join(5_000);
+        assertTrue("noteAudio did not wait for the monitor", finishedWhileHeld);
     }
 }

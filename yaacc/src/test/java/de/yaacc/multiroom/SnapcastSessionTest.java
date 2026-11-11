@@ -295,4 +295,50 @@ public class SnapcastSessionTest {
 
         assertEquals(1, server.accepted());
     }
+
+    @Test
+    public void closeTellsTheListenersOnceThatTheLinkIsOffline() {
+        open();
+        assertTrue(await(() -> session.isOnline()));
+        final List<Boolean> onlineSeen = Collections.synchronizedList(new ArrayList<Boolean>());
+        session.addListener(link -> onlineSeen.add(link.isOnline()));
+        int before = onlineSeen.size();
+
+        session.close();
+        session.close(); // a second close tells nobody
+
+        assertEquals("one call, and it says offline", 1, onlineSeen.size() - before);
+        assertFalse(onlineSeen.get(onlineSeen.size() - 1));
+    }
+
+    @Test
+    public void aListenerThatThrowsOnCloseDoesNotKeepTheSessionFromClosing() {
+        open();
+        assertTrue(await(() -> session.isOnline()));
+        session.addListener(link -> {
+            throw new IllegalStateException("boom");
+        });
+
+        session.close();
+
+        assertTrue(await(() -> !sessionThreadsAlive()));
+    }
+
+    @Test
+    public void aListenerMayCallTheSessionWhileItIsToldOfTheClose() {
+        open();
+        assertTrue(await(() -> session.isOnline()));
+        final boolean[] answered = new boolean[1];
+        session.addListener(link -> {
+            link.isOnline();
+            link.getStatus();
+            link.getPeerAddress();
+            link.close(); // closing again from inside: no recursion, no deadlock
+            answered[0] = true;
+        });
+
+        session.close();
+
+        assertTrue(answered[0]);
+    }
 }

@@ -33,10 +33,11 @@ import de.yaacc.multiroom.control.SnapcastStream;
  * What the row of a Snapcast group says. Pure; the localized words come in through {@link Words}, so the composition is
  * tested without Android (the same idea as {@code YxcRowText} for MusicCast rows).
  *
- * <p>The text has two lines. The first one holds the facts of the group: the stream, how many clients are connected, the
- * group volume (the average of the connected members) and a "muted" marker. The second line names the <b>endpoint of the
- * server</b>: a hostile server can name its group like a legitimate one, and the endpoint is the one thing it cannot
- * copy (security review S20). Two markers explain what is wrong: "server unreachable" (the control connection is down;
+ * <p>The text has two lines. The <b>first</b> names the <b>endpoint of the server</b>: a hostile server can name its group
+ * like a legitimate one, and the endpoint is the one thing it cannot copy (security review S20). It comes first because the
+ * row clips its text at the end (three lines): what the server controls, the facts, is what gets cut, never the endpoint
+ * (W2). The second line holds the facts of the group: the stream (cut to {@value #MAX_STREAM_NAME} characters), how many
+ * clients are connected, the group volume (the average of the connected members) and a "muted" marker. Two markers explain what is wrong: "server unreachable" (the control connection is down;
  * the row shows the last known state and is not removed, so a short outage does not make the group flicker out of the
  * list and out of the stored selection) and "stream unavailable" (the group's stream is not in the server's list, or the
  * server has switched it off).
@@ -46,8 +47,11 @@ import de.yaacc.multiroom.control.SnapcastStream;
  */
 public final class SnapcastRowText {
 
-    /** The longest stream name shown in the row. */
-    static final int MAX_STREAM_NAME = 48;
+    /**
+     * The longest stream name shown in the row (the group sheet shows 64). The name is the server's own text, so the
+     * facts line is kept short and the endpoint comes first (security review W2).
+     */
+    static final int MAX_STREAM_NAME = 24;
     /** The longest endpoint shown (a host name is at most 253 characters, a literal much less). */
     static final int MAX_ENDPOINT = 64;
     private static final String SEPARATOR = " · ";
@@ -159,7 +163,7 @@ public final class SnapcastRowText {
     public static Row of(SnapcastGroup group, SnapcastServerStatus status, boolean online, String endpoint, Words words) {
         String serverLine = words.server(SnapcastDisplayText.of(endpoint, MAX_ENDPOINT));
         if (group == null) {
-            return new Row(words.groupGone() + "\n" + serverLine, -1, false, false);
+            return new Row(serverLine + "\n" + words.groupGone(), -1, false, false);
         }
         Map<String, Integer> levels = GroupVolume.levels(group);
         int connected = levels.size();
@@ -188,7 +192,7 @@ public final class SnapcastRowText {
             }
         }
         boolean controllable = online && connected > 0;
-        return new Row(String.join(SEPARATOR, facts) + "\n" + serverLine, volume, group.isMuted(), controllable);
+        return new Row(serverLine + "\n" + String.join(SEPARATOR, facts), volume, group.isMuted(), controllable);
     }
 
     private static String streamPart(SnapcastGroup group, SnapcastServerStatus status, Words words) {
@@ -205,5 +209,16 @@ public final class SnapcastRowText {
         }
         SnapcastStream stream = status == null ? null : status.findStream(group.getStreamId());
         return stream != null && !STATUS_DISABLED.equals(stream.getStatus());
+    }
+
+    /**
+     * The endpoint of the server that a group's receiver id names, for a row whose server is no longer listed (the endpoint
+     * is always shown, security review S20).
+     *
+     * @return {@code host:port}, or the empty string when the id is no well-formed group id
+     */
+    public static String endpointOf(String receiverId) {
+        de.yaacc.multiroom.SnapcastGroupDevice.Id id = de.yaacc.multiroom.SnapcastGroupDevice.parseId(receiverId);
+        return id == null ? "" : id.getServerKey().asString();
     }
 }

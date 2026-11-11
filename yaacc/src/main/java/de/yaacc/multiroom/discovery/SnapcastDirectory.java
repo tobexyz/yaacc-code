@@ -158,6 +158,9 @@ public final class SnapcastDirectory {
     private final Map<String, SnapcastServerKey> byServiceName = new HashMap<>();
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
     private long nextOrder;
+    // false between discoveryStopped() and the next discoveryRestarted(); guarded by lock. A directory that was never
+    // told to stop takes sightings: the scan starts only when it is wanted, so nothing arrives before.
+    private boolean browsing = true;
 
     public SnapcastDirectory(MonotonicClock clock, long graceMillis) {
         this.clock = clock;
@@ -194,7 +197,10 @@ public final class SnapcastDirectory {
         synchronized (lock) {
             changed |= expireLocked();
             SnapcastServerKey previous = byServiceName.get(serviceName);
-            if (previous == null && byServiceName.size() >= MAX_SERVICE_NAMES) {
+            if (!browsing) {
+                // a late callback of a scan that was switched off (security review S41): nothing is listed
+                listed = false;
+            } else if (previous == null && byServiceName.size() >= MAX_SERVICE_NAMES) {
                 listed = nodes.containsKey(key);
             } else {
                 Node node = nodes.get(key);
@@ -263,6 +269,7 @@ public final class SnapcastDirectory {
     public void discoveryRestarted() {
         boolean changed = false;
         synchronized (lock) {
+            browsing = true;
             changed |= expireLocked();
             byServiceName.clear();
             long now = clock.nowMillis();
@@ -289,6 +296,7 @@ public final class SnapcastDirectory {
     public void discoveryStopped() {
         boolean changed;
         synchronized (lock) {
+            browsing = false;
             changed = expireLocked();
             byServiceName.clear();
             for (Iterator<Map.Entry<SnapcastServerKey, Node>> it = nodes.entrySet().iterator(); it.hasNext(); ) {

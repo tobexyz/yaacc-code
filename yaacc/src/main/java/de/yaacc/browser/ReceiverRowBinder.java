@@ -266,10 +266,10 @@ final class ReceiverRowBinder {
             holder.checkBox.setOnClickListener((it) -> {
                 boolean checked = ((CheckBox) it).isChecked();
                 if (!checked) {
-                    YaaccLogger.d(getClass().getName(), "isNotChecked:" + device.getDisplayString());
+                    YaaccLogger.d(getClass().getName(), "isNotChecked:" + logName(device));
                     upnpClient.removeReceiverDevice(device);
                 } else {
-                    YaaccLogger.d(getClass().getName(), "isChecked:" + device.getDisplayString());
+                    YaaccLogger.d(getClass().getName(), "isChecked:" + logName(device));
                     upnpClient.addReceiverDevice(device);
                 }
                 selectionListener.onSelectionChanged(device, checked);
@@ -727,6 +727,8 @@ final class ReceiverRowBinder {
         }
         boolean available = state != null && state.isReachable();
         holder.yxcSettings.setVisibility(available ? View.VISIBLE : View.GONE);
+        // a recycled holder may have been a Snapcast group row, whose button says something else
+        holder.yxcSettings.setContentDescription(context.getString(R.string.yxc_action_settings));
         holder.yxcSettings.setOnClickListener(available ? v -> {
             if (settingsDialog != null && settingsDialog.isShowing()) {
                 return;
@@ -1111,6 +1113,7 @@ final class ReceiverRowBinder {
         if (linkDialog != null && linkDialog.isShowing()) {
             linkDialog.dismiss();
         }
+        snapcastRows.shutdown();
     }
 
     /**
@@ -1130,6 +1133,14 @@ final class ReceiverRowBinder {
         }
         PlayerRef primary = DeviceSessionGrouper.primarySession(deviceId, refs);
         return primary == null ? null : playersById.get(primary.playerId());
+    }
+
+    /**
+     * What a debug line may say about a receiver: its display string, except for a Snapcast group, whose display string is
+     * cleaned text of the server (or a host name): nothing of it goes to a log (security review S45).
+     */
+    static String logName(Device<?, ?, ?> device) {
+        return device instanceof SnapcastGroupDevice ? "Snapcast group" : device.getDisplayString();
     }
 
     /** This phone's volume: the dummy device of the local row and yaacc's own renderer; both are {@code SystemVolume}. */

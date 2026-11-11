@@ -106,10 +106,18 @@ public class SnapcastReceiversTest {
             retries++;
         }
 
+        /** Like {@code SnapcastSession.close()}: tells the listeners once that the link is offline, then drops them. */
         @Override
         public void close() {
+            if (closed) {
+                return;
+            }
             closed = true;
             online = false;
+            for (Listener listener : new ArrayList<>(listeners)) {
+                listener.onLinkChanged(this);
+            }
+            listeners.clear();
         }
 
         void update(SnapcastServerStatus newStatus, boolean nowOnline) {
@@ -947,5 +955,75 @@ public class SnapcastReceiversTest {
         assertNull(receivers.stateOf("not-a-snapcast-id"));
         assertNull(receivers.stateOf("snapcast:10.0.0.2:1705:bad id"));
         assertNull(receivers.stateOf(SnapcastGroupDevice.idOf(key(9), "g-a")));
+    }
+
+    // ---- a server that leaves while a link is retained or woken (security review W1, S46)
+
+    @Test
+    public void aServerThatLeavesTheDirectoryHasItsRetainedLinkClosedAndForgotten() throws Exception {
+        server(2);
+        receivers.retain(key(2));
+        FakeLink link = linkOf(2);
+
+        directory.discoveryStopped(); // the server was only discovered: it leaves at once
+
+        assertTrue("the link is closed although it was retained: the owner is told through it", link.closed);
+        assertNull(receivers.getLink(key(2)));
+    }
+
+    @Test
+    public void theClosedLinkOfARemovedServerTellsItsListenersItIsOffline() throws Exception {
+        server(2);
+        receivers.retain(key(2));
+        FakeLink link = linkOf(2);
+        final List<Boolean> seen = new ArrayList<>();
+        link.addListener(l -> seen.add(l.isOnline()));
+        link.online = true;
+
+        directory.discoveryStopped();
+
+        assertEquals(1, seen.size());
+        assertFalse(seen.get(0));
+    }
+
+    @Test
+    public void aServerThatIsAddedAgainAfterItsRemovalDoesNotKeepTheOldRetainOrWake() throws Exception {
+        server(2);
+        receivers.retain(key(2));
+        receivers.wake(Collections.singletonList(SnapcastGroupDevice.idOf(key(2), "g-a")));
+        assertEquals(1, links.size());
+        directory.discoveryStopped();
+        assertTrue(links.get(0).closed);
+
+        server(2); // found again before any grace has run, no page is visible
+
+        assertEquals("no link without a page, a player or a woken group", 1, links.size());
+    }
+
+    @Test
+    public void releasingAKeyThatWasForgottenDoesNothing() throws Exception {
+        server(2);
+        receivers.retain(key(2));
+        directory.discoveryStopped();
+        int scheduled = scheduler.tasks.size();
+
+        receivers.release(key(2));
+
+        assertEquals(scheduled, scheduler.tasks.size());
+    }
+
+    @Test
+    public void aLinkThatIsClosedByTheIdleCloseTellsItsOtherListenersExactlyOnce() throws Exception {
+        server(2);
+        receivers.pageStarted();
+        FakeLink link = linkOf(2);
+        final int[] told = {0};
+        link.addListener(l -> told[0]++);
+        receivers.pageStopped();
+
+        scheduler.runAll();
+
+        assertTrue(link.closed);
+        assertEquals("the one listener of the test, once; the receivers took theirs off before the close", 1, told[0]);
     }
 }

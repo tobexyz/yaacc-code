@@ -87,6 +87,7 @@ public final class SnapcastSession implements SnapcastServerLink {
     private final SnapcastTickGate tickGate;
     private final AtomicBoolean started = new AtomicBoolean();
     private final AtomicInteger readFailures = new AtomicInteger();
+    private final AtomicBoolean closing = new AtomicBoolean();
     private volatile boolean closed;
     private volatile boolean online;
     private volatile boolean gaveUp;
@@ -293,13 +294,20 @@ public final class SnapcastSession implements SnapcastServerLink {
         rpc.retry();
     }
 
+    /**
+     * Releases the connection and every thread. The listeners are told <b>once</b>, before they are dropped, that the link
+     * is offline ({@link #isOnline()} is false in the call): whoever depends on the link (a feed that writes to the server
+     * of this link) learns that it is gone and stops (security review W1: removing a server must end a running feed). The
+     * call is made on the calling thread and holds no lock of this class; a listener that fails is skipped.
+     */
     @Override
     public void close() {
-        if (closed) {
+        if (!closing.compareAndSet(false, true)) {
             return;
         }
         closed = true;
         online = false;
+        fireChanged();
         listeners.clear();
         rpc.close();
         worker.shutdownNow();

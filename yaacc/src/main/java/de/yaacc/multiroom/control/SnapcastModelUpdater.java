@@ -298,6 +298,18 @@ public final class SnapcastModelUpdater {
         }
     }
 
+    /**
+     * Asks the rate limit for permission to read the whole status now (a read that the caller makes itself, such as the one
+     * before a destructive change). Uses up a grant, like {@link #requestReRead()}.
+     *
+     * @return true if the read is allowed
+     */
+    public boolean tryGrantRead() {
+        synchronized (this) {
+            return grantLocked();
+        }
+    }
+
     /** At most one grant per second and ten per minute. */
     private boolean grantLocked() {
         long now = clock.nowMillis();

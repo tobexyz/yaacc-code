@@ -143,6 +143,15 @@ Carried over from the security review of Group 3 (`security-review.md` S17 to S2
   - **Accept**: a manual address is validated (host[:port]); no credentials stored.
   - **Verify**: `SnapcastServerListTest`, string completeness test.
 
+## Fix Group 5b: Address the security review (W1, W2, S41 to S46) and the general review suggestions (S1 to S4, S7) of Group 5
+- [x] F5.1 (W1, S46) A link that is closed tells its listeners it is offline, once, before it drops them (`SnapcastSession.close`), so the controller of a running feed closes it (output closed, IDLE, `onFeedLost(CONTROL_LOST)`, the player stops); `SnapcastReceivers.reconcileLocked` forgets the `retained` and `woken` keys of a server that left. Tests: `SnapcastFeedLinkRemovalTest` (typed-in server removed, discovery switched off for a discovered one, a server that stays keeps its feed), `SnapcastSessionTest` (once, a listener that throws, re-entrant close), `SnapcastReceiversTest`. Not done: asking the players of that server to stop first (see `decisions.md`).
+- [x] F5.2 (W2, S5) The row text starts with "Server <endpoint>", the facts line follows, and the stream name on the row is cut to 24 characters (the sheet keeps 64). Tests in `SnapcastRowTextTest`.
+- [x] F5.3 (S41) The directory refuses `serviceFound` after `discoveryStopped()` until `discoveryRestarted()` (flag under the directory lock). Tests in `SnapcastDirectoryTest`.
+- [x] F5.4 (S42) Add and remove client read a fresh `Server.GetStatus` within the rate limit of the model (`SnapcastOperations.freshStatusOrModel`), falling back to the model; a stale removal is still refused. Tests in `SnapcastControlsTest`.
+- [x] F5.5 (S45) No debug line logs the display string of a Snapcast group (`ReceiverRowBinder.logName`).
+- [x] F5.6 (S1 to S4, S7) Content description reset for MusicCast rows, no stale percentage, the endpoint of a vanished server from the id, an already-open guard on the group sheet; the budget test and the `noteAudio` test no longer depend on the wall clock. S6 is a note only (the two executors of `SnapcastUi` live as long as the process).
+- Not needed now: S43 (documented, accepted), S44 (open, see `decisions.md`), S47 (Group 6 documentation).
+
 ## Group 6: Documentation and Phase A gate (P2)
 - [ ] 6.1 Update documentation | `README.md`, `docs/index.md`, `docs/tech.md`, `CHANGELOG.md`, `fastlane/metadata/android/en-US/` (only if released)
   - **Accept**: features, requirements (a snapserver, how to enable the TCP source or let YAACC add it), the buffer delay, the not-affiliated notice, the Docker rig; no stale references.

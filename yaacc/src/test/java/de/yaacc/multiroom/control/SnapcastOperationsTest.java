@@ -529,27 +529,22 @@ public class SnapcastOperationsTest {
         }
         SnapcastGroup group = new SnapcastGroup(GROUP, "", false, "s", clients);
         final List<String> ids = new ArrayList<>();
+        final java.util.concurrent.atomic.AtomicLong clockNanos = new java.util.concurrent.atomic.AtomicLong(5_000_000_000L);
         SnapcastCaller slow = (method, params) -> {
             ids.add(params.optString("id"));
-            try {
-                Thread.sleep(60);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            clockNanos.addAndGet(60_000_000L); // every answer takes 60 ms on the clock the test moves; no real waiting
             return new JSONObject();
         };
 
-        long begun = System.nanoTime();
         try {
-            new SnapcastOperations(slow).setGroupVolume(group, start, 60, 200);
+            new SnapcastOperations(slow, null, clockNanos::get).setGroupVolume(group, start, 60, 200);
             fail("the budget ran out");
         } catch (SnapcastException expected) {
             assertEquals(SnapcastException.Kind.TIMEOUT, expected.getKind());
         }
 
-        assertTrue("fewer than all members: " + ids.size(), ids.size() < 12 && ids.size() >= 1);
-        assertTrue("it did not go on for the 12 x 60 ms: " + (System.nanoTime() - begun) / 1_000_000 + " ms",
-                (System.nanoTime() - begun) < 600_000_000L);
+        // members are called at 0, 60, 120 and 180 ms; at 240 ms the 200 ms budget is over
+        assertEquals(4, ids.size());
     }
 
     @Test

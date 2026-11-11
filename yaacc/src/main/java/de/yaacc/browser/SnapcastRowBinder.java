@@ -47,6 +47,8 @@ final class SnapcastRowBinder {
     private final Context context;
     private final ReceiverRowBinder rows;
     private final SnapcastRowText.Words words;
+    // the open group sheet, so that a second tap does not open another one
+    private android.app.Dialog sheet;
 
     SnapcastRowBinder(Context context, ReceiverRowBinder rows) {
         this.context = context;
@@ -66,7 +68,8 @@ final class SnapcastRowBinder {
     SnapcastRowText.Row rowOf(SnapcastGroupDevice device) {
         SnapcastReceivers.GroupState state = receivers().stateOf(idOf(device));
         if (state == null) {
-            return SnapcastRowText.of(null, null, false, "", words);
+            // the server is no longer listed: the endpoint is still shown, it is in the id (security review S20)
+            return SnapcastRowText.of(null, null, false, SnapcastRowText.endpointOf(idOf(device)), words);
         }
         return SnapcastRowText.of(state.getGroup(), state.getStatus(), state.isOnline(), state.getEndpointText(), words);
     }
@@ -85,7 +88,12 @@ final class SnapcastRowBinder {
             views.yxcActions.setVisibility(View.VISIBLE);
             views.yxcSettings.setVisibility(View.VISIBLE);
             views.yxcSettings.setContentDescription(context.getString(R.string.snapcast_row_settings));
-            views.yxcSettings.setOnClickListener(v -> SnapcastGroupSheet.show(context, device));
+            views.yxcSettings.setOnClickListener(v -> {
+                if (sheet != null && sheet.isShowing()) {
+                    return; // a second tap does not open another sheet
+                }
+                sheet = SnapcastGroupSheet.show(context, device);
+            });
         }
         for (View button : new View[]{views.btnPlay, views.btnPause, views.btnStop}) {
             button.setEnabled(true);
@@ -132,6 +140,13 @@ final class SnapcastRowBinder {
         show(views, device);
     }
 
+    /** The host goes away: an open sheet would keep the activity alive. */
+    void shutdown() {
+        if (sheet != null && sheet.isShowing()) {
+            sheet.dismiss();
+        }
+    }
+
     private static void hide(View view) {
         if (view != null) {
             view.setVisibility(View.GONE);
@@ -159,9 +174,10 @@ final class SnapcastRowBinder {
             views.volume.setAlpha(0.5f);
             views.mute.setEnabled(false);
             views.mute.setAlpha(0.5f);
-            if (row.getVolume() >= 0 && !views.volume.isPressed()) {
-                views.volume.setProgress(row.getVolume());
-                views.volumeText.setText(row.getVolume() + "%");
+            if (!views.volume.isPressed()) {
+                // no value to show (no member plays): neither the slider nor the percentage of a recycled row stays
+                views.volume.setProgress(Math.max(0, row.getVolume()));
+                views.volumeText.setText(row.getVolume() >= 0 ? row.getVolume() + "%" : "");
             }
             if (views.mute.isChecked() != row.isMuted()) {
                 views.mute.setChecked(row.isMuted());

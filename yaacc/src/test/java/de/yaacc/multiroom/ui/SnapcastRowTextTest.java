@@ -109,7 +109,7 @@ public class SnapcastRowTextTest {
         SnapcastGroup group = threeClients("Default");
         SnapcastRowText.Row row = row(group, status(group, stream("Default", "playing")), true);
 
-        assertEquals("Stream Default · 2 of 3 clients connected · Volume 50%\nServer 192.168.1.5:1705", row.getText());
+        assertEquals("Server 192.168.1.5:1705\nStream Default · 2 of 3 clients connected · Volume 50%", row.getText());
         assertEquals(50, row.getVolume());
         assertFalse(row.isMuted());
         assertTrue(row.isControllable());
@@ -162,7 +162,7 @@ public class SnapcastRowTextTest {
         SnapcastGroup group = threeClients("");
         String text = row(group, status(group, stream("Default", "idle")), true).getText();
 
-        assertTrue(text, text.startsWith("No stream · "));
+        assertTrue(text, text.contains("\nNo stream · "));
         assertFalse(text, text.contains("unavailable"));
     }
 
@@ -171,7 +171,7 @@ public class SnapcastRowTextTest {
         SnapcastGroup group = threeClients("Default");
         SnapcastRowText.Row row = row(group, status(group, stream("Default", "playing")), false);
 
-        assertEquals("server unreachable · Stream Default\nServer 192.168.1.5:1705", row.getText());
+        assertEquals("Server 192.168.1.5:1705\nserver unreachable · Stream Default", row.getText());
         assertFalse("nothing can be changed on a server that does not answer", row.isControllable());
         assertEquals("the last known volume stays on the slider", 50, row.getVolume());
     }
@@ -188,7 +188,7 @@ public class SnapcastRowTextTest {
         SnapcastGroup group = threeClients("Default");
         SnapcastRowText.Row row = row(null, status(group), true);
 
-        assertEquals("group gone\nServer 192.168.1.5:1705", row.getText());
+        assertEquals("Server 192.168.1.5:1705\ngroup gone", row.getText());
         assertFalse(row.isControllable());
         assertEquals(-1, row.getVolume());
     }
@@ -218,7 +218,7 @@ public class SnapcastRowTextTest {
         SnapcastGroup group = threeClients("Radio\u202E\nFake\u200B");
         String text = row(group, status(group, stream("Radio\u202E\nFake\u200B", "idle")), true).getText();
 
-        assertTrue(text, text.startsWith("Stream Radio??Fake? · "));
+        assertTrue(text, text.contains("\nStream Radio??Fake? · "));
         assertEquals("one line of facts and one for the server", 1, text.split("\n").length - 1);
     }
 
@@ -228,7 +228,7 @@ public class SnapcastRowTextTest {
         SnapcastRowText.Row row = SnapcastRowText.of(group, status(group, stream("Default", "idle")), true,
                 "evil\u202E.local:1705", WORDS);
 
-        assertTrue(row.getText(), row.getText().endsWith("Server evil?.local:1705"));
+        assertTrue(row.getText(), row.getText().startsWith("Server evil?.local:1705\n"));
     }
 
     @Test
@@ -238,9 +238,10 @@ public class SnapcastRowTextTest {
             name.append('x');
         }
         SnapcastGroup group = threeClients(name.toString());
-        String first = row(group, status(group, stream(name.toString(), "idle")), true).getText().split("\n")[0];
+        String facts = row(group, status(group, stream(name.toString(), "idle")), true).getText().split("\n")[1];
 
-        assertTrue(first, first.length() < 150);
+        assertTrue(facts, facts.length() < 100);
+        assertTrue(facts, facts.startsWith("Stream " + "xxxxxxxxxxxxxxxxxxxxxxxx" + " · "));
     }
 
     @Test
@@ -254,5 +255,56 @@ public class SnapcastRowTextTest {
         assertNotEquals(row(group, status, true), row(group.withMuted(true), status, true));
         SnapcastGroup louder = group.withClient(client("a", "Kitchen", true, 80, false));
         assertNotEquals(row(group, status, true), row(louder, status, true));
+    }
+
+    @Test
+    public void theEndpointIsInTheFirstLineAndSurvivesTheWorstCaseOfTheFactsLine() {
+        // security review W2: the stream name is the server's, and "unreachable", "muted" and "unavailable" are all set
+        StringBuilder name = new StringBuilder();
+        for (int i = 0; i < 48; i++) {
+            name.append('s');
+        }
+        SnapcastGroup group = threeClients(name.toString()).withMuted(true);
+        SnapcastRowText.Row row = row(group, status(group, stream("Other", "idle")), false);
+
+        String text = row.getText();
+
+        assertTrue(text, text.indexOf("192.168.1.5:1705") >= 0 && text.indexOf("192.168.1.5:1705") + 16 <= 80);
+        assertTrue(text, text.startsWith("Server 192.168.1.5:1705\n"));
+    }
+
+    @Test
+    public void theEndpointIsFirstInEveryCase() {
+        SnapcastGroup group = threeClients("Default");
+        SnapcastServerStatus status = status(group, stream("Default", "idle"));
+
+        assertTrue(row(group, status, true).getText().startsWith("Server "));
+        assertTrue(row(group, status, false).getText().startsWith("Server "));
+        assertTrue(row(null, status, true).getText().startsWith("Server "));
+        assertTrue(row(group.withMuted(true), status(group), true).getText().startsWith("Server "));
+    }
+
+    @Test
+    public void theStreamNameOnTheRowIsCutTo24Characters() {
+        StringBuilder name = new StringBuilder();
+        for (int i = 0; i < 48; i++) {
+            name.append('n');
+        }
+        SnapcastGroup group = threeClients(name.toString());
+
+        String text = row(group, status(group, stream(name.toString(), "idle")), true).getText();
+
+        assertTrue(text, text.contains("Stream nnnnnnnnnnnnnnnnnnnnnnnn · "));
+        assertFalse(text, text.contains("nnnnnnnnnnnnnnnnnnnnnnnnn"));
+    }
+
+    @Test
+    public void theEndpointOfAGroupIsParsedFromItsReceiverId() {
+        assertEquals("192.168.1.5:1705", SnapcastRowText.endpointOf("snapcast:192.168.1.5:1705:g-a"));
+        de.yaacc.multiroom.discovery.SnapcastServerKey v6 = de.yaacc.multiroom.discovery.SnapcastEndpoint.parse("[fd00::5]:1706").toKey();
+        assertEquals(v6.asString(), SnapcastRowText.endpointOf(de.yaacc.multiroom.SnapcastGroupDevice.idOf(v6, "g-a")));
+        assertEquals("", SnapcastRowText.endpointOf("uuid:1234"));
+        assertEquals("", SnapcastRowText.endpointOf(null));
+        assertEquals("", SnapcastRowText.endpointOf("snapcast:garbage"));
     }
 }

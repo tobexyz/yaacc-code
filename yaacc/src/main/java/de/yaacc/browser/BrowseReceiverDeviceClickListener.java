@@ -48,12 +48,12 @@ public class BrowseReceiverDeviceClickListener implements View.OnClickListener {
                 .findViewById(R.id.browseReceiverDeviceItemCheckbox);
         Device<?, ?, ?> device = (Device<?, ?, ?>) adapter.getItem(recyclerView.getChildAdapterPosition(itemView));
         if (checkBox.isChecked()) {
-            YaaccLogger.d(getClass().getName(), "isChecked:" + device.getDisplayString());
+            YaaccLogger.d(getClass().getName(), "isChecked:" + ReceiverRowBinder.logName(device));
             adapter.removeSelectedDevice(device);
             upnpClient.removeReceiverDevice(device);
             checkBox.setChecked(false);
         } else {
-            YaaccLogger.d(getClass().getName(), "isNotChecked:" + device.getDisplayString());
+            YaaccLogger.d(getClass().getName(), "isNotChecked:" + ReceiverRowBinder.logName(device));
             adapter.addSelectedDevice(device);
             upnpClient.addReceiverDevice(device);
             checkBox.setChecked(true);

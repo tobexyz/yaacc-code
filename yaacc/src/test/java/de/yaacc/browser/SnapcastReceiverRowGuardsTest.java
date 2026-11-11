@@ -103,4 +103,23 @@ public class SnapcastReceiverRowGuardsTest {
 
         assertEquals(2, ReceiverLiveUpdates.watched(receivers).size());
     }
+
+    @Test
+    public void theLogNameOfAGroupCarriesNothingOfTheServer() {
+        // security review S45: a group's display string is cleaned server text (or a host name of a client)
+        String logged = ReceiverRowBinder.logName(group());
+
+        assertEquals("Snapcast group", logged);
+        assertFalse(logged.contains("Ground floor"));
+        assertFalse(logged.contains("Kitchen"));
+    }
+
+    @Test
+    public void theLogNameOfAnotherReceiverIsItsDisplayString() {
+        Device<?, ?, ?> other = mock(Device.class);
+        when(other.getDisplayString()).thenReturn("Living room player");
+
+        assertEquals("Living room player", ReceiverRowBinder.logName(other));
+    }
 }
+

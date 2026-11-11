@@ -77,7 +77,10 @@ public interface SnapcastServerLink extends Closeable {
     /** Connects now if the link waits for a retry or gave up. */
     void retry();
 
-    /** Releases the connection and every thread; the link can not be used again. */
+    /**
+     * Releases the connection and every thread; the link can not be used again. Tells its listeners once, before it drops
+     * them, that it is offline (the owner of a feed to this server must hear of it), and does nothing the second time.
+     */
     @Override
     void close();
 }

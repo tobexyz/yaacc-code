@@ -558,6 +558,7 @@ public class SnapcastDirectoryTest {
         directory.discoveryStopped();
         assertEquals("nothing was discovered", before, notifications);
 
+        directory.discoveryRestarted(); // a scan is on again
         directory.serviceFound("A", ip(10, 0, 0, 3), 1705);
         before = notifications;
         directory.discoveryStopped();
@@ -587,4 +588,64 @@ public class SnapcastDirectoryTest {
         assertEquals(1, directory.setManualServers(Collections.singletonList(manual("10.0.0.2:80"))));
         assertEquals(1, directory.servers().size());
     }
+
+    // ---- a late sighting after the switch was turned off (security review S41)
+
+    @Test
+    public void aSightingThatArrivesAfterDiscoveryWasStoppedListsNothing() throws Exception {
+        directory.discoveryStopped();
+
+        assertFalse(directory.serviceFound("Late", ip(10, 0, 0, 2), 1705));
+
+        assertTrue(directory.servers().isEmpty());
+        assertNull(directory.find(key("10.0.0.2:1705")));
+    }
+
+    @Test
+    public void aSightingThatResolvedWhileTheSwitchWasFlippedDoesNotSurvive() throws Exception {
+        directory.serviceFound("A", ip(10, 0, 0, 2), 1705);
+        directory.discoveryStopped();
+
+        directory.serviceFound("A", ip(10, 0, 0, 2), 1705); // the callback that had checked "current" just before the stop
+
+        assertTrue(directory.servers().isEmpty());
+    }
+
+    @Test
+    public void whenDiscoveryStartsAgainSightingsAreListed() throws Exception {
+        directory.discoveryStopped();
+        directory.discoveryRestarted();
+
+        assertTrue(directory.serviceFound("Again", ip(10, 0, 0, 2), 1705));
+        assertEquals(1, directory.servers().size());
+    }
+
+    @Test
+    public void aFreshDirectoryTakesSightingsBecauseTheScanOnlyStartsWhenItIsWanted() throws Exception {
+        assertTrue(directory.serviceFound("First", ip(10, 0, 0, 2), 1705));
+    }
+
+    @Test
+    public void typedInAndRememberedServersAreUnaffectedWhileDiscoveryIsStopped() throws Exception {
+        directory.discoveryStopped();
+
+        assertEquals(1, directory.setManualServers(Collections.singletonList(manual("10.0.0.2"))));
+        assertEquals(1, directory.setRememberedServers(Collections.singletonList(manual("10.0.0.3:1705"))));
+
+        assertEquals(2, directory.servers().size());
+        assertFalse("a sighting of a typed-in server does not mark it discovered while stopped",
+                directory.serviceFound("A", ip(10, 0, 0, 2), 1705));
+        assertFalse(directory.find(key("10.0.0.2")).isDiscovered());
+    }
+
+    @Test
+    public void aServiceLostAfterStopDoesNothing() throws Exception {
+        directory.discoveryStopped();
+        int before = notifications;
+
+        directory.serviceLost("Whatever");
+
+        assertEquals(before, notifications);
+    }
 }
+
