@@ -138,8 +138,11 @@ android {
         unitTests.all { testTask ->
             // opt-in rig tests (tools/snapcast-rig): -Dsnapcast.rig=<host> on the Gradle command line is handed on to
             // the test JVM; without it nothing is set and the rig tests are skipped
-            if (System.getProperty('snapcast.rig')) {
-                testTask.systemProperty 'snapcast.rig', System.getProperty('snapcast.rig')
+            // (snapcast.rig.seconds and snapcast.rig.expectChunks tune the binary protocol rig test)
+            ['snapcast.rig', 'snapcast.rig.seconds', 'snapcast.rig.expectChunks'].each { name ->
+                if (System.getProperty(name)) {
+                    testTask.systemProperty name, System.getProperty(name)
+                }
             }
         }
     }

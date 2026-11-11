@@ -174,13 +174,13 @@ Carried over from the security review of Group 3 (`security-review.md` S17 to S2
 - [ ] A.3 Task 6.3 (hint) and the remaining open checks of `docs/tech.md` "Open checks for the owner".
 
 ## Group 7 (Phase B): Binary protocol and time sync (P1, pure Java, tests first)
-- [ ] 7.1 Message codec: Base, Hello, ServerSettings, CodecHeader, WireChunk, Time, ClientInfo, Error (little endian) | `de.yaacc.multiroom.protocol`, tests with byte fixtures
+- [x] 7.1 (done 2026-11-11: `SnapcastMessageCodec`, `FrameReader`, message classes, `PcmFormat`, `FlacStreamInfo`; tests `SnapcastMessageCodecTest`, `FrameReaderTest`, `HelloMessageTest`, `ServerSettingsMessageTest`, `PcmFormatTest`, `FlacStreamInfoTest`; see `decisions.md`) Message codec: Base, Hello, ServerSettings, CodecHeader, WireChunk, Time, ClientInfo, Error (little endian) | `de.yaacc.multiroom.protocol`, tests with byte fixtures
   - **Accept**: round trip of every message; truncated/oversized messages give a typed error; payload size caps (e.g. 8 MiB) hold; unknown types are skipped by size.
   - **Verify**: `SnapcastMessageCodecTest`.
-- [ ] 7.2 `SnapcastConnection` (TCP 1704: Hello, settings, header, chunks, time sync loop, reconnect) | same package, loopback fake server tests, opt-in rig test
+- [x] 7.2 (done 2026-11-11 with `SnapcastConnectionTest` on a loopback fake server; **the rig run is still the owner's**: `SnapcastBinaryRigTest` is written and skipped here) `SnapcastConnection` (TCP 1704: Hello, settings, header, chunks, time sync loop, reconnect) | same package, loopback fake server tests, opt-in rig test
   - **Accept**: against the rig a Java client receives chunks for 10 minutes and its offset converges (jitter reported); no chunk is played before the codec header; server loss is reported once.
   - **Verify**: `SnapcastConnectionTest`; rig test output.
-- [ ] 7.3 `ClockOffsetFilter` and `ChunkScheduler` (pure) | same package
+- [x] 7.3 (done 2026-11-11: bound proven in `ClockOffsetFilterTest`, scheduler in `ChunkSchedulerTest`) `ClockOffsetFilter` and `ChunkScheduler` (pure) | same package
   - **Accept**: a simulated asymmetric/jittery network keeps the offset within a stated bound; late chunks are dropped, early chunks wait.
   - **Verify**: `ClockOffsetFilterTest`, `ChunkSchedulerTest`.
 

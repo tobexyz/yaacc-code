@@ -34,7 +34,9 @@ import java.util.List;
  * and {@code ;}). {@link #parse} therefore scans the text first, quote-aware, and refuses nesting deeper than
  * {@link SnapcastLimits#MAX_DEPTH}, more than {@link SnapcastLimits#MAX_TOKENS} tokens, the lenient forms and anything
  * after the one value. The {@code StackOverflowError} handler stays as the last line of defense (precedent:
- * {@code de.yaacc.yxc.YxcJson}).
+ * {@code de.yaacc.yxc.YxcJson}). The class is public only because the binary protocol client
+ * ({@code de.yaacc.multiroom.protocol}) reads its JSON messages through the same guard; just the entry points it needs
+ * are public.
  *
  * <p><b>Where a string starts.</b> The scan must agree with the parser that runs behind it. Android's
  * {@code JSONTokener} reads a value that does not start with a quote as a literal up to one of {@code {}[]/\:,=;#} or
@@ -43,7 +45,7 @@ import java.util.List;
  * So a quote outside a string is accepted only where a value or a name can begin: directly after {@code {},
  * {@code [}, {@code ,} or {@code :}, white space aside. Everything else is refused as malformed.
  */
-final class SnapcastJson {
+public final class SnapcastJson {
 
     private SnapcastJson() {
     }
@@ -74,7 +76,7 @@ final class SnapcastJson {
         }
     }
 
-    static JSONObject parseObject(String text) throws SnapcastException {
+    public static JSONObject parseObject(String text) throws SnapcastException {
         Object value = parse(text);
         if (!(value instanceof JSONObject)) {
             throw SnapcastException.malformed("not a JSON object");
@@ -195,7 +197,7 @@ final class SnapcastJson {
      * same on the screen are the same text, or show a {@code ?} where they differ. It is still the server's text (display
      * only, never an identity, never a log line). The result is never longer than {@code max}.
      */
-    static String displayText(String text, int max) {
+    public static String displayText(String text, int max) {
         if (text == null) {
             return null;
         }
@@ -250,7 +252,7 @@ final class SnapcastJson {
     }
 
     /** Cuts a string at {@link SnapcastLimits#MAX_STRING_LENGTH} characters, never inside a surrogate pair. */
-    static String truncate(String text) {
+    public static String truncate(String text) {
         if (text == null) {
             return null;
         }
@@ -266,7 +268,7 @@ final class SnapcastJson {
     }
 
     /** A string (a number or boolean is rendered as text), truncated; the default if absent or another type. */
-    static String string(JSONObject object, String key, String defaultValue) {
+    public static String string(JSONObject object, String key, String defaultValue) {
         Object value = value(object, key);
         if (value instanceof String) {
             return truncate((String) value);
@@ -283,7 +285,7 @@ final class SnapcastJson {
         return value instanceof String ? truncate((String) value) : null;
     }
 
-    static boolean bool(JSONObject object, String key, boolean defaultValue) {
+    public static boolean bool(JSONObject object, String key, boolean defaultValue) {
         Object value = value(object, key);
         return value instanceof Boolean ? (Boolean) value : defaultValue;
     }
@@ -322,7 +324,7 @@ final class SnapcastJson {
      * A number clamped into {@code min..max}. Large and odd values are handled without {@code intValue()}: a
      * {@code BigDecimal} such as 1e2147483647 would take forever to turn into a whole number.
      */
-    static int integer(JSONObject object, String key, int min, int max, int defaultValue) {
+    public static int integer(JSONObject object, String key, int min, int max, int defaultValue) {
         return clamp(value(object, key), min, max, defaultValue);
     }
 
