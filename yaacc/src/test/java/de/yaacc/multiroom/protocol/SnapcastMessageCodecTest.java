@@ -305,13 +305,15 @@ public class SnapcastMessageCodecTest {
     }
 
     @Test
-    public void theSizeCapIs8MibForChunksAndCodecHeadersAnd64KibForTheRest() throws Exception {
+    public void theSizeCapIs8MibForChunksAboutTheHeaderCapForCodecHeadersAnd64KibForTheRest() throws Exception {
         long bulk = 8L * 1024 * 1024;
         assertEquals(bulk, SnapcastMessageCodec.parseHeader(Bytes.header(2, 0, 0, 0, 0, 0, 0, bulk)).getSize());
-        assertEquals(bulk, SnapcastMessageCodec.parseHeader(Bytes.header(1, 0, 0, 0, 0, 0, 0, bulk)).getSize());
-        for (int type : new int[]{2, 1}) {
-            assertRejected(SnapcastProtocolException.Kind.TOO_LARGE, Bytes.header(type, 0, 0, 0, 0, 0, 0, bulk + 1));
-        }
+        assertRejected(SnapcastProtocolException.Kind.TOO_LARGE, Bytes.header(2, 0, 0, 0, 0, 0, 0, bulk + 1));
+        // a codec header holds a name and a header of at most 64 KiB, the rest of its room is for the two lengths
+        long header = SnapcastProtocolLimits.MAX_CODEC_HEADER_PAYLOAD + 64;
+        assertEquals(header, SnapcastMessageCodec.parseHeader(Bytes.header(1, 0, 0, 0, 0, 0, 0, header)).getSize());
+        assertRejected(SnapcastProtocolException.Kind.TOO_LARGE, Bytes.header(1, 0, 0, 0, 0, 0, 0, header + 1));
+        assertRejected(SnapcastProtocolException.Kind.TOO_LARGE, Bytes.header(1, 0, 0, 0, 0, 0, 0, bulk));
         long small = 64L * 1024;
         for (int type : new int[]{3, 4, 5, 7, 8, 6, 0, 9, 1000}) {
             assertEquals(small, SnapcastMessageCodec.parseHeader(Bytes.header(type, 0, 0, 0, 0, 0, 0, small)).getSize());

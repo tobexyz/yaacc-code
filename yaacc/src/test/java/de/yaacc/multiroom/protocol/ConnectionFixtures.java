@@ -102,7 +102,7 @@ final class ConnectionFixtures {
             }
         }
 
-        void send(byte[] bytes) throws IOException {
+        synchronized void send(byte[] bytes) throws IOException {
             out.write(bytes);
             out.flush();
         }

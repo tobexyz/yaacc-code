@@ -63,8 +63,10 @@ import java.util.function.Consumer;
  * settings and the header must be there {@code handshakeTimeoutMs} (10 s) after the Hello, and a connection that
  * delivers nothing at all for {@code idleTimeoutMs} (10 s) is dropped.
  *
- * <p><b>Threads.</b> One reader thread per connection attempt reads, decodes, answers the time sync and writes the
- * Hello; it never calls a listener. Listeners run on a serial executor (an own thread unless the caller gives one),
+ * <p><b>Threads.</b> One reader thread per connection attempt reads and decodes, and decides when a Time request is due;
+ * one writer thread is the only code that writes to the socket (so a server that stops reading holds nobody: a full
+ * queue of 32 ends the connection). The reader counts the frames of the server and drops the connection above
+ * {@code maxFramesPerSecond} (2000) of the injected clock. Neither thread calls a listener. Listeners run on a serial executor (an own thread unless the caller gives one),
  * in the order of the stream. What waits for a slow listener is bounded for every kind of event: chunks in count and bytes
  * (a chunk beyond the bounds is dropped and counted), server settings and offset updates keep only the latest value,
  * and codec headers (never replaced or dropped silently, the order to the chunks matters) are limited to
@@ -202,6 +204,7 @@ public final class SnapcastConnection implements Closeable {
         private int maxPendingChunks = 256;
         private long maxPendingChunkBytes = 4L * 1024 * 1024;
         private int maxPendingHeaders = 8;
+        private int maxFramesPerSecond = 2_000;
 
         private static long positive(String name, long value) {
             if (value < 1) {
@@ -300,6 +303,17 @@ public final class SnapcastConnection implements Closeable {
             return this;
         }
 
+        /**
+         * The most frames of the server that are accepted in one second (default 2000), counted on the injected clock;
+         * more ends the connection as PROTOCOL_ERROR. A real server sends one chunk per {@code chunk_ms} (20 ms by
+         * default, so 50 a second) and one Time answer per request (about one a second); 2000 a second would be a chunk
+         * every half millisecond.
+         */
+        public Config maxFramesPerSecond(int value) {
+            maxFramesPerSecond = (int) positive("maxFramesPerSecond", value);
+            return this;
+        }
+
         private Config copy() {
             Config c = new Config();
             c.connectTimeoutMs = connectTimeoutMs;
@@ -317,6 +331,7 @@ public final class SnapcastConnection implements Closeable {
             c.maxPendingChunks = maxPendingChunks;
             c.maxPendingChunkBytes = maxPendingChunkBytes;
             c.maxPendingHeaders = maxPendingHeaders;
+            c.maxFramesPerSecond = maxFramesPerSecond;
             return c;
         }
     }
@@ -342,8 +357,7 @@ public final class SnapcastConnection implements Closeable {
     private boolean lossReported;
     private volatile boolean closed;
 
-    private final Object writeLock = new Object();
-    private OutputStream activeOut; // guarded by writeLock
+    private volatile Writer activeWriter;
     private final AtomicInteger nextId = new AtomicInteger(1);
 
     private final AtomicInteger pendingChunks = new AtomicInteger();
@@ -399,8 +413,18 @@ public final class SnapcastConnection implements Closeable {
         }
     }
 
-    /** A connection to this address and port (the default port 1704) with the default settings and own threads. */
+    /**
+     * A connection to this address and port (default port {@value #DEFAULT_PORT}) with the default settings and own
+     * threads. Pass an address that is already resolved (the one the control connection uses, or one resolved once by the
+     * caller), never a name: a name is looked up again at every reconnect, which can change its answer and holds a
+     * thread in the resolver that {@link #close()} can not end. The wildcard, multicast addresses and bad ports are
+     * refused with an {@link IllegalArgumentException}.
+     */
     public static SnapcastConnection forAddress(InetAddress address, int port, HelloMessage hello) {
+        if (address == null || address.isAnyLocalAddress() || address.isMulticastAddress()) {
+            // the wildcard connects to the phone itself, a multicast address to nobody in particular
+            throw new IllegalArgumentException("not an address of a server");
+        }
         return new SnapcastConnection(new SocketTransport(address, port), hello, new Config(), null, null, null);
     }
 
@@ -441,6 +465,13 @@ public final class SnapcastConnection implements Closeable {
     /** Chunks that arrived before the codec header and were not delivered. */
     public long getDroppedBeforeHeader() {
         return droppedBeforeHeader.get();
+    }
+
+    /** Frames of the server that were read and handled so far (all attempts together). */
+    long framesHandled() {
+        synchronized (progressLock) {
+            return framesRead;
+        }
     }
 
     /** Time answers that did not belong to a request of ours. */
@@ -535,9 +566,7 @@ public final class SnapcastConnection implements Closeable {
         if (ownListenerExecutor != null) {
             ownListenerExecutor.shutdownNow();
         }
-        synchronized (writeLock) {
-            activeOut = null;
-        }
+        activeWriter = null;
     }
 
     private static void closeQuietly(SnapcastTransport.Connection toClose) {
@@ -549,32 +578,77 @@ public final class SnapcastConnection implements Closeable {
     // ---- sending
 
     /**
-     * Tells the server the volume of this client (0 to 100) and whether it is muted.
+     * Tells the server the volume of this client (0 to 100) and whether it is muted. It never blocks: the message is
+     * handed to the writer thread of the connection, and when an earlier one has not been written yet it is replaced
+     * (only the latest values matter).
      *
-     * @return false when there is no connection or the write failed
+     * @return false when there is no connection or the writer's queue is full
      */
     public boolean sendClientInfo(int volume, boolean muted) {
-        byte[] bytes = SnapcastMessageCodec.encode(new ClientInfoMessage(volume, muted), nextMessageId(), 0,
-                clock.nowMicros());
-        try {
-            write(bytes);
-            return true;
-        } catch (IOException e) {
+        Writer writer = activeWriter;
+        if (writer == null) {
             return false;
         }
+        byte[] bytes = SnapcastMessageCodec.encode(new ClientInfoMessage(volume, muted), nextMessageId(), 0,
+                clock.nowMicros());
+        return writer.offerClientInfo(bytes);
     }
 
     private int nextMessageId() {
         return nextId.getAndUpdate(value -> value >= 0xffff ? 1 : value + 1);
     }
 
-    private void write(byte[] bytes) throws IOException {
-        synchronized (writeLock) {
-            if (activeOut == null) {
-                throw new IOException("not connected");
+    /**
+     * The only thread that writes to the socket. A server that stops reading can block a write for good (a socket has no
+     * write timeout), so nobody else waits for one: the reader hands messages over through a bounded queue, and when the
+     * queue is full the server is not reading and the connection is given up. A failed write closes the socket, which
+     * ends the reader.
+     */
+    private static final class Writer {
+        private static final int MAX_QUEUED = 32;
+        private static final byte[] CLIENT_INFO_MARKER = new byte[0];
+
+        private final java.util.concurrent.LinkedBlockingQueue<byte[]> queue = new java.util.concurrent.LinkedBlockingQueue<>(MAX_QUEUED);
+        private final AtomicReference<byte[]> clientInfo = new AtomicReference<>();
+        private final Thread thread;
+
+        Writer(final OutputStream out, final SnapcastTransport.Connection socket) {
+            thread = new Thread(() -> {
+                try {
+                    while (true) {
+                        byte[] next = queue.take();
+                        if (next == CLIENT_INFO_MARKER) {
+                            next = clientInfo.getAndSet(null);
+                            if (next == null) {
+                                continue;
+                            }
+                        }
+                        out.write(next);
+                        out.flush();
+                    }
+                } catch (IOException | InterruptedException e) {
+                    socket.close(); // wakes the reader
+                }
+            }, "snapcast-bin-writer");
+            thread.setDaemon(true);
+            thread.start();
+        }
+
+        /** @return false when the queue is full: the server does not read */
+        boolean offer(byte[] bytes) {
+            return queue.offer(bytes);
+        }
+
+        boolean offerClientInfo(byte[] bytes) {
+            if (clientInfo.getAndSet(bytes) == null && !queue.offer(CLIENT_INFO_MARKER)) {
+                clientInfo.set(null);
+                return false;
             }
-            activeOut.write(bytes);
-            activeOut.flush();
+            return true;
+        }
+
+        void stop() {
+            thread.interrupt();
         }
     }
 
@@ -642,9 +716,7 @@ public final class SnapcastConnection implements Closeable {
             lossReported = true;
             token = generation;
         }
-        synchronized (writeLock) {
-            activeOut = null;
-        }
+        activeWriter = null;
         // the retry is set up before the listeners hear of the loss, so a listener that reacts to it finds it scheduled
         if (!giveUp) {
             scheduler.schedule(() -> retryTimerFired(token), delay);
@@ -816,6 +888,8 @@ public final class SnapcastConnection implements Closeable {
         private boolean settingsSeen;
         private boolean headerSeen;
         private int consecutiveUnexpected;
+        private long windowStartedAt;
+        private int framesInWindow;
         private long startedAt;
         private long lastReceivedAt;
         private long nextTimeSyncAt;
@@ -829,21 +903,20 @@ public final class SnapcastConnection implements Closeable {
 
         /** Runs until the connection ends; returns why. */
         Loss run() {
-            OutputStream out = null;
+            Writer writer = null;
             try {
                 InputStream in = socket.getInputStream();
-                out = socket.getOutputStream();
-                synchronized (writeLock) {
-                    activeOut = out;
-                }
-                FrameReader reader = new FrameReader(in, clock, config.messageDeadlineMs, socket::setReadTimeout);
+                writer = new Writer(socket.getOutputStream(), socket);
+                activeWriter = writer;
+                FrameReader reader = FrameReader.forClient(in, clock, config.messageDeadlineMs, socket::setReadTimeout,
+                        (int) Math.min(Integer.MAX_VALUE, config.maxPendingChunkBytes));
                 startedAt = clock.nowMicros();
                 lastReceivedAt = startedAt;
-                write(SnapcastMessageCodec.encode(hello, nextMessageId(), 0, startedAt));
+                writer.offer(SnapcastMessageCodec.encode(hello, nextMessageId(), 0, startedAt));
                 while (isCurrent(attempt)) {
                     long now = clock.nowMicros();
-                    if (settingsSeen && now >= nextTimeSyncAt) {
-                        sendTimeRequest(now);
+                    if (settingsSeen && now >= nextTimeSyncAt && !sendTimeRequest(writer, now)) {
+                        return new Loss(LossReason.TIMEOUT, "the server does not read");
                     }
                     if (!handshaked && now - startedAt > config.handshakeTimeoutMs * 1000L) {
                         return new Loss(LossReason.TIMEOUT, "handshake");
@@ -862,6 +935,9 @@ public final class SnapcastConnection implements Closeable {
                     }
                     now = clock.nowMicros();
                     lastReceivedAt = now;
+                    if (overBudget(now)) {
+                        return new Loss(LossReason.PROTOCOL_ERROR, "too many frames");
+                    }
                     Loss problem = handle(frame, now);
                     if (problem != null) {
                         return problem;
@@ -874,12 +950,22 @@ public final class SnapcastConnection implements Closeable {
             } catch (IOException e) {
                 return new Loss(LossReason.IO_ERROR, "");
             } finally {
-                synchronized (writeLock) {
-                    if (activeOut == out) {
-                        activeOut = null;
+                if (writer != null) {
+                    if (activeWriter == writer) {
+                        activeWriter = null;
                     }
+                    writer.stop();
                 }
             }
+        }
+
+        /** Counts the frame in the window of the current second of the injected clock. */
+        private boolean overBudget(long now) {
+            if (now - windowStartedAt >= 1_000_000L || now < windowStartedAt) {
+                windowStartedAt = now;
+                framesInWindow = 0;
+            }
+            return ++framesInWindow > config.maxFramesPerSecond;
         }
 
         private Loss lossOf(SnapcastProtocolException e) {
@@ -915,7 +1001,8 @@ public final class SnapcastConnection implements Closeable {
             return Math.max(1, (dueMicros - now + 999) / 1000);
         }
 
-        private void sendTimeRequest(long now) throws IOException {
+        /** @return false when the writer's queue is full */
+        private boolean sendTimeRequest(Writer writer, long now) {
             int id = nextMessageId();
             if (pendingTime.size() >= MAX_PENDING_TIME_REQUESTS) {
                 Iterator<Integer> oldest = pendingTime.keySet().iterator();
@@ -923,11 +1010,12 @@ public final class SnapcastConnection implements Closeable {
                 oldest.remove();
             }
             pendingTime.put(id, now);
-            write(SnapcastMessageCodec.encode(new TimeMessage(0, 0), id, 0, now));
+            boolean queued = writer.offer(SnapcastMessageCodec.encode(new TimeMessage(0, 0), id, 0, now));
             timeRequestsSent++;
             long interval = timeRequestsSent < config.timeSyncBurstCount ? config.timeSyncBurstIntervalMs
                     : config.timeSyncIntervalMs;
             nextTimeSyncAt = now + interval * 1000L;
+            return queued;
         }
 
         /** @return why the connection must end, or null to go on */
@@ -969,8 +1057,10 @@ public final class SnapcastConnection implements Closeable {
                     }
                     return null;
                 case TIME:
+                    if (!handleTime(frame, now)) {
+                        return unexpected(); // an answer nobody asked for must not make the other strange frames forgiven
+                    }
                     consecutiveUnexpected = 0;
-                    handleTime(frame, now);
                     return null;
                 case ERROR: {
                     ErrorMessage error = (ErrorMessage) message;
@@ -1000,12 +1090,13 @@ public final class SnapcastConnection implements Closeable {
             }
         }
 
-        private void handleTime(Frame frame, long now) {
+        /** @return false for an answer that does not belong to a request of ours */
+        private boolean handleTime(Frame frame, long now) {
             MessageHeader header = frame.getHeader();
             Long sentAt = pendingTime.remove(header.getRefersTo());
             if (sentAt == null) {
                 unsolicitedTime.incrementAndGet();
-                return;
+                return false;
             }
             long c2s = ((TimeMessage) frame.getMessage()).latencyMicros();
             long s2c = now - header.sentMicros();
@@ -1022,6 +1113,7 @@ public final class SnapcastConnection implements Closeable {
                         (listener, values) -> listener.onOffsetUpdate(values[0], values[1]));
             }
             noteTimeAnswer();
+            return true;
         }
     }
 }

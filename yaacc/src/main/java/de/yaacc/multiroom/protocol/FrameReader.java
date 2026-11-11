@@ -50,6 +50,8 @@ public final class FrameReader {
     private final InputStream in;
     private final MicroClock clock;
     private final ReadTimeout timeout;
+    private final boolean clientSide;
+    private final int maxChunkBody;
     private final long deadlineMicros;
     private final byte[] headerBuffer = new byte[SnapcastProtocolLimits.HEADER_SIZE];
     private byte[] skipBuffer;
@@ -70,10 +72,29 @@ public final class FrameReader {
      *                to wake up for a timer). The stall that exceeds it ends as TIMEOUT.
      */
     public FrameReader(InputStream in, MicroClock clock, long messageDeadlineMillis, ReadTimeout timeout) {
+        this(in, clock, messageDeadlineMillis, timeout, false, SnapcastProtocolLimits.MAX_BULK_BODY);
+    }
+
+    private FrameReader(InputStream in, MicroClock clock, long messageDeadlineMillis, ReadTimeout timeout,
+                        boolean clientSide, int maxChunkBody) {
+        this.clientSide = clientSide;
+        this.maxChunkBody = maxChunkBody;
         this.in = in;
         this.clock = clock;
         this.deadlineMicros = messageDeadlineMillis * 1000L;
         this.timeout = timeout;
+    }
+
+    /**
+     * A reader for the client side of a connection. A server sends neither a Hello nor a ClientInfo, so frames of those
+     * types are read past by size like unknown ones and never parsed (a flood of them costs a read, not a JSON parse),
+     * and a WireChunk larger than {@code maxChunkBytes} (the client's budget for chunks that wait; a real chunk is a few
+     * KB) is refused before its body is read.
+     */
+    public static FrameReader forClient(InputStream in, MicroClock clock, long messageDeadlineMillis, ReadTimeout timeout,
+                                        int maxChunkBytes) {
+        int cap = (int) Math.min(SnapcastProtocolLimits.MAX_BULK_BODY, Math.max(0L, (long) maxChunkBytes) + 12);
+        return new FrameReader(in, clock, messageDeadlineMillis, timeout, true, cap);
     }
 
     /**
@@ -91,9 +112,10 @@ public final class FrameReader {
             int count = readSome(headerBuffer, have, headerBuffer.length - have);
             have += count;
         }
-        MessageHeader header = SnapcastMessageCodec.parseHeader(headerBuffer);
+        MessageHeader header = MessageHeader.parse(headerBuffer, maxChunkBody);
         int size = header.getSize();
-        if (MessageType.of(header.getType()) == null) {
+        MessageType type = MessageType.of(header.getType());
+        if (type == null || (clientSide && (type == MessageType.HELLO || type == MessageType.CLIENT_INFO))) {
             skip(size);
             return new Frame(header, null);
         }

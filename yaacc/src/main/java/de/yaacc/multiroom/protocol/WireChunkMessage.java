@@ -44,6 +44,13 @@ public final class WireChunkMessage implements SnapcastBinaryMessage {
         this.payload = payload.clone();
     }
 
+    /** Takes over a payload that nobody else holds (it was just cut out of a message): no second copy. */
+    private WireChunkMessage(int timestampSec, int timestampUsec, byte[] ownedPayload, boolean owned) {
+        this.timestampSec = timestampSec;
+        this.timestampUsec = timestampUsec;
+        this.payload = ownedPayload;
+    }
+
     public int getTimestampSec() {
         return timestampSec;
     }
@@ -79,7 +86,11 @@ public final class WireChunkMessage implements SnapcastBinaryMessage {
     static WireChunkMessage decode(ByteReader reader) throws SnapcastProtocolException {
         int sec = reader.i32();
         int usec = reader.i32();
-        return new WireChunkMessage(sec, usec, reader.lengthPrefixed());
+        byte[] payload = reader.lengthPrefixed();
+        if (payload.length > MAX_PAYLOAD) {
+            throw new SnapcastProtocolException(SnapcastProtocolException.Kind.TOO_LARGE, "payload larger than a message may be");
+        }
+        return new WireChunkMessage(sec, usec, payload, true);
     }
 
     @Override

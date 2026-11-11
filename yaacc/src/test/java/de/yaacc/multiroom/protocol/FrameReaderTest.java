@@ -160,6 +160,53 @@ public class FrameReaderTest {
     }
 
     @Test
+    public void aCodecHeaderThatPromisesMoreThanAHeaderCanBeIsRefusedBeforeTheBody() throws Exception {
+        ScriptedStream stream = new ScriptedStream(null, 0)
+                .bytes(Bytes.concat(Bytes.header(1, 0, 0, 0, 0, 0, 0, 1024 * 1024), new byte[100]));
+
+        try {
+            readerOf(stream).read();
+            fail();
+        } catch (SnapcastProtocolException e) {
+            assertEquals(SnapcastProtocolException.Kind.TOO_LARGE, e.getKind());
+        }
+        assertEquals(26, stream.consumed);
+    }
+
+    @Test
+    public void aClientReaderSkipsTheTypesAServerNeverSendsWithoutParsingThem() throws Exception {
+        byte[] garbageHello = Bytes.frame(5, Bytes.jsonBody("this is not json"));
+        byte[] garbageInfo = Bytes.frame(7, Bytes.jsonBody("[[["));
+        byte[] time = SnapcastMessageCodec.encode(new TimeMessage(3, 4), 1, 0, 0, 0, 0, 0);
+        FrameReader reader = FrameReader.forClient(new ByteArrayInputStream(Bytes.concat(garbageHello, garbageInfo, time)),
+                new ManualClock(0), 10_000, null, 1024 * 1024);
+
+        assertTrue(reader.read().isSkipped());
+        assertTrue(reader.read().isSkipped());
+        assertEquals(new TimeMessage(3, 4), reader.read().getMessage());
+        try {
+            readerOf(new ByteArrayInputStream(garbageHello)).read(); // the plain reader still decodes (a server reads Hellos)
+            fail();
+        } catch (SnapcastProtocolException e) {
+            assertEquals(SnapcastProtocolException.Kind.MALFORMED, e.getKind());
+        }
+    }
+
+    @Test
+    public void aClientReaderRefusesAChunkAboveItsBudgetBeforeTheBody() throws Exception {
+        ScriptedStream stream = new ScriptedStream(null, 0)
+                .bytes(Bytes.concat(Bytes.header(2, 0, 0, 0, 0, 0, 0, 20_000 + 12), new byte[100]));
+
+        try {
+            FrameReader.forClient(stream, new ManualClock(0), 10_000, null, 10_000).read();
+            fail();
+        } catch (SnapcastProtocolException e) {
+            assertEquals(SnapcastProtocolException.Kind.TOO_LARGE, e.getKind());
+        }
+        assertEquals(26, stream.consumed);
+    }
+
+    @Test
     public void aNegativeSizeIsRefusedAfterTheHeader() throws Exception {
         ScriptedStream stream = new ScriptedStream(null, 0)
                 .bytes(Bytes.concat(Bytes.header(2, 0, 0, 0, 0, 0, 0, 0xfffffff0L), new byte[100]));

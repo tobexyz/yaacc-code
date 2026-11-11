@@ -50,9 +50,20 @@ public final class SnapcastProtocolLimits {
     public static final int MIN_VOLUME = 0;
     public static final int MAX_VOLUME = 100;
 
+    /** The largest typed message of a CodecHeader: a name of at most 32 bytes, the header, and two lengths. */
+    public static final int MAX_CODEC_HEADER_BODY = MAX_CODEC_HEADER_PAYLOAD + 64;
+
     /** The largest typed message size for a message type id (known or not). */
     static int maxBody(int type) {
-        return type == MessageType.WIRE_CHUNK.id() || type == MessageType.CODEC_HEADER.id() ? MAX_BULK_BODY : MAX_SMALL_BODY;
+        return maxBody(type, MAX_BULK_BODY);
+    }
+
+    /** As above with a lower cap for a WireChunk (the client's own budget for chunks that wait). */
+    static int maxBody(int type, int maxChunkBody) {
+        if (type == MessageType.WIRE_CHUNK.id()) {
+            return maxChunkBody;
+        }
+        return type == MessageType.CODEC_HEADER.id() ? MAX_CODEC_HEADER_BODY : MAX_SMALL_BODY;
     }
 
     private SnapcastProtocolLimits() {

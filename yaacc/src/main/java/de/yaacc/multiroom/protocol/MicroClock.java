@@ -27,24 +27,38 @@ public interface MicroClock {
     long nowMicros();
 
     /**
-     * The real clock: the monotonic clock counted from the first use of this class, so the seconds of a timestamp always
-     * fit into the 32 bits of the protocol (a raw {@code System.nanoTime()} has an arbitrary origin).
+     * The real clock: {@code System.nanoTime()} counted from the first use of this class, so the seconds of a timestamp
+     * always fit into the 32 bits of the protocol (a raw {@code nanoTime} has an arbitrary origin). On Android that
+     * source does not run while the CPU sleeps; the audio engine builds its clock with
+     * {@link #fromNanoSource} and {@code SystemClock.elapsedRealtimeNanos()} instead (Group 8).
      */
     static MicroClock monotonic() {
         return Monotonic.INSTANCE;
     }
 
-    /** Holder of the real clock. */
-    final class Monotonic implements MicroClock {
-        static final Monotonic INSTANCE = new Monotonic();
-        private final long originNanos = System.nanoTime();
+    /**
+     * A clock on any source of nanoseconds that never goes back (the source of a test, or Android's
+     * {@code SystemClock.elapsedRealtimeNanos()}, which keeps counting while the device sleeps). Time is counted from the
+     * moment of the call.
+     */
+    static MicroClock fromNanoSource(java.util.function.LongSupplier nanos) {
+        return new Monotonic(nanos);
+    }
 
-        private Monotonic() {
+    /** The clock on a source of nanoseconds. */
+    final class Monotonic implements MicroClock {
+        static final Monotonic INSTANCE = new Monotonic(System::nanoTime);
+        private final java.util.function.LongSupplier nanos;
+        private final long originNanos;
+
+        private Monotonic(java.util.function.LongSupplier nanos) {
+            this.nanos = nanos;
+            this.originNanos = nanos.getAsLong();
         }
 
         @Override
         public long nowMicros() {
-            return (System.nanoTime() - originNanos) / 1000L + 1_000_000L;
+            return (nanos.getAsLong() - originNanos) / 1000L + 1_000_000L;
         }
     }
 }

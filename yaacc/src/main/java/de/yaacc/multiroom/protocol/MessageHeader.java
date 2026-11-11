@@ -65,6 +65,11 @@ public final class MessageHeader {
      * @throws SnapcastProtocolException TRUNCATED, NEGATIVE_SIZE or TOO_LARGE
      */
     static MessageHeader parse(byte[] buffer) throws SnapcastProtocolException {
+        return parse(buffer, SnapcastProtocolLimits.MAX_BULK_BODY);
+    }
+
+    /** As above with a lower cap for the body of a WireChunk. */
+    static MessageHeader parse(byte[] buffer, int maxChunkBody) throws SnapcastProtocolException {
         if (buffer == null || buffer.length < SnapcastProtocolLimits.HEADER_SIZE) {
             throw new SnapcastProtocolException(SnapcastProtocolException.Kind.TRUNCATED, "header cut short");
         }
@@ -80,7 +85,7 @@ public final class MessageHeader {
         if (size > Integer.MAX_VALUE) {
             throw new SnapcastProtocolException(SnapcastProtocolException.Kind.NEGATIVE_SIZE, "size above 2^31 - 1");
         }
-        if (size > SnapcastProtocolLimits.maxBody(type)) {
+        if (size > SnapcastProtocolLimits.maxBody(type, maxChunkBody)) {
             throw new SnapcastProtocolException(SnapcastProtocolException.Kind.TOO_LARGE, "message larger than the cap");
         }
         return new MessageHeader(type, id, refersTo, sentSec, sentUsec, receivedSec, receivedUsec, (int) size);
