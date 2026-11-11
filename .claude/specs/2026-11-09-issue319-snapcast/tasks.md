@@ -120,6 +120,12 @@ Carried over from the security review of Group 3 (`security-review.md` S17 to S2
   - **Accept**: the same behaviors as the local music player for a queue, plus the buffer delay noted in the UI; one player per group; sharing/Play-on flow picks a Snapcast group like any receiver.
   - **Verify**: `SnapcastPlayerTest` (fake feeder), existing player tests green.
 
+## Fix Group 4: Address review cycle 1 of Group 4, pure parts (W1 to W3 in `review.md`, "Cycle 1 (Group 4, pure parts)")
+- [ ] F4.1 No zeros inside the audio (W1): after dormancy `PcmFeeder` waits for one full chunk before the first write and pads a partial chunk only after a one-chunk grace (the server resyncs only when a read ends after the next chunk's deadline); a first write smaller than a chunk and a partial chunk with the clock already due must not insert zeros; make the writer wake when data arrives instead of sleeping the whole due time; enforce frame alignment in `write`. Tests for both cases; `PcmFeederTest.everyByteArrivesInOrderInWholeChunksAndATailIsPaddedWithZeros` must pass 10 times with 12 busy loops.
+- [ ] F4.2 No removal after a failed restore (W2): `SnapcastStreams.shutdown` (and `removeIfIdle`) skip `removeStream` while any group restore failed or while a group the user moved there still uses the stream; re-read the status before removing leftovers. Test with `setGroupStream` failing once.
+- [ ] F4.3 7-channel fold-down order (W3): Media3 1.11.1 maps 7 channels to FL FR FC LFE BL BR BC; fix the case-7 weights and the comment, add per-channel placement tests for 3, 4, 5, 6, 7 and 8 channels, correct `docs/tech.md` if it claims 7.1.
+- [ ] F4.4 Cheap suggestions: pacer tests with a clock at 0, negative and near `Long.MAX_VALUE`; one all-zero chunk when leaving dormancy only if it can be justified from the source (otherwise record it for the rig check in decisions.md).
+
 ## Group 5: UI (P2)
 - [ ] 5.1 Group rows and live status in the receivers section / sheet; members with volume, mute, latency, name; stream picker; add/remove client | `de.yaacc.browser`, layouts, `values*/strings.xml`
   - **Constraints (security)**: names, host names, ids and stream URIs from a server are display text only: control characters, line separators and bidi controls are replaced before they are shown (the library truncates but does not filter them; `SnapcastJson.displayText` is the helper), and they are never used as identity or logged (security review of Group 2, S14).
