@@ -166,7 +166,12 @@ Carried over from the security review of Group 3 (`security-review.md` S17 to S2
     - (d) keep everything as it is and only replace the hint by a true sentence, for example "The server must allow adding a TCP stream source at run time." (this is (c) with the hint kept; the same places to change).
   - **Verify**: `./gradlew :yaacc:testDebugUnitTest --tests 'de.yaacc.multiroom.feed.*' --tests 'de.yaacc.player.SnapcastPlayerLogicTest'`; with (a) or (b) also a rig check with a static source in `snapserver.conf`; the placeholder grep of 6.1.
   - **Constraints**: no change to the trust rules of the security reviews (the feed target stays the control peer; only streams carrying YAACC's own name are removed); resolve before the gate 6.2 if the option is to be released.
-- [ ] 6.2 Gate: owner tests Phase A on devices, decides whether Phase B starts | `decisions.md`
+- [x] 6.2 (2026-11-11) Gate: the owner tested Phase A on his device: playing music to several Snapcast devices works; not every check of the list was run. Phase B starts at his request. UI follow-ups from the test (to discuss later): mute is a checkbox and should be the mute symbol; the receiver picker must be filtered (images and videos can be sent to a Snapcast group and fail with a toast, the check should happen earlier); task 6.3 (the hint) is still open. | `decisions.md`
+
+## Phase A follow-ups (from the owner's device test, 2026-11-11, not started)
+- [ ] A.1 Mute control of a group row and of the members is a checkbox; use the mute symbol like the other receivers.
+- [ ] A.2 The receiver picker ("Play on…") must not offer a Snapcast group for images and videos; validate before the pick instead of a toast afterwards.
+- [ ] A.3 Task 6.3 (hint) and the remaining open checks of `docs/tech.md` "Open checks for the owner".
 
 ## Group 7 (Phase B): Binary protocol and time sync (P1, pure Java, tests first)
 - [ ] 7.1 Message codec: Base, Hello, ServerSettings, CodecHeader, WireChunk, Time, ClientInfo, Error (little endian) | `de.yaacc.multiroom.protocol`, tests with byte fixtures
