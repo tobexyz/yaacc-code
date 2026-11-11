@@ -551,3 +551,34 @@ Reviewing: task 6.1, fix commit c955696b (`README.md`, `docs/index.md`, `docs/te
 
 ### Verdict: FAIL
 No Critical. Two Warnings (W1, W2), both one-sentence wording fixes in `docs/index.md`. All five cycle 1 warnings and all five suggestions are otherwise fixed and verified. Task 6.3 stays open for the owner and is not counted.
+
+## Cycle 3 (Group 6) - 2026-11-11
+Reviewing: fix commit fb5b4a65 (`docs/index.md`, `review.md` only). Documentation only; no source changed since Group 5b, the test suite was not re-run.
+
+**Cycle 2 findings, verified one by one**
+- **W1 (hint sentence): fixed, accurate.** `docs/index.md:473` now says the hint line in the app suggests adding a TCP stream source to the server configuration. The string `snapcast_feed_static_source_hint` (values/strings.xml:315) reads "Add a TCP stream source to the server configuration instead (see the YAACC documentation)." The guide then states that YAACC adopts such a source only under its exact name and removes it when the player is closed, so it works at best once, and that the hint does not help when all ports are taken or a stream with YAACC's name is in use. Checked against `SnapcastStreams`: `isAdoptable` (exact id and name, tcp, `mode=server`, `48000:16:2`, host `0.0.0.0`, port 4953 to 4962), `shutdown()` (removes `currentId` if it carries the marker, is tcp and no group plays it), and `HINT_STATIC_SOURCE` attached to REFUSED, NO_FREE_PORT, CONFLICT and "another stream id". It matches `docs/tech.md` "Static source fallback". The sentence "there is no dependable fallback ... (an open item)" no longer contradicts the app text.
+- **W2 (security bullet): fixed, accurate.** The bullet now reads "YAACC only removes or restores what carries its own name or marker": a stream with its exact name (`ensure()` removes a same-name stream of another shape when no group plays it, CONFLICT otherwise; `shutdown()` removes the adopted one) or its marker that no group plays (`removeLeftoversIn()`: marker, tcp, unused, not `currentId`; `shutdown()`), with the user-written same-name stream named explicitly, and a group's previous stream restored only while the group is still on YAACC's stream (`restore`). "Names that start with 'YAACC ' and end with the marker are reserved" matches `carriesMarker`. The bullet no longer promises "only what it created".
+- **S1 (checkbox wording): fixed.** "Tick *Settings* > ... *Play to Snapcast groups*" (line 458); no other "switch on/switches" for the Snapcast settings remains in README, `docs/index.md`, `docs/settings.md` or CHANGELOG (the one hit, README:72, is about server authorization, not a setting).
+- **S2 (double space): fixed** (line 427 has a single space before "see").
+- **S3 (step 4 wording): fixed.** Step 4 now says "removes only streams that carry its own name or marker" and "as long as no group plays it", which is what `shutdown()` does (`usedByGroup` returns false without removing; a failed restore also keeps the stream, not stated, not needed).
+
+**Changed sentences checked for new inaccuracies:** none found. The statement that the removal "works at best once" is consistent with `tech.md` ("works for the first play, is removed when the player is released or after 10 idle minutes (if the server accepts the removal)"). "also one that was there before it started" is the adoption case. The ticked-checkbox sentence and the unchanged "off by default" are correct (`preference.xml`, `defaultValue=false`).
+
+**Grep for the old claims** over `README.md`, `docs/index.md`, `docs/settings.md`, `docs/tech.md`, `CHANGELOG.md`, `THIRD_PARTY.md` ("never removes", "never touches", "did not create", "only removes or restores", "what it created", "working fallback", "no fallback", "does not describe"): no remaining occurrence in the Snapcast text. README, CHANGELOG, `THIRD_PARTY.md` and `settings.md` make no claim about which streams YAACC removes.
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+- **S1** `docs/index.md:495`: the parenthesis "(a tcp source for the leftovers of an earlier run ...)" is right, but a stream of YAACC's exact name that is not tcp is removed by `ensure()` and not by `shutdown()`/`removeLeftovers()`; not worth more words while 6.3 is open.
+- **S2** When task 6.3 is decided, the hint paragraph in `docs/index.md:473`, the "Static source fallback" section of `docs/tech.md` and the "Snapcast security" bullet have to change together with the string in the 7 locales.
+
+### Tests
+- [x] No code changed in this commit; the last code commit passed (Group 5b). Not re-run here.
+- [x] Coverage: documentation only; every changed statement was checked against `SnapcastStreams`, the string resource and `preference.xml`.
+
+### Verdict: PASS
+No Critical, no Warning. Both cycle 2 Warnings and all three suggestions are fixed and verified. Task 6.3 stays open for the owner and is not counted.
