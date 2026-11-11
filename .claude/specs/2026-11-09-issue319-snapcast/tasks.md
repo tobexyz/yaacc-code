@@ -108,11 +108,11 @@ Carried over from the security review of Group 3 (`security-review.md` S17 to S2
 - [ ] 4.1 Spike on a device: Media3 tap -> PCM at the stream format -> `PcmFeeder` -> rig | `de.yaacc.multiroom.feed` (draft)
   - **Accept**: 30 minutes of music from a UPnP server through YAACC audible on both rig clients, screen off, track changes without a gap longer than the server buffer; owner confirms by ear.
   - **Verify**: owner's report; **kill criterion**: if the tap cannot be kept steady (underruns, drift) the spec stops here for Phase A and goes back to the owner.
-- [ ] 4.2 `PcmFeeder` + `RealTimePacer` (pure pacing math, injectable clock) | `de.yaacc.multiroom.feed`, tests
+- [x] 4.2 (done 2026-11-11: `RealTimePacer`, `PcmFeeder`, `PcmFormatConverter` and the other pure classes of `de.yaacc.multiroom.feed`; the rate conversion is the Media3 `SonicAudioProcessor` of the tap draft of 4.1, see `docs/tech.md` "Snapcast feed tap (draft)") `PcmFeeder` + `RealTimePacer` (pure pacing math, injectable clock) | `de.yaacc.multiroom.feed`, tests
   - **Accept**: never more than the allowed look-ahead; after a stall it does not burst (drops/pads silence by rule); format conversion (rate, channels, 16 bit) is bit-exact where no conversion is needed.
   - **Verify**: `RealTimePacerTest`, `PcmFormatConverterTest`.
   - **Constraints (security)**: the feed connects only to the control connection's peer address and the port YAACC requested; never to a host or port from a server reply.
-- [ ] 4.3 `SnapcastStreams` (ensure/add, SetStream with restore, idle cleanup, name marker, crash recovery of leftover YAACC streams) | `de.yaacc.multiroom.feed`, tests with the fake RPC server
+- [x] 4.3 (done 2026-11-11: `SnapcastStreams`, tests against a simulated snapserver, direct and over a real `SnapcastRpc` on the loopback; the marker store and the hint texts are provided by the app in 4.4 and Group 5) `SnapcastStreams` (ensure/add, SetStream with restore, idle cleanup, name marker, crash recovery of leftover YAACC streams) | `de.yaacc.multiroom.feed`, tests with the fake RPC server
   - **Accept**: no second stream for one phone; the previous group stream is restored on stop; only streams carrying the YAACC marker are ever removed; an AddStream error gives a typed result for the UI (static source hint).
   - **Verify**: `SnapcastStreamsTest`.
   - **Constraints (security)**: random per-install name marker, percent-encoded name (`a&mode=client` test), remove/restore only what YAACC recorded and only while still on its stream.
