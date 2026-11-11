@@ -153,10 +153,15 @@ Carried over from the security review of Group 3 (`security-review.md` S17 to S2
 - Not needed now: S43 (documented, accepted), S44 (open, see `decisions.md`), S47 (Group 6 documentation).
 
 ## Group 6: Documentation and Phase A gate (P2)
-- [ ] 6.1 Update documentation | `README.md`, `docs/index.md`, `docs/tech.md`, `CHANGELOG.md`, `fastlane/metadata/android/en-US/` (only if released)
+- [x] 6.1 (done 2026-11-11, English only: `README.md` section "Snapcast", `docs/index.md` chapter "Snapcast", `docs/settings.md`, `CHANGELOG.md` [Unreleased], `THIRD_PARTY.md`, `docs/tech.md` (UI notes S41/S42, checklist step 3, "Open checks for the owner"); fastlane not changed, not released; screenshots are not referenced yet; the static source fallback is documented as **not dependable**, see 6.3) Update documentation | `README.md`, `docs/index.md`, `docs/tech.md`, `CHANGELOG.md`, `fastlane/metadata/android/en-US/` (only if released)
   - **Accept**: features, requirements (a snapserver, how to enable the TCP source or let YAACC add it), the buffer delay, the not-affiliated notice, the Docker rig; no stale references.
   - **Verify**: `grep -r 'TODO\|FIXME\|PLACEHOLDER' README.md docs/ || true` shows nothing plan-related.
   - **Constraints**: do not document Phase B features before they exist.
+- [ ] 6.3 (found while writing 6.1; needs a code change, so it is a task and not documentation) The static source fallback that the hint `snapcast_feed_static_source_hint` promises | `de.yaacc.multiroom.feed.SnapcastStreams`, `SnapcastFeedController`, strings in 7 locales
+  - **Problem**: `ensure()` adopts only a stream named exactly `YAACC <phone name> <marker>` (the marker is shown nowhere and is not known before a stream was added once), and an adopted stream is removed again at `shutdown()`/`removeLeftovers()` because it carries the marker. So a user whose server refuses `Stream.AddStream` cannot follow the hint. Details in `docs/tech.md` "Static source fallback".
+  - **Accept**: the owner decides one of: (a) show the exact stream name (and a ready `source =` line) where the refusal is explained and in the settings, and never call `Stream.RemoveStream` for a stream that was adopted rather than added (a flag from `ensure()`); (b) let the user pick an existing tcp stream of the server to feed (a per-server setting, never removed by YAACC, the format is still `48000:16:2`); (c) drop the fallback and change the hint text and `docs/index.md` to say that a server must accept runtime tcp sources. With (a) or (b): tests first in `SnapcastStreamsTest`, and a rig check with a static source in `snapserver.conf`; `docs/index.md`, `docs/tech.md` and the hint text are aligned afterwards.
+  - **Verify**: `./gradlew :yaacc:testDebugUnitTest --tests 'de.yaacc.multiroom.feed.*'`; the rig check; the placeholder grep of 6.1.
+  - **Constraints**: no change to the trust rules of the security reviews (the feed target stays the control peer; only streams YAACC added itself are removed unless the owner decides otherwise); do before the gate 6.2 if the option is to be released.
 - [ ] 6.2 Gate: owner tests Phase A on devices, decides whether Phase B starts | `decisions.md`
 
 ## Group 7 (Phase B): Binary protocol and time sync (P1, pure Java, tests first)

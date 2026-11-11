@@ -17,6 +17,7 @@ layout: default
 * Control multiple media renderer
 * Link Yamaha MusicCast devices into a group, set the group volume, control their own sources (now playing, tuner, presets) and change device settings, see [MusicCast devices](#musiccast-devices)
 * Play music on OpenHome devices, which keep the playlist themselves, and let OpenHome control points play on YAACC, see [OpenHome](#openhome)
+* Control Snapcast multi-room servers (each group is a receiver: group volume and mute, per-client volume, latency and name, the stream of a group, adding and removing clients) and, as an experimental option, play music from the phone to a Snapcast group, see [Snapcast](#snapcast)
 * Allow download files to the device
 * Share a link (http or https) or one audio, video or image file from another app to YAACC and play it on the receivers you pick, see [Sharing to YAACC](#sharing-to-yaacc)
 * Pick files or a folder of your device and play them on the receivers you pick without serving them constantly, see [Playing files from this device](#playing-files-from-this-device)
@@ -414,6 +415,95 @@ The settings button on the row opens a sheet with what the device reports as cha
 
 Yamaha and MusicCast are trademarks or registered trademarks of Yamaha Corporation. OpenHome is the name of an open specification for networked music players and is used only to describe compatibility. YAACC is an independent project and is not affiliated with, authorized or endorsed by Yamaha.
 
+## Snapcast
+
+[Snapcast](https://github.com/snapcast/snapcast) is an open source multi-room audio system: a server (snapserver) sends audio streams with a common buffer to any number of clients (snapclients) that play them in sync. The clients are organised in groups, and a group plays one stream. YAACC works with a Snapcast server that already runs in your network, in two ways:
+
+* **Control.** Every group of a server appears among the receivers, and you control it from there: group volume and mute, the volume, latency and name of every client, the stream a group plays, and which clients belong to the group.
+* **Play (experimental, off by default).** YAACC plays music from the phone to a group: it adds a stream to the server while you play and sends the audio into it.
+
+YAACC is never a Snapcast server, and the phone is not a Snapcast client either: the phone does not play a Snapcast stream, the clients of the group are other devices. One receiver is one Snapcast group, and a group always lives on one server: YAACC has no way to move a client to another server.
+
+The Snapcast support is new and has not been tried with real speakers yet; see [Snapcast limits](#snapcast-limits) and [Snapcast security](#snapcast-security).
+
+### What you need
+
+* A snapserver that your phone can reach in the network, with its TCP control interface switched on (port 1705 unless the server uses another one). A server that has authorization (a login) switched on is not supported.
+* For the play option also the ports 4953 to 4962 of the server: YAACC asks the server to open one of them for the audio and connects to it (a firewall on the server must let the phone through).
+* For finding a server by itself the server must announce itself in the network (mDNS, for example through Avahi); otherwise type its address in.
+* Tested with: Snapcast 0.35.0 (a build of its development sources from November 2026) in the Docker test rig of this project, one snapserver and two snapclients without sound output, see [The test rig](#the-snapcast-test-rig). Other versions have not been tested. The app itself has not been tried with a phone and real speakers yet (that is why the play option is experimental).
+
+### Adding servers
+
+Open *Settings* > *Snapcast (experimental)*:
+
+* **Snapcast servers** opens the list of servers. Type a host name or an IP address with an optional port (`snapserver.local`, `192.168.1.20`, `192.168.1.20:1705`; the default port is 1705; an IPv6 address needs brackets when a port follows, `[fd00::5]:1705`; IPv4 numbers are written without leading zeros) and tap *Add*. Nothing but host and port is accepted: a text with `@` (user name and password) or a web address is refused, because YAACC stores no credentials. Up to 16 servers are listed in total; a server you typed in, or one that was found, and the same address twice are one entry. *Remove* removes a typed-in server and the groups of that server from your receiver selection; a server that is announced in the network right now cannot be removed (switch the discovery off instead).
+* **Find Snapcast servers** (off by default) searches the local network for servers that announce themselves. It runs only while the receivers are shown on the screen and the switch is on, and YAACC then contacts every server that announces itself in your network, so leave it off in networks you do not trust. Only servers at addresses of the local network (private, link-local or loopback addresses) on a port of 1024 or higher are accepted. With the switch off only the servers in the list (and the remembered ones, see below) are used and nothing is scanned.
+
+A server that holds a receiver you selected is remembered (its address only) so that the selection survives an app restart; it is listed again without a scan, also when the discovery is off. With the discovery on, a remembered server that is not announced any more disappears after the receivers have been shown for about half a minute.
+
+### Groups as receivers
+
+Each group appears in the receivers (the top-level page, the device sheet and the receiver tab of the classic layout) as *group name (Snapcast)*; a group without a name takes the name of its first client, and a group of a server that is not reachable gets *(Snapcast, offline)*. The row works like the other receiver rows, with these differences:
+
+* The first line shows the server (its address), so you can see which server a group belongs to; the second line shows the stream the group plays, how many of its clients are connected (*Clients connected: 2 of 3*), the volume and *muted*. *server unreachable* means that the connection to the server is down (the group stays listed with what was known last, and is not removed at once); *stream unavailable* means that the stream of the group is not in the server's list or is disabled.
+* The slider and the mute box of the row are the volume and the mute of the **group**. Snapcast has no group volume of its own: the slider shows the average of the connected clients and moves each of them by the same number of points while you drag (each stays within 0 and 100, and dragging back restores their own levels). The mute is the server's group mute.
+* Play, pause and stop on the row act on YAACC's own player for the group (see below); they do nothing when YAACC does not play to the group.
+* The settings button opens the **group sheet**: the group volume and mute, the **stream** of the group (a list of the server's streams; a disabled stream cannot be chosen, and YAACC's own stream is marked), **Add client** (the clients of the same server that are in other groups; the list says when a group would end because it loses its last client) and the **clients** of the group, each with its name, whether it is connected, its own volume slider and mute, and a menu with *Rename* (an empty name falls back to the host name), *Latency* (0 to 10000 ms, Snapcast's own per-client delay compensation) and *Remove from group* (the client gets a group of its own; it is not disconnected; the last client of a group cannot be removed, because a group without a client ends).
+
+The rows follow changes that another controller makes on the server (the Snapcast web app, another phone): YAACC keeps one connection to the server open while the receivers are shown, and closes it about 30 seconds after they were hidden. Names that a server sends are shown as plain text, cleaned of control and invisible characters and cut to a length that fits.
+
+### Playing music to a group (experimental)
+
+Switch on *Settings* > *Snapcast (experimental)* > *Play to Snapcast groups* (off by default), then choose a group as a receiver like any other (the "Play on…" list, or the selection in the classic layout) and play music. With the option off, a group is listed and controlled but playing to it only shows "Playing to Snapcast groups is not available yet". Only music is played to a group; video and images are left out with a message.
+
+What YAACC does when you play:
+
+1. It asks the server, at runtime, to add a stream named `YAACC <phone name> <marker>`: a *tcp* source in server mode on the first free port from 4953 to 4962 that takes raw PCM (48000 Hz, 16 bit, stereo, no header). Nothing has to be configured on the server. It adds only this one stream per server, whichever group plays.
+2. It puts the group on that stream and remembers the stream the group played before.
+3. The phone decodes the music with the player of the app and sends the PCM, in real time, to that port of the server (the address of the control connection). The speaker of the phone stays silent and the volume of the phone is not touched; the volume slider of the row is the group volume.
+4. When the play ends or you stop it, the group gets its previous stream back (if it is still on YAACC's stream; a group that somebody moved elsewhere in the meantime is left alone). YAACC removes its stream when you close the player, and after 10 minutes without audio. It never removes a stream that it did not create.
+
+What to know about it:
+
+* **Delay.** The snapserver buffers about one second (1000 ms by default) before its clients play, so pause, stop, seek and a track change are heard about a second after you press the button, and a little more because the phone has a small buffer of its own; the app says so in a message when the play starts. The audio is sent in real time and never ahead, so the delay does not grow while it plays.
+* **Formats.** The stream is always PCM at 48000 Hz, 16 bit, stereo. The phone decodes every format it can play (YAACC does not send a compressed format to the server); other sample rates are converted to 48 kHz, mono is played on both channels and surround sound (up to 8 channels, for example 5.1) is mixed down to stereo with the low-frequency channel left out (it is somewhat quieter than a stereo original). A compressed format that a phone would normally pass on to an HDMI, USB or Bluetooth sink (AC-3, E-AC-3, DTS) is decoded on the phone for this player; a phone that has no decoder for a format plays that track silently for its length, without a message.
+* **One feed per server.** A phone has one stream per server, so it can play to one group of a server at a time ("Another group of this Snapcast server is already being played from this phone"); groups of different servers can play at once. Another phone has a stream of its own.
+* **If the connection to the server is lost,** the player stops with a message. A group may then stay on YAACC's stream (silent) until somebody moves it back, with the group sheet or another controller. The same happens when you remove the server in the settings while it plays: the feed stops at once, the group can stay on the idle stream.
+* **If the server refuses the stream,** YAACC says "The Snapcast server did not accept a stream from YAACC" and the play stops. Snapcast's documentation lists the source types that can be added at runtime (tcp is one of them), and the test server accepted the tcp source; other servers have not been tried. The stream YAACC asks for is this URI (the name is cut down to letters, digits, space, `-` and `_`, at most 32 characters, from the setting *network name for local server*, default "Yaacc"; `<marker>` is 8 hexadecimal characters that YAACC made once for this installation):
+
+  ```
+  tcp://0.0.0.0:4953?name=YAACC%20Yaacc%20<marker>&mode=server&sampleformat=48000:16:2&codec=flac
+  ```
+
+  A matching source in the server's `snapserver.conf` (`source = tcp://0.0.0.0:4953?name=…&mode=server&sampleformat=48000:16:2`, with exactly this name) is recognised by YAACC and used instead of adding a stream, but this is **not a dependable fallback yet**: the app does not show the marker before it has created a stream once, and it treats a stream with its marker as its own, so it may remove such a stream when the play ends. A fixed way to play to a server that refuses runtime streams is an open item.
+
+### Snapcast limits
+
+* No login: a server with authorization switched on is not supported; the error of the server is shown.
+* A group is on one server; YAACC cannot move a client to another server, rename a group, or control what a stream plays (it only lets you choose the stream of a group).
+* The play option is experimental: the app has not yet been tried with real speakers on a phone. Not yet checked there: gapless changes between tracks, the delay, the quality of the conversion to 48 kHz, playing with the screen off for a long time, AC-3 and surround files, the notification and the audio focus of the player. Reports are welcome.
+
+### Snapcast security
+
+Snapcast has no encryption and, unless the server enables authorization (which YAACC does not support), no authentication. What that means for you:
+
+* **Control** goes to the server's control port in plain text, and anybody in the same network can do what YAACC does there. YAACC stores no credentials.
+* **Audio** goes to the server unencrypted, to whoever answers at the address of the server you chose, on the ports 4953 to 4962. For a server found by the discovery that is whichever host announces itself: announcements are not authenticated, any host of the network can announce a server, so a look-alike "Living room" is possible (that is why the first line of the group row shows the server's address). For a server you typed in with a host name it is whatever that name resolves to, also a public address: typed-in servers are not limited to the local network. The play option is an opt-in that applies to every later play to a group you chose, until you switch it off.
+* **The stream name discloses the name of your phone.** It contains the setting *network name for local server* (default "Yaacc"), also when the local media server is switched off, so every server YAACC plays to, and every controller of it, can read it. The marker in the name is an identifier of this installation, not a secret.
+* While YAACC's stream exists, the server listens on its port on all its interfaces, and the port has no authentication either: a host that can reach it can feed audio into that stream. This is a property of Snapcast's tcp source.
+* **YAACC only removes or restores what it created:** a stream with its marker that is a tcp source and that no group plays, and a group's previous stream only when the group is still on YAACC's stream.
+* **Server text** (names of groups, clients, streams, errors) is shown as plain text, with control, invisible and direction characters removed and cut short; the group row shows the server's address first.
+* **Stored on the phone only:** the servers you typed in, the address of a discovered server that holds a selected group, and the marker. YAACC does not take part in Android's backup, so none of it is copied to the cloud or to another device.
+* **Log:** at the debug level the log has states, counters and error kinds of the feed, but no names, addresses or text of a server.
+* **By default** the discovery and the play option are both off, and without a server in the list YAACC does not contact any Snapcast server. A remembered server (see above) is contacted when the receivers are shown, also with the discovery off.
+
+### The Snapcast test rig
+
+For development there is a Docker setup with one snapserver and two snapclients (no sound output) in `tools/snapcast-rig/`, see [its README](https://github.com/tobexyz/yaacc-code/blob/develop/tools/snapcast-rig/README.md). Start it with `cd tools/snapcast-rig && docker compose up --build`; its ports are published on `127.0.0.1` only, so a phone reaches it through `adb reverse` or an emulator address. It is for trusted machines and testing only (no authentication) and is not part of the app.
+
+Snapcast is free software under the GNU General Public License version 3. YAACC contains no Snapcast code: the control client is written from Snapcast's published documentation and behaviour, and the test rig builds the upstream sources at a fixed version when you start it. Snapcast is the name of an open source project of its authors; YAACC is an independent project and is not affiliated with, authorized or endorsed by the Snapcast project or its authors. The name is used only to say which servers YAACC works with.
+
 ## Media server
 
 YAACC includes a media server service, which has to be enabled separately.
@@ -636,7 +726,7 @@ Not supported yet: playing radio, Songcast or other sources from YAACC (the sour
 
 ## Trademarks
 
-Android and Android TV are trademarks of Google LLC. UPnP and DLNA are trademarks or certification marks of their respective owners; YAACC is not UPnP or DLNA certified. Yamaha and MusicCast are trademarks or registered trademarks of Yamaha Corporation. Home Assistant, VLC, Kodi, BubbleUPnP, Windows and the other product and company names mentioned in this documentation are trademarks or registered trademarks of their respective owners and are used only to identify compatible products. YAACC is an independent project and is not affiliated with, authorized or endorsed by any of them.
+Android and Android TV are trademarks of Google LLC. UPnP and DLNA are trademarks or certification marks of their respective owners; YAACC is not UPnP or DLNA certified. Yamaha and MusicCast are trademarks or registered trademarks of Yamaha Corporation. Snapcast is the name of an open source project of its authors. Home Assistant, VLC, Kodi, BubbleUPnP, Windows and the other product and company names mentioned in this documentation are trademarks or registered trademarks of their respective owners and are used only to identify compatible products. YAACC is an independent project and is not affiliated with, authorized or endorsed by any of them.
 
 | [Screenshots](screenshots/) | [Settings](settings/) |  [About](about/) | [Code](doxygen/html/inherits.html) | [Legal Notice (Impressum)](https://schoenesnetz.de/pages/disclamer_license/about.en.html) | [Privacy Policy](privacy.html)
 

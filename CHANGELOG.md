@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+- **Control of Snapcast servers** (#319): Every group of a Snapcast server (a server you added by address, or found by the search, see below) appears among the receivers with its server address, stream, connected clients and volume. The slider and mute box of the row are the group volume (the average of the connected clients, moved by the same number of points) and the group mute; the settings button opens a sheet with the stream of the group, *Add client*, and the clients with their volume, mute, name, latency (0 to 10000 ms) and *Remove from group*. The rows follow changes that another controller makes on the server. No login is supported and nothing is stored but the server addresses. Description in the documentation under "Snapcast".
+- **Settings for Snapcast** (#319): *Settings* > *Snapcast (experimental)* has the list *Snapcast servers* (add a host name or address with an optional port, at most 16, no credentials; remove) and the switch *Find Snapcast servers*, which is **off by default**: it searches the local network with mDNS only while the receivers are shown and contacts every server that announces itself.
+- **Experimental: play music to a Snapcast group** (#319): The switch *Play to Snapcast groups* (off by default, not tested on a device with real speakers yet) lets YAACC play music to a group: it adds a TCP stream to the snapserver while it plays (`Stream.AddStream`, the audio is raw PCM at 48 kHz, 16 bit, stereo, sent in real time), puts the group on it and gives the group its previous stream back afterwards. The clients play about one second behind the display (the buffer of the server). Music only, one group per server at a time. The audio goes unencrypted to the address of the server, and the stream name carries the name of the phone. A Docker test rig for development is in `tools/snapcast-rig/`.
+
 ## [6.0.0] - 2026-11-08
 
 Highlights: the new single-screen layout (servers, receivers and running players on one page, the device sheet, the receiver picker "Play on…"),

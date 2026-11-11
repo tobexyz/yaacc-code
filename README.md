@@ -46,6 +46,7 @@ in order to play media from your device on any UPnP renderer in your network.
 * Control multiple media renderer
 * OpenHome: play on OpenHome devices (the device keeps and shows its playlist, which you can edit), and let OpenHome control points play on the app
 * Yamaha MusicCast devices: link them into a group, group volume, now playing and controls of their own sources, presets, device settings (see the documentation)
+* Snapcast multi-room servers: every group is a receiver with group volume and mute, per-client volume, latency and name, the stream of the group and adding or removing clients; experimental: play music from the phone to a group (see [Snapcast](#snapcast))
 * Allow download files to the device
 * Share a link or one audio, video or image file from another app and play it on the receivers you pick
 * Share an item you browse with other apps, as a file or as a link
@@ -61,6 +62,18 @@ The media server is stopped by default and has to be activated in the settings.
 For this go to settings and tick some checkboxes under "Local server configuration" depending
 on your configuration needs. You can start the server by activating the corresponding setting
 or by activating the switch at the bottom of the server tab
+
+## Snapcast
+
+YAACC can control an existing [Snapcast](https://github.com/snapcast/snapcast) multi-room server (snapserver) and, as an experimental option, play music from the phone to one of its groups. This is controlled in *Settings* > *Snapcast (experimental)*:
+
+* **Control.** Add a server by address (or let YAACC find servers that announce themselves with mDNS; that search is off by default). Each Snapcast group then appears among the receivers: group volume and mute, volume, latency and name of each client, the stream of the group, and adding or removing clients of the group. A group belongs to one server; YAACC never becomes a snapserver and cannot move clients between servers.
+* **Play to a group (experimental, off by default, not tested on a device with real speakers yet).** YAACC asks the server to add a TCP stream at runtime (`Stream.AddStream`) and sends the audio of what it plays (raw PCM, 48 kHz, 16 bit, stereo) into it; one receiver is one Snapcast group. Music only. The clients play about one second behind the display (the buffer of the server), so pause, stop and seek are heard that late.
+* **Requirements.** A snapserver you can reach: its control port (1705 by default) and, for playing, the ports 4953 to 4962 that the stream is opened on. Tested only with Snapcast 0.35.0 in the Docker rig below; a server with authorization (a login) switched on is not supported.
+* **Security.** Snapcast has no encryption: the audio goes unencrypted to whoever answers at the address of the server you chose, and the name of your stream carries the name of the phone ("network name for local server") plus a random identifier. YAACC stores no credentials. Details and the other limits are in the [documentation](https://tobexyz.github.io/yaacc-code/#snapcast).
+* **Test rig.** `tools/snapcast-rig/` has a Docker setup with one snapserver and two snapclients for development and testing (loopback ports only, no sound output): `cd tools/snapcast-rig && docker compose up --build`, see its [README](tools/snapcast-rig/README.md). It builds the upstream Snapcast sources at a fixed commit; no Snapcast code is part of YAACC.
+
+Snapcast is free software under the GNU General Public License version 3. Snapcast is the name of an open source project of its authors; YAACC is not affiliated with, authorized or endorsed by the Snapcast project or its authors.
 
 ## A word about the cling library
 
@@ -90,4 +103,4 @@ After the build has finished the debug apk is located in
 
 ## Trademarks
 
-Android and Android TV are trademarks of Google LLC. UPnP and DLNA are trademarks or certification marks of their respective owners; YAACC is not UPnP or DLNA certified. Yamaha and MusicCast are trademarks or registered trademarks of Yamaha Corporation. Home Assistant, VLC, Kodi, BubbleUPnP, Windows and the other product and company names mentioned in this documentation are trademarks or registered trademarks of their respective owners and are used only to identify compatible products. YAACC is an independent project and is not affiliated with, authorized or endorsed by any of them.
+Android and Android TV are trademarks of Google LLC. UPnP and DLNA are trademarks or certification marks of their respective owners; YAACC is not UPnP or DLNA certified. Yamaha and MusicCast are trademarks or registered trademarks of Yamaha Corporation. Snapcast is the name of an open source project of its authors. Home Assistant, VLC, Kodi, BubbleUPnP, Windows and the other product and company names mentioned in this documentation are trademarks or registered trademarks of their respective owners and are used only to identify compatible products. YAACC is an independent project and is not affiliated with, authorized or endorsed by any of them.
