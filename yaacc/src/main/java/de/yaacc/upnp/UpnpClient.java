@@ -1304,7 +1304,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * registry right now a few seconds to come back ({@link ReceiverAvailabilityPolicy}: three looks,
      * 2.5 s apart, a search before each wait). After a suspend the registry may have dropped the
      * renderer; {@link #getReceiverDevices()} would remove it from the stored selection for good.
-     * What is still missing after the last look is dropped as before.
+     * What is still missing after the last look is dropped as before. A pending Snapcast group (its server has not
+     * answered yet) is neither waited for nor dropped; its connection is woken once.
      * <p>
      * Waits, so worker threads only; on the main thread it does not wait.
      */
@@ -1312,13 +1313,15 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (isOnMainThread()) {
             return getReceiverDevices();
         }
+        // connects to the listed servers of the selected Snapcast groups, if any; does not block and is not waited for
+        // (see countMissingReceivers): a group whose server is silent must not cost a wait at every play
+        snapcastGroups.wake(getReceiverDeviceIds());
         int missingAtFirstLook = countMissingReceivers();
         int missing = receiverAvailabilityPolicy.await(this::countMissingReceivers, attempt -> {
             YaaccLogger.d(getClass().getName(), "Resume: " + countMissingReceivers() + " selected receiver(s) not in the registry, searching (look "
                     + attempt + " of " + ReceiverAvailabilityPolicy.MAX_ATTEMPTS + ")");
             reenableNetworkListenerIfStale();
             searchDevices();
-            snapcastGroups.wake(getReceiverDeviceIds()); // connects to the listed Snapcast servers of the selected groups, if any
         });
         if (missingAtFirstLook > 0) {
             YaaccLogger.d(getClass().getName(), missing == 0
@@ -1328,10 +1331,16 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return getReceiverDevices();
     }
 
+    /**
+     * How many selected receivers are not there. A Snapcast group that is pending (its server is listed but has not
+     * delivered a status) is not counted: a search of the registry cannot bring it back, and a server that never
+     * answers (switched off, unreachable) would otherwise cost the full wait at every play for ever. It is not a ready
+     * receiver either, so it is simply not played; {@code awaitReceiverDevices} wakes its connection once.
+     */
     private int countMissingReceivers() {
         int missing = 0;
         for (String id : getReceiverDeviceIds()) {
-            if (!LOCAL_UID.equals(id) && getDevice(id) == null) {
+            if (!LOCAL_UID.equals(id) && getDevice(id) == null && !snapcastGroups.isPending(id)) {
                 missing++;
             }
         }

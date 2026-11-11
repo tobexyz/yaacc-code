@@ -373,6 +373,7 @@ public class PlayerService extends MediaSessionService {
         if (items.isEmpty()) {
             return resultList;
         }
+        devices = withoutNotPlayableYet(upnpClient, devices);
         // a client of a group plays what its server plays: the send goes to the server (see YxcPlaybackRedirect)
         devices = YxcPlayTargets.resolve(upnpClient, devices);
         boolean video = false;
@@ -411,6 +412,7 @@ public class PlayerService extends MediaSessionService {
     public List<Player> createQueuePlayers(UpnpClient upnpClient, PickedQueue.Result queue,
                                            java.util.Collection<Device<?, ?, ?>> devices) {
         List<Player> resultList = new ArrayList<>();
+        devices = withoutNotPlayableYet(upnpClient, devices);
         // a client of a group plays what its server plays: the send goes to the server (see YxcPlaybackRedirect)
         devices = YxcPlayTargets.resolve(upnpClient, devices);
         createQueuePlayers(upnpClient, queue.audio(), false, false, true, devices, resultList);
@@ -564,6 +566,35 @@ public class PlayerService extends MediaSessionService {
     }
 
     /**
+     * Takes the receivers that have no player yet out of the list and tells the user once (not once per receiver).
+     * The same list when there is none of them.
+     */
+    private java.util.Collection<Device<?, ?, ?>> withoutNotPlayableYet(UpnpClient upnpClient,
+                                                                       java.util.Collection<Device<?, ?, ?>> devices) {
+        List<Device<?, ?, ?>> playable = new ArrayList<>();
+        boolean dropped = false;
+        for (Device<?, ?, ?> device : devices) {
+            if (isNotPlayableYet(device)) {
+                dropped = true;
+            } else {
+                playable.add(device);
+            }
+        }
+        if (!dropped) {
+            return devices;
+        }
+        notifyNotPlayableYet(upnpClient);
+        return playable;
+    }
+
+    /** "Playing to Snapcast groups is not available yet"; callers may be on a worker thread, a toast needs the main looper. */
+    void notifyNotPlayableYet(UpnpClient upnpClient) {
+        final android.content.Context context = upnpClient.getContext();
+        new android.os.Handler(Looper.getMainLooper()).post(() ->
+                Toast.makeText(context, R.string.snapcast_play_not_available, Toast.LENGTH_LONG).show());
+    }
+
+    /**
      * True for a receiver that is listed but has no player yet: a Snapcast group, until the Snapcast player exists
      * (it has no AVTransport service, so an {@code AVTransportPlayer} would silently do nothing).
      */
@@ -590,11 +621,7 @@ public class PlayerService extends MediaSessionService {
             return null;
         }
         if (isNotPlayableYet(receiverDevice)) {
-            // both callers skip a null player (the queue variant before it builds a share lease)
-            // callers may be on a worker thread, a toast needs the main looper
-            final android.content.Context context = upnpClient.getContext();
-            new android.os.Handler(Looper.getMainLooper()).post(() ->
-                    Toast.makeText(context, R.string.snapcast_play_not_available, Toast.LENGTH_LONG).show());
+            // the batch methods have told the user already (once per call); both callers skip a null player
             return null;
         }
 

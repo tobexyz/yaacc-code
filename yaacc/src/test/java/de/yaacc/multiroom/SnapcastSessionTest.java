@@ -199,7 +199,8 @@ public class SnapcastSessionTest {
 
         assertTrue(await(() -> session.getStatus() != null));
         assertEquals(2, server.statusRequests());
-        assertNull("the error is cleared by the successful read", session.getLastErrorKind());
+        // the worker publishes the status and clears the error one statement later: wait for it, do not assert at once
+        assertTrue("the error is cleared by the successful read", await(() -> session.getLastErrorKind() == null));
     }
 
     @Test

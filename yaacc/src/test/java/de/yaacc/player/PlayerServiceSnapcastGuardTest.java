@@ -20,6 +20,14 @@ package de.yaacc.player;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import org.fourthline.cling.model.meta.Device;
 import org.junit.Test;
@@ -27,9 +35,13 @@ import org.junit.Test;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import de.yaacc.multiroom.SnapcastGroupDevice;
+import de.yaacc.share.PickedQueue;
+import de.yaacc.upnp.UpnpClient;
 import de.yaacc.multiroom.control.SnapcastClient;
 import de.yaacc.multiroom.control.SnapcastGroup;
 import de.yaacc.multiroom.control.SnapcastVolume;
@@ -78,5 +90,58 @@ public class PlayerServiceSnapcastGuardTest {
         String xml = new String(Files.readAllBytes(new File("src/main/res/values/strings.xml").toPath()), StandardCharsets.UTF_8);
         assertTrue(xml.contains(">Playing to Snapcast groups is not available yet<"));
         assertEquals(1, xml.split("snapcast_play_not_available", -1).length - 1);
+    }
+
+    // ---- the wiring: no player, no share lease, one toast per call
+
+    private static SnapcastGroupDevice secondGroupDevice() {
+        SnapcastClient member = new SnapcastClient("m2", "member", "", true, new SnapcastVolume(50, false), 0);
+        SnapcastGroup group = new SnapcastGroup("g-b", "Bath", false, "Default", Collections.singletonList(member));
+        return SnapcastGroupDevice.of(SnapcastEndpoint.parse("192.168.1.5:1705").toKey(), group, false,
+                new SnapcastGroupDevice.Labels("Snapcast group", "offline"));
+    }
+
+    @Test
+    public void aQueueToSnapcastGroupsMakesNoPlayerAndTellsTheUserOnce() {
+        PlayerService service = spy(new PlayerService());
+        doNothing().when(service).notifyNotPlayableYet(any());
+        UpnpClient client = mock(UpnpClient.class);
+        PickedQueue.Result queue = mock(PickedQueue.Result.class);
+        when(queue.audio()).thenReturn(Collections.singletonList(mock(PickedQueue.Entry.class)));
+        when(queue.video()).thenReturn(Collections.singletonList(mock(PickedQueue.Entry.class)));
+        when(queue.image()).thenReturn(Collections.singletonList(mock(PickedQueue.Entry.class)));
+        List<Device<?, ?, ?>> devices = Arrays.<Device<?, ?, ?>>asList(groupDevice(), secondGroupDevice());
+
+        List<Player> players = service.createQueuePlayers(client, queue, devices);
+
+        assertTrue("no player, so no share lease either", players.isEmpty());
+        verify(service, times(1)).notifyNotPlayableYet(client);
+    }
+
+    @Test
+    public void playingContentToSnapcastGroupsMakesNoPlayerAndTellsTheUserOnce() {
+        PlayerService service = spy(new PlayerService());
+        doNothing().when(service).notifyNotPlayableYet(any());
+        UpnpClient client = mock(UpnpClient.class);
+        PlayableItem item = mock(PlayableItem.class);
+        List<Device<?, ?, ?>> devices = Arrays.<Device<?, ?, ?>>asList(groupDevice(), secondGroupDevice());
+
+        List<Player> players = service.createPlayerFor(client, Collections.singletonList(item), devices);
+
+        assertTrue(players.isEmpty());
+        verify(service, times(1)).notifyNotPlayableYet(client);
+    }
+
+    @Test
+    public void nothingIsSaidWhenNoSnapcastGroupIsInvolved() {
+        PlayerService service = spy(new PlayerService());
+        doNothing().when(service).notifyNotPlayableYet(any());
+        UpnpClient client = mock(UpnpClient.class);
+
+        List<Player> players = service.createPlayerFor(client, Collections.<PlayableItem>emptyList(),
+                Collections.<Device<?, ?, ?>>emptyList());
+
+        assertTrue(players.isEmpty());
+        verify(service, never()).notifyNotPlayableYet(any());
     }
 }

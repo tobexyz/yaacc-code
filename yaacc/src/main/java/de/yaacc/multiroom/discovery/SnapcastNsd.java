@@ -81,12 +81,13 @@ public final class SnapcastNsd {
         if (started) {
             return;
         }
+        // first: even without a discovery service, a remembered server must get its grace period (nothing confirms it)
+        directory.discoveryRestarted();
         nsdManager = (NsdManager) context.getSystemService(Context.NSD_SERVICE);
         if (nsdManager == null) {
             return;
         }
         acquireMulticastLock();
-        directory.discoveryRestarted();
         final int myGeneration = ++generation;
         final SnapcastBrowseHandle handle = new SnapcastBrowseHandle();
         browseHandle = handle;

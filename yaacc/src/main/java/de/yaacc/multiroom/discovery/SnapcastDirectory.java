@@ -327,8 +327,8 @@ public final class SnapcastDirectory {
      * Replaces the remembered servers: the servers that hold a selected group, kept from an earlier run so that the
      * selection can be reconnected. Only an endpoint with an address that passes {@link SnapcastAddressFilter} is
      * taken (a remembered server was discovered once, so it was filtered then; it is filtered again, a stored value
-     * is not trusted). A remembered server is listed at once and does not age out by time; it never takes the
-     * place of another server. One that is no longer remembered goes unless it is announced or typed in.
+     * is not trusted). A remembered server is listed at once and does not age out by time; when the list
+     * is full it takes only the place of a lost entry (a server that is announced or typed in is never pushed out). One that is no longer remembered goes unless it is announced or typed in.
      *
      * @return how many of the given servers are remembered now
      */

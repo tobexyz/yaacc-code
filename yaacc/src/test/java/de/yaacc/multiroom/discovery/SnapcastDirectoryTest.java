@@ -441,6 +441,26 @@ public class SnapcastDirectoryTest {
     }
 
     @Test
+    public void aRememberedServerTakesTheRoomOfALostEntryWhenTheListIsFull() throws Exception {
+        for (int i = 1; i <= SnapcastDirectory.MAX_SERVERS; i++) {
+            directory.serviceFound("S" + i, ip(10, 0, 0, i), 1705);
+        }
+        directory.serviceLost("S3");
+
+        directory.setRememberedServers(Collections.singletonList(manual("10.0.1.100")));
+
+        assertEquals(SnapcastDirectory.MAX_SERVERS, directory.servers().size());
+        boolean lostIsGone = true;
+        boolean rememberedIsThere = false;
+        for (SnapcastDirectory.Entry entry : directory.servers()) {
+            lostIsGone &= !entry.getKey().equals(key("10.0.0.3:1705"));
+            rememberedIsThere |= entry.getKey().equals(key("10.0.1.100:1705")) && entry.isRemembered();
+        }
+        assertTrue(lostIsGone);
+        assertTrue(rememberedIsThere);
+    }
+
+    @Test
     public void rememberedServersAreNotAcceptedWithoutAnAddress() {
         // a host name has to be looked up; only an address that was seen (and filtered) is remembered
         directory.setRememberedServers(Arrays.asList(manual("snap.local"), manual("8.8.8.8"), null));
