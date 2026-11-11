@@ -152,6 +152,66 @@ public class PcmFormatConverterTest {
         assertEquals(Math.round(10000 * a / sum), onlyBackRight[1]);
     }
 
+    /**
+     * The channel order of Android (Media3 1.11.1 {@code Util.getAudioTrackChannelConfig}) for each count, and what each
+     * channel does in the fold-down: front channels 1 on their side, centre and back centre on both sides, surrounds
+     * on their side, the LFE nowhere; each side is divided by the sum of its weights.
+     */
+    private static final String[][] LAYOUTS = {
+            null, null, null,
+            {"FL", "FR", "FC"},
+            {"FL", "FR", "BL", "BR"},
+            {"FL", "FR", "FC", "BL", "BR"},
+            {"FL", "FR", "FC", "LFE", "BL", "BR"},
+            {"FL", "FR", "FC", "LFE", "BL", "BR", "BC"},
+            {"FL", "FR", "FC", "LFE", "BL", "BR", "SL", "SR"}};
+
+    private static double[] weightsOf(String channel) {
+        double a = Math.sqrt(0.5);
+        switch (channel) {
+            case "FL":
+                return new double[]{1, 0};
+            case "FR":
+                return new double[]{0, 1};
+            case "FC":
+            case "BC":
+                return new double[]{a, a};
+            case "BL":
+            case "SL":
+                return new double[]{a, 0};
+            case "BR":
+            case "SR":
+                return new double[]{0, a};
+            default: // LFE
+                return new double[]{0, 0};
+        }
+    }
+
+    @Test
+    public void everyChannelOfThreeToEightChannelsLandsOnItsOwnSide() {
+        for (int channels = 3; channels <= 8; channels++) {
+            String[] layout = LAYOUTS[channels];
+            double leftSum = 0;
+            double rightSum = 0;
+            for (String name : layout) {
+                leftSum += weightsOf(name)[0];
+                rightSum += weightsOf(name)[1];
+            }
+            PcmFormatConverter converter = new PcmFormatConverter(PcmEncoding.SIGNED_16, channels);
+            for (int channel = 0; channel < channels; channel++) {
+                int[] frame = new int[channels];
+                frame[channel] = 20000;
+
+                int[] out = convert(converter, s16(frame));
+
+                double[] w = weightsOf(layout[channel]);
+                String where = channels + " channels, " + layout[channel];
+                assertEquals(where + " left", 20000 * w[0] / leftSum, out[0], 1.0);
+                assertEquals(where + " right", 20000 * w[1] / rightSum, out[1], 1.0);
+            }
+        }
+    }
+
     @Test
     public void aFullScaleSignalOnEveryChannelDoesNotClip() {
         for (int channels = 1; channels <= PcmFormatConverter.MAX_INPUT_CHANNELS; channels++) {

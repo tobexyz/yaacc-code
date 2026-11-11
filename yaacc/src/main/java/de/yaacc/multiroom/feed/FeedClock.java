@@ -26,7 +26,7 @@ import java.util.concurrent.locks.LockSupport;
  */
 public interface FeedClock {
 
-    /** The real clock: {@link System#nanoTime()} and a sleep that ends early on an interrupt. */
+    /** The real clock: {@link System#nanoTime()}, a sleep that ends early on an interrupt or a {@link #wake}. */
     FeedClock SYSTEM = new FeedClock() {
         @Override
         public long nanoTime() {
@@ -35,18 +35,21 @@ public interface FeedClock {
 
         @Override
         public void sleepNanos(long nanos) throws InterruptedException {
-            final long end = System.nanoTime() + nanos;
-            long remaining = nanos;
-            while (remaining > 0) {
-                if (Thread.interrupted()) {
-                    throw new InterruptedException();
-                }
-                LockSupport.parkNanos(remaining);
-                remaining = end - System.nanoTime();
+            if (Thread.interrupted()) {
+                throw new InterruptedException();
+            }
+            if (nanos > 0) {
+                // one park: it also ends on an unpark (wake) or spuriously, which the contract allows
+                LockSupport.parkNanos(nanos);
             }
             if (Thread.interrupted()) {
                 throw new InterruptedException();
             }
+        }
+
+        @Override
+        public void wake(Thread thread) {
+            LockSupport.unpark(thread);
         }
     };
 
@@ -54,9 +57,16 @@ public interface FeedClock {
     long nanoTime();
 
     /**
-     * Waits until this clock has advanced by {@code nanos}; returns at once for zero or less.
+     * Waits until this clock has advanced by {@code nanos}; returns at once for zero or less. <b>May return early</b>
+     * (after a {@link #wake}, or spuriously): the caller looks at the situation again and sleeps again if it must.
      *
      * @throws InterruptedException when the thread is interrupted (the feeder does that to stop its writer)
      */
     void sleepNanos(long nanos) throws InterruptedException;
+
+    /**
+     * Ends the sleep of {@code thread} early. If it does not sleep now, its next sleep returns at once (the permit of
+     * {@code LockSupport.unpark}). The feeder uses it to tell the writer that audio has arrived.
+     */
+    void wake(Thread thread);
 }

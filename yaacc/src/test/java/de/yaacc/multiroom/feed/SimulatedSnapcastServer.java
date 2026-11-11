@@ -54,6 +54,8 @@ final class SimulatedSnapcastServer implements SnapcastCaller {
     private final List<String> addUris = new ArrayList<>();
     private boolean bindRealListeners;
     private SnapcastException failNext;
+    private final Map<String, SnapcastException> failMethodOnce = new HashMap<>();
+    private final Map<String, Runnable> beforeCall = new HashMap<>();
     private SnapcastException failAddStream;
     private String answerIdOverride;
 
@@ -151,6 +153,20 @@ final class SimulatedSnapcastServer implements SnapcastCaller {
     void failNextCall(SnapcastException failure) {
         synchronized (lock) {
             failNext = failure;
+        }
+    }
+
+    /** The next call of this method (and no other) fails with this. */
+    void failNextCallOf(String method, SnapcastException failure) {
+        synchronized (lock) {
+            failMethodOnce.put(method, failure);
+        }
+    }
+
+    /** Runs this (once, outside the lock) just before the next call of the method is answered. */
+    void beforeNextCallOf(String method, Runnable action) {
+        synchronized (lock) {
+            beforeCall.put(method, action);
         }
     }
 
@@ -278,12 +294,23 @@ final class SimulatedSnapcastServer implements SnapcastCaller {
 
     @Override
     public JSONObject call(String method, JSONObject params) throws SnapcastException {
+        Runnable before;
+        synchronized (lock) {
+            before = beforeCall.remove(method);
+        }
+        if (before != null) {
+            before.run();
+        }
         synchronized (lock) {
             calls.add(method + (params == null ? "" : " " + shortParams(method, params)));
             if (failNext != null) {
                 SnapcastException failure = failNext;
                 failNext = null;
                 throw failure;
+            }
+            SnapcastException methodFailure = failMethodOnce.remove(method);
+            if (methodFailure != null) {
+                throw methodFailure;
             }
             try {
                 switch (method) {

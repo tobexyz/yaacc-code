@@ -393,6 +393,92 @@ public class PcmFeederTest {
     }
 
     @Test
+    public void aFirstWriteSmallerThanAChunkIsNotPaddedWhileTheRestIsOnItsWay() throws Exception {
+        PcmFeeder feeder = open();
+        FakeConnection connection = factory.connection;
+        byte[] data = pattern(3);
+
+        assertTrue(feeder.write(data, 0, 1_000)); // the writer wakes up with 1000 bytes of a 3840-byte chunk
+        assertTrue("the writer waits for the rest of the chunk", clock.awaitSleepers(1, 2_000));
+        assertEquals("no chunk with zeros in the middle of the audio", 0, connection.count());
+        assertTrue(feeder.write(data, 1_000, data.length - 1_000));
+        runUntilWritten(connection, 3);
+
+        assertArrayEquals(data, Arrays.copyOf(connection.all(), data.length));
+        assertEquals(0, feeder.getSilenceChunks());
+    }
+
+    @Test
+    public void aPartialChunkAtTheDueTimeGetsAGraceBeforeItIsPadded() throws Exception {
+        PcmFeeder feeder = open();
+        FakeConnection connection = factory.connection;
+        byte[] data = pattern(2);
+        assertTrue(feeder.write(data, 0, CHUNK));
+        assertTrue(connection.awaitCount(1, 2_000));
+        assertTrue(clock.awaitSleepers(1, 2_000));
+        clock.advance(CHUNK_NANOS - 1); // one nanosecond before the second chunk is due; the writer keeps waiting
+
+        assertTrue(feeder.write(data, CHUNK, 1_000)); // a short piece arrives right when the chunk is due
+        assertTrue(clock.awaitSleepers(1, 2_000));
+        clock.advance(1);
+        assertTrue("the writer gives the producer a grace and does not pad at once", clock.awaitSleepers(1, 2_000));
+        assertEquals(1, connection.count());
+        assertTrue(feeder.write(data, CHUNK + 1_000, CHUNK - 1_000)); // the rest comes within the grace
+        runUntilWritten(connection, 2);
+
+        assertArrayEquals(data, Arrays.copyOf(connection.all(), data.length));
+        assertEquals(0, feeder.getSilenceChunks());
+    }
+
+    @Test
+    public void aPartialChunkThatIsNotCompletedIsPaddedAfterTheGrace() throws Exception {
+        PcmFeeder feeder = open();
+        FakeConnection connection = factory.connection;
+        byte[] data = pattern(1);
+
+        assertTrue(feeder.write(data, 0, 1_000));
+        assertTrue(clock.awaitSleepers(1, 2_000));
+        assertEquals(0, connection.count());
+        runUntilWritten(connection, 1);
+
+        byte[] expected = new byte[CHUNK];
+        System.arraycopy(data, 0, expected, 0, 1_000);
+        assertArrayEquals(expected, connection.chunk(0));
+        assertTrue("padded no earlier than half a chunk and no later than one chunk after it was seen",
+                connection.timeOf(0) - 1_000_000_000L > 0
+                        && connection.timeOf(0) - 1_000_000_000L <= CHUNK_NANOS);
+    }
+
+    @Test
+    public void theWriterWakesWhenAudioArrivesInsteadOfSleepingTheWholeDueTime() throws Exception {
+        PcmFeeder feeder = open();
+        FakeConnection connection = factory.connection;
+        byte[] data = pattern(2);
+        assertTrue(feeder.write(data, 0, CHUNK));
+        assertTrue(connection.awaitCount(1, 2_000));
+        assertTrue("the writer waits for the next chunk to be due", clock.awaitSleepers(1, 2_000));
+        long before = clock.nanoTime();
+
+        assertTrue(feeder.write(data, CHUNK, CHUNK)); // the clock does not move
+
+        assertTrue("written at once, inside the look-ahead", connection.awaitCount(2, 2_000));
+        assertEquals(before, connection.timeOf(1));
+        assertEquals(0, feeder.getSilenceChunks());
+    }
+
+    @Test
+    public void audioThatIsNotWholeFramesIsRefused() throws Exception {
+        PcmFeeder feeder = open();
+        try {
+            feeder.write(new byte[7], 0, 7);
+            fail("a half frame would shift the channels for the rest of the stream");
+        } catch (IllegalArgumentException expected) {
+            // refused
+        }
+        assertEquals(0, feeder.getQueuedBytes());
+    }
+
+    @Test
     public void theLeadNeverExceedsTheLookAheadAndNoChunkIsLate() throws Exception {
         PcmFeeder feeder = open();
         FakeConnection connection = factory.connection;

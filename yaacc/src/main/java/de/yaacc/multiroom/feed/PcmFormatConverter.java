@@ -32,7 +32,8 @@ package de.yaacc.multiroom.feed;
  * </ul>
  *
  * <p><b>Fold-down.</b> The channel order is the one of Android and WAV: 3 = FL FR FC, 4 = FL FR BL BR,
- * 5 = FL FR FC BL BR, 6 = FL FR FC LFE BL BR, 7 = FL FR FC LFE BC SL SR, 8 = FL FR FC LFE BL BR SL SR. The front
+ * 5 = FL FR FC BL BR, 6 = FL FR FC LFE BL BR, 7 = FL FR FC LFE BL BR BC (5.1 plus a back centre, as Media3 1.11.1 maps
+ * seven channels), 8 = FL FR FC LFE BL BR SL SR. The front
  * channel counts with 1, the centre, the back centre and every surround channel with 0.7071 (-3 dB) on the side they
  * belong to (the back centre on both), the LFE is dropped. Each side is divided by the sum of its weights, so equal
  * full-scale channels give exactly full scale and the fold-down can not overflow; the price is that a signal on the
@@ -227,12 +228,12 @@ public final class PcmFormatConverter {
                 l[4] = SURROUND;
                 r[5] = SURROUND;
                 break;
-            case 7: // FL FR FC LFE BC SL SR
+            case 7: // FL FR FC LFE BL BR BC
                 l[2] = SURROUND;
                 r[2] = SURROUND;
                 l[4] = SURROUND;
-                r[4] = SURROUND;
-                l[5] = SURROUND;
+                r[5] = SURROUND;
+                l[6] = SURROUND;
                 r[6] = SURROUND;
                 break;
             default: // 8: FL FR FC LFE BL BR SL SR

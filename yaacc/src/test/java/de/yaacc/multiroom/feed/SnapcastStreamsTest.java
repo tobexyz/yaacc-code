@@ -769,6 +769,90 @@ public class SnapcastStreamsTest {
     }
 
     @Test
+    public void aFailedRestoreKeepsTheStreamSoThatTheGroupIsNotLeftOnAStreamThatIsGone() {
+        server.addPipeStream("Default");
+        server.addGroup("g1", "Default", "c1");
+        SnapcastStreams streams = ready();
+        streams.useFor("g1");
+        server.failNextCallOf("Group.SetStream",
+                new SnapcastException(SnapcastException.Kind.IO, 0, "io", null, null));
+
+        assertFalse(streams.shutdown());
+
+        assertTrue("the stream stays while the group is still on it", server.hasStream(streams.getStreamName()));
+        assertEquals(streams.getStreamName(), server.groupStream("g1"));
+        assertEquals(0, server.callCount("Stream.RemoveStream"));
+
+        assertTrue("the second call restores and then removes", streams.shutdown());
+        assertEquals("Default", server.groupStream("g1"));
+        assertFalse(server.hasStream(streams.getStreamName()));
+    }
+
+    @Test
+    public void aFailedRestoreKeepsTheStreamForIdleCleanupToo() {
+        server.addPipeStream("Default");
+        server.addGroup("g1", "Default", "c1");
+        SnapcastStreams streams = ready();
+        streams.useFor("g1");
+        server.failNextCallOf("Group.SetStream",
+                new SnapcastException(SnapcastException.Kind.TIMEOUT, 0, "timeout", null, null));
+        now[0] += IDLE_MILLIS;
+
+        assertFalse(streams.removeIfIdle());
+
+        assertTrue(server.hasStream(streams.getStreamName()));
+        assertEquals(streams.getStreamName(), server.groupStream("g1"));
+    }
+
+    @Test
+    public void aGroupThatTheUserMovedOntoTheStreamKeepsItAlive() {
+        server.addPipeStream("Default");
+        server.addGroup("g1", "Default", "c1");
+        server.addGroup("g2", "Default", "c2");
+        SnapcastStreams streams = ready();
+        streams.useFor("g1");
+        try {
+            // another controller puts g2 on our stream; YAACC never recorded it
+            server.call("Group.SetStream", new JSONObject().put("id", "g2").put("stream_id", streams.getStreamName()));
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+
+        assertFalse("the stream is still in use", streams.shutdown());
+
+        assertTrue(server.hasStream(streams.getStreamName()));
+        assertEquals(streams.getStreamName(), server.groupStream("g2"));
+        assertEquals("the group YAACC moved was restored", "Default", server.groupStream("g1"));
+        try {
+            server.call("Group.SetStream", new JSONObject().put("id", "g2").put("stream_id", "Default"));
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+        assertTrue("nobody uses it any more", streams.shutdown());
+        assertFalse(server.hasStream(streams.getStreamName()));
+    }
+
+    @Test
+    public void ensureLooksAtTheGroupsAgainBeforeItRemovesALeftover() {
+        SnapcastStreams streams = streams();
+        String leftover = "YAACC Old phone " + streams.getMarker();
+        server.addTcpStream(leftover, 4953, "server", FORMAT);
+        server.addGroup("g1", "", "c1");
+        // a group is put on the leftover between ensure's first look and the removal
+        server.beforeNextCallOf("Stream.AddStream", () -> {
+            try {
+                server.call("Group.SetStream", new JSONObject().put("id", "g1").put("stream_id", leftover));
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        });
+
+        assertEquals(SnapcastStreams.Status.READY, streams.ensure().getStatus());
+
+        assertTrue("a leftover that a group uses now is not removed", server.hasStream(leftover));
+    }
+
+    @Test
     public void recordsOfGroupsThatAreGoneDoNotPileUp() {
         server.addPipeStream("Default");
         SnapcastStreams streams = ready();

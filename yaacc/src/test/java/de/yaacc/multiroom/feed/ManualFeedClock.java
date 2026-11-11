@@ -32,6 +32,7 @@ final class ManualFeedClock implements FeedClock {
 
     private static final class Sleeper {
         final long target;
+        final Thread thread = Thread.currentThread();
         boolean released;
 
         Sleeper(long target) {
@@ -41,6 +42,7 @@ final class ManualFeedClock implements FeedClock {
 
     private final Object lock = new Object();
     private final List<Sleeper> sleepers = new ArrayList<>();
+    private final java.util.Set<Thread> permits = new java.util.HashSet<>();
     private long now;
 
     ManualFeedClock() {
@@ -62,7 +64,7 @@ final class ManualFeedClock implements FeedClock {
     public void sleepNanos(long nanos) throws InterruptedException {
         synchronized (lock) {
             Sleeper sleeper = new Sleeper(now + nanos);
-            if (nanos <= 0) {
+            if (nanos <= 0 || permits.remove(Thread.currentThread())) {
                 return;
             }
             sleepers.add(sleeper);
@@ -74,6 +76,26 @@ final class ManualFeedClock implements FeedClock {
             } finally {
                 sleepers.remove(sleeper);
             }
+        }
+    }
+
+    /**
+     * Ends the sleep of this thread early; if it does not sleep now, its next sleep returns at once (the permit of
+     * {@code LockSupport.unpark}).
+     */
+    @Override
+    public void wake(Thread thread) {
+        synchronized (lock) {
+            for (Iterator<Sleeper> it = sleepers.iterator(); it.hasNext(); ) {
+                Sleeper sleeper = it.next();
+                if (sleeper.thread == thread) {
+                    sleeper.released = true;
+                    it.remove();
+                    lock.notifyAll();
+                    return;
+                }
+            }
+            permits.add(thread);
         }
     }
 

@@ -311,6 +311,58 @@ public class RealTimePacerTest {
         assertEquals(100_000L * 20_000_000L - 3 * 20_000_000L, clock.nanoTime() - start);
     }
 
+    // ---- any origin of the clock (only differences count)
+
+    private void runWholeScenario(long clockStart) {
+        ManualFeedClock origin = new ManualFeedClock(clockStart);
+        RealTimePacer pacer = new RealTimePacer(origin, BYTES_PER_SECOND, CHUNK, 3, 2);
+
+        // paced writes: three at once, then one per chunk; the lead stays within the look-ahead
+        for (int i = 0; i < 2_000; i++) {
+            long wait = pacer.nanosUntilWritable(CHUNK);
+            if (i < 3) {
+                assertEquals(clockStart + " chunk " + i, 0, wait);
+            }
+            origin.advance(wait);
+            pacer.onWritten(CHUNK);
+            assertTrue(clockStart + " lead " + pacer.leadNanos(), pacer.leadNanos() <= LOOK_AHEAD_NANOS);
+        }
+        assertEquals(clockStart + " elapsed", (2_000 - 3) * CHUNK_NANOS, origin.nanoTime() - clockStart);
+        assertEquals(LOOK_AHEAD_NANOS, pacer.getMaxLeadNanos());
+        assertEquals(0, pacer.getLateChunks());
+        assertEquals(0, pacer.getReanchors());
+
+        // a stall re-anchors, then the writes are bounded again
+        origin.advance(3_000_000_000L);
+        pacer.onWritten(CHUNK);
+        assertEquals(1, pacer.getReanchors());
+        int immediately = 0;
+        while (pacer.nanosUntilWritable(CHUNK) == 0) {
+            pacer.onWritten(CHUNK);
+            immediately++;
+        }
+        assertEquals(2, immediately);
+        assertEquals(CHUNK_NANOS, pacer.nanosUntilWritable(CHUNK));
+        assertTrue(pacer.nanosUntilDue() >= 0);
+    }
+
+    @Test
+    public void aClockThatStartsAtZeroWorks() {
+        runWholeScenario(0L);
+    }
+
+    @Test
+    public void aClockThatStartsNegativeAndCrossesZeroWorks() {
+        runWholeScenario(-20_000_000_000L);
+    }
+
+    @Test
+    public void aClockThatWrapsAroundLongMaxValueWorks() {
+        // System.nanoTime() may be any value and wraps: the pacer only ever looks at differences
+        runWholeScenario(Long.MAX_VALUE - 5_000_000_000L);
+        runWholeScenario(Long.MIN_VALUE + 1);
+    }
+
     @Test
     public void theArgumentsAreChecked() {
         assertRefused(0, CHUNK, 3, 2);

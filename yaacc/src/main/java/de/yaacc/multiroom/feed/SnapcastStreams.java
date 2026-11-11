@@ -407,7 +407,7 @@ public final class SnapcastStreams {
             if (isAdoptable(existing)) {
                 currentId = existing.getId();
                 lastAudioMillis.set(clock.nowMillis());
-                removeLeftoversIn(status);
+                removeLeftovers();
                 return new EnsureResult(Status.READY, existing.getId(), existing.getPort(), true, null, null);
             }
             // ours by name but not usable: replace it, unless a group plays it
@@ -458,7 +458,7 @@ public final class SnapcastStreams {
             }
             currentId = answeredId;
             lastAudioMillis.set(clock.nowMillis());
-            removeLeftoversIn(status);
+            removeLeftovers();
             return new EnsureResult(Status.READY, answeredId, port, false, null, null);
         }
         return failedResult(lastRefusal, true);
@@ -577,7 +577,7 @@ public final class SnapcastStreams {
      * Removes the stream (after giving the groups their previous streams back) if no audio was noted for the idle
      * timeout. Call it from a timer of the owner. The caller closes its {@link PcmFeeder} first or has none.
      *
-     * @return true if the stream was removed now
+     * @return true if the stream is gone now; false if it is not idle yet, or could not be removed (see {@link #shutdown()})
      */
     public synchronized boolean removeIfIdle() {
         if (currentId == null || clock.nowMillis() - lastAudioMillis.get() < idleTimeoutMillis) {
@@ -588,10 +588,12 @@ public final class SnapcastStreams {
 
     /**
      * Gives every group that YAACC moved its previous stream back and removes our stream (on user request, or when the
-     * last player ended). Only a stream that still looks like ours is removed.
+     * last player ended). The stream stays while a restore failed, and while any group still plays it (also one that
+     * somebody else moved there: it would be left on a stream that is gone); the status is read again before the
+     * removal. Only a stream that still looks like ours is removed.
      *
-     * @return true if nothing is left to do (also when there was nothing); false if a call failed, in which case the
-     * records are kept and a second call continues
+     * @return true if the stream is gone, was never made or is no longer ours; false if a call failed or a group still
+     * uses it, in which case the records are kept and a second call continues
      */
     public synchronized boolean shutdown() {
         if (currentId == null && previousByGroup.isEmpty()) {
@@ -603,26 +605,39 @@ public final class SnapcastStreams {
         } catch (SnapcastException failure) {
             return false;
         }
-        boolean done = true;
+        boolean restoreFailed = false;
         for (String groupId : new ArrayList<>(previousByGroup.keySet())) {
             if (restore(status, groupId) == ReleaseResult.FAILED) {
-                done = false;
+                restoreFailed = true;
             }
         }
-        if (currentId != null) {
-            SnapcastStream stream = status.findStream(currentId);
-            if (stream != null && carriesMarker(stream.getId()) && "tcp".equals(stream.getScheme())) {
-                try {
-                    operations.removeStream(currentId);
-                } catch (SnapcastException failure) {
-                    done = false;
-                }
-            }
-            if (done) {
-                currentId = null;
-            }
+        if (restoreFailed) {
+            return false; // removing the stream now would leave that group on a stream that is gone
         }
-        return done;
+        if (currentId == null) {
+            return true;
+        }
+        final SnapcastServerStatus fresh;
+        try {
+            fresh = operations.getStatus();
+        } catch (SnapcastException failure) {
+            return false;
+        }
+        SnapcastStream stream = fresh.findStream(currentId);
+        if (stream == null || !carriesMarker(stream.getId()) || !"tcp".equals(stream.getScheme())) {
+            currentId = null; // gone, or no longer a stream of ours: not ours to remove
+            return true;
+        }
+        if (usedByGroup(fresh, currentId)) {
+            return false;
+        }
+        try {
+            operations.removeStream(currentId);
+        } catch (SnapcastException failure) {
+            return false;
+        }
+        currentId = null;
+        return true;
     }
 
     /**
@@ -641,6 +656,7 @@ public final class SnapcastStreams {
         return removeLeftoversIn(status);
     }
 
+    /** Removes the leftovers listed in this status; the caller reads the status just before. */
     private int removeLeftoversIn(SnapcastServerStatus status) {
         int removed = 0;
         for (SnapcastStream stream : status.getStreams()) {

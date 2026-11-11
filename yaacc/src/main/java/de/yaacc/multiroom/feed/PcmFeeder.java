@@ -41,14 +41,16 @@ import java.util.concurrent.locks.ReentrantLock;
  * burst after a stall). The socket gets a small send buffer and {@code TCP_NODELAY}, so what is in flight stays a few
  * chunks and a pause or stop is heard soon. The server reads one chunk per {@code chunk_ms} and resyncs when a read is
  * late, so the writer <b>never underruns</b>: when the queue is empty at the time a chunk is due it writes silence (an
- * all-zero chunk, which the server counts as silent), for at most {@link Config#silenceFillChunks} chunks; after that
- * it waits without writing until audio arrives and anchors the clock again.
+ * all-zero chunk, which the server counts as silent), for at most {@code silenceFillChunks} chunks; after that
+ * it waits without writing until audio arrives and anchors the clock again. A chunk that is only partly queued is
+ * waited for (it is padded with zeros only when it is due and its first bytes have been waiting for half a chunk), and
+ * the writer wakes when audio arrives, so zeros never land in the middle of audio that is being handed over.
  *
- * <p><b>Back pressure.</b> {@link #write} waits up to {@link Config#writeWaitMillis} for room in the queue and then
+ * <p><b>Back pressure.</b> {@link #write} waits up to {@code writeWaitMillis} for room in the queue and then
  * reports failure (and counts the dropped bytes); the queue never grows.
  *
  * <p><b>A stalled peer.</b> Java sockets have no write timeout. A watchdog thread closes the connection when one write
- * has not finished after {@link Config#stallTimeoutMillis} (default 10 s); the feeder is then FAILED with
+ * has not finished after {@code stallTimeoutMillis} (default 10 s); the feeder is then FAILED with
  * {@link Failure#STALLED} and the listener is told once.
  *
  * <p>{@link #close()} stops both threads and closes the socket. Everything is safe to call from any thread.
@@ -185,6 +187,8 @@ public final class PcmFeeder implements PcmSink {
     private final Listener listener;
     private final RealTimePacer pacer;
     private final int chunkBytes;
+    private final int frameBytes;
+    private final long partialGraceNanos;
     private final int silenceFillChunks;
     private final long writeWaitNanos;
     private final long stallTimeoutNanos;
@@ -198,6 +202,8 @@ public final class PcmFeeder implements PcmSink {
     private int head;
     private int size;
     private boolean dormant;
+    /** True while the writer sleeps in the hope that more audio arrives; the producer then wakes it. */
+    private volatile boolean needsData;
 
     private final Object stateLock = new Object();
     private volatile State state = State.RUNNING;
@@ -219,6 +225,9 @@ public final class PcmFeeder implements PcmSink {
         this.chunkBytes = RealTimePacer.chunkBytesFor(format, config.chunkMillis);
         this.pacer = new RealTimePacer(clock, format.bytesPerSecond(), chunkBytes, config.lookAheadChunks,
                 config.stallChunks);
+        this.frameBytes = format.bytesPerFrame();
+        // half a chunk: a partial chunk is padded no later than one chunk after it was due, inside the server's tolerance
+        this.partialGraceNanos = TimeUnit.MILLISECONDS.toNanos(config.chunkMillis) / 2;
         this.ring = new byte[config.queueChunks * chunkBytes];
         this.silenceFillChunks = config.silenceFillChunks;
         this.writeWaitNanos = TimeUnit.MILLISECONDS.toNanos(config.writeWaitMillis);
@@ -280,15 +289,30 @@ public final class PcmFeeder implements PcmSink {
     // ---- producer side
 
     /**
-     * Copies PCM into the queue. Waits up to {@link Config#writeWaitMillis} for room; what does not fit by then is
+     * Copies PCM into the queue. Waits up to {@code writeWaitMillis} for room; what does not fit by then is
      * dropped and counted.
      *
      * @return true if everything was queued; false if the feeder is not running or bytes were dropped
+     * @throws IllegalArgumentException for a range outside the array or a length that is not whole frames (an odd
+     *                                  number of bytes would shift the channels for the rest of the stream)
      */
     @Override
     public boolean write(byte[] data, int offset, int length) {
+        try {
+            return enqueue(data, offset, length);
+        } finally {
+            if (needsData) {
+                clock.wake(writerThread);
+            }
+        }
+    }
+
+    private boolean enqueue(byte[] data, int offset, int length) {
         if (data == null || offset < 0 || length < 0 || (long) offset + length > data.length) {
             throw new IllegalArgumentException("range outside the array");
+        }
+        if (length % frameBytes != 0) {
+            throw new IllegalArgumentException("not whole frames");
         }
         if (length == 0) {
             return state == State.RUNNING;
@@ -406,6 +430,8 @@ public final class PcmFeeder implements PcmSink {
         final byte[] chunk = new byte[chunkBytes];
         // starts dormant: the first audio decides when the clock is anchored, no silence goes out before it
         int silenceFilled = silenceFillChunks;
+        boolean partialSeen = false;
+        long partialSince = 0;
         try {
             while (state == State.RUNNING) {
                 long wait = pacer.nanosUntilWritable(chunkBytes);
@@ -418,19 +444,16 @@ public final class PcmFeeder implements PcmSink {
                 if (available >= chunkBytes) {
                     take(chunk, chunkBytes);
                     silenceFilled = 0;
-                } else {
+                    partialSeen = false;
+                } else if (available == 0) {
+                    partialSeen = false;
                     long due = pacer.nanosUntilDue();
                     if (due > 0) {
-                        // the audio sent so far is not played yet: give the producer until then
-                        clock.sleepNanos(due);
+                        // the audio sent so far is not played yet: wait for it, but wake when more audio arrives
+                        sleepUntilDataOrTime(due, 0);
                         continue;
                     }
-                    if (available > 0) {
-                        // the tail of a burst: pad it to a whole chunk
-                        int taken = take(chunk, available);
-                        Arrays.fill(chunk, taken, chunkBytes, (byte) 0);
-                        silenceFilled = 0;
-                    } else if (silenceFilled < silenceFillChunks) {
+                    if (silenceFilled < silenceFillChunks) {
                         Arrays.fill(chunk, (byte) 0);
                         silenceFilled++;
                         silence = true;
@@ -442,6 +465,24 @@ public final class PcmFeeder implements PcmSink {
                         silenceFilled = 0;
                         continue;
                     }
+                } else {
+                    // less than a chunk: the producer is probably in the middle of handing it over (a start after a
+                    // pause, small buffers), so wait for the rest. Pad only when the chunk is due and the first
+                    // bytes of it have been here for the grace; the tail of a stream is padded that way.
+                    long now = clock.nanoTime();
+                    if (!partialSeen) {
+                        partialSeen = true;
+                        partialSince = now;
+                    }
+                    long remaining = Math.max(pacer.nanosUntilDue(), partialSince + partialGraceNanos - now);
+                    if (remaining > 0) {
+                        sleepUntilDataOrTime(remaining, available);
+                        continue;
+                    }
+                    int taken = take(chunk, available);
+                    Arrays.fill(chunk, taken, chunkBytes, (byte) 0);
+                    silenceFilled = 0;
+                    partialSeen = false;
                 }
                 writeStartedNanos.set(clock.nanoTime());
                 connection.write(chunk, 0, chunkBytes);
@@ -457,6 +498,23 @@ public final class PcmFeeder implements PcmSink {
             // closing or failing: the thread ends
         } catch (IOException | RuntimeException e) {
             fail(Failure.WRITE);
+        }
+    }
+
+    /**
+     * Sleeps up to {@code nanos}, or less if the producer hands over more audio meanwhile. The flag is set before the
+     * queue is looked at again, so a write that lands in between is not missed.
+     *
+     * @param seenBytes the number of queued bytes the caller based its decision on
+     */
+    private void sleepUntilDataOrTime(long nanos, int seenBytes) throws InterruptedException {
+        needsData = true;
+        try {
+            if (queuedBytes() == seenBytes) {
+                clock.sleepNanos(nanos);
+            }
+        } finally {
+            needsData = false;
         }
     }
 
