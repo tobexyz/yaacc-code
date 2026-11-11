@@ -428,7 +428,7 @@ The Snapcast support is new: the control screens were checked against the test r
 
 ### What you need
 
-* A snapserver that your phone can reach in the network, with its TCP control interface switched on (port 1705 unless the server uses another one). A server that has authorization (a login) switched on is not supported.
+* A snapserver that your phone can reach in the network, with its TCP control interface switched on (port 1705 unless the server uses another one). A server that has authorization (a login) switched on is not supported. Neither the control port nor the stream ports are protected, so keep them inside a network you trust (or behind a VPN) and do not type in the public address of a server.
 * For the play option also the ports 4953 to 4962 of the server: YAACC asks the server to open one of them for the audio and connects to it (a firewall on the server must let the phone through).
 * For finding a server by itself the server must announce itself in the network (mDNS, for example through Avahi); otherwise type its address in.
 * Tested with: Snapcast 0.35.0 (a build of its development sources from November 2026) in the Docker test rig of this project, one snapserver and two snapclients without sound output, see [The test rig](#the-snapcast-test-rig). Other versions have not been tested. The app itself has not been tried with a phone and real speakers yet (that is why the play option is experimental).
