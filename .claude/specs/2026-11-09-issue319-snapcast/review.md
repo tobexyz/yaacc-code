@@ -331,3 +331,43 @@ Checked, no action:
 - [ ] Coverage adequate for the change - missing: first write smaller than a chunk, partial chunk when due, failed `setGroupStream` inside `shutdown`, channel placement for 7 and 8 channels, non-standard clock origins. The virtual clock design is good (no pacing sleeps; real waits at most 2 s).
 
 ### Verdict: FAIL
+
+## Cycle 2 (Group 4, pure parts) - 2026-11-11
+Reviewing: commit a83c5ee8 (Fix Group 4, F4.1 to F4.4) against Cycle 1 W1 to W3 and the suggestions. Touches only `multiroom/feed` (main and test), `docs/tech.md`, `decisions.md`, `tasks.md`; no build file, manifest or dependency; no attribution line in the files.
+
+Method: diff and full read of `PcmFeeder`, `FeedClock`, the changed parts of `SnapcastStreams` and `PcmFormatConverter`, the new tests and `ManualFeedClock`/`SimulatedSnapcastServer` additions. Runs: `de.yaacc.multiroom.*` with `--rerun` 3 times, all green (554 tests, 3 skipped (rig), 0 failures, 0 errors, counted from the result XML). The feed package alone 5 times under 12 busy loops on 4 cores: 5 of 5 green; `PcmFeederTest` alone 6 more times under the same load: 6 of 6 green (in cycle 1 the former flaky test failed in 1 of 3 such runs).
+
+W1 - fixed.
+- Rule: a partial chunk is padded at `max(due, firstSeen + chunk/2)`; before that the writer sleeps via `sleepUntilDataOrTime`. A full chunk resets the state, `available == 0` resets it, so a producer that delivers exactly one chunk (or any whole number of chunks) at a time never meets the partial branch. A start after dormancy (`awaitData` -> `pacer.reset()` -> partial) waits for the rest instead of padding at once. Wrap-safe: only differences of `nanoTime` are used (`partialSince + grace - now`).
+- Wake mechanism, checked for lost wake-ups: the writer sets the volatile `needsData`, then reads the queue size under `queueLock`; the producer changes the size under the lock, releases it, then reads `needsData` (in `finally`, so also after a drop). Both sides are synchronisation actions, so either the writer sees the new size and skips the sleep, or the producer sees the flag and unparks. A producer that unparks just after the writer has left the sleep leaves one stale permit: the next `sleepNanos` returns at once, the loop looks again and sleeps properly, one extra iteration, no spin (one permit per write at most). Other park users on the writer thread (`Condition.await`, lock acquisition) re-check their condition, so a stray permit is harmless there. `sleepNanos` returning early is handled at both call sites (both `continue` and recompute); the SYSTEM clock now parks once and checks the interrupt before and after. `wake(null)` before the thread exists is a no-op, `needsData` is false until the writer first sleeps. After `close()` the permit goes to a dead or interrupted thread; nothing waits on it; threads are joined (no leak, the thread-count tests stay green).
+- Frame alignment: `write` refuses a length that is not whole frames before touching the queue; the queue therefore always holds whole frames and the pad never splits one. The refusal is documented on `write`.
+- Margin against the server rule (`asio_stream.hpp`: resync only when a read ends after the deadline of the next chunk, i.e. more than one chunk after the due time): the pad goes out at most half a chunk (10 ms at the 20 ms default) after the due time if the partial chunk was seen by then, which leaves 10 ms for thread wake-up and the write. Adequate; a late read costs a resync (one audible step), not a failure.
+- Tests: the four new tests assert the rule itself (first write smaller than a chunk waits, partial chunk at the due time gets the grace, padding after the grace, wake without clock movement, refusal of half frames) and use the virtual clock, so they are deterministic; the former flaky test now queues the three pieces without the clock moving.
+
+W2 - fixed.
+- `shutdown` returns false and keeps `currentId` and the records when a restore failed (the removal no longer runs); otherwise it reads the status again, drops the record without a removal if the stream is gone or no longer looks like ours, keeps the stream while any group is on it (user-moved groups included), else removes. `removeIfIdle` goes through it. `ensure()` calls `removeLeftovers()` (fresh status) instead of reusing the first one. Retry behaviour: every false leaves the state as it was, so the next call (idle timer) continues; a stream held by an unrecorded group stays and is retried at every timer tick (two `getStatus` per tick) until the group leaves. The remaining window between the fresh read and `RemoveStream` is inherent to JSON-RPC (no compare and swap) and is a few milliseconds; acceptable. The documented return value is accurate ("gone, never made or no longer ours" = true).
+- Tests: failed `Group.SetStream` once (shutdown and idle cleanup), user-moved group keeps it alive and the second call removes, leftover with a group put on it between the first look and the removal. The failure is injected by method name, not by call count.
+
+W3 - fixed. Case 7 is FL FR FC LFE BL BR BC (BL left, BR right, BC both), comment and `tech.md` item 9 corrected. The new test builds a layout table with the Android orders for 3 to 8 channels and per-channel weights independently of the implementation's index arrays, puts one channel alone and checks both sides including the normalisation; it would have caught the old case 7.
+
+F4.4 - done as recorded: pacer scenario at clock origins 0, negative crossing 0, near `Long.MAX_VALUE` and `Long.MIN_VALUE + 1`; the zero chunk after dormancy is not added and is item 10 of `tech.md` (the source does not prove the clients drop the first chunk), the writer priority is item 11. Agreed.
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+- [`PcmFeeder.writerLoop`, start after dormancy] After dormancy nothing is in flight and no server deadline exists yet (the pacer is unanchored), so the half-chunk grace is shorter than it has to be there: a first buffer that is smaller than a chunk and whose rest arrives more than 10 ms later still gets zeros inside the first chunk. A longer grace (a whole chunk) for the unanchored case would cost nothing. The tap's buffers are normally at least a chunk, so this is minor; `tasks.md` F4.1 said "one-chunk grace", the code and `decisions.md` say half a chunk with a reason (steady-state margin), which is right for the anchored case.
+- [`PcmFeeder.writerLoop`, `partialSince`] The grace is measured from the moment the writer first looks at the partial chunk, not from the moment its bytes were queued (comments and `decisions.md` say "queued"). The difference is small (the writer looks within one wake-up), but a partial chunk that was queued while the writer was inside a slow `connection.write` is padded later than half a chunk after queueing. Either reword to "first seen" or stamp the time in `write`.
+- [`PcmFeeder.close`] `close()` drops everything that is queued, whole chunks included; a final partial chunk is only written if the producer was quiet for the grace before `close()` (the writer pads it then). That is the documented "drops the queue" behaviour and unchanged, but the app side (4.4) should wait about one chunk (or add a `drain` with a bound) between the last `write` and `close()` if the last 20 ms of a track must be heard.
+- [`PcmFeederTest.aPartialChunkThatIsNotCompletedIsPaddedAfterTheGrace`] The message says "no earlier than half a chunk" but the assertion only checks `> 0` and `<= one chunk`; assert `>= CHUNK_NANOS / 2`.
+- [`SnapcastStreams.removeIfIdle`] While an unrecorded group stays on the stream, every timer tick costs two `getStatus` calls; consider a back-off or only retrying after `noteAudio`. Not needed now.
+- [`PcmFeeder.write` documentation / `PcmSink`] Mention the whole-frame rule in `PcmSink.write` too, since the tap (4.4) calls the interface; the draft tap already produces whole frames only.
+
+### Tests
+- [x] All tests passing (554 tests, 3 skipped (rig), 0 failures; 3 of 3 multiroom runs, 5 of 5 feed runs and 6 of 6 `PcmFeederTest` runs under 12 busy loops)
+- [x] Coverage adequate for the change (first write smaller than a chunk, partial at the due time, padding after the grace, wake on data, half-frame refusal, failed restore in `shutdown` and `removeIfIdle`, user-moved group, leftover re-check, per-channel placement for 3 to 8 channels, pacer clock extremes). Not covered, acceptable: a stale permit after `close()`, `close()` with a partial chunk queued.
+
+### Verdict: PASS
