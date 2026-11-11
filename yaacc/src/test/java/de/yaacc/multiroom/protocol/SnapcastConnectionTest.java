@@ -866,6 +866,7 @@ public class SnapcastConnectionTest {
         final java.util.concurrent.BlockingQueue<byte[]> incoming = new java.util.concurrent.LinkedBlockingQueue<>();
         final java.util.concurrent.Semaphore reads = new java.util.concurrent.Semaphore(0);
         final CountDownLatch closed = new CountDownLatch(1);
+        volatile RuntimeException writeFailure;
 
         @Override
         public Connection open(int connectTimeoutMillis) {
@@ -920,6 +921,9 @@ public class SnapcastConnectionTest {
 
                         @Override
                         public void write(byte[] buffer, int offset, int length) throws IOException {
+                            if (writeFailure != null) {
+                                throw writeFailure;
+                            }
                             try {
                                 closed.await(); // the server never reads: a write never finishes
                             } catch (InterruptedException e) {
@@ -975,6 +979,61 @@ public class SnapcastConnectionTest {
         }
 
         assertEquals(SnapcastConnection.LossReason.TIMEOUT, recorder.nextOf(SnapcastConnection.Loss.class).getReason());
+    }
+
+    @Test
+    public void theHelloIsAlwaysTheFirstThingTheServerSeesWhateverAnotherThreadSends() throws Exception {
+        final java.util.concurrent.BlockingQueue<Integer> firstTypes = new java.util.concurrent.LinkedBlockingQueue<>();
+        FakeServer server = serve(connection -> {
+            firstTypes.add(connection.readFrame().getHeader().getType());
+            connection.awaitClientClose();
+        });
+        for (int round = 0; round < 150; round++) {
+            final SnapcastConnection connection = new SnapcastConnection(new SnapcastTransportHolder(server, 0).transport, HELLO,
+                    quick(), new ManualClock(1_000_000), new ManualScheduler(), null);
+            final java.util.concurrent.atomic.AtomicBoolean stop = new java.util.concurrent.atomic.AtomicBoolean();
+            Thread sender = new Thread(() -> {
+                // as early as possible: from before the connection is started until a write is accepted
+                while (!stop.get() && !connection.sendClientInfo(10, false)) {
+                    Thread.yield();
+                }
+            }, "early-client-info");
+            sender.setDaemon(true);
+            sender.start();
+            connection.start();
+
+            Integer first = firstTypes.poll(ConnectionFixtures.WAIT_SECONDS, TimeUnit.SECONDS);
+            stop.set(true);
+            sender.join(ConnectionFixtures.WAIT_SECONDS * 1000);
+            connection.close();
+
+            assertNotNull("round " + round, first);
+            assertEquals("round " + round + ": the first message is the Hello", 5, first.intValue());
+        }
+    }
+
+    @Test
+    public void aWriterThatThrowsAnythingEndsTheAttemptAsATypedLossAndNeverReachesTheUncaughtHandler() throws Exception {
+        final java.util.List<Throwable> uncaught = java.util.Collections.synchronizedList(new ArrayList<Throwable>());
+        Thread.UncaughtExceptionHandler previous = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((thread, error) -> uncaught.add(error));
+        try {
+            StalledWriteTransport transport = new StalledWriteTransport();
+            transport.writeFailure = new IllegalStateException("a bug in the output stream");
+            transport.incoming.add(Bytes.concat(SnapcastMessageCodec.encode(SETTINGS, 1, 0, 0), SnapcastMessageCodec.encode(pcmHeader(), 2, 0, 0)));
+            Recorder recorder = new Recorder();
+            SnapcastConnection connection = new SnapcastConnection(transport, HELLO, quick(), new ManualClock(1_000_000),
+                    new ManualScheduler(), null);
+            connection.addListener(recorder);
+            toClose.add(connection);
+
+            connection.start();
+
+            assertEquals(SnapcastConnection.LossReason.INTERNAL, recorder.nextOf(SnapcastConnection.Loss.class).getReason());
+            assertTrue("uncaught: " + uncaught, uncaught.isEmpty());
+        } finally {
+            Thread.setDefaultUncaughtExceptionHandler(previous);
+        }
     }
 
     // ---- the target (security review S60)

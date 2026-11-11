@@ -195,7 +195,11 @@ Carried over from the security review of Group 3 (`security-review.md` S17 to S2
 - [x] F7.6 (S56) A CodecHeader above 64 KiB + 64 is refused at its header (before 8 MiB are read and copied); a WireChunk above the client's backlog budget (`maxPendingChunkBytes`, 4 MiB) is refused at its header instead of being read and dropped; the payload of a chunk is copied once less.
 - [x] F7.7 (S57) A writer thread per connection with a bounded queue (32): `sendClientInfo` never blocks (latest value wins), the reader never writes, a full queue (a server that does not read) ends the connection as TIMEOUT. Tests with a loopback server that stops reading and with a transport whose writes never finish.
 - [x] F7.8 (S60, S62, S10) `forAddress` refuses the wildcard, multicast and bad ports (and says: pass a resolved address); `MicroClock.fromNanoSource` is the seam for Android's `elapsedRealtimeNanos`; a test delivers 21 headers one by one to a listener that keeps up (the counter of pending headers is released).
-- Hand-offs, not done here (see the notes of Groups 8 and 9 below): S58, S59, S61, S13, S62 (Android clock).
+- Hand-offs, not done here (see the notes of Groups 8 and 9 below): S58, S59, S60 (Group 9 passes a resolved address; `forAddress` itself now refuses the wildcard and multicast), S61, S13, S62 (Android clock).
+
+## Fix Group 7d: Address the security review cycle 2 of Group 7 (S63, S64; the review passed)
+- [x] F7.9 (S63) `activeWriter` is published only after the Hello is queued, and cleared with compare-and-set (the end of an attempt no longer clears the writer of a newer one). Test: 150 rounds, another thread calls `sendClientInfo` from before the start; the first frame the server sees is always the Hello (it was a ClientInfo in round 4 before the fix).
+- [x] F7.10 (S64) The writer catches `Throwable`, closes the socket and the attempt ends as `INTERNAL` (retried like other losses); it never reaches the uncaught handler. Test with an output stream that throws a RuntimeException.
 
 ## Group 8 (Phase B): Audio engine (P1, spike first)
 - [ ] 8.1 Spike: `AudioTrack` engine playing rig chunks (PCM, then FLAC via `MediaCodec`) in sync with a Raspberry Pi/rig client | `de.yaacc.multiroom.client` (draft)

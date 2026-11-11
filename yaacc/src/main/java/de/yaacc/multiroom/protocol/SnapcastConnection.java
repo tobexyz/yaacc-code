@@ -357,7 +357,7 @@ public final class SnapcastConnection implements Closeable {
     private boolean lossReported;
     private volatile boolean closed;
 
-    private volatile Writer activeWriter;
+    private final AtomicReference<Writer> activeWriter = new AtomicReference<>();
     private final AtomicInteger nextId = new AtomicInteger(1);
 
     private final AtomicInteger pendingChunks = new AtomicInteger();
@@ -566,7 +566,7 @@ public final class SnapcastConnection implements Closeable {
         if (ownListenerExecutor != null) {
             ownListenerExecutor.shutdownNow();
         }
-        activeWriter = null;
+        activeWriter.set(null);
     }
 
     private static void closeQuietly(SnapcastTransport.Connection toClose) {
@@ -585,7 +585,7 @@ public final class SnapcastConnection implements Closeable {
      * @return false when there is no connection or the writer's queue is full
      */
     public boolean sendClientInfo(int volume, boolean muted) {
-        Writer writer = activeWriter;
+        Writer writer = activeWriter.get();
         if (writer == null) {
             return false;
         }
@@ -611,6 +611,7 @@ public final class SnapcastConnection implements Closeable {
         private final java.util.concurrent.LinkedBlockingQueue<byte[]> queue = new java.util.concurrent.LinkedBlockingQueue<>(MAX_QUEUED);
         private final AtomicReference<byte[]> clientInfo = new AtomicReference<>();
         private final Thread thread;
+        private volatile boolean internalError;
 
         Writer(final OutputStream out, final SnapcastTransport.Connection socket) {
             thread = new Thread(() -> {
@@ -628,6 +629,11 @@ public final class SnapcastConnection implements Closeable {
                     }
                 } catch (IOException | InterruptedException e) {
                     socket.close(); // wakes the reader
+                } catch (Throwable t) {
+                    // a bug in a stream must not reach the uncaught handler (a crash of the app) or leave the connection
+                    // up with a writer that is gone: remember it for the reader's loss and close the socket
+                    internalError = true;
+                    socket.close();
                 }
             }, "snapcast-bin-writer");
             thread.setDaemon(true);
@@ -645,6 +651,11 @@ public final class SnapcastConnection implements Closeable {
                 return false;
             }
             return true;
+        }
+
+        /** True when the writer ended because of something that is not a failure of the network. */
+        boolean hasInternalError() {
+            return internalError;
         }
 
         void stop() {
@@ -716,7 +727,8 @@ public final class SnapcastConnection implements Closeable {
             lossReported = true;
             token = generation;
         }
-        activeWriter = null;
+        // activeWriter is not touched here: the session cleared its own writer (compare and clear) and a new attempt
+        // may have published its writer already
         // the retry is set up before the listeners hear of the loss, so a listener that reacts to it finds it scheduled
         if (!giveUp) {
             scheduler.schedule(() -> retryTimerFired(token), delay);
@@ -907,12 +919,12 @@ public final class SnapcastConnection implements Closeable {
             try {
                 InputStream in = socket.getInputStream();
                 writer = new Writer(socket.getOutputStream(), socket);
-                activeWriter = writer;
                 FrameReader reader = FrameReader.forClient(in, clock, config.messageDeadlineMs, socket::setReadTimeout,
                         (int) Math.min(Integer.MAX_VALUE, config.maxPendingChunkBytes));
                 startedAt = clock.nowMicros();
                 lastReceivedAt = startedAt;
                 writer.offer(SnapcastMessageCodec.encode(hello, nextMessageId(), 0, startedAt));
+                activeWriter.set(writer); // only now: a sendClientInfo from another thread can not go out before the Hello
                 while (isCurrent(attempt)) {
                     long now = clock.nowMicros();
                     if (settingsSeen && now >= nextTimeSyncAt && !sendTimeRequest(writer, now)) {
@@ -948,12 +960,10 @@ public final class SnapcastConnection implements Closeable {
             } catch (SnapcastProtocolException e) {
                 return lossOf(e);
             } catch (IOException e) {
-                return new Loss(LossReason.IO_ERROR, "");
+                return new Loss(writer != null && writer.hasInternalError() ? LossReason.INTERNAL : LossReason.IO_ERROR, "");
             } finally {
                 if (writer != null) {
-                    if (activeWriter == writer) {
-                        activeWriter = null;
-                    }
+                    activeWriter.compareAndSet(writer, null);
                     writer.stop();
                 }
             }
