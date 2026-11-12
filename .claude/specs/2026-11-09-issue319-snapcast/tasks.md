@@ -218,6 +218,11 @@ Notes are kept current as items are done (interruption safe). Tests first (red, 
 - [x] F8.4 (W3; `LockPolicy`, docs honest: no screen-off Wi-Fi lock on API 34+) Wi-Fi lock: `FULL_HIGH_PERF` up to API 33, `FULL_LOW_LATENCY` from 34 per the platform docs; honest text in `docs/tech.md` and in the 8.2 note.
 - [x] F8.5 (S1 to S8; done and skipped items with reasons are listed in `decisions.md` 2026-11-12 Fix Group 8b) cheap suggestions (list of done/skipped with reasons is in `decisions.md` when finished).
 
+## Fix Group 8c: Address W4 of the general review, cycle 2 (S9, S11, S14, S10 evaluated), started 2026-11-12
+- [x] F8.6 (W4; `SnapcastClientEngineFlacHolesTest` 15 tests, 8 red first) flac: remember every hole (bounded sorted set of boundaries, 64; overflow handled), recover once per chunk after a boundary, keep the boundaries above the current chunk; clear them only on a stream reset (header, connection loss, epoch). Tests: two losses 5 chunks apart, decode failure plus loss, adjacent losses, every 25th/5th/3rd/2nd lost, > 800 ms apart, pcm unchanged, overflow. Red first.
+- [x] F8.7 S9 (tautology in `ClientSessionTest`), S11 (`lastPollNanos` origin), S14 (3.000 s gap boundary test).
+- [x] F8.8 S10 evaluated, not done, known limit documented in `docs/tech.md` guess 9: keeping the decoded audio before the hole (decision in `decisions.md`; known limit in `docs/tech.md` if not done).
+
 ## Group 9 (Phase B): Renderer integration (P2)
 - [ ] 9.1 Output "Snapcast group" for the YAACC renderer: the renderer feeds the group and the phone plays as a member; renderer volume/mute map to the client volume; the direct local output is off | `de.yaacc.upnp.server`, `de.yaacc.player`
   - **Accept**: a UPnP controller playing to the YAACC renderer is heard on the group in sync, including on the phone; volume from the controller moves the phone's client volume on the server.

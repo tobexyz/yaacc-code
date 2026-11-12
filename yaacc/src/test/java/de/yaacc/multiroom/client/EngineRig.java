@@ -114,6 +114,28 @@ final class EngineRig {
     }
 
     private long delayNext;
+    private final java.util.Set<Long> lost = new java.util.HashSet<>();
+    private final java.util.Set<Long> late = new java.util.HashSet<>();
+
+    /** These chunks never reach the engine; it is told (as the host does when its queue is full) in the order of arrival. */
+    void lose(long... chunks) {
+        for (long c : chunks) {
+            lost.add(c);
+        }
+    }
+
+    /** Forgets the losses planned so far (the chunk numbers start again after a restart of the server). */
+    void clearLosses() {
+        lost.clear();
+        late.clear();
+    }
+
+    /** These chunks reach the client 1.3 s after they were recorded: the scheduler drops them as late. */
+    void late(long... chunks) {
+        for (long c : chunks) {
+            late.add(c);
+        }
+    }
 
     long chunkTimestamp(long chunk) {
         return serverStart + chunk * CHUNK_MS * 1000L;
@@ -129,7 +151,11 @@ final class EngineRig {
         while (sending && chunkTimestamp(nextChunk) + CHUNK_MS * 1000L <= serverNow()) {
             WireChunkMessage chunk = ClientFixtures.chunk(chunkTimestamp(nextChunk), nextChunk * chunkFrames, chunkFrames,
                     channels, bits);
-            if (delayNext > 0) {
+            if (lost.contains(nextChunk)) {
+                engine.onChunkLost();
+            } else if (late.contains(nextChunk)) {
+                held.addLast(new Object[]{clock.nowMicros() + 1_300_000L, chunk});
+            } else if (delayNext > 0) {
                 held.addLast(new Object[]{clock.nowMicros() + delayNext * 1000L, chunk});
                 delayNext = 0;
             } else {

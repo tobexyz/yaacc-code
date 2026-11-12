@@ -56,7 +56,7 @@ public final class AudioTrackSink implements AudioSink {
     private boolean started;
     private int failures;
     private boolean usingHead;
-    private long lastPollNanos;
+    private long lastPollNanos = Long.MIN_VALUE / 2; // System.nanoTime() has an arbitrary origin: never compare with 0
     private long flushedAtNanos = Long.MIN_VALUE / 2;
     private long wrapBase;
     private long lastLow;
@@ -103,7 +103,7 @@ public final class AudioTrackSink implements AudioSink {
         started = false;
         failures = 0;
         usingHead = false;
-        lastPollNanos = 0;
+        lastPollNanos = Long.MIN_VALUE / 2;
         wrapBase = 0;
         lastLow = 0;
         lastPosition = null;

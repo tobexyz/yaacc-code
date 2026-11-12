@@ -365,6 +365,25 @@ public class SnapcastClientEngineTest {
     }
 
     @Test
+    public void aGapOfExactlyThreeSecondsIsStillFilledAndAGapOfThreeSecondsAndAChunkStartsAnew() {
+        EngineRig exact = EngineRig.typical();
+        exact.connect();
+        exact.run(4000);
+        exact.nextChunk += 150; // 150 chunks of 20 ms: 144 000 frames, exactly 3.000 s
+        exact.run(8000);
+        assertEquals(1, exact.engine.status().gapsFilled);
+        assertEquals("3.000 s is filled with silence", 0, exact.engine.status().timelineResyncs);
+
+        EngineRig over = EngineRig.typical();
+        over.connect();
+        over.run(4000);
+        over.nextChunk += 151; // 3.020 s
+        over.run(8000);
+        assertEquals(0, over.engine.status().gapsFilled);
+        assertEquals("above 3 s the timeline starts anew", 1, over.engine.status().timelineResyncs);
+    }
+
+    @Test
     public void aLongGapStartsTheTimelineAnew() {
         EngineRig rig = EngineRig.typical();
         rig.connect();

@@ -21,11 +21,9 @@ package de.yaacc.multiroom.client;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
 
 import de.yaacc.multiroom.control.SnapcastTransport;
 import de.yaacc.multiroom.protocol.HelloMessage;
-import de.yaacc.multiroom.protocol.MicroClock;
 import de.yaacc.multiroom.protocol.SnapcastConnection;
 
 import org.junit.Test;
@@ -61,8 +59,18 @@ public class ClientSessionTest {
                 });
     }
 
+    /**
+     * Reads a private field: the only way to see which clock a {@code SnapcastConnection} holds. If a field is renamed this
+     * fails with the message below, which says what the test wanted to know.
+     */
     private static Object field(Object owner, String name) throws Exception {
-        Field f = owner.getClass().getDeclaredField(name);
+        Field f;
+        try {
+            f = owner.getClass().getDeclaredField(name);
+        } catch (NoSuchFieldException renamed) {
+            throw new AssertionError("this test checks the wiring of the clock through the private field '" + name + "' of "
+                    + owner.getClass().getSimpleName() + "; the field was renamed: adjust the test, not the wiring", renamed);
+        }
         f.setAccessible(true);
         return f.get(owner);
     }
@@ -93,11 +101,14 @@ public class ClientSessionTest {
     @Test
     public void twoSessionsDoNotShareAClock() {
         AudioSink[] sink = new AudioSink[1];
-        ClientSession a = assemble(new AtomicLong(1_000_000_000L), sink);
-        ClientSession b = assemble(new AtomicLong(9_000_000_000L), sink);
+        AtomicLong nanosA = new AtomicLong(1_000_000_000L);
+        AtomicLong nanosB = new AtomicLong(9_000_000_000L);
+        ClientSession a = assemble(nanosA, sink);
+        ClientSession b = assemble(nanosB, sink);
         assertNotSame(a.clock(), b.clock());
-        assertTrue(a.clock().nowMicros() != b.clock().nowMicros() || true);
-        assertTrue(MicroClock.class.isInstance(a.clock()));
+        long bBefore = b.clock().nowMicros();
+        nanosA.addAndGet(5_000_000_000L);
+        assertEquals("only the first source moved", bBefore, b.clock().nowMicros());
         assertEquals(SnapcastConnection.State.IDLE, a.connection().getState());
     }
 

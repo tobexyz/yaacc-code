@@ -67,6 +67,8 @@ import java.util.ArrayDeque;
 public final class SnapcastClientEngine {
 
     /** The most microseconds {@code framesFor} multiplies by the rate (about 3 hours; more is clamped, not wrapped). */
+    /** Holes remembered one by one (about 1.3 seconds of a stream that loses every second chunk, per 64). */
+    private static final int MAX_HOLES = 64;
     private static final long MAX_FRAMES_FOR_MICROS = 10_000_000_000L;
     private static final long RESTART_WINDOW_MICROS = 60_000_000L;
 
@@ -123,8 +125,12 @@ public final class SnapcastClientEngine {
     private boolean anchorValid;
     private boolean candidateValid;
     private long candidateServerMicros;
-    private boolean holePending;
-    private long holeAfterMicros = Long.MAX_VALUE;
+    /** Every hole not yet acted on, as the timestamp of the chunk before it (sorted; at most {@link #MAX_HOLES}). */
+    private final java.util.TreeSet<Long> holes = new java.util.TreeSet<>();
+    /** More holes than fit: from this timestamp on every chunk is placed by its own timestamp until {@code overflowUntil}. */
+    private long overflowFrom = Long.MAX_VALUE;
+    private long overflowUntil = Long.MIN_VALUE;
+    private long holeOverflows;
     private boolean offeredAny;
     private long lastOfferedMicros;
     private long anchorServerMicros;
@@ -282,6 +288,7 @@ public final class SnapcastClientEngine {
             return;
         }
         connectionLosses++;
+        forgetHoles();
         connectionLost = true;
         state = EngineState.CONNECTION_LOST;
         scheduler.reset();
@@ -305,6 +312,7 @@ public final class SnapcastClientEngine {
             if (epoch != seenEpoch) {
                 seenEpoch = epoch;
                 epochChanges++;
+                forgetHoles();
                 dropTimeline(); // the scheduler empties its own queue; the output is neither flushed nor re-created
             }
             if (header != null && !connectionLost) {
@@ -370,6 +378,7 @@ public final class SnapcastClientEngine {
             return;
         }
         closeDecoder();
+        forgetHoles();
         int newRate = newHeader.getSampleRate(); // validated by the protocol layer: 8000 to 192000
         int maxFrames = (int) Math.min(Integer.MAX_VALUE, (long) newRate * cfg.maxChunkMs / 1000L);
         try {
@@ -474,10 +483,27 @@ public final class SnapcastClientEngine {
         return scheduler.droppedLate() + scheduler.droppedTooFarAhead() + scheduler.droppedQueueFull();
     }
 
-    /** Remembers that a chunk with a timestamp above {@code micros} follows a hole (the earliest hole counts). */
+    /**
+     * Remembers a hole after the chunk with this timestamp: the first chunk above it must be placed by its timestamp.
+     * Every hole is kept, up to {@value #MAX_HOLES}; beyond that the holes are not told apart any more (the earliest
+     * start of the overflow and the latest hole of it are kept) and every chunk in that range is placed by its own
+     * timestamp, which is right but costs the decoded audio waiting at each one. Counted in {@code holeOverflows}.
+     */
     private void markHoleAfter(long micros) {
-        holePending = true;
-        holeAfterMicros = Math.min(holeAfterMicros, micros);
+        if (holes.size() >= MAX_HOLES && !holes.contains(micros)) {
+            holeOverflows++;
+            overflowFrom = Math.min(overflowFrom, micros);
+            overflowUntil = Math.max(overflowUntil, micros);
+            return;
+        }
+        holes.add(micros);
+    }
+
+    /** The whole stream starts over (a header, a lost connection, a new epoch): the holes of the old one mean nothing. */
+    private void forgetHoles() {
+        holes.clear();
+        overflowFrom = Long.MAX_VALUE;
+        overflowUntil = Long.MIN_VALUE;
     }
 
     private void drainDue() {
@@ -499,11 +525,24 @@ public final class SnapcastClientEngine {
             return;
         }
         boolean pcmCodec = header.getCodec() == Codec.PCM;
-        if (holePending && chunk.timestampMicros() > holeAfterMicros) {
-            // a flac chunk before this one never got here: the frame counting can not see the hole, the timestamps can
-            holePending = false;
-            holeAfterMicros = Long.MAX_VALUE;
-            if (!pcmCodec && anchorValid) {
+        if (!holes.isEmpty() || overflowFrom != Long.MAX_VALUE) {
+            // a flac chunk before this one never got here: the frame counting can not see the hole, the timestamps can.
+            // Every hole below this chunk is dealt with by one re-anchoring here; holes above it stay for their own chunk.
+            long timestamp = chunk.timestampMicros();
+            boolean after = false;
+            java.util.SortedSet<Long> below = holes.headSet(timestamp);
+            if (!below.isEmpty()) {
+                below.clear();
+                after = true;
+            }
+            if (overflowFrom < timestamp) {
+                after = true;
+                if (timestamp > overflowUntil) {
+                    overflowFrom = Long.MAX_VALUE;
+                    overflowUntil = Long.MIN_VALUE;
+                }
+            }
+            if (after && !pcmCodec && anchorValid) {
                 recoverHole();
             }
         }
@@ -650,8 +689,6 @@ public final class SnapcastClientEngine {
         fifoFrames = 0;
         anchorValid = false;
         candidateValid = false;
-        holePending = false;
-        holeAfterMicros = Long.MAX_VALUE;
         nextExpectedFrame = 0;
         aligned = false;
         pending = null;
@@ -957,6 +994,7 @@ public final class SnapcastClientEngine {
         s.timelineResyncs = timelineResyncs;
         s.timelineRebases = timelineRebases;
         s.streamHolesRecovered = streamHolesRecovered;
+        s.holeOverflows = holeOverflows;
         s.flushes = flushes;
         s.flushesSuppressed = flushesSuppressed;
         s.underruns = underruns;

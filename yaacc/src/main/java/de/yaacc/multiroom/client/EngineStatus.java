@@ -72,6 +72,8 @@ public final class EngineStatus implements Cloneable {
     public long timelineRebases;
     /** Holes in a flac stream (a chunk dropped or failed) that were recovered by anchoring anew. */
     public long streamHolesRecovered;
+    /** Times more holes were pending than are remembered one by one (the stream is then placed by every chunk's timestamp). */
+    public long holeOverflows;
     /** Chunks that found no room in the queue of the engine thread. */
     public long hostQueueDrops;
     public long flushes;
