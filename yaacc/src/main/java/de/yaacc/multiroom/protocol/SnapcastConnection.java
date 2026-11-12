@@ -92,6 +92,8 @@ public final class SnapcastConnection implements Closeable {
     private static final int MAX_PENDING_TIME_REQUESTS = 16;
     /** Frames of unknown types (or types a client never receives) in a row after which the connection is dropped. */
     private static final int MAX_CONSECUTIVE_UNEXPECTED = 100;
+    /** How long close() waits for the server to end its side after our FIN. */
+    private static final long GRACEFUL_CLOSE_MILLIS = 300;
     /** An answer may claim at most this much more network time than we measured with our own clock. */
     private static final long TIME_CONSISTENCY_TOLERANCE_MICROS = 1_000L;
     private static final long CLOSE_JOIN_MILLIS = 2_000L;
@@ -134,7 +136,9 @@ public final class SnapcastConnection implements Closeable {
         /** The codec header has values the engine does not support (sample rate, bit depth, channels). Permanent. */
         UNSUPPORTED_FORMAT,
         /** A bug on our side. */
-        INTERNAL
+        INTERNAL,
+        /** Connected and the header received, but no chunk for a long time: reconnecting once more is a probe (see Config). */
+        NO_CHUNKS
     }
 
     /** A typed reason and, for the user, a short text of ours or the server's (display text only, never logged). */
@@ -186,6 +190,14 @@ public final class SnapcastConnection implements Closeable {
 
     /** Receives what happens, on the listener executor. All methods do nothing by default. */
     public interface Listener {
+        /** A connection attempt starts (number counted from 1 for this object); the Hello follows when it is up. */
+        default void onAttempt(int number) {
+        }
+
+        /** The TCP connection is up and the Hello is queued. */
+        default void onConnected() {
+        }
+
         default void onServerSettings(ServerSettingsMessage settings) {
         }
 
@@ -214,6 +226,8 @@ public final class SnapcastConnection implements Closeable {
         private int readTimeoutMs = 5_000;
         private long messageDeadlineMs = 10_000;
         private long idleTimeoutMs = 10_000;
+        private long noChunkProbeMs = 8_000;
+        private int maxNoChunkProbes = 0; // off: the missing chunks of a client in a group on an idle stream are a server-side group assignment, a reconnect does not help
         private long handshakeTimeoutMs = 10_000;
         private int timeSyncBurstCount = ClockOffsetFilter.WINDOW;
         private long timeSyncBurstIntervalMs = 100;
@@ -252,6 +266,22 @@ public final class SnapcastConnection implements Closeable {
         }
 
         /** How long nothing at all may arrive (default 10 s; the time sync answers arrive every second). */
+        /**
+         * A connection with the codec header and not one chunk after this long is closed once and opened again, up to
+         * {@link #maxNoChunkProbes(int)} times in a row (probe delay default 8 s; the number of probes is 0, i.e. off, by default: a reconnect does not help when the server put the client's group on an idle stream). An idle stream is legal, so after the probes the
+         * connection is kept; a server that has forgotten to send to a new session of a known client is helped by a
+         * fresh session.
+         */
+        public Config noChunkProbeMs(long value) {
+            noChunkProbeMs = positive("noChunkProbeMs", value);
+            return this;
+        }
+
+        public Config maxNoChunkProbes(int value) {
+            maxNoChunkProbes = (int) Math.max(0, Math.min(value, 100));
+            return this;
+        }
+
         public Config idleTimeoutMs(long value) {
             idleTimeoutMs = positive("idleTimeoutMs", value);
             return this;
@@ -341,6 +371,8 @@ public final class SnapcastConnection implements Closeable {
             c.readTimeoutMs = readTimeoutMs;
             c.messageDeadlineMs = messageDeadlineMs;
             c.idleTimeoutMs = idleTimeoutMs;
+            c.noChunkProbeMs = noChunkProbeMs;
+            c.maxNoChunkProbes = maxNoChunkProbes;
             c.handshakeTimeoutMs = handshakeTimeoutMs;
             c.timeSyncBurstCount = timeSyncBurstCount;
             c.timeSyncBurstIntervalMs = timeSyncBurstIntervalMs;
@@ -390,6 +422,24 @@ public final class SnapcastConnection implements Closeable {
     private final AtomicLong droppedBeforeHeader = new AtomicLong();
     private final AtomicLong unsolicitedTime = new AtomicLong();
     private final AtomicLong rejectedTimeSamples = new AtomicLong();
+    // what arrived on the current connection (reset at every connect), for the status and the trace
+    private final AtomicInteger attempts = new AtomicInteger();
+    private final AtomicInteger noChunkProbes = new AtomicInteger();
+    private final AtomicLong framesTime = new AtomicLong();
+    private final AtomicLong framesSettings = new AtomicLong();
+    private final AtomicLong framesHeader = new AtomicLong();
+    private final AtomicLong framesChunk = new AtomicLong();
+    private final AtomicLong framesError = new AtomicLong();
+    private final AtomicLong framesOther = new AtomicLong();
+    private final AtomicLong bytesIn = new AtomicLong();
+    private volatile long connectedSinceMicros = -1;
+    private volatile long lastChunkAtMicros = -1;
+    private volatile long firstChunkAfterMicros = -1;
+    private volatile int settingsBufferMs = -1;
+    private volatile int settingsLatencyMs;
+    private volatile int settingsVolume;
+    private volatile boolean settingsMuted;
+    private volatile boolean helloSent;
     private final Object progressLock = new Object();
     private long framesRead; // guarded by progressLock
     private int timeAnswers; // guarded by progressLock
@@ -505,6 +555,79 @@ public final class SnapcastConnection implements Closeable {
         return rejectedTimeSamples.get();
     }
 
+    /** What this connection has seen since it was last connected, for the status and the trace. Plain numbers. */
+    public static final class Stats {
+        public final int attempts;
+        public final int noChunkProbes;
+        public final boolean connected;
+        public final long connectedForMs;
+        public final boolean helloSent;
+        public final long framesTime;
+        public final long framesSettings;
+        public final long framesHeader;
+        public final long framesChunk;
+        public final long framesError;
+        public final long framesOther;
+        public final long bytesIn;
+        /** Milliseconds since the last chunk, -1 when none arrived on this connection. */
+        public final long lastChunkAgoMs;
+        /** Milliseconds from the connect to the first chunk, -1 when none. */
+        public final long firstChunkAfterMs;
+        public final int settingsBufferMs;
+        public final int settingsLatencyMs;
+        public final int settingsVolume;
+        public final boolean settingsMuted;
+
+        public Stats(int attempts, int noChunkProbes, boolean connected, long connectedForMs, boolean helloSent, long framesTime,
+              long framesSettings, long framesHeader, long framesChunk, long framesError, long framesOther, long bytesIn,
+              long lastChunkAgoMs, long firstChunkAfterMs, int settingsBufferMs, int settingsLatencyMs, int settingsVolume,
+              boolean settingsMuted) {
+            this.attempts = attempts;
+            this.noChunkProbes = noChunkProbes;
+            this.connected = connected;
+            this.connectedForMs = connectedForMs;
+            this.helloSent = helloSent;
+            this.framesTime = framesTime;
+            this.framesSettings = framesSettings;
+            this.framesHeader = framesHeader;
+            this.framesChunk = framesChunk;
+            this.framesError = framesError;
+            this.framesOther = framesOther;
+            this.bytesIn = bytesIn;
+            this.lastChunkAgoMs = lastChunkAgoMs;
+            this.firstChunkAfterMs = firstChunkAfterMs;
+            this.settingsBufferMs = settingsBufferMs;
+            this.settingsLatencyMs = settingsLatencyMs;
+            this.settingsVolume = settingsVolume;
+            this.settingsMuted = settingsMuted;
+        }
+    }
+
+    public Stats stats() {
+        long now = clock.nowMicros();
+        long since = connectedSinceMicros;
+        long last = lastChunkAtMicros;
+        return new Stats(attempts.get(), noChunkProbes.get(), since >= 0 && state == State.CONNECTED,
+                since >= 0 ? Math.max(0, now - since) / 1000L : -1, helloSent, framesTime.get(), framesSettings.get(),
+                framesHeader.get(), framesChunk.get(), framesError.get(), framesOther.get(), bytesIn.get(),
+                last >= 0 ? Math.max(0, now - last) / 1000L : -1, firstChunkAfterMicros >= 0 ? firstChunkAfterMicros / 1000L : -1,
+                settingsBufferMs, settingsLatencyMs, settingsVolume, settingsMuted);
+    }
+
+    private void resetStats() {
+        framesTime.set(0);
+        framesSettings.set(0);
+        framesHeader.set(0);
+        framesChunk.set(0);
+        framesError.set(0);
+        framesOther.set(0);
+        bytesIn.set(0);
+        lastChunkAtMicros = -1;
+        firstChunkAfterMicros = -1;
+        settingsBufferMs = -1;
+        helloSent = false;
+    }
+
     // ---- connection management
 
     /** Starts connecting; does nothing unless the connection was not started yet. */
@@ -572,6 +695,19 @@ public final class SnapcastConnection implements Closeable {
             toClose = connection;
             connection = null;
             thread = readerThread;
+        }
+        // An orderly end first: our FIN, then a moment for the server's answer (the reader sees the end of the stream and
+        // finishes). Closing a socket with unread data makes TCP send a reset instead, and a server that still holds the
+        // old session of this client while the next Start connects with the same id is not helped by that.
+        if (toClose != null) {
+            toClose.shutdownOutput();
+            if (thread != null && thread != Thread.currentThread()) {
+                try {
+                    thread.join(GRACEFUL_CLOSE_MILLIS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
         }
         closeQuietly(toClose);
         if (ownScheduler != null) {
@@ -687,6 +823,8 @@ public final class SnapcastConnection implements Closeable {
     // ---- the attempt
 
     private void runAttempt(final long attempt) {
+        final int number = attempts.incrementAndGet();
+        dispatch(listener -> listener.onAttempt(number));
         SnapcastTransport.Connection opened = null;
         Loss loss = null;
         boolean handshaked = false;
@@ -707,8 +845,11 @@ public final class SnapcastConnection implements Closeable {
                     connection = opened;
                     state = State.CONNECTED;
                     connectedAtMicros = clock.nowMicros();
+                    connectedSinceMicros = connectedAtMicros;
+                    resetStats();
                     offsetFilter.reset();
                 }
+                dispatch(listener -> listener.onConnected());
                 Session session = new Session(attempt, opened);
                 loss = session.run();
                 handshaked = session.handshaked;
@@ -945,6 +1086,7 @@ public final class SnapcastConnection implements Closeable {
                 startedAt = clock.nowMicros();
                 lastReceivedAt = startedAt;
                 writer.offer(SnapcastMessageCodec.encode(hello, nextMessageId(), 0, startedAt));
+                helloSent = true;
                 activeWriter.set(writer); // only now: a sendClientInfo from another thread can not go out before the Hello
                 while (isCurrent(attempt)) {
                     long now = clock.nowMicros();
@@ -957,6 +1099,10 @@ public final class SnapcastConnection implements Closeable {
                     if (now - lastReceivedAt > config.idleTimeoutMs * 1000L) {
                         return new Loss(LossReason.TIMEOUT, "idle");
                     }
+                    if (probeDue(now)) {
+                        noChunkProbes.incrementAndGet();
+                        return new Loss(LossReason.NO_CHUNKS, "");
+                    }
                     socket.setReadTimeout(readTimeoutMillis(now));
                     Frame frame;
                     try {
@@ -968,6 +1114,7 @@ public final class SnapcastConnection implements Closeable {
                     }
                     now = clock.nowMicros();
                     lastReceivedAt = now;
+                    count(frame, now);
                     if (overBudget(now)) {
                         return new Loss(LossReason.PROTOCOL_ERROR, "too many frames");
                     }
@@ -987,6 +1134,57 @@ public final class SnapcastConnection implements Closeable {
                     activeWriter.compareAndSet(writer, null);
                     writer.stop();
                 }
+            }
+        }
+
+        private long headerSeenAt = -1;
+
+        /** True when the header is there, no chunk came on this connection and the probe time has passed. */
+        private boolean probeDue(long now) {
+            return headerSeenAt >= 0 && lastChunkAtMicros < 0 && noChunkProbes.get() < config.maxNoChunkProbes
+                    && now - headerSeenAt >= config.noChunkProbeMs * 1000L;
+        }
+
+        /** Counts a frame by type for the status. */
+        private void count(Frame frame, long now) {
+            bytesIn.addAndGet(26L + Math.max(0, frame.getHeader().getSize()));
+            if (frame.isSkipped()) {
+                framesOther.incrementAndGet();
+                return;
+            }
+            switch (frame.getMessage().type()) {
+                case SERVER_SETTINGS: {
+                    framesSettings.incrementAndGet();
+                    ServerSettingsMessage settings = (ServerSettingsMessage) frame.getMessage();
+                    settingsBufferMs = settings.getBufferMs();
+                    settingsLatencyMs = settings.getLatencyMs();
+                    settingsVolume = settings.getVolume();
+                    settingsMuted = settings.isMuted();
+                    break;
+                }
+                case CODEC_HEADER:
+                    framesHeader.incrementAndGet();
+                    if (headerSeenAt < 0) {
+                        headerSeenAt = now;
+                    }
+                    break;
+                case WIRE_CHUNK:
+                    framesChunk.incrementAndGet();
+                    if (lastChunkAtMicros < 0) {
+                        firstChunkAfterMicros = Math.max(0, now - connectedSinceMicros);
+                        noChunkProbes.set(0); // a chunk came: the stream path works, the next restart probes again
+                    }
+                    lastChunkAtMicros = now;
+                    break;
+                case TIME:
+                    framesTime.incrementAndGet();
+                    break;
+                case ERROR:
+                    framesError.incrementAndGet();
+                    break;
+                default:
+                    framesOther.incrementAndGet();
+                    break;
             }
         }
 
@@ -1022,6 +1220,9 @@ public final class SnapcastConnection implements Closeable {
                 millis = Math.min(millis, untilMillis(nextTimeSyncAt, now));
             }
             millis = Math.min(millis, untilMillis(lastReceivedAt + config.idleTimeoutMs * 1000L, now));
+            if (headerSeenAt >= 0 && lastChunkAtMicros < 0 && noChunkProbes.get() < config.maxNoChunkProbes) {
+                millis = Math.min(millis, untilMillis(headerSeenAt + config.noChunkProbeMs * 1000L, now));
+            }
             if (!handshaked) {
                 millis = Math.min(millis, untilMillis(startedAt + config.handshakeTimeoutMs * 1000L, now));
             }

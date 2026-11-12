@@ -69,16 +69,18 @@ public class SnapcastClientStatusTextTest {
     public void theUnderrunCounterIsShownWithWhatThePositionSaidAndAStaleDriftIsLabelled() {
         EngineStatus status = new EngineStatus();
         status.underruns = 1195;
-        status.underrunsSpurious = 40;
+        status.underrunRisesThin = 40;
+        status.writeAheadEffectiveMs = 250;
+        status.writeAheadMs = 120;
+        status.writeAheadRaises = 3;
         status.underrunsCorroborated = 0;
-        status.underrunCounterUnreliable = true;
         status.flushesPositionStall = 2;
         status.driftMicros = 21_424;
         status.aligned = false;
         SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Ending.NONE, 0);
         SnapcastClientRuntime.engine(status);
         String text = SnapcastClientStatusText.of(SnapcastClientRuntime.get(), 0);
-        assertTrue(text, text.contains("1195 rises, confirmed by the position 0, spurious 40 (judged unreliable"));
+        assertTrue(text, text.contains("1195 rises; the output was dry 0 times (flush), the cushion was too thin 40 times; write-ahead 250 ms (asked 120 ms, raised 3 times)"));
         assertTrue(text, text.contains("position stall 2"));
         assertTrue(text, text.contains("last value, not current: no audio"));
         status.aligned = true;

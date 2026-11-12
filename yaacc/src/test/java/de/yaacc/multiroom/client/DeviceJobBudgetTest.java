@@ -42,7 +42,7 @@ public class DeviceJobBudgetTest {
     }
 
     private static int realUnderruns(int aheadMs, long periodMs, long costMs) {
-        DeviceRig rig = new DeviceRig(phone(), new ClientEngineConfig().maxAheadMs(aheadMs));
+        DeviceRig rig = new DeviceRig(phone(), new ClientEngineConfig().maxAheadMs(aheadMs).adaptiveWriteAhead(false));
         rig.connect();
         rig.run(6000);
         int before = rig.sink.counters().realUnderruns;

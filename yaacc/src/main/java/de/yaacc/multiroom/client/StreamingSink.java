@@ -121,7 +121,8 @@ public class StreamingSink implements AudioSink {
                 + ", underruns " + current.underrunCount() + ", timestamp ever ok " + (timestampEverSucceeded ? "yes" : "no")
                 + " (polls " + timestampPolls + ", failed " + timestampPollFailures + ", implausible " + implausibleTimestamps
                 + ", last age " + (lastTimestampAgeMicros == Long.MIN_VALUE ? "none" : (lastTimestampAgeMicros / 1000) + " ms")
-                + "), position source " + positionSource();
+                + "), position source " + positionSource()
+                + (current.describe().isEmpty() ? "" : ", " + current.describe());
     }
 
     private void resetPositionState() {

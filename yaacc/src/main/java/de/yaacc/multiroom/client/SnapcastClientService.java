@@ -259,6 +259,7 @@ public final class SnapcastClientService extends Service {
                             }
                         }
                     });
+            startServerPoll(address, hello.getId());
             SnapcastConnection newConnection = session.connection();
             EngineHost newHost = session.host();
             AudioSink newSink = session.sink();
@@ -289,6 +290,59 @@ public final class SnapcastClientService extends Service {
             endSession(SnapcastClientRuntime.Ending.UNRESOLVED);
         } catch (RuntimeException unexpected) {
             endSession(SnapcastClientRuntime.Ending.SERVICE_ERROR);
+        }
+    }
+
+    private volatile java.util.concurrent.ScheduledExecutorService serverPoll;
+
+    /**
+     * Asks the control port what the server says about this client: every 5 s while no chunk has arrived, every 30 s
+     * afterwards. Read-only (Server.GetStatus), one short connection per question, bounded by the control library.
+     */
+    private void startServerPoll(InetAddress address, String clientId) {
+        final java.util.concurrent.ScheduledExecutorService poll = Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "snapcast-server-says");
+            thread.setDaemon(true);
+            return thread;
+        });
+        serverPoll = poll;
+        final long[] signature = {Long.MIN_VALUE};
+        Runnable ask = new Runnable() {
+            @Override
+            public void run() {
+                if (ended.get()) {
+                    return;
+                }
+                long delay = 30_000L;
+                try {
+                    ServerSays says = ServerControl.fetch(address, clientId);
+                    SnapcastClientRuntime.server(says);
+                    long found = says.isClientFound() ? 1 : 0;
+                    long playing = says.isOwnStreamPlaying() ? 1 : 0;
+                    long now = found * 2 + playing + says.getStreams().size() * 4L;
+                    EngineHost h = host;
+                    if (h != null && now != signature[0]) {
+                        signature[0] = now;
+                        h.traceServerSays(found, playing, says.getStreams().size());
+                    }
+                    SnapcastClientRuntime.View view = SnapcastClientRuntime.get();
+                    if (view.engine == null || view.engine.chunksReceived == 0) {
+                        delay = 5_000L;
+                    }
+                } catch (RuntimeException ignored) {
+                    delay = 10_000L;
+                }
+                try {
+                    poll.schedule(this, delay, java.util.concurrent.TimeUnit.MILLISECONDS);
+                } catch (java.util.concurrent.RejectedExecutionException closed) {
+                    // the session ended
+                }
+            }
+        };
+        try {
+            poll.schedule(ask, 2_000L, java.util.concurrent.TimeUnit.MILLISECONDS);
+        } catch (java.util.concurrent.RejectedExecutionException closed) {
+            // ended already
         }
     }
 
@@ -392,6 +446,7 @@ public final class SnapcastClientService extends Service {
             return;
         }
         main.removeCallbacks(watchdog);
+        recordEnding(ending);
         SnapcastClientRuntime.phase(ending == SnapcastClientRuntime.Ending.USER ? SnapcastClientRuntime.Phase.STOPPED
                 : SnapcastClientRuntime.Phase.FAILED, ending, startedAtMillis);
         releaseLocks();
@@ -406,6 +461,49 @@ public final class SnapcastClientService extends Service {
         teardown.start();
     }
 
+    /**
+     * The service never ends silently: the reason and the time are kept (the dialog shows them later, also after the
+     * process is gone), the trace has a line, and a notification says why when it was not the user.
+     */
+    private void recordEnding(SnapcastClientRuntime.Ending ending) {
+        try {
+            PreferenceManager.getDefaultSharedPreferences(this).edit()
+                    .putString(SnapcastClientSpike.KEY_LAST_ENDING, ending.name())
+                    .putLong(SnapcastClientSpike.KEY_LAST_ENDING_AT, System.currentTimeMillis()).apply();
+            EngineHost h = host;
+            if (h != null) {
+                h.traceEnding(ending.ordinal());
+            }
+            if (ending != SnapcastClientRuntime.Ending.USER) {
+                notifyEnded(ending);
+            }
+        } catch (RuntimeException ignored) {
+            // the record is a courtesy; ending the session must not fail because of it
+        }
+    }
+
+    private void notifyEnded(SnapcastClientRuntime.Ending ending) {
+        String reason = SnapcastClientStatusText.endingText(ending);
+        Notification notification = new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
+                .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
+                .setContentTitle(getString(R.string.snapcast_client_notification_title))
+                .setContentText(getString(R.string.snapcast_client_notification_stopped, reason))
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(getString(R.string.snapcast_client_notification_stopped, reason)))
+                .setSmallIcon(R.drawable.ic_notification_default)
+                .setAutoCancel(true)
+                .setContentIntent(PendingIntent.getActivity(this, 0, new Intent(this, SettingsActivity.class),
+                        PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT))
+                .build();
+        try {
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) {
+                manager.notify(NotificationId.SNAPCAST_CLIENT_ENDED.getId(), notification);
+            }
+        } catch (SecurityException noPermission) {
+            // no notification permission: the dialog keeps the reason
+        }
+    }
+
     /** Closes the connection, ends the engine thread, frees the output. Blocks for up to a few seconds. */
     private void teardown() {
         SnapcastConnection c;
@@ -415,6 +513,10 @@ public final class SnapcastClientService extends Service {
             c = connection;
             h = host;
             s = sink;
+        }
+        java.util.concurrent.ScheduledExecutorService poll = serverPoll;
+        if (poll != null) {
+            poll.shutdownNow();
         }
         if (c != null) {
             c.close();
@@ -432,7 +534,9 @@ public final class SnapcastClientService extends Service {
         if (ended.compareAndSet(false, true)) {
             main.removeCallbacks(watchdog);
             if (sessionStarted.get()) {
-                SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.STOPPED, SnapcastClientRuntime.Ending.USER, startedAtMillis);
+                // nobody asked for this (a stop by the user ends the session first): the system or the app ended the service
+                SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.FAILED, SnapcastClientRuntime.Ending.SYSTEM, startedAtMillis);
+                recordEnding(SnapcastClientRuntime.Ending.SYSTEM);
             }
             Thread teardown = new Thread(this::teardown, "snapcast-client-teardown");
             teardown.setDaemon(true);

@@ -36,11 +36,14 @@ public final class SnapcastClientSpike {
     /** The per-installation secret of the Hello id, see {@link SnapcastClientIdentity}. */
     public static final String KEY_SECRET = "snapcast_client_spike_secret";
 
+    /** Why and when the last session ended (written by the service, also when the whole app exits); read by the dialog. */
+    public static final String KEY_LAST_ENDING = "snapcast_client_spike_last_ending";
+    public static final String KEY_LAST_ENDING_AT = "snapcast_client_spike_last_ending_at";
     public static final String KEY_LAST_WRITE_AHEAD = "snapcast_client_spike_write_ahead_ms";
-    /** How far ahead of the playback position the output is kept filled (an experiment: a longer one is safer, slower). */
+    /** How far ahead of the playback position the output is kept filled (the deep-buffer output of a phone needs more than its 128 ms queued: 250 by default). */
     public static final int MIN_WRITE_AHEAD_MS = 40;
     public static final int MAX_WRITE_AHEAD_MS = 350;
-    public static final int DEFAULT_WRITE_AHEAD_MS = 120;
+    public static final int DEFAULT_WRITE_AHEAD_MS = 250;
 
     public static final int MIN_LATENCY_MS = -2000;
     public static final int MAX_LATENCY_MS = 2000;

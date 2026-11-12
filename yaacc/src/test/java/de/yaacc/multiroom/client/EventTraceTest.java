@@ -96,9 +96,9 @@ public class EventTraceTest {
     public void theUnderrunVerdictIsInWords() {
         EventTrace t = new EventTrace(0);
         t.add(0, TraceKind.UNDERRUN_JUDGED, 2, 3, 118);
-        t.add(1000, TraceKind.UNDERRUN_JUDGED, 3, 5, 118);
+        t.add(1000, TraceKind.UNDERRUN_JUDGED, 1, 5, 118);
         String text = t.text();
-        assertTrue(text, text.contains("verdict=spurious (no flush)"));
-        assertTrue(text, text.contains("verdict=counter unreliable, no longer used"));
+        assertTrue(text, text.contains("verdict=thin cushion (position fine): write-ahead raised"));
+        assertTrue(text, text.contains("verdict=output dry (position stalled or empty): flush"));
     }
 }

@@ -85,7 +85,7 @@ final class DeviceSimSink extends StreamingSink {
         int flushes;
         int underruns;
         int realUnderruns;
-        int spuriousUnderruns;
+        int mixerGlitches;
         long playedAudibleFrames;
         long playedSilentFramesAfterAudio;
         long playedSilentFramesBeforeAudio;
@@ -200,7 +200,6 @@ final class DeviceSimSink extends StreamingSink {
         }
 
         private long frozenUntil = Long.MIN_VALUE;
-        private double spuriousFrames;
 
         /** The output stops consuming for this long (a route hiccup): data stays queued, the position stands still. */
         void freeze(long micros) {
@@ -215,7 +214,7 @@ final class DeviceSimSink extends StreamingSink {
                     double potential = (t - from) * format.getSampleRate() * m.speed / 1e6;
                     double available = written - played;
                     if (potential <= available) {
-                        spurious(potential, (long) available);
+                        mixer(potential, available, t);
                         consume(potential, from, t);
                         starving = false;
                     } else {
@@ -236,16 +235,29 @@ final class DeviceSimSink extends StreamingSink {
             lastUpdate = t;
         }
 
-        /** The false counter: once per period of played frames while less than a full buffer is queued. */
-        private void spurious(double frames, long queuedBefore) {
-            if (m.spuriousUnderrunPeriodFrames <= 0 || frames <= 0 || queuedBefore >= m.bufferFrames) {
+        private double sinceBoundary;
+
+        /** The deep-buffer mixer: at every period boundary fewer queued frames than it needs make a real glitch. */
+        private void mixer(double frames, double available, long t) {
+            if (m.mixerMinQueuedFrames <= 0 || frames <= 0) {
                 return;
             }
-            spuriousFrames += frames;
-            while (spuriousFrames >= m.spuriousUnderrunPeriodFrames) {
-                spuriousFrames -= m.spuriousUnderrunPeriodFrames;
-                device.counters.spuriousUnderruns++;
-                device.counters.underruns++;
+            sinceBoundary += frames;
+            while (sinceBoundary >= m.mixerPeriodFrames) {
+                sinceBoundary -= m.mixerPeriodFrames;
+                double queued = available - frames + sinceBoundary;
+                if (queued < m.mixerMinQueuedFrames) {
+                    Counters c = device.counters;
+                    c.mixerGlitches++;
+                    c.underruns++;
+                    long period = (long) (m.mixerPeriodFrames * 1e6 / (format.getSampleRate() * m.speed));
+                    frozenUntil = Math.max(frozenUntil, t + period);
+                    if (c.audioSeen) {
+                        c.playedSilentFramesAfterAudio += m.mixerPeriodFrames;
+                        c.silenceRun += m.mixerPeriodFrames;
+                        c.longestSilenceAfterAudio = Math.max(c.longestSilenceAfterAudio, c.silenceRun);
+                    }
+                }
             }
         }
 
@@ -441,7 +453,7 @@ final class DeviceSimSink extends StreamingSink {
                 haveReport = true;
             }
             out[0] = (reportedFrames + counterBase) & 0xffffffffL;
-            long reportTime = (m.timestampTimeIsPollTime ? t : refreshedAt) - reportNoise;
+            long reportTime = (m.timestampTimeIsPollTime ? t : refreshedAt) + (m.noiseLate ? reportNoise : -reportNoise);
             if (m.timestampBiasMicros != 0 && t - device.firstPlayMicros >= m.biasAfterMicros) {
                 reportTime += m.timestampBiasMicros;
             }

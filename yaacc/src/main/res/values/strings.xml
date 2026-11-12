@@ -384,8 +384,16 @@
     <string name="snapcast_client_error_empty_host">Enter the address of the server</string>
     <string name="snapcast_client_error_invalid_host">This is not a valid address</string>
     <string name="snapcast_client_error_invalid_latency">Enter a whole number of milliseconds</string>
-    <string name="snapcast_client_write_ahead_hint">Write-ahead in ms (40 to 350, default 120)</string>
+    <string name="snapcast_client_write_ahead_hint">Write-ahead in ms (40 to 350, default 250)</string>
     <string name="snapcast_client_error_invalid_write_ahead">Enter a whole number from 40 to 350</string>
+    <string name="snapcast_client_notification_stopped">Stopped: %1$s</string>
+    <string name="snapcast_client_move_group">Move my group to a stream</string>
+    <string name="snapcast_client_move_group_title">Play which stream?</string>
+    <string name="snapcast_client_move_group_confirm">This changes the server: the whole group of this phone, with every other client in it, will play the stream \"%1$s\".</string>
+    <string name="snapcast_client_move_group_do">Move</string>
+    <string name="snapcast_client_move_group_done">Group moved</string>
+    <string name="snapcast_client_move_group_failed">The server did not accept it</string>
+    <string name="snapcast_client_move_group_none">No server answer yet</string>
     <string name="snapcast_client_notification_title">Snapcast client (test)</string>
     <string name="snapcast_client_notification_connecting">Connecting…</string>
     <string name="snapcast_client_notification_playing">Playing</string>

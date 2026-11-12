@@ -48,6 +48,13 @@ public interface SnapcastTransport {
         /** The address that was connected to (the later feed connects to this address and no other); may be null. */
         InetAddress getPeerAddress();
 
+        /**
+         * Tells the peer that nothing more will be sent (a TCP FIN) without closing the connection, so that the server
+         * sees an orderly end and answers with its own; the default does nothing.
+         */
+        default void shutdownOutput() {
+        }
+
         @Override
         void close();
     }

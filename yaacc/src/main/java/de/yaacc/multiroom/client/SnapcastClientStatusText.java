@@ -61,9 +61,17 @@ public final class SnapcastClientStatusText {
         text.append(String.format(Locale.ROOT, "volume: %d%s%n", s.volume, s.muted ? " (muted)" : ""));
         text.append(String.format(Locale.ROOT, "chunks: received %d, queued %d, decoded waiting %d ms, played %d%n",
                 s.chunksReceived, s.chunksWaiting, s.decodedWaitingMs, s.chunksPlayed));
-        text.append(String.format(Locale.ROOT, "corrections: dropped %d frames, repeated %d frames in %d blocks, most in one block %d frames; pads or skips while playing %d; smoothed drift %s%n",
+        text.append(String.format(Locale.ROOT, "corrections: dropped %d frames, repeated %d frames in %d blocks, most in one block %d frames; pads or skips while playing %d (%d frames); frames are %s; smoothed drift %s%n",
                 s.correctionDroppedFrames, s.correctionRepeatedFrames, s.correctionBlocks, s.correctionLargestBlockFrames,
-                s.stepsWhilePlaying, ms(s.driftSmoothedMicros)));
+                s.stepsWhilePlaying, s.stepsWhilePlayingFrames, s.smoothCorrections ? "interpolated" : "cut", ms(s.driftSmoothedMicros)));
+        appendConnection(text, s);
+        if (view.server != null) {
+            text.append(view.server.text());
+            String hint = view.server.hint(s.chunksReceived);
+            if (!hint.isEmpty()) {
+                text.append("HINT: ").append(hint).append('\n');
+            }
+        }
         text.append(String.format(Locale.ROOT, "stream restarts after a pause: %d, last gap %d ms, its first audio written after %s%n",
                 s.streamResumes, s.lastResumeGapMs, s.lastResumeToAudioMs < 0 ? "-" : s.lastResumeToAudioMs + " ms"));
         text.append(String.format(Locale.ROOT, "writes: %d, short %d (frames missing %d, worst %d), longest write %d us, write-ahead %d ms, longest gap between engine ticks %d ms; longest tick %d us, chunk %d us, position poll %d us%n",
@@ -76,9 +84,9 @@ public final class SnapcastClientStatusText {
         text.append(String.format(Locale.ROOT, "flushes by cause: hard resync %d (last drift %s), underrun %d, writer behind %d, header %d, connection lost %d, position stall %d%n",
                 s.flushesHardResync, ms(s.lastHardResyncDriftMicros), s.flushesUnderrun, s.flushesWriterBehind, s.flushesHeader,
                 s.flushesConnectionLost, s.flushesPositionStall));
-        text.append(String.format(Locale.ROOT, "underrun counter of the platform: %d rises, confirmed by the position %d, spurious %d%s%n",
-                s.underruns, s.underrunsCorroborated, s.underrunsSpurious,
-                s.underrunCounterUnreliable ? " (judged unreliable on this device: not used)" : ""));
+        text.append(String.format(Locale.ROOT, "underrun counter of the platform: %d rises; the output was dry %d times (flush), the cushion was too thin %d times; write-ahead %d ms (asked %d ms, raised %d times)%n",
+                s.underruns, s.underrunsCorroborated, s.underrunRisesThin, s.writeAheadEffectiveMs, s.writeAheadMs,
+                s.writeAheadRaises));
         text.append(String.format(Locale.ROOT, "position reports: taken %d, refused %d%n", s.positionReportsAccepted,
                 s.positionReportsRejected));
         text.append(String.format(Locale.ROOT, "stream: holes re-anchored (flac) %d, timeline rebases %d, chunks lost in the host queue %d%n",
@@ -113,6 +121,10 @@ public final class SnapcastClientStatusText {
                 return "the audio engine failed";
             case SERVICE_ERROR:
                 return "internal error of the service";
+            case SYSTEM:
+                return "the service was destroyed without a stop by the user (the system or the app ended it)";
+            case APP_EXIT:
+                return "the whole app ended: the exit action or the shutdown (sleep) timer of YAACC";
             case NO_AUDIO:
                 return "no audio for 15 minutes, so the session was ended (the locks are only held while it plays)";
             case DISABLED:
@@ -144,6 +156,27 @@ public final class SnapcastClientStatusText {
                 return "the audio thread stopped responding";
             default:
                 return "internal error";
+        }
+    }
+
+    /** What the connection saw: frames by type, bytes, the last chunk, the server's settings, and a word when nothing came. */
+    private static void appendConnection(StringBuilder text, EngineStatus s) {
+        de.yaacc.multiroom.protocol.SnapcastConnection.Stats c = s.connection;
+        if (c == null) {
+            return;
+        }
+        text.append(String.format(Locale.ROOT,
+                "connection: %s for %s (attempt %d, no-chunk probes %d); frames: time %d, settings %d, header %d, chunks %d, error %d, other %d; %d bytes; last chunk %s ago, first %s after the connect%n",
+                c.connected ? "connected" : "not connected", c.connectedForMs < 0 ? "-" : c.connectedForMs / 1000 + " s",
+                c.attempts, c.noChunkProbes, c.framesTime, c.framesSettings, c.framesHeader, c.framesChunk, c.framesError,
+                c.framesOther, c.bytesIn, c.lastChunkAgoMs < 0 ? "-" : c.lastChunkAgoMs + " ms",
+                c.firstChunkAfterMs < 0 ? "-" : c.firstChunkAfterMs + " ms"));
+        if (c.settingsBufferMs >= 0) {
+            text.append(String.format(Locale.ROOT, "server settings: buffer %d ms, latency %d ms, volume %d%s%n", c.settingsBufferMs,
+                    c.settingsLatencyMs, c.settingsVolume, c.settingsMuted ? " (muted)" : ""));
+        }
+        if (c.connected && c.framesHeader > 0 && c.framesChunk == 0) {
+            text.append("waiting for the stream: the header is here, no chunk yet (an idle stream sends none)\n");
         }
     }
 }

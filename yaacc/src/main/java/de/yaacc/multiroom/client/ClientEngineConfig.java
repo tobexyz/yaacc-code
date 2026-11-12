@@ -36,7 +36,7 @@ public final class ClientEngineConfig {
     int maxPadMs = 15_000;
     int alignToleranceMicros = 1_000;
     int deadBandMicros = 2_000;
-    int gradualLimitMs = 30;
+    int gradualLimitMs = 50;
     int hardResyncMs = 300;
     int hardResyncReports = 3;
     int positionOutlierMs = 150;
@@ -46,7 +46,10 @@ public final class ClientEngineConfig {
     int maxSkipMs = 1_000;
     int underrunConfirmMs = 250;
     int underrunAheadMs = 10;
-    int unreliableAfterRises = 5;
+    boolean adaptiveWriteAhead = true;
+    int writeAheadStepMs = 40;
+    int writeAheadMaxMs = 350;
+    int writeAheadCooldownMs = 3_000;
     int correctionIntervalFrames = 400;
     int minFlushIntervalMs = 500;
     int maxDecoderRestartsPerMinute = 12;
@@ -203,11 +206,19 @@ public final class ClientEngineConfig {
     }
 
     /**
-     * This many rises of the counter in a row that the position did not confirm: the counter is judged unreliable for
-     * this output and no longer evaluated (default 5).
+     * When the platform counts an underrun that the position does not confirm (the output holds more than it needs to
+     * look dry, but less than its mixer needs) the write-ahead is raised by {@code step} ms, at most once per {@code
+     * cooldown} ms, up to {@code max} ms; it is never lowered during a session (defaults 40, 3000, 350; on by default).
      */
-    public ClientEngineConfig unreliableAfterRises(int value) {
-        unreliableAfterRises = positive("unreliableAfterRises", value);
+    public ClientEngineConfig adaptiveWriteAhead(boolean on) {
+        adaptiveWriteAhead = on;
+        return this;
+    }
+
+    public ClientEngineConfig writeAheadSteps(int stepMs, int cooldownMs, int maxMs) {
+        writeAheadStepMs = positive("writeAheadStepMs", stepMs);
+        writeAheadCooldownMs = positive("writeAheadCooldownMs", cooldownMs);
+        writeAheadMaxMs = positive("writeAheadMaxMs", maxMs);
         return this;
     }
 

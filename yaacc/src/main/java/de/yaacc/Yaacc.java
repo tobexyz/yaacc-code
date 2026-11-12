@@ -279,6 +279,7 @@ public class Yaacc extends Application {
         if (shareSweeper != null) {
             shareSweeper.shutdownNow();
         }
+        recordSnapcastClientEnding();
         upnpClient.shutdown();
         stopService(new Intent(this, PlayerService.class));
         stopService(new Intent(this, YaaccUpnpServerService.class));
@@ -293,6 +294,25 @@ public class Yaacc extends Application {
         am.getAppTasks().stream().forEach(t -> t.finishAndRemoveTask());
         clearCache();
         Runtime.getRuntime().exit(0);
+    }
+
+    /**
+     * The exit action and the shutdown (sleep) timer end the whole process, and with it a running Snapcast client session,
+     * without a word: keep the reason where the spike dialog finds it (written at once, the process ends right after).
+     */
+    @android.annotation.SuppressLint("ApplySharedPref") // commit on purpose: the process ends right after
+    private void recordSnapcastClientEnding() {
+        try {
+            if (de.yaacc.multiroom.client.SnapcastClientRuntime.isActive()) {
+                androidx.preference.PreferenceManager.getDefaultSharedPreferences(this).edit()
+                        .putString(de.yaacc.multiroom.client.SnapcastClientSpike.KEY_LAST_ENDING,
+                                de.yaacc.multiroom.client.SnapcastClientRuntime.Ending.APP_EXIT.name())
+                        .putLong(de.yaacc.multiroom.client.SnapcastClientSpike.KEY_LAST_ENDING_AT, System.currentTimeMillis())
+                        .commit();
+            }
+        } catch (RuntimeException ignored) {
+            // the exit must go on
+        }
     }
 
     private void clearCache() {

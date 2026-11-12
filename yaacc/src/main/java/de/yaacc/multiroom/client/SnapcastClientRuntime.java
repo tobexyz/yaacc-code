@@ -44,7 +44,11 @@ public final class SnapcastClientRuntime {
 
     /** Why a session ended on the connection side (typed, no server text). */
     public enum Ending {
-        NONE, USER, BAD_ADDRESS, UNRESOLVED, CONNECTION_GAVE_UP, SERVER_REFUSED, ENGINE_FAILED, SERVICE_ERROR, NO_AUDIO, DISABLED
+        NONE, USER, BAD_ADDRESS, UNRESOLVED, CONNECTION_GAVE_UP, SERVER_REFUSED, ENGINE_FAILED, SERVICE_ERROR, NO_AUDIO, DISABLED,
+        /** The service was destroyed without a stop from the user (the system, or the app ending its services). */
+        SYSTEM,
+        /** The whole app ended: the exit action or the shutdown (sleep) timer of YAACC. */
+        APP_EXIT
     }
 
     /** An immutable view for the screen. */
@@ -53,8 +57,15 @@ public final class SnapcastClientRuntime {
         public final Ending ending;
         public final EngineStatus engine;
         public final long startedAtMillis;
+        /** What the server says about this client (null before the first answer). */
+        public final ServerSays server;
 
         View(Phase phase, Ending ending, EngineStatus engine, long startedAtMillis) {
+            this(phase, ending, engine, startedAtMillis, null);
+        }
+
+        View(Phase phase, Ending ending, EngineStatus engine, long startedAtMillis, ServerSays server) {
+            this.server = server;
             this.phase = phase;
             this.ending = ending;
             this.engine = engine;
@@ -73,7 +84,8 @@ public final class SnapcastClientRuntime {
 
     public static void phase(Phase phase, Ending ending, long startedAtMillis) {
         // one atomic step: the engine thread publishes at the same time and must not bring an old phase back
-        VIEW.updateAndGet(old -> new View(phase, ending, phase == Phase.CONNECTING ? null : old.engine, startedAtMillis));
+        VIEW.updateAndGet(old -> new View(phase, ending, phase == Phase.CONNECTING ? null : old.engine, startedAtMillis,
+                phase == Phase.CONNECTING ? null : old.server));
     }
 
     /**
@@ -82,7 +94,8 @@ public final class SnapcastClientRuntime {
      */
     public static void phaseWhileActive(Phase phase, Ending ending, long startedAtMillis) {
         VIEW.updateAndGet(old -> isActive(old.phase)
-                ? new View(phase, ending, phase == Phase.CONNECTING ? null : old.engine, startedAtMillis) : old);
+                ? new View(phase, ending, phase == Phase.CONNECTING ? null : old.engine, startedAtMillis,
+                        phase == Phase.CONNECTING ? null : old.server) : old);
     }
 
     private static boolean isActive(Phase p) {
@@ -90,7 +103,12 @@ public final class SnapcastClientRuntime {
     }
 
     public static void engine(EngineStatus status) {
-        VIEW.updateAndGet(old -> new View(old.phase, old.ending, status, old.startedAtMillis));
+        VIEW.updateAndGet(old -> new View(old.phase, old.ending, status, old.startedAtMillis, old.server));
+    }
+
+    /** The newest answer of the server about this client. */
+    public static void server(ServerSays says) {
+        VIEW.updateAndGet(old -> new View(old.phase, old.ending, old.engine, old.startedAtMillis, says));
     }
 
     /** True while a session is starting or running. */

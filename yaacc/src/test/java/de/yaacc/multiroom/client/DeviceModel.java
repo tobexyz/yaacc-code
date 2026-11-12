@@ -55,6 +55,8 @@ final class DeviceModel {
     long timestampBiasMicros;
     /** Each report's time is early by a random 0..this (a jittery age), the frames are those of the true moment. */
     long timestampNoiseMicros;
+    /** The noise makes the reported time late (the lateness then reads +0..noise, mean noise/2) instead of early. */
+    boolean noiseLate;
     /** A write takes whole multiples of this many frames only (when it cannot take all); 1: any number. */
     int writeGranularityFrames = 1;
     /** A call of getTimestamp / write blocks the calling (engine) thread for this long. */
@@ -67,11 +69,14 @@ final class DeviceModel {
     /** The underrun counter counts a starved moment (otherwise only the first moment of a stall is not counted: never). */
     boolean countUnderruns = true;
     /**
-     * The underrun counter rises once per this many frames played whenever fewer than a full buffer is queued, whether
-     * the output starves or not (seen on a Nothing A142, Android 16: every 2048 frames, 42.6 ms at 48 kHz, even with
-     * 110 ms queued). 0: the counter is true.
+     * A deep-buffer output (AudioFlinger latency 128 ms, notification period 2048 frames, seen on a Nothing A142 with
+     * Android 16: mFlags 0x8, mLatency 528, mAfLatency 128): at every mixer period (this many frames played) fewer than
+     * {@code mixerMinQueuedFrames} queued frames make the mixer run short. That is a real underrun: the counter rises,
+     * the period is played as silence and the position stands still for that long. The position does not stall for long,
+     * so the position evidence shows nothing dramatic. 0: no such output.
      */
-    int spuriousUnderrunPeriodFrames;
+    int mixerMinQueuedFrames;
+    int mixerPeriodFrames = 2048;
     /** The head position moves in steps of this many frames. */
     int headGranularityFrames = 1;
     /** The head position is not available (always 0). */

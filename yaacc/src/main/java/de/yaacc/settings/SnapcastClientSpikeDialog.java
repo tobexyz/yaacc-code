@@ -75,6 +75,8 @@ final class SnapcastClientSpikeDialog {
     private final Button apply;
     private final TextView status;
     private final TextView summary;
+    private final Button moveGroup;
+    private final TextView lastEnding;
     private final ExecutorService worker = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "snapcast-client-spike");
         thread.setDaemon(true);
@@ -96,6 +98,10 @@ final class SnapcastClientSpikeDialog {
             SnapcastClientRuntime.View view = SnapcastClientRuntime.get();
             status.setText(SnapcastClientStatusText.of(view, System.currentTimeMillis()));
             summary.setText(SnapcastClientTraceReport.summary(view.engine, deviceDescription()));
+            moveGroup.setEnabled(active && view.server != null && view.server.isClientFound());
+            lastEnding.setText(de.yaacc.multiroom.client.SessionEndingText.of(
+                    preferences.getString(SnapcastClientSpike.KEY_LAST_ENDING, null),
+                    preferences.getLong(SnapcastClientSpike.KEY_LAST_ENDING_AT, 0), System.currentTimeMillis()));
             main.postDelayed(this, REFRESH_MS);
         }
     };
@@ -189,6 +195,17 @@ final class SnapcastClientSpikeDialog {
         summary.setTextIsSelectable(true);
         traceRow.addView(summary, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         root.addView(traceRow);
+
+        moveGroup = new Button(context);
+        moveGroup.setText(R.string.snapcast_client_move_group);
+        moveGroup.setOnClickListener(v -> onMoveGroup());
+        moveGroup.setEnabled(false);
+        root.addView(moveGroup);
+
+        lastEnding = new TextView(context);
+        lastEnding.setTextSize(11);
+        lastEnding.setTypeface(Typeface.DEFAULT_BOLD);
+        root.addView(lastEnding);
 
         status = new TextView(context);
         status.setTypeface(Typeface.MONOSPACE);
@@ -309,5 +326,44 @@ final class SnapcastClientSpikeDialog {
         String report = SnapcastClientTraceReport.of(view, deviceDescription(), System.currentTimeMillis());
         clipboard.setPrimaryClip(ClipData.newPlainText("snapcast trace", report));
         Toast.makeText(context, R.string.snapcast_client_trace_copied, Toast.LENGTH_SHORT).show();
+    }
+
+    /** Lists the streams the server named, asks, and moves the group of this phone to the chosen one (Group.SetStream). */
+    private void onMoveGroup() {
+        final de.yaacc.multiroom.client.ServerSays says = SnapcastClientRuntime.get().server;
+        if (says == null || !says.isClientFound() || says.getStreams().isEmpty()) {
+            Toast.makeText(context, R.string.snapcast_client_move_group_none, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final List<de.yaacc.multiroom.client.ServerSays.Stream> streams = says.getStreams();
+        String[] names = new String[streams.size()];
+        for (int i = 0; i < names.length; i++) {
+            names[i] = streams.get(i).getId() + " (" + streams.get(i).getStatus() + ")";
+        }
+        new AlertDialog.Builder(context)
+                .setTitle(R.string.snapcast_client_move_group_title)
+                .setItems(names, (d, which) -> confirmMove(says, streams.get(which)))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void confirmMove(de.yaacc.multiroom.client.ServerSays says, de.yaacc.multiroom.client.ServerSays.Stream stream) {
+        new AlertDialog.Builder(context)
+                .setTitle(R.string.snapcast_client_move_group)
+                .setMessage(context.getString(R.string.snapcast_client_move_group_confirm, stream.getId()))
+                .setPositiveButton(R.string.snapcast_client_move_group_do, (d, w) -> {
+                    try {
+                        worker.execute(() -> {
+                            boolean ok = de.yaacc.multiroom.client.ServerControl.moveGroup(says.getAddress(), says.getGroupId(),
+                                    stream.getId());
+                            main.post(() -> Toast.makeText(context, ok ? R.string.snapcast_client_move_group_done
+                                    : R.string.snapcast_client_move_group_failed, Toast.LENGTH_SHORT).show());
+                        });
+                    } catch (RejectedExecutionException closed) {
+                        // the dialog was dismissed meanwhile
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 }

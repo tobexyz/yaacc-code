@@ -105,16 +105,27 @@ public final class EngineStatus implements Cloneable {
     public long correctionLargestBlockFrames;
     /** Exact pads or skips after the stream was aligned (a step in a playing stream). */
     public long stepsWhilePlaying;
+    /** The frames padded or skipped in those steps. */
+    public long stepsWhilePlayingFrames;
+    /** True when a dropped or repeated frame is spread by interpolation (the service switches it on). */
+    public boolean smoothCorrections;
     /** The median of the last drift measurements (what the corrections act on). */
     public long driftSmoothedMicros;
     /** Restarts of the stream after a pause: how many, the gap of the last one and how long its first audio took. */
     public long streamResumes;
     public long lastResumeGapMs;
     public long lastResumeToAudioMs = -1;
+    /** The connection's counters (null before there is one): frames by type, bytes, the server's settings. */
+    public de.yaacc.multiroom.protocol.SnapcastConnection.Stats connection;
+    /** Milliseconds since the engine received the last chunk, -1 when none yet. */
+    public long lastChunkAgoMs = -1;
     public long underrunsCorroborated;
-    public long underrunsSpurious;
-    /** True once the counter rose several times in a row without any sign of starvation: it is no longer used. */
-    public boolean underrunCounterUnreliable;
+    /** Rises of the counter that the position did not confirm (the output is not dry, but its cushion is too thin). */
+    public long underrunRisesThin;
+    /** The write-ahead in force (raised from {@link #writeAheadMs} when the counter rises) and how often it was raised. */
+    public int writeAheadEffectiveMs;
+    public long writeAheadRaises;
+
     /** The drift (positive: late) that caused the latest hard resync. */
     public long lastHardResyncDriftMicros;
     /** Reports of the output's position taken into account and refused (stale, from the future, going back, ...). */

@@ -296,4 +296,73 @@ public class DeviceDriftTest {
         SnapcastClientRuntime.engine(s);
         return SnapcastClientRuntime.get();
     }
+
+    // ---- Group 8i: the owner's closed loop (about 4 pads or skips a second while playing, 2.6 s of audio thrown away in 43 s)
+
+    /**
+     * Reports with a position age that jitters by 0 to 42 ms every 260 ms and a time that is consistently about 20 ms late:
+     * the measured lateness is +20 +- 20 ms from the start on. The engine used to step (skip 28 ms), reset its median, take
+     * the next single report (40 ms) as the drift and step again, four times a second, and never converged.
+     */
+    @Test
+    public void aBiasedAndJitteryPositionDoesNotMakeTheEngineSkipOverAndOver() {
+        DeviceModel m = phone();
+        m.timestampPeriodMicros = 260_000;
+        m.timestampNoiseMicros = 42_000;
+        m.noiseLate = true; // the reported times are late by 0..42 ms: the drift reads +21 +- 21 ms, as in the trace
+        DeviceRig rig = new DeviceRig(m, new ClientEngineConfig().smoothCorrections(true));
+        rig.flac = true;
+        rig.useSine();
+        rig.connect();
+        rig.run(240_000);
+        double mean = 0; // the median of seven noisy reports moves by +-10 ms: judge the mean of a minute
+        for (int i = 0; i < 60; i++) {
+            rig.run(1000);
+            mean += rig.status().driftSmoothedMicros / 60.0;
+        }
+        EngineStatus s = rig.status();
+        DeviceSimSink.Counters c = rig.sink.counters();
+        assertTrue("pads or skips while playing: " + s.stepsWhilePlaying + ", frames " + s.stepsWhilePlayingFrames + " " + rig.report(),
+                s.stepsWhilePlaying <= 3);
+        assertTrue("audio thrown away: " + s.stepSkippedFrames, s.stepSkippedFrames <= 48000 / 10);
+        assertTrue("mean smoothed drift over the last minute " + mean, Math.abs(mean) < 5_000);
+        assertTrue("discontinuities in the sine: " + c.sineStepsOverSlope + " max step " + c.sineMaxStep, c.sineStepsOverSlope <= 5);
+        assertEquals(rig.report(), 0, s.flushes);
+        // no systematic loss: what was dropped by the gentle corrections is what the bias asked for (about 20 ms)
+        assertTrue("corrections " + s.correctionDroppedFrames + " / " + s.correctionRepeatedFrames,
+                Math.abs(s.correctionDroppedFrames - s.correctionRepeatedFrames) <= 48 * 60);
+    }
+
+    /** A single report is never taken as the drift: after a step the next one must not trigger another. */
+    @Test
+    public void aStepIsNotFollowedByAStepOnASingleReport() {
+        DeviceModel m = phone();
+        m.timestampPeriodMicros = 260_000;
+        m.timestampNoiseMicros = 42_000;
+        DeviceRig rig = new DeviceRig(m);
+        rig.connect();
+        rig.run(8000);
+        rig.offsets.offset += 120_000; // a real change of 120 ms: one step, then quiet
+        rig.run(30_000);
+        EngineStatus s = rig.status();
+        assertTrue("steps " + s.stepsWhilePlaying + " " + rig.report(), s.stepsWhilePlaying >= 1 && s.stepsWhilePlaying <= 8);
+        assertTrue("smoothed drift " + s.driftSmoothedMicros, Math.abs(s.driftSmoothedMicros) < 5_000);
+    }
+
+    @Test
+    public void theStepsOfTheLastSecondAreInTheTraceAndTheStatus() {
+        DeviceRig rig = new DeviceRig(phone());
+        rig.connect();
+        rig.run(8000);
+        rig.offsets.offset += 120_000;
+        rig.run(4000);
+        String trace = rig.engine.trace().text();
+        assertTrue(trace, trace.contains("pads and skips while playing, last second"));
+        assertTrue(rig.status().stepsWhilePlayingFrames > 0);
+        assertTrue(rig.status().smoothCorrections == false);
+        DeviceRig smooth = new DeviceRig(phone(), new ClientEngineConfig().smoothCorrections(true));
+        smooth.connect();
+        smooth.run(2000);
+        assertTrue(smooth.status().smoothCorrections);
+    }
 }

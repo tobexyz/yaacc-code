@@ -81,6 +81,8 @@ public final class EngineHost implements SnapcastConnection.Listener {
     /** True when a chunk was refused and no chunk was accepted since: the next one carries the news to the engine. */
     private final java.util.concurrent.atomic.AtomicBoolean lossBeforeNextChunk = new java.util.concurrent.atomic.AtomicBoolean();
     private volatile boolean closed;
+    private volatile java.util.function.Supplier<SnapcastConnection.Stats> connectionStats;
+    private volatile long helloIdHash;
     private final AtomicReference<EngineStatus> latest = new AtomicReference<>();
     private final AtomicLong droppedForLackOfRoom = new AtomicLong();
     private final AtomicLong queuedBytes = new AtomicLong();
@@ -220,6 +222,33 @@ public final class EngineHost implements SnapcastConnection.Listener {
         queuedBytes.set(0);
     }
 
+    /** Where the counters of the connection come from, and a number that stands for the Hello id (not the id). */
+    public void setConnectionSource(java.util.function.Supplier<SnapcastConnection.Stats> stats, long idHash) {
+        this.connectionStats = stats;
+        this.helloIdHash = idHash;
+    }
+
+    @Override
+    public void onAttempt(int number) {
+        post(() -> engine.noteConnection(TraceKind.ATTEMPT, number, 0, 0));
+    }
+
+    @Override
+    public void onConnected() {
+        long hash = helloIdHash;
+        post(() -> engine.noteConnection(TraceKind.CONNECTED, hash, 0, 0));
+    }
+
+    /** Notes in the trace why the session ended (the trace is thread safe; the engine may be stopped already). */
+    public void traceEnding(int endingOrdinal) {
+        engine.noteConnection(TraceKind.SESSION_END, endingOrdinal, 0, 0);
+    }
+
+    /** Notes in the trace what the server said about this client. */
+    public void traceServerSays(long found, long playing, long streams) {
+        engine.noteConnection(TraceKind.SERVER_SAYS, found, playing, streams);
+    }
+
     public void setManualLatencyMs(int milliseconds) {
         post(() -> engine.setManualLatencyMs(milliseconds));
     }
@@ -352,6 +381,10 @@ public final class EngineHost implements SnapcastConnection.Listener {
     private void publish() {
         if (abandoned) {
             return; // the end was reported already; a late status must not replace it
+        }
+        java.util.function.Supplier<SnapcastConnection.Stats> source = connectionStats;
+        if (source != null) {
+            engine.setConnectionStats(source.get());
         }
         EngineStatus status = engine.status();
         status.hostQueueDrops = droppedForLackOfRoom.get();

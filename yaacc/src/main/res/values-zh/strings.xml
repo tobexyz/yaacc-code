@@ -375,8 +375,16 @@
     <string name="snapcast_client_error_empty_host">请输入服务器地址</string>
     <string name="snapcast_client_error_invalid_host">这不是有效的地址</string>
     <string name="snapcast_client_error_invalid_latency">请输入整数毫秒值</string>
-    <string name="snapcast_client_write_ahead_hint">写入提前量（毫秒，40 到 350，默认 120）</string>
+    <string name="snapcast_client_write_ahead_hint">写入提前量（毫秒，40 到 350，默认 250）</string>
     <string name="snapcast_client_error_invalid_write_ahead">请输入 40 到 350 之间的整数</string>
+    <string name="snapcast_client_notification_stopped">已停止：%1$s</string>
+    <string name="snapcast_client_move_group">将我的分组移到某个流</string>
+    <string name="snapcast_client_move_group_title">播放哪个流？</string>
+    <string name="snapcast_client_move_group_confirm">这会更改服务器：本手机所在的整个分组（包括其中的其他客户端）将播放流“%1$s”。</string>
+    <string name="snapcast_client_move_group_do">移动</string>
+    <string name="snapcast_client_move_group_done">分组已移动</string>
+    <string name="snapcast_client_move_group_failed">服务器未接受</string>
+    <string name="snapcast_client_move_group_none">服务器尚未回应</string>
     <string name="snapcast_client_notification_title">Snapcast 客户端（测试）</string>
     <string name="snapcast_client_notification_connecting">正在连接…</string>
     <string name="snapcast_client_notification_playing">正在播放</string>

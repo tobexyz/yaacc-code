@@ -197,7 +197,16 @@ public final class SnapcastClientEngine {
     private long correctionRepeatedSecond;
     private long correctionLargestSecond;
     private long stepsWhilePlaying;
+    private long stepsWhilePlayingFrames;
+    private long stepsSecond;
+    private long stepPadSecond;
+    private long stepSkipSecond;
     private long lastTracedOffset = Long.MIN_VALUE;
+    private long aheadEmaMs = -1;
+    private de.yaacc.multiroom.protocol.SnapcastConnection.Stats connectionStats;
+    private boolean firstChunkTraced;
+    private long connectedEventAtMicros = -1;
+    private long lastChunkReceivedMicros = -1;
     private long maxTickMicros;
     private long maxChunkMicros;
     private long maxPollMicros;
@@ -223,12 +232,16 @@ public final class SnapcastClientEngine {
     private long lastPositionTraceMicros = Long.MIN_VALUE / 2;
     private boolean alignStartTraced;
     private boolean primeTraced;
+    /** A step (exact pad or skip) in a playing stream is on: every block is done exactly until the drift is gone. */
+    private boolean stepping;
     // underrun counter judgement (Fix Group 8g)
     private long suspectSinceMicros = -1;
-    private int spuriousInARow;
-    private boolean counterUnreliable;
     private long underrunsCorroborated;
-    private long underrunsSpurious;
+    private long underrunRisesThin;
+    private int effectiveAheadMs;
+    private long writeAheadRaises;
+    private long lastWriteAheadRaiseMicros = Long.MIN_VALUE / 2;
+    private long risesSinceRaise;
     private long underrunRisesSinceTrace;
     private long lastRefusedTraceMicros = Long.MIN_VALUE / 2;
     private boolean stepTraced;
@@ -253,7 +266,8 @@ public final class SnapcastClientEngine {
         this.scheduler = new ChunkScheduler(offsets, clock,
                 new ChunkScheduler.Config().lateToleranceMs(cfg.lateToleranceMs)
                         // the engine writes up to maxAheadMs before the play time: the audio must be released before that
-                        .releaseLeadMs(Math.max(cfg.releaseLeadMs, cfg.maxAheadMs + 130)));
+                        .releaseLeadMs(Math.max(cfg.releaseLeadMs,
+                                (cfg.adaptiveWriteAhead ? Math.max(cfg.maxAheadMs, cfg.writeAheadMaxMs) : cfg.maxAheadMs) + 130)));
         this.seenEpoch = offsets.epoch();
         this.startedAtMicros = clock.nowMicros();
         this.trace = new EventTrace(startedAtMicros);
@@ -269,6 +283,8 @@ public final class SnapcastClientEngine {
         if (terminal) {
             return;
         }
+        trace.add(clock.nowMicros(), TraceKind.SETTINGS, settings.getBufferMs(), settings.getLatencyMs(),
+                settings.getVolume() + (settings.isMuted() ? 1000 : 0));
         bufferMs = settings.getBufferMs();
         serverLatencyMs = settings.getLatencyMs();
         volume = Math.max(0, Math.min(100, settings.getVolume()));
@@ -281,6 +297,21 @@ public final class SnapcastClientEngine {
     public void setManualLatencyMs(int milliseconds) {
         manualLatencyMs = Math.max(-SnapcastProtocolLimits.MAX_LATENCY_MS, Math.min(SnapcastProtocolLimits.MAX_LATENCY_MS, milliseconds));
         updateScheduler();
+    }
+
+    /** The counters of the connection (the host hands them over before every status); used for the status and the trace. */
+    public void setConnectionStats(de.yaacc.multiroom.protocol.SnapcastConnection.Stats stats) {
+        connectionStats = stats;
+    }
+
+    /** A connection event (attempt, connected) for the trace; a new connection starts counting its chunks again. */
+    public void noteConnection(TraceKind kind, long a, long b, long c) {
+        long now = clock.nowMicros();
+        trace.add(now, kind, a, b, c);
+        if (kind == TraceKind.CONNECTED) {
+            firstChunkTraced = false;
+            connectedEventAtMicros = now;
+        }
     }
 
     public void onOffsetUpdate(long offsetMicros, long jitterMicros) {
@@ -328,6 +359,12 @@ public final class SnapcastClientEngine {
             return;
         }
         chunksReceived++;
+        lastChunkReceivedMicros = clock.nowMicros();
+        if (!firstChunkTraced) {
+            firstChunkTraced = true;
+            trace.add(lastChunkReceivedMicros, TraceKind.FIRST_CHUNK,
+                    connectedEventAtMicros < 0 ? -1 : (lastChunkReceivedMicros - connectedEventAtMicros) / 1000L);
+        }
         if (header == null) {
             droppedBeforeHeader++;
             return;
@@ -371,6 +408,7 @@ public final class SnapcastClientEngine {
             return;
         }
         connectionLosses++;
+        firstChunkTraced = false;
         forgetHoles();
         lastChunkMicros = Long.MIN_VALUE;
         connectionLost = true;
@@ -504,8 +542,6 @@ public final class SnapcastClientEngine {
             sinkStarted = false;
             format = wanted;
             baselineUnderruns = sink.underrunCount();
-            counterUnreliable = false; // judged per output
-            spuriousInARow = 0;
             suspectSinceMicros = -1;
             applyGain();
         }
@@ -517,7 +553,8 @@ public final class SnapcastClientEngine {
         maxFifoFrames = (long) rate * cfg.maxFifoMs / 1000L;
         // an output that plays only after a threshold is queued needs at least that much before it can report a position
         prefillFrames = Math.max(Math.max(1, (long) rate * cfg.prefillMs / 1000L), sink.startThresholdFrames());
-        maxAheadMicros = cfg.maxAheadMs * 1000L;
+        effectiveAheadMs = Math.max(effectiveAheadMs, cfg.maxAheadMs); // raised during a session, never lowered
+        maxAheadMicros = effectiveAheadMs * 1000L;
         silence = new byte[blockFrames * outFrameBytes];
         tracker = new PlaybackTracker(rate, cfg.positionOutlierMs * 1000L);
         scheduler.reset();
@@ -877,6 +914,7 @@ public final class SnapcastClientEngine {
         aligned = false;
         alignStartTraced = false;
         stepTraced = false;
+        stepping = false;
         pending = null;
         drift.reset();
         lastDriftRevision = -1;
@@ -975,9 +1013,17 @@ public final class SnapcastClientEngine {
         lastSummaryTraceMicros = now;
         long ahead = tracker.isValid() && rate > 0 ? (tracker.presentationMicros(writtenFrames) - now) / 1000L : -1;
         trace.add(now, TraceKind.DRIFT, lastDrift, aligned ? 1 : 0, ahead);
+        if (ahead >= 0) {
+            aheadEmaMs = aheadEmaMs < 0 ? ahead : (aheadEmaMs * 3 + ahead) / 4;
+        }
         if (underrunRisesSinceTrace > 0) {
             trace.add(now, TraceKind.UNDERRUN, underrunRisesSinceTrace, sink.underrunCount(), aligned ? 1 : 0);
             underrunRisesSinceTrace = 0;
+        }
+        de.yaacc.multiroom.protocol.SnapcastConnection.Stats c = connectionStats;
+        if (c != null) {
+            trace.add(now, TraceKind.FRAMES, c.framesTime, c.framesSettings + c.framesHeader, c.framesChunk);
+            trace.add(now, TraceKind.BYTES, c.bytesIn, c.lastChunkAgoMs, c.framesError + c.framesOther);
         }
         trace.add(now, TraceKind.POLLS, tracker.acceptedCount(), tracker.rejectedCount(), tracker.outlierCount());
         trace.add(now, TraceKind.LOOP, ticksSecond, maxTickGapMicrosSecond / 1000L, maxWriteMicrosSecond);
@@ -986,6 +1032,12 @@ public final class SnapcastClientEngine {
         maxTickMicrosSecond = 0;
         maxChunkMicrosSecond = 0;
         maxPollMicrosSecond = 0;
+        if (stepsSecond > 0) {
+            trace.add(now, TraceKind.STEPS, stepsSecond, stepPadSecond, stepSkipSecond);
+            stepsSecond = 0;
+            stepPadSecond = 0;
+            stepSkipSecond = 0;
+        }
         if (correctionDroppedSecond + correctionRepeatedSecond > 0) {
             trace.add(now, TraceKind.CORRECTIONS, correctionDroppedSecond, correctionRepeatedSecond, correctionLargestSecond);
         }
@@ -1002,11 +1054,13 @@ public final class SnapcastClientEngine {
     }
 
     /**
-     * The platform's underrun counter is a hint, never a reason to flush by itself (a Nothing A142 on Android 16 raises it
-     * every 2048 frames with 110 ms queued): a rise is confirmed by the position (the output stood still, or holds
-     * less than {@code underrunAheadMs}) within {@code underrunConfirmMs}, otherwise it is counted as spurious and
-     * nothing is flushed. After {@code unreliableAfterRises} unconfirmed rises in a row the counter is no longer used for
-     * this output; a real starvation is then found by the stalled position or by writing too late.
+     * The platform's underrun counter says that the output ran short of data. On a deep-buffer output (Nothing A142,
+     * Android 16: AudioFlinger latency 128 ms, notification period 2048 frames) it rises when the app keeps less than the
+     * mixer needs queued, with real little breaks and a position that does not stall for long. A rise therefore means
+     * one of two things, told apart by the position within {@code underrunConfirmMs}: the output stood still or holds less
+     * than {@code underrunAheadMs} (a real dry-out: flush and align again), or it is fine (the cushion is too thin: the
+     * write-ahead is raised by {@code writeAheadStepMs}, at most once per {@code writeAheadCooldownMs}, up to
+     * {@code writeAheadMaxMs}, and never lowered during the session). Nothing is flushed for a thin cushion.
      */
     private void checkUnderruns(long now) {
         int count = sink.underrunCount();
@@ -1014,32 +1068,44 @@ public final class SnapcastClientEngine {
             int delta = count - baselineUnderruns;
             underruns += delta;
             underrunRisesSinceTrace += delta;
+            risesSinceRaise += delta;
             baselineUnderruns = count;
-            if (aligned && !counterUnreliable && suspectSinceMicros < 0) {
+            if (aligned && suspectSinceMicros < 0) {
                 suspectSinceMicros = now;
             }
         }
         if (suspectSinceMicros < 0) {
             return;
         }
-        if (!aligned || counterUnreliable) {
+        if (!aligned) {
             suspectSinceMicros = -1;
         } else if (starvationEvidence(now)) {
             suspectSinceMicros = -1;
-            spuriousInARow = 0;
             underrunsCorroborated++;
             trace.add(now, TraceKind.UNDERRUN_JUDGED, 1, 0, aheadMs(now));
+            raiseWriteAhead(now);
             flushForRecovery(now, FlushReason.UNDERRUN);
         } else if (now - suspectSinceMicros >= cfg.underrunConfirmMs * 1000L) {
             suspectSinceMicros = -1;
-            underrunsSpurious++;
-            spuriousInARow++;
-            trace.add(now, TraceKind.UNDERRUN_JUDGED, 2, spuriousInARow, aheadMs(now));
-            if (spuriousInARow >= cfg.unreliableAfterRises) {
-                counterUnreliable = true;
-                trace.add(now, TraceKind.UNDERRUN_JUDGED, 3, spuriousInARow, aheadMs(now));
-            }
+            underrunRisesThin++;
+            trace.add(now, TraceKind.UNDERRUN_JUDGED, 2, risesSinceRaise, aheadMs(now));
+            raiseWriteAhead(now);
         }
+    }
+
+    /** The output wants more queued than it has: ask for more, bounded and not more often than the cooldown allows. */
+    private void raiseWriteAhead(long now) {
+        if (!cfg.adaptiveWriteAhead || effectiveAheadMs >= cfg.writeAheadMaxMs
+                || now - lastWriteAheadRaiseMicros < cfg.writeAheadCooldownMs * 1000L) {
+            return;
+        }
+        int before = effectiveAheadMs;
+        effectiveAheadMs = Math.min(cfg.writeAheadMaxMs, effectiveAheadMs + cfg.writeAheadStepMs);
+        maxAheadMicros = effectiveAheadMs * 1000L;
+        lastWriteAheadRaiseMicros = now;
+        writeAheadRaises++;
+        trace.add(now, TraceKind.WRITE_AHEAD_RAISED, effectiveAheadMs, risesSinceRaise, before);
+        risesSinceRaise = 0;
     }
 
     private boolean starvationEvidence(long now) {
@@ -1107,6 +1173,7 @@ public final class SnapcastClientEngine {
         aligned = false;
         alignStartTraced = false;
         stepTraced = false;
+        stepping = false;
         pending = null;
         drift.reset();
         lastDriftRevision = -1;
@@ -1158,6 +1225,9 @@ public final class SnapcastClientEngine {
                 int pad = Math.min(blockFrames, framesFor(-raw));
                 if (aligned) {
                     stepsWhilePlaying++;
+                    stepsWhilePlayingFrames += pad;
+                    stepsSecond++;
+                    stepPadSecond += pad;
                     trace.add(now, TraceKind.STEP_PLAYING, pad, 0, raw);
                 }
                 if (!stepTraced) {
@@ -1185,21 +1255,26 @@ public final class SnapcastClientEngine {
                         hardLateReports++;
                         trace.add(now, TraceKind.HARD_LATE, raw, hardLateReports);
                     }
-                    if (hardLateReports >= cfg.hardResyncReports && now - lastFlushAtMicros >= cfg.minFlushIntervalMs * 1000L) {
-                        lastHardResyncDriftMicros = raw;
-                        flushSink(now, FlushReason.HARD_RESYNC); // the output holds old audio that is late
-                        return false;
+                    if (hardLateReports >= cfg.hardResyncReports) {
+                        if (now - lastFlushAtMicros >= cfg.minFlushIntervalMs * 1000L) {
+                            lastHardResyncDriftMicros = raw;
+                            flushSink(now, FlushReason.HARD_RESYNC); // the output holds old audio that is late
+                            return false;
+                        }
+                        // confirmed, but a flush just happened: skip over the lateness instead (below)
+                    } else {
+                        // not confirmed yet: play on as the position was before, do not skip audio on one report
+                        return writeNext(head, now);
                     }
                 } else {
                     hardLateReports = 0;
                 }
-                if (suspicious) {
-                    // not confirmed yet: play on as the position was before, do not skip audio on one report
-                    return writeNext(head, now);
-                }
                 int skip = Math.min(framesFor(raw), head.remaining());
                 if (aligned) {
                     stepsWhilePlaying++;
+                    stepsWhilePlayingFrames += skip;
+                    stepsSecond++;
+                    stepSkipSecond += skip;
                     trace.add(now, TraceKind.STEP_PLAYING, 0, skip, raw);
                 }
                 if (!stepTraced) {
@@ -1215,6 +1290,7 @@ public final class SnapcastClientEngine {
                 return false;
             }
             head.exact = false;
+            stepping = false;
             hardLateReports = 0;
             if (!aligned) {
                 trace.add(now, TraceKind.ALIGNED, raw, stepPadded, stepSkipped);
@@ -1223,6 +1299,10 @@ public final class SnapcastClientEngine {
                 lastDriftRevision = tracker.revision();
             }
         } else {
+            if (stepping) {
+                head.exact = true; // the step goes on until it is done, not one block per judgement
+                return false;
+            }
             long limit = cfg.gradualLimitMs * 1000L;
             if (tracker.revision() != lastDriftRevision) {
                 lastDriftRevision = tracker.revision();
@@ -1230,11 +1310,15 @@ public final class SnapcastClientEngine {
             }
             // A step (an exact pad or skip: audible) only for a drift that the median of the last measurements shows; one
             // noisy report (the age of a position jitters by tens of ms) must not cut the stream.
-            long judged = drift.isReady() ? drift.smoothedMicros() : raw;
+            // A single report decides nothing (its age jitters by tens of ms): without enough measurements (a step resets
+            // them) the drift is not judged. Only a lateness of more than the hard bound acts at once, and then through
+            // the exact path, which wants several fresh reports before it flushes.
+            long judged = drift.isReady() ? drift.smoothedMicros() : 0;
             // Far too late (the output holds old audio): the exact path at once, it asks for several fresh reports itself
             boolean farLate = raw > cfg.hardResyncMs * 1000L;
             if (farLate || judged > limit || judged < -limit) {
                 head.exact = true; // a step: done exactly, not frame by frame
+                stepping = true;
                 drift.reset(); // what was measured before the step says nothing about the output after it
                 return false;
             }
@@ -1441,6 +1525,8 @@ public final class SnapcastClientEngine {
         s.flushesConnectionLost = flushesByReason[FlushReason.CONNECTION_LOST.ordinal()];
         s.flushesPositionStall = flushesByReason[FlushReason.POSITION_STALL.ordinal()];
         s.lastHardResyncDriftMicros = lastHardResyncDriftMicros;
+        s.connection = connectionStats;
+        s.lastChunkAgoMs = lastChunkReceivedMicros < 0 ? -1 : Math.max(0, now - lastChunkReceivedMicros) / 1000L;
         s.streamResumes = streamResumes;
         s.lastResumeGapMs = lastResumeGapMs;
         s.lastResumeToAudioMs = lastResumeToAudioMs;
@@ -1457,12 +1543,15 @@ public final class SnapcastClientEngine {
         s.correctionBlocks = correctionBlocks;
         s.correctionLargestBlockFrames = correctionLargestBlock;
         s.stepsWhilePlaying = stepsWhilePlaying;
+        s.stepsWhilePlayingFrames = stepsWhilePlayingFrames;
+        s.smoothCorrections = cfg.smoothCorrections;
         s.driftSmoothedMicros = drift.smoothedMicros();
         s.underrunsCorroborated = underrunsCorroborated;
-        s.underrunsSpurious = underrunsSpurious;
-        s.underrunCounterUnreliable = counterUnreliable;
+        s.underrunRisesThin = underrunRisesThin;
+        s.writeAheadEffectiveMs = effectiveAheadMs;
+        s.writeAheadRaises = writeAheadRaises;
         s.trace = trace;
-        s.outputSummary = sink.describe();
+        s.outputSummary = sink.describe() + ", output ahead measured " + (aheadEmaMs < 0 ? "-" : aheadEmaMs + " ms");
         s.positionReportsAccepted = tracker.acceptedCount();
         s.positionReportsRejected = tracker.rejectedCount() + tracker.outlierCount();
         s.flushesSuppressed = flushesSuppressed;

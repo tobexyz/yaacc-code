@@ -63,5 +63,10 @@ public interface TrackPort {
 
     void setGain(float gain);
 
+    /** Facts about the output for the status line (performance mode, buffer sizes); empty when there are none. */
+    default String describe() {
+        return "";
+    }
+
     void release();
 }

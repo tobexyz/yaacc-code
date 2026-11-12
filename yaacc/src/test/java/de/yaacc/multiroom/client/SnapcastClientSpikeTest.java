@@ -133,9 +133,9 @@ public class SnapcastClientSpikeTest {
 
     @Test
     public void theWriteAheadIsAWholeNumberOfMillisecondsClampedTo40To350() {
-        assertEquals(Integer.valueOf(120), SnapcastClientSpike.parseWriteAhead(""));
-        assertEquals(Integer.valueOf(120), SnapcastClientSpike.parseWriteAhead(null));
-        assertEquals(Integer.valueOf(120), SnapcastClientSpike.parseWriteAhead("  "));
+        assertEquals(Integer.valueOf(250), SnapcastClientSpike.parseWriteAhead(""));
+        assertEquals(Integer.valueOf(250), SnapcastClientSpike.parseWriteAhead(null));
+        assertEquals(Integer.valueOf(250), SnapcastClientSpike.parseWriteAhead("  "));
         assertEquals(Integer.valueOf(250), SnapcastClientSpike.parseWriteAhead(" 250 "));
         assertEquals(Integer.valueOf(40), SnapcastClientSpike.parseWriteAhead("40"));
         assertEquals(Integer.valueOf(350), SnapcastClientSpike.parseWriteAhead("350"));
@@ -146,7 +146,7 @@ public class SnapcastClientSpikeTest {
         assertNull(SnapcastClientSpike.parseWriteAhead("-5"));
         assertNull(SnapcastClientSpike.parseWriteAhead("12a"));
         assertNull(SnapcastClientSpike.parseWriteAhead("1.5"));
-        assertEquals(120, SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS);
+        assertEquals(250, SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS);
         assertEquals(40, SnapcastClientSpike.clampWriteAhead(-3));
         assertEquals(350, SnapcastClientSpike.clampWriteAhead(Integer.MAX_VALUE));
     }

@@ -72,6 +72,10 @@ public final class AudioTrackSink extends StreamingSink {
                                 .setSampleRate(wanted.getSampleRate()).setChannelMask(mask).build())
                         .setBufferSizeInBytes(Math.max(minBytes, wantedBytes))
                         .setTransferMode(AudioTrack.MODE_STREAM)
+                        // Deliberately the deep-buffer output (also what the platform picks for a media track on the phone
+                        // of the owner, mFlags 0x8): this is a stream of seconds of delay, not a game. The deep-buffer
+                        // mixer has its own latency (128 ms there); the engine keeps more than that queued.
+                        .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_POWER_SAVING)
                         .build();
             } catch (UnsupportedOperationException | IllegalArgumentException e) {
                 throw new AudioSinkException(AudioSinkException.Reason.OPEN_FAILED, "the output could not be created");
@@ -81,6 +85,26 @@ public final class AudioTrackSink extends StreamingSink {
                 throw new AudioSinkException(AudioSinkException.Reason.OPEN_FAILED, "the output did not initialise");
             }
             return new AndroidTrack(created);
+        }
+
+        @Override
+        public String describe() {
+            String mode = "?";
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                switch (track.getPerformanceMode()) {
+                    case AudioTrack.PERFORMANCE_MODE_POWER_SAVING:
+                        mode = "power saving (deep buffer)";
+                        break;
+                    case AudioTrack.PERFORMANCE_MODE_LOW_LATENCY:
+                        mode = "low latency";
+                        break;
+                    default:
+                        mode = "none";
+                        break;
+                }
+            }
+            return "performance mode " + mode + ", buffer size " + track.getBufferSizeInFrames() + " of capacity "
+                    + track.getBufferCapacityInFrames() + " frames";
         }
 
         @Override

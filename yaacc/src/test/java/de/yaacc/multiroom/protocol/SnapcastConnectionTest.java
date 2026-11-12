@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -328,7 +329,8 @@ public class SnapcastConnectionTest {
         java.util.concurrent.BlockingQueue<Long> stamps = new java.util.concurrent.LinkedBlockingQueue<>();
         FakeServer server = timeServer(clock, stamps, 0);
         Recorder recorder = new Recorder();
-        SnapcastConnection.Config config = quick().timeSyncBurstCount(1).timeSyncIntervalMs(1000).idleTimeoutMs(10_000);
+        SnapcastConnection.Config config = quick().timeSyncBurstCount(1).timeSyncIntervalMs(1000).idleTimeoutMs(10_000)
+                .maxNoChunkProbes(0); // the probe for a missing first chunk is a limit of its own (tested below)
         SnapcastConnection connection = connect(new SnapcastTransportHolder(server, 0), config, clock, new ManualScheduler(), recorder);
 
         connection.start();
@@ -339,6 +341,160 @@ public class SnapcastConnectionTest {
         }
         assertEquals(SnapcastConnection.State.CONNECTED, connection.getState());
         connection.close();
+    }
+
+    // ---- Group 8i: a server that sends no chunk to a (re)started client
+
+    private SnapcastConnection.Config probing() {
+        return quick().noChunkProbeMs(5_000).maxNoChunkProbes(3).idleTimeoutMs(600_000).handshakeTimeoutMs(600_000);
+    }
+
+    /** The first session gets the header and no chunk (a server that has not yet moved the client to its stream). */
+    @Test
+    public void noChunkAfterTheHeaderMakesTheConnectionTryOnceMoreAndTheSecondSessionGetsChunks() throws Exception {
+        final AtomicInteger index = new AtomicInteger();
+        FakeServer server = serve(connection -> {
+            int mine = index.getAndIncrement();
+            handshake(connection);
+            if (mine > 0) {
+                connection.send(chunk(1));
+                connection.send(chunk(2));
+            }
+            connection.awaitClientClose();
+        });
+        ManualClock clock = new ManualClock(1_000_000);
+        ManualScheduler scheduler = new ManualScheduler();
+        Recorder recorder = new Recorder();
+        SnapcastConnection connection = connect(new SnapcastTransportHolder(server, 0), probing(), clock, scheduler, recorder);
+
+        connection.start();
+        recorder.nextOf(CodecHeaderMessage.class);
+        assertEquals(0, connection.stats().framesChunk);
+        clock.advanceMillis(5_000); // the probe time after the header
+        SnapcastConnection.Loss loss = recorder.nextOf(SnapcastConnection.Loss.class);
+        assertEquals(SnapcastConnection.LossReason.NO_CHUNKS, loss.getReason());
+        scheduler.runNext();
+        recorder.nextOf(CodecHeaderMessage.class);
+        assertEquals(1, recorder.nextOf(WireChunkMessage.class).getTimestampSec());
+        assertEquals(2, index.get());
+        SnapcastConnection.Stats stats = connection.stats();
+        assertEquals(0, stats.noChunkProbes); // a chunk came: the allowance is back
+        assertEquals(2, stats.attempts);
+        assertTrue(stats.connected);
+    }
+
+    /** After three probes the connection stays: an idle stream is legal. */
+    @Test
+    public void afterThreeProbesTheConnectionIsKeptForAnIdleStream() throws Exception {
+        final AtomicInteger index = new AtomicInteger();
+        FakeServer server = serve(connection -> {
+            index.getAndIncrement();
+            handshake(connection);
+            connection.awaitClientClose();
+        });
+        ManualClock clock = new ManualClock(1_000_000);
+        ManualScheduler scheduler = new ManualScheduler();
+        Recorder recorder = new Recorder();
+        SnapcastConnection connection = connect(new SnapcastTransportHolder(server, 0), probing(), clock, scheduler, recorder);
+
+        connection.start();
+        for (int probe = 1; probe <= 3; probe++) {
+            recorder.nextOf(CodecHeaderMessage.class);
+            clock.advanceMillis(5_000);
+            assertEquals(SnapcastConnection.LossReason.NO_CHUNKS, recorder.nextOf(SnapcastConnection.Loss.class).getReason());
+            assertEquals(probe, connection.stats().noChunkProbes);
+            scheduler.runNext();
+        }
+        recorder.nextOf(CodecHeaderMessage.class); // the fourth session
+        clock.advanceMillis(60_000);
+        Thread.sleep(300);
+        assertEquals(SnapcastConnection.State.CONNECTED, connection.getState());
+        assertEquals(4, index.get());
+        assertEquals(3, connection.stats().noChunkProbes);
+        assertEquals(0, scheduler.pending());
+        // the delays of the retries grow
+        assertTrue(scheduler.delays.toString(), scheduler.delays.get(2) > scheduler.delays.get(0));
+    }
+
+    @Test
+    public void theStatsCountFramesByTypeBytesAndTheLastChunk() throws Exception {
+        FakeServer server = serve(connection -> {
+            handshake(connection);
+            connection.send(chunk(1));
+            connection.send(chunk(2));
+            connection.send(chunk(3));
+            connection.awaitClientClose();
+        });
+        ManualClock clock = new ManualClock(1_000_000);
+        Recorder recorder = new Recorder();
+        SnapcastConnection connection = connect(new SnapcastTransportHolder(server, 0), probing(), clock, new ManualScheduler(), recorder);
+
+        connection.start();
+        recorder.nextOf(WireChunkMessage.class);
+        recorder.nextOf(WireChunkMessage.class);
+        recorder.nextOf(WireChunkMessage.class);
+        clock.advanceMillis(1_500);
+        SnapcastConnection.Stats stats = connection.stats();
+        assertEquals(1, stats.framesSettings);
+        assertEquals(1, stats.framesHeader);
+        assertEquals(3, stats.framesChunk);
+        assertEquals(0, stats.framesError);
+        assertTrue("bytes " + stats.bytesIn, stats.bytesIn > 3 * 26);
+        assertTrue("last chunk " + stats.lastChunkAgoMs, stats.lastChunkAgoMs >= 1_500 && stats.lastChunkAgoMs < 2_000);
+        assertTrue(stats.firstChunkAfterMs >= 0 && stats.firstChunkAfterMs < 1_000);
+        assertEquals(800, stats.settingsBufferMs);
+        assertEquals(20, stats.settingsLatencyMs);
+        assertEquals(70, stats.settingsVolume);
+        assertTrue(stats.helloSent && stats.connected && stats.attempts == 1);
+    }
+
+    /** Our end first (a FIN), then the close: the server sees an orderly end of this session. */
+    @Test
+    public void closeSendsOurEndFirstAndWaitsAMomentForTheServer() throws Exception {
+        final java.util.List<String> calls = java.util.Collections.synchronizedList(new ArrayList<String>());
+        FakeServer server = serve(connection -> {
+            handshake(connection);
+            connection.awaitClientClose();
+        });
+        SnapcastTransport recording = timeout -> {
+            final SnapcastTransport.Connection real = new de.yaacc.multiroom.control.SocketTransport(ConnectionFixtures.loopback(),
+                    server.port()).open(timeout);
+            return new SnapcastTransport.Connection() {
+                public java.io.InputStream getInputStream() throws IOException {
+                    return real.getInputStream();
+                }
+
+                public java.io.OutputStream getOutputStream() throws IOException {
+                    return real.getOutputStream();
+                }
+
+                public void setReadTimeout(int millis) throws IOException {
+                    real.setReadTimeout(millis);
+                }
+
+                public java.net.InetAddress getPeerAddress() {
+                    return real.getPeerAddress();
+                }
+
+                public void shutdownOutput() {
+                    calls.add("shutdownOutput");
+                    real.shutdownOutput();
+                }
+
+                public void close() {
+                    calls.add("close");
+                    real.close();
+                }
+            };
+        };
+        Recorder recorder = new Recorder();
+        SnapcastConnection connection = new SnapcastConnection(recording, HELLO, quick(), new ManualClock(1_000_000),
+                new ManualScheduler(), null);
+        connection.addListener(recorder);
+        connection.start();
+        recorder.nextOf(CodecHeaderMessage.class);
+        connection.close();
+        assertTrue(calls.toString(), calls.indexOf("shutdownOutput") >= 0 && calls.indexOf("shutdownOutput") < calls.indexOf("close"));
     }
 
     @Test

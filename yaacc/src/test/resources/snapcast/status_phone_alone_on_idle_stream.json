@@ -1,0 +1,210 @@
+{
+  "id": 1,
+  "jsonrpc": "2.0",
+  "result": {
+    "server": {
+      "groups": [
+        {
+          "clients": [
+            {
+              "config": {
+                "instance": 1,
+                "latency": 0,
+                "name": "",
+                "volume": {
+                  "muted": false,
+                  "percent": 100
+                }
+              },
+              "connected": true,
+              "host": {
+                "arch": "unknown",
+                "ip": "192.168.0.240",
+                "mac": "00:00:00:00:00:00",
+                "name": "Yaacc",
+                "os": "Android"
+              },
+              "id": "yaacc-a08f862c38933977",
+              "lastSeen": {
+                "sec": 1762000000,
+                "usec": 1
+              },
+              "snapclient": {
+                "name": "YAACC",
+                "protocolVersion": 2,
+                "version": "spike"
+              }
+            }
+          ],
+          "id": "5cb59c23-1111-2222-3333-444455556666",
+          "muted": false,
+          "name": "",
+          "stream_id": "Default"
+        },
+        {
+          "clients": [
+            {
+              "config": {
+                "instance": 1,
+                "latency": 0,
+                "name": "",
+                "volume": {
+                  "muted": false,
+                  "percent": 100
+                }
+              },
+              "connected": true,
+              "host": {
+                "arch": "unknown",
+                "ip": "192.168.0.240",
+                "mac": "00:00:00:00:00:00",
+                "name": "Pi0",
+                "os": "Android"
+              },
+              "id": "other-0",
+              "lastSeen": {
+                "sec": 1762000000,
+                "usec": 1
+              },
+              "snapclient": {
+                "name": "YAACC",
+                "protocolVersion": 2,
+                "version": "spike"
+              }
+            }
+          ],
+          "id": "group-0",
+          "muted": false,
+          "name": "",
+          "stream_id": "YAACC spike"
+        },
+        {
+          "clients": [
+            {
+              "config": {
+                "instance": 1,
+                "latency": 0,
+                "name": "",
+                "volume": {
+                  "muted": false,
+                  "percent": 100
+                }
+              },
+              "connected": true,
+              "host": {
+                "arch": "unknown",
+                "ip": "192.168.0.240",
+                "mac": "00:00:00:00:00:00",
+                "name": "Pi1",
+                "os": "Android"
+              },
+              "id": "other-1",
+              "lastSeen": {
+                "sec": 1762000000,
+                "usec": 1
+              },
+              "snapclient": {
+                "name": "YAACC",
+                "protocolVersion": 2,
+                "version": "spike"
+              }
+            }
+          ],
+          "id": "group-1",
+          "muted": false,
+          "name": "",
+          "stream_id": "YAACC spike"
+        },
+        {
+          "clients": [
+            {
+              "config": {
+                "instance": 1,
+                "latency": 0,
+                "name": "",
+                "volume": {
+                  "muted": false,
+                  "percent": 100
+                }
+              },
+              "connected": true,
+              "host": {
+                "arch": "unknown",
+                "ip": "192.168.0.240",
+                "mac": "00:00:00:00:00:00",
+                "name": "Pi2",
+                "os": "Android"
+              },
+              "id": "other-2",
+              "lastSeen": {
+                "sec": 1762000000,
+                "usec": 1
+              },
+              "snapclient": {
+                "name": "YAACC",
+                "protocolVersion": 2,
+                "version": "spike"
+              }
+            }
+          ],
+          "id": "group-2",
+          "muted": false,
+          "name": "",
+          "stream_id": "YAACC spike"
+        }
+      ],
+      "server": {
+        "host": {
+          "arch": "x86_64",
+          "ip": "",
+          "mac": "",
+          "name": "SERVER",
+          "os": "Linux"
+        },
+        "snapserver": {
+          "controlProtocolVersion": 1,
+          "name": "Snapserver",
+          "protocolVersion": 1,
+          "version": "0.35.0"
+        }
+      },
+      "streams": [
+        {
+          "id": "Default",
+          "status": "idle",
+          "uri": {
+            "fragment": "",
+            "host": "",
+            "path": "/tmp/snapfifo",
+            "query": {
+              "chunk_ms": "20",
+              "codec": "flac",
+              "name": "Default",
+              "sampleformat": "48000:16:2"
+            },
+            "raw": "pipe:///tmp/snapfifo?name=Default",
+            "scheme": "pipe"
+          }
+        },
+        {
+          "id": "YAACC spike",
+          "status": "playing",
+          "uri": {
+            "fragment": "",
+            "host": "",
+            "path": "",
+            "query": {
+              "chunk_ms": "20",
+              "codec": "flac",
+              "name": "YAACC spike",
+              "port": "4953",
+              "sampleformat": "48000:16:2"
+            },
+            "raw": "tcp://0.0.0.0:4953?name=YAACC%20spike",
+            "scheme": "tcp"
+          }
+        }
+      ]
+    }
+  }
+}

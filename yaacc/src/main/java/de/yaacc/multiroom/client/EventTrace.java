@@ -114,7 +114,11 @@ public final class EventTrace {
             return v >= 0 && v < reasons.length ? reasons[(int) v].name().toLowerCase(Locale.ROOT) : "?";
         }
         if (kind == TraceKind.UNDERRUN_JUDGED && field == 0) {
-            return v == 1 ? "corroborated (flush)" : v == 2 ? "spurious (no flush)" : v == 3 ? "counter unreliable, no longer used" : "?";
+            return v == 1 ? "output dry (position stalled or empty): flush" : v == 2 ? "thin cushion (position fine): write-ahead raised" : "?";
+        }
+        if (kind == TraceKind.SESSION_END) {
+            SnapcastClientRuntime.Ending[] endings = SnapcastClientRuntime.Ending.values();
+            return v >= 0 && v < endings.length ? endings[(int) v].name().toLowerCase(Locale.ROOT) : "?";
         }
         if (kind == TraceKind.CONNECTION_LOST) {
             if (field == 0) {

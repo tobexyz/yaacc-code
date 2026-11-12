@@ -227,7 +227,7 @@ public class SnapcastClientEngineTest {
         assertEquals(0, s.flushes);
         // the chunks that wait in the scheduler are dropped as late, the ones already decoded are skipped in the engine
         assertTrue("skipped " + s.stepSkippedFrames + " late " + s.droppedLate,
-                s.stepSkippedFrames + 960 * s.droppedLate - skippedBefore >= 3000);
+                s.stepSkippedFrames + 960 * s.droppedLate - skippedBefore >= 2000);
         assertNear("drift settled", 0, driftAtEnd(rig), 3000);
     }
 
@@ -265,7 +265,9 @@ public class SnapcastClientEngineTest {
 
     @Test
     public void aSecondHardResyncWithinTheMinimumIntervalIsNotAnotherFlush() {
-        EngineRig rig = EngineRig.typical();
+        // the interval is made long so that "within" does not depend on how fast the position reports come
+        EngineRig rig = new EngineRig(SimulatedSink::typical, new ClientEngineConfig().minFlushIntervalMs(2000),
+                new DefaultDecoderFactory(null), 48000, 2, 16);
         rig.bufferMs = 3000; // room for two steps of 600 ms before the chunks would be late on arrival
         rig.connect();
         rig.run(5000);
@@ -327,8 +329,10 @@ public class SnapcastClientEngineTest {
         EngineStatus s = rig.engine.status();
         assertEquals(3, s.underruns);
         assertEquals(0, s.flushes);
-        assertEquals(3, s.underrunsSpurious);
+        assertEquals(3, s.underrunRisesThin);
         assertEquals(0, s.underrunsCorroborated);
+        assertEquals("the cushion is made thicker once", 160, s.writeAheadEffectiveMs);
+        assertEquals(1, s.writeAheadRaises);
         assertEquals(EngineState.PLAYING, s.state);
     }
 

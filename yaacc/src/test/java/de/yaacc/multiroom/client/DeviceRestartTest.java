@@ -45,7 +45,6 @@ public class DeviceRestartTest {
         m.thresholdSettable = true;
         m.timestampPeriodMicros = 20_000;
         m.outputLatencyMicros = 35_000;
-        m.spuriousUnderrunPeriodFrames = 2048;
         return m;
     }
 
@@ -224,11 +223,49 @@ public class DeviceRestartTest {
         assertTrue(rig.report(), rig.status().aligned);
     }
 
+    // ---- Group 8i: the connection in the status and the trace
+
+    private static de.yaacc.multiroom.protocol.SnapcastConnection.Stats stats(long chunks, long lastChunkAgoMs, boolean connected) {
+        return new de.yaacc.multiroom.protocol.SnapcastConnection.Stats(2, 1, connected, 20_000, true, 21, 1, 1, chunks, 0, 0,
+                123_456, lastChunkAgoMs, chunks > 0 ? 850 : -1, 1000, 0, 100, false);
+    }
+
+    @Test
+    public void theConnectionIsInTheTraceAndTheStatusWhenNoChunkComes() {
+        DeviceRig rig = new DeviceRig(phone());
+        rig.engine.noteConnection(TraceKind.ATTEMPT, 2, 0, 0);
+        rig.engine.noteConnection(TraceKind.CONNECTED, 12345, 0, 0);
+        rig.engine.onServerSettings(new de.yaacc.multiroom.protocol.ServerSettingsMessage(1000, 0, false, 100));
+        rig.engine.setConnectionStats(stats(0, -1, true));
+        rig.sending = false;
+        rig.connect();
+        rig.run(3000);
+        String trace = rig.engine.trace().text();
+        assertTrue(trace, trace.contains("connect attempt  number=2"));
+        assertTrue(trace, trace.contains("connected, Hello sent  id hash=12345"));
+        assertTrue(trace, trace.contains("server settings  buffer ms=1000  latency ms=0  volume (+1000 if muted)=100"));
+        assertTrue(trace, trace.contains("frames from the server, this connection  time=21  settings and header=2  chunks=0"));
+        assertTrue(trace, trace.contains("bytes from the server, this connection  bytes=123456  since last chunk ms (-1 none)=-1"));
+        assertTrue(trace, !trace.contains("first chunk of this connection"));
+        String text = SnapcastClientStatusText.of(viewOf(rig.status()), 0);
+        assertTrue(text, text.contains("connection: connected for 20 s (attempt 2, no-chunk probes 1); frames: time 21, settings 1, header 1, chunks 0"));
+        assertTrue(text, text.contains("server settings: buffer 1000 ms, latency 0 ms, volume 100"));
+        assertTrue(text, text.contains("waiting for the stream: the header is here, no chunk yet"));
+        // the first chunk is noted once, with the time since the connect
+        rig.sending = true;
+        rig.engine.noteConnection(TraceKind.CONNECTED, 12345, 0, 0);
+        rig.engine.setConnectionStats(stats(5, 40, true));
+        rig.run(2000);
+        String later = rig.engine.trace().text();
+        assertTrue(later, later.contains("first chunk of this connection"));
+        String status = SnapcastClientStatusText.of(viewOf(rig.status()), 0);
+        assertTrue(status, status.contains("chunks 5") && !status.contains("waiting for the stream"));
+    }
+
     // ---- the pause every five minutes for hours
 
     private static void longRunWithPauses(boolean flac, long hours) {
         DeviceModel m = phone();
-        m.spuriousUnderrunPeriodFrames = 0;
         DeviceRig rig = new DeviceRig(m);
         rig.flac = flac;
         rig.stepMs = 10;

@@ -61,6 +61,7 @@ public final class ClientSession {
         SnapcastClientEngine engine = new SnapcastClientEngine(config, sink, decoders, offsets, clock);
         engine.setManualLatencyMs(manualLatencyMs);
         EngineHost host = new EngineHost(engine, config.getTickMs(), audioThreads, observer);
+        host.setConnectionSource(connection::stats, hello.getId() == null ? 0 : hello.getId().hashCode());
         return new ClientSession(clock, connection, sink, engine, host);
     }
 

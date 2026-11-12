@@ -379,8 +379,16 @@
     <string name="snapcast_client_error_empty_host">Voer het adres van de server in</string>
     <string name="snapcast_client_error_invalid_host">Dit is geen geldig adres</string>
     <string name="snapcast_client_error_invalid_latency">Voer een geheel aantal milliseconden in</string>
-    <string name="snapcast_client_write_ahead_hint">Schrijfvoorsprong in ms (40 tot 350, standaard 120)</string>
+    <string name="snapcast_client_write_ahead_hint">Schrijfvoorsprong in ms (40 tot 350, standaard 250)</string>
     <string name="snapcast_client_error_invalid_write_ahead">Voer een geheel getal van 40 tot 350 in</string>
+    <string name="snapcast_client_notification_stopped">Gestopt: %1$s</string>
+    <string name="snapcast_client_move_group">Mijn groep naar een stream verplaatsen</string>
+    <string name="snapcast_client_move_group_title">Welke stream afspelen?</string>
+    <string name="snapcast_client_move_group_confirm">Dit wijzigt de server: de hele groep van deze telefoon, met alle andere clients erin, speelt dan de stream \"%1$s\".</string>
+    <string name="snapcast_client_move_group_do">Verplaatsen</string>
+    <string name="snapcast_client_move_group_done">Groep verplaatst</string>
+    <string name="snapcast_client_move_group_failed">De server heeft het niet geaccepteerd</string>
+    <string name="snapcast_client_move_group_none">Nog geen antwoord van de server</string>
     <string name="snapcast_client_notification_title">Snapcast-client (test)</string>
     <string name="snapcast_client_notification_connecting">Verbinden…</string>
     <string name="snapcast_client_notification_playing">Speelt</string>

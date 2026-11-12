@@ -118,6 +118,15 @@ public final class SocketTransport implements SnapcastTransport {
         }
 
         @Override
+        public void shutdownOutput() {
+            try {
+                socket.shutdownOutput();
+            } catch (IOException | RuntimeException ignored) {
+                // already closed
+            }
+        }
+
+        @Override
         public void close() {
             try {
                 socket.close();
