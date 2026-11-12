@@ -279,12 +279,16 @@ public final class EngineHost implements SnapcastConnection.Listener {
 
     @Override
     public void onLost(SnapcastConnection.Loss loss) {
-        post(engine::onConnectionLost);
+        int reason = loss == null ? -1 : loss.getReason().ordinal();
+        int limit = loss == null ? 0 : loss.getOwnLimitCode();
+        post(() -> engine.onConnectionLost(reason, limit));
     }
 
     @Override
     public void onGaveUp(SnapcastConnection.Loss loss) {
-        post(engine::onConnectionLost);
+        int reason = loss == null ? -1 : loss.getReason().ordinal();
+        int limit = loss == null ? 0 : loss.getOwnLimitCode();
+        post(() -> engine.onConnectionLost(reason, limit));
     }
 
     // ---- the thread

@@ -79,4 +79,26 @@ public class EventTraceTest {
             assertFalse(kind.name(), kind.label().isEmpty());
         }
     }
+
+    @Test
+    public void aLostConnectionShowsItsReasonAndOurOwnLimitInWords() {
+        EventTrace t = new EventTrace(0);
+        t.add(1_000_000L, TraceKind.CONNECTION_LOST,
+                de.yaacc.multiroom.protocol.SnapcastConnection.LossReason.TIMEOUT.ordinal(), 1);
+        t.add(2_000_000L, TraceKind.CONNECTION_LOST,
+                de.yaacc.multiroom.protocol.SnapcastConnection.LossReason.SERVER_CLOSED.ordinal(), 0);
+        String text = t.text();
+        assertTrue(text, text.contains("why=timeout  own limit=idle limit"));
+        assertTrue(text, text.contains("why=server_closed  own limit=no (server or network)"));
+    }
+
+    @Test
+    public void theUnderrunVerdictIsInWords() {
+        EventTrace t = new EventTrace(0);
+        t.add(0, TraceKind.UNDERRUN_JUDGED, 2, 3, 118);
+        t.add(1000, TraceKind.UNDERRUN_JUDGED, 3, 5, 118);
+        String text = t.text();
+        assertTrue(text, text.contains("verdict=spurious (no flush)"));
+        assertTrue(text, text.contains("verdict=counter unreliable, no longer used"));
+    }
 }

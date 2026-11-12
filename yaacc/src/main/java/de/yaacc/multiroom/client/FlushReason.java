@@ -29,5 +29,7 @@ public enum FlushReason {
     /** A new codec header: another stream. */
     HEADER,
     /** The connection was lost. */
-    CONNECTION_LOST
+    CONNECTION_LOST,
+    /** The position of the output stood still although data was queued (the output froze). */
+    POSITION_STALL
 }

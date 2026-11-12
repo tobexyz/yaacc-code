@@ -113,6 +113,28 @@ public final class EventTrace {
             FlushReason[] reasons = FlushReason.values();
             return v >= 0 && v < reasons.length ? reasons[(int) v].name().toLowerCase(Locale.ROOT) : "?";
         }
+        if (kind == TraceKind.UNDERRUN_JUDGED && field == 0) {
+            return v == 1 ? "corroborated (flush)" : v == 2 ? "spurious (no flush)" : v == 3 ? "counter unreliable, no longer used" : "?";
+        }
+        if (kind == TraceKind.CONNECTION_LOST) {
+            if (field == 0) {
+                de.yaacc.multiroom.protocol.SnapcastConnection.LossReason[] reasons =
+                        de.yaacc.multiroom.protocol.SnapcastConnection.LossReason.values();
+                return v >= 0 && v < reasons.length ? reasons[(int) v].name().toLowerCase(Locale.ROOT) : "?";
+            }
+            switch ((int) v) {
+                case 1:
+                    return "idle limit";
+                case 2:
+                    return "handshake limit";
+                case 3:
+                    return "writer queue full";
+                case 4:
+                    return "message too slow or read timeout";
+                default:
+                    return "no (server or network)";
+            }
+        }
         return Long.toString(v);
     }
 

@@ -55,8 +55,9 @@ public final class SnapcastClientStatusText {
         if (s.outputSummary != null && !s.outputSummary.isEmpty()) {
             text.append("output details: ").append(s.outputSummary).append('\n');
         }
-        text.append(String.format(Locale.ROOT, "sync: drift %s (+ = late), buffer %d ms, server latency %d ms, manual latency %d ms%n",
-                ms(s.driftMicros), s.bufferMs, s.serverLatencyMs, s.manualLatencyMs));
+        text.append(String.format(Locale.ROOT, "sync: drift %s (+ = late)%s, buffer %d ms, server latency %d ms, manual latency %d ms%n",
+                ms(s.driftMicros), s.aligned ? "" : " [last value, not current: no audio is being placed]",
+ s.bufferMs, s.serverLatencyMs, s.manualLatencyMs));
         text.append(String.format(Locale.ROOT, "volume: %d%s%n", s.volume, s.muted ? " (muted)" : ""));
         text.append(String.format(Locale.ROOT, "chunks: received %d, queued %d, decoded waiting %d ms, played %d%n",
                 s.chunksReceived, s.chunksWaiting, s.decodedWaitingMs, s.chunksPlayed));
@@ -66,9 +67,12 @@ public final class SnapcastClientStatusText {
                 s.stepSkippedFrames, s.stepPaddedFrames, s.gapsFilled));
         text.append(String.format(Locale.ROOT, "resyncs: timeline %d, flushes %d (suppressed %d), underruns %d, epoch changes %d%n",
                 s.timelineResyncs, s.flushes, s.flushesSuppressed, s.underruns, s.epochChanges));
-        text.append(String.format(Locale.ROOT, "flushes by cause: hard resync %d (last drift %s), underrun %d, writer behind %d, header %d, connection lost %d%n",
+        text.append(String.format(Locale.ROOT, "flushes by cause: hard resync %d (last drift %s), underrun %d, writer behind %d, header %d, connection lost %d, position stall %d%n",
                 s.flushesHardResync, ms(s.lastHardResyncDriftMicros), s.flushesUnderrun, s.flushesWriterBehind, s.flushesHeader,
-                s.flushesConnectionLost));
+                s.flushesConnectionLost, s.flushesPositionStall));
+        text.append(String.format(Locale.ROOT, "underrun counter of the platform: %d rises, confirmed by the position %d, spurious %d%s%n",
+                s.underruns, s.underrunsCorroborated, s.underrunsSpurious,
+                s.underrunCounterUnreliable ? " (judged unreliable on this device: not used)" : ""));
         text.append(String.format(Locale.ROOT, "position reports: taken %d, refused %d%n", s.positionReportsAccepted,
                 s.positionReportsRejected));
         text.append(String.format(Locale.ROOT, "stream: holes re-anchored (flac) %d, timeline rebases %d, chunks lost in the host queue %d%n",

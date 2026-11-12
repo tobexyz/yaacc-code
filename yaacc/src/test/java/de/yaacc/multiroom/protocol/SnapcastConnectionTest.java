@@ -317,6 +317,30 @@ public class SnapcastConnectionTest {
         assertTrue(connection.getOffsetFilter().isSynchronized());
     }
 
+    /**
+     * An idle stream (no chunks at all) must not end the connection: the time answers keep it alive (the idle limit is
+     * about frames of any kind). Owner's trace 2026-11-12: the connection was lost during an idle phase; whatever did it,
+     * it was not this limit as long as the server answers the time requests.
+     */
+    @Test
+    public void aStreamWithoutChunksButWithTimeAnswersIsNotDroppedByTheIdleLimit() throws Exception {
+        ManualClock clock = new ManualClock(10_000_000L);
+        java.util.concurrent.BlockingQueue<Long> stamps = new java.util.concurrent.LinkedBlockingQueue<>();
+        FakeServer server = timeServer(clock, stamps, 0);
+        Recorder recorder = new Recorder();
+        SnapcastConnection.Config config = quick().timeSyncBurstCount(1).timeSyncIntervalMs(1000).idleTimeoutMs(10_000);
+        SnapcastConnection connection = connect(new SnapcastTransportHolder(server, 0), config, clock, new ManualScheduler(), recorder);
+
+        connection.start();
+        assertTrue(connection.awaitTimeSamples(1, ConnectionFixtures.WAIT_SECONDS * 1000));
+        for (int n = 2; n <= 40; n++) { // 39 seconds of an idle stream: four times the idle limit
+            clock.advanceMillis(1000);
+            assertTrue("sample " + n, connection.awaitTimeSamples(n, ConnectionFixtures.WAIT_SECONDS * 1000));
+        }
+        assertEquals(SnapcastConnection.State.CONNECTED, connection.getState());
+        connection.close();
+    }
+
     @Test
     public void aTimeAnswerThatIsNotForARequestIsIgnored() throws Exception {
         final ManualClock clock = new ManualClock(10_000_000L);

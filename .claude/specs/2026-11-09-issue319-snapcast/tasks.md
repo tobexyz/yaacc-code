@@ -249,6 +249,14 @@ Notes are kept current as items are done (interruption safe). Tests first (red, 
 - [x] F8.18 Bounded event trace (ring buffer, pure, tested), shown in the spike dialog with a Copy trace button and a summary header; strings in 7 locales; docs. **Done:** `EventTrace` (300 events, `EventTraceTest` 5 tests), `TraceKind`, `SnapcastClientTraceReport` (3 tests), spike dialog "Copy trace" + summary line, 3 strings x 7 locales, docs/tech.md step 14.
 - [x] F8.19 Review `AudioTrackSink` and `MediaCodecFlacDecoder` for device-only bugs. **Done for `AudioTrackSink`** (rewritten as a thin adapter over the tested `StreamingSink`; start threshold, head fallback and clock-base findings fixed). **`MediaCodecFlacDecoder` dropped on the coordinator's instruction** (the owner reproduced the symptom with codec=pcm).
 
+## Fix Group 8g: The owner's phone trace (Nothing A142, Android 16): the underrun counter rises without starvation, started 2026-11-12
+- [x] G8.1 Device model: counter rising every 2048 frames while less than a full buffer is queued, frozen output, idle stream, stalled engine thread | `DeviceModel`, `DeviceSimSink`, `DeviceRig`, `DeviceContinuityTest`
+- [x] G8.2 The counter is a hint: a rise flushes only when the position confirms it (stalled, or <= 10 ms queued) within 250 ms; spurious rises counted; unreliable after 5 in a row; status line and trace
+- [x] G8.3 Position stall path (new flush reason `position_stall`), tested with a frozen output; real dry-outs found with and without a counter
+- [x] G8.4 Flush keeps the decoded audio and the anchor (`keepTimeline`); gap bound tested
+- [x] G8.5 Connection loss reason (and our own limit) in the trace; idle stream test; findings in docs/tech.md guess 16
+- [x] G8.6 Drift labelled as stale when not aligned; trace sample and the new guess 15 in docs/tech.md
+
 ## Group 9 (Phase B): Renderer integration (P2)
 - **Notes carried from Group 8 (security review, known limits of the spike):** audio focus (pause on a call or another app) and `ACTION_AUDIO_BECOMING_NOISY` (pause when the headphones are pulled) are not handled by the client; a gain ramp or fade-in on volume changes and at the start of a stream is not built (it has to be done on the samples, `AudioTrack.setVolume` acts on audio already queued); the renderer integration must add focus handling, the noisy-headphones pause and the ramp, and must re-check the "Snapcast client" option on every start path (`SnapcastClientSpike.isEnabled`).
 - [ ] 9.1 Output "Snapcast group" for the YAACC renderer: the renderer feeds the group and the phone plays as a member; renderer volume/mute map to the client volume; the direct local output is off | `de.yaacc.upnp.server`, `de.yaacc.player`

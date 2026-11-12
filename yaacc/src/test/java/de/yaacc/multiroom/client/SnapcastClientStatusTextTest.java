@@ -66,6 +66,27 @@ public class SnapcastClientStatusTextTest {
     }
 
     @Test
+    public void theUnderrunCounterIsShownWithWhatThePositionSaidAndAStaleDriftIsLabelled() {
+        EngineStatus status = new EngineStatus();
+        status.underruns = 1195;
+        status.underrunsSpurious = 40;
+        status.underrunsCorroborated = 0;
+        status.underrunCounterUnreliable = true;
+        status.flushesPositionStall = 2;
+        status.driftMicros = 21_424;
+        status.aligned = false;
+        SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Ending.NONE, 0);
+        SnapcastClientRuntime.engine(status);
+        String text = SnapcastClientStatusText.of(SnapcastClientRuntime.get(), 0);
+        assertTrue(text, text.contains("1195 rises, confirmed by the position 0, spurious 40 (judged unreliable"));
+        assertTrue(text, text.contains("position stall 2"));
+        assertTrue(text, text.contains("last value, not current: no audio"));
+        status.aligned = true;
+        SnapcastClientRuntime.engine(status);
+        assertFalse(SnapcastClientStatusText.of(SnapcastClientRuntime.get(), 0).contains("not current"));
+    }
+
+    @Test
     public void aFailureIsExplainedInWordsAndNeverWithTextFromTheServer() {
         EngineStatus status = new EngineStatus();
         status.failure = EngineFailure.DECODER_UNAVAILABLE;

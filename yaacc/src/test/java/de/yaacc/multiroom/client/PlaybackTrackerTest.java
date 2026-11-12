@@ -123,4 +123,52 @@ public class PlaybackTrackerTest {
         assertTrue(t.update(new PlaybackPosition(48_000 + 100, NOW + 200_000), 200_000, NOW + 200_000));
         assertEquals(0, t.outlierCount());
     }
+
+    @Test
+    public void theSameOddReportAgainDoesNotConfirmItself() {
+        PlaybackTracker t = new PlaybackTracker(48000, 150_000);
+        assertTrue(t.update(new PlaybackPosition(48_000, NOW), 200_000, NOW));
+        PlaybackPosition odd = new PlaybackPosition(48_000 + 1_920, NOW + 200_000);
+        assertFalse(t.update(odd, 200_000, NOW + 200_000));
+        assertFalse(t.update(odd, 200_000, NOW + 250_000));
+        assertFalse(t.update(odd, 200_000, NOW + 300_000));
+        assertEquals(NOW, t.presentationMicros(48_000));
+        assertEquals(1, t.outlierCount());
+    }
+
+    // ---- stall: the output stands still although time goes on
+
+    @Test
+    public void anOutputThatStandsStillForAWhileIsStalledButOneOddStepIsNot() {
+        PlaybackTracker t = new PlaybackTracker(48000);
+        for (int i = 0; i <= 10; i++) { // 50 ms apart, playing normally
+            assertTrue(t.update(new PlaybackPosition(48_000 + i * 2_400L, NOW + i * 50_000L), 200_000, NOW + i * 50_000L));
+        }
+        long t10 = NOW + 500_000;
+        assertFalse(t.stalled(t10));
+        // one step that stands still: no stall yet
+        assertFalse(t.update(new PlaybackPosition(48_000 + 24_000, t10 + 50_000), 200_000, t10 + 50_000));
+        assertFalse(t.stalled(t10 + 50_000));
+        // it goes on standing still: the steps and the 250 ms window are there
+        long now = t10 + 50_000;
+        for (int i = 2; i <= 7; i++) {
+            now = t10 + i * 50_000L;
+            t.update(new PlaybackPosition(48_000 + 24_000, now), 200_000, now);
+        }
+        assertTrue(t.stalled(now));
+        // and plays again: no stall any more
+        now += 50_000;
+        assertTrue(t.update(new PlaybackPosition(48_000 + 24_000 + 2_400, now), 200_000, now));
+        assertFalse(t.stalled(now));
+    }
+
+    @Test
+    public void aStallIsNotJudgedFromReportsThatAreOld() {
+        PlaybackTracker t = new PlaybackTracker(48000);
+        for (int i = 0; i <= 10; i++) {
+            t.update(new PlaybackPosition(48_000 + (i < 3 ? i * 2_400L : 4_800), NOW + i * 50_000L), 200_000, NOW + i * 50_000L);
+        }
+        assertTrue(t.stalled(NOW + 500_000));
+        assertFalse(t.stalled(NOW + 500_000 + 500_000)); // nothing fresh for 500 ms: unknown, not a stall
+    }
 }

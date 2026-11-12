@@ -56,6 +56,12 @@ final class DeviceModel {
     boolean stallAfterUnderrun = true;
     /** The underrun counter counts a starved moment (otherwise only the first moment of a stall is not counted: never). */
     boolean countUnderruns = true;
+    /**
+     * The underrun counter rises once per this many frames played whenever fewer than a full buffer is queued, whether
+     * the output starves or not (seen on a Nothing A142, Android 16: every 2048 frames, 42.6 ms at 48 kHz, even with
+     * 110 ms queued). 0: the counter is true.
+     */
+    int spuriousUnderrunPeriodFrames;
     /** The head position moves in steps of this many frames. */
     int headGranularityFrames = 1;
     /** The head position is not available (always 0). */

@@ -120,7 +120,7 @@ public class DeviceContinuityTest {
     @Test
     public void timestampWithPollTimeAndStaleFrames() {
         DeviceModel m = new DeviceModel();
-        m.timestampPeriodMicros = 500_000;
+        m.timestampPeriodMicros = 200_000; // longer than ~250 ms looks like an output that stands still (then it is realigned)
         m.timestampTimeIsPollTime = true;
         assertContinuous(new DeviceRig(m), 20_000);
     }
@@ -128,7 +128,7 @@ public class DeviceContinuityTest {
     @Test
     public void timestampWithPollTimeAndStaleFramesStrictThreshold() {
         DeviceModel m = new DeviceModel();
-        m.timestampPeriodMicros = 500_000;
+        m.timestampPeriodMicros = 200_000;
         m.timestampTimeIsPollTime = true;
         m.startThresholdFrames = m.bufferFrames;
         assertContinuous(new DeviceRig(m), 20_000);
@@ -303,5 +303,194 @@ public class DeviceContinuityTest {
         String text = rig.engine.trace().text();
         assertTrue(text, text.contains("reason=connection_lost"));
         assertTrue(text, text.contains("position from head position now"));
+    }
+
+    // ---- Group 8g: the underrun counter of the owner's phone (Nothing A142, Android 16) rises without any starvation
+
+    /**
+     * Trace of the phone (shortened, ms since the engine started): idle phase 74131-81847 with nothing queued by the
+     * server, the engine writing silence, output ahead 110-128 ms, position advancing in real time, and still
+     * "underrun new=1" every ~42.6 ms (2048 frames), total 1014 -> 1195 in 7.7 s. In the active phase after "aligned"
+     * (drift -6 us, ahead 110-170 ms) the first increment caused "flush reason=underrun" at 91113, 91825, 92574, 93339,
+     * 94183 ms: 450 ms of tone, a gap, again: "peep....peep".
+     */
+    private static DeviceModel spuriousCounterPhone() {
+        DeviceModel m = new DeviceModel();
+        m.startThresholdFrames = 1920;
+        m.thresholdSettable = true;
+        m.timestampPeriodMicros = 20_000;
+        m.outputLatencyMicros = 35_000;
+        m.spuriousUnderrunPeriodFrames = 2048;
+        return m;
+    }
+
+    @Test
+    public void aCounterThatRisesWithoutStarvationNeverFlushes() {
+        DeviceRig rig = new DeviceRig(spuriousCounterPhone());
+        assertContinuous(rig, 30_000);
+        assertTrue(rig.report(), rig.sink.counters().spuriousUnderruns > 100);
+        assertEquals(rig.report(), 0, rig.sink.counters().realUnderruns);
+        EngineStatus s = rig.status();
+        assertEquals(0, s.flushesUnderrun);
+        assertTrue("the counter was judged unreliable: " + s.underrunCounterUnreliable, s.underrunCounterUnreliable);
+        assertTrue(s.underrunsSpurious >= 5);
+        assertEquals(0, s.underrunsCorroborated);
+    }
+
+    @Test
+    public void theTraceStaysReadableWhileTheCounterRisesEvery42Ms() {
+        DeviceRig rig = new DeviceRig(spuriousCounterPhone());
+        rig.connect();
+        rig.run(30_000);
+        String text = rig.engine.trace().text();
+        int rises = 0;
+        for (String line : text.split("\n")) {
+            if (line.contains("  underrun  ")) {
+                rises++;
+            }
+        }
+        assertTrue("one summary line per second, not one per rise: " + rises, rises <= 31);
+        assertTrue(text, text.contains("underrun counter judged  verdict=spurious (no flush)"));
+        assertTrue(text, text.contains("verdict=counter unreliable, no longer used"));
+        assertTrue("the start is still in the trace: " + rig.engine.trace().size(), text.contains("aligned"));
+    }
+
+    @Test
+    public void aCounterThatRisesWithoutStarvationAlsoWhileTheStreamIsIdle() {
+        DeviceRig rig = new DeviceRig(spuriousCounterPhone());
+        rig.connect();
+        rig.run(6000);
+        rig.sending = false; // the server has nothing to send: the engine writes silence
+        rig.run(8000);
+        rig.sending = true;
+        rig.run(15_000);
+        EngineStatus s = rig.status();
+        assertEquals(rig.report(), 0, s.flushesUnderrun);
+        assertEquals(rig.report(), 0, rig.sink.counters().realUnderruns);
+        DeviceSimSink.Counters c = rig.sink.counters();
+        // after the idle phase the tone plays again and goes on without a pause (silence after audio stays the idle phase's)
+        long silenceBefore = c.playedSilentFramesAfterAudio;
+        long flushesBefore = s.flushes;
+        rig.run(10_000);
+        assertEquals(rig.report(), flushesBefore, rig.status().flushes);
+        assertTrue(rig.report(), c.playedSilentFramesAfterAudio - silenceBefore <= TOLERATED_SILENCE_FRAMES);
+    }
+
+    /** A real dry-out (the engine thread blocked 300 ms) with a counter that cannot be trusted: found by the position. */
+    @Test
+    public void aRealDryOutIsFoundWithoutTheCounter() {
+        DeviceRig rig = new DeviceRig(spuriousCounterPhone());
+        rig.connect();
+        rig.run(12_000); // long enough to judge the counter unreliable
+        assertTrue(rig.report(), rig.status().underrunCounterUnreliable);
+        long flushes = rig.status().flushes;
+        rig.stallEngine(300);
+        rig.run(4000);
+        assertTrue("the dry-out has been seen: " + rig.report(), rig.sink.counters().realUnderruns >= 1);
+        assertTrue("and repaired by a flush: " + rig.report(), rig.status().flushes > flushes);
+        assertTrue(rig.report(), rig.status().flushes <= flushes + 2);
+        // after the repair the tone is continuous again
+        DeviceSimSink.Counters c = rig.sink.counters();
+        long silence = c.playedSilentFramesAfterAudio;
+        long flushesAfter = rig.status().flushes;
+        rig.run(10_000);
+        assertEquals(rig.report(), flushesAfter, rig.status().flushes);
+        assertTrue(rig.report(), c.playedSilentFramesAfterAudio - silence <= TOLERATED_SILENCE_FRAMES);
+    }
+
+    /** The same dry-out on a device whose counter is true: corroborated by the position, flushed as before. */
+    @Test
+    public void aRealDryOutWithATrueCounterIsCorroboratedAndRepaired() {
+        DeviceModel m = new DeviceModel();
+        m.timestampPeriodMicros = 20_000;
+        DeviceRig rig = new DeviceRig(m);
+        rig.connect();
+        rig.run(8000);
+        long flushes = rig.status().flushes;
+        rig.stallEngine(300);
+        rig.run(4000);
+        assertTrue(rig.report(), rig.sink.counters().realUnderruns >= 1);
+        assertTrue(rig.report(), rig.status().flushes > flushes);
+        assertTrue(rig.report(), rig.status().flushes <= flushes + 2);
+        assertTrue(rig.report(), rig.status().underrunsCorroborated >= 1 || rig.status().flushesWriterBehind >= 1);
+        assertEquals(rig.report(), 0, rig.status().underrunsSpurious);
+        DeviceSimSink.Counters c = rig.sink.counters();
+        long silence = c.playedSilentFramesAfterAudio;
+        long flushesAfter = rig.status().flushes;
+        rig.run(10_000);
+        assertEquals(rig.report(), flushesAfter, rig.status().flushes);
+        assertTrue(rig.report(), c.playedSilentFramesAfterAudio - silence <= TOLERATED_SILENCE_FRAMES);
+    }
+
+    /** No counter at all: a dry-out is repaired from the position alone. */
+    @Test
+    public void aRealDryOutWithoutAnyCounterIsRepaired() {
+        DeviceModel m = new DeviceModel();
+        m.timestampPeriodMicros = 20_000;
+        m.countUnderruns = false;
+        DeviceRig rig = new DeviceRig(m);
+        rig.connect();
+        rig.run(8000);
+        long flushes = rig.status().flushes;
+        rig.stallEngine(300);
+        rig.run(4000);
+        assertTrue(rig.report(), rig.sink.counters().realUnderruns >= 1);
+        assertTrue(rig.report(), rig.status().flushes > flushes);
+        assertTrue(rig.report(), rig.status().flushes <= flushes + 2);
+    }
+
+    /** The output stands still for 400 ms with data queued (a route hiccup): the position stalls, the engine realigns. */
+    @Test
+    public void aFrozenOutputWithDataQueuedIsFoundByThePositionStall() {
+        DeviceModel m = new DeviceModel();
+        m.timestampPeriodMicros = 20_000;
+        m.countUnderruns = false;
+        DeviceRig rig = new DeviceRig(m);
+        rig.connect();
+        rig.run(8000);
+        long flushes = rig.status().flushes;
+        rig.sink.freezeOutput(400_000);
+        rig.run(4000);
+        assertTrue(rig.report(), rig.status().flushes > flushes);
+        assertTrue(rig.report(), rig.status().flushesPositionStall >= 1);
+        DeviceSimSink.Counters c = rig.sink.counters();
+        long silence = c.playedSilentFramesAfterAudio;
+        long flushesAfter = rig.status().flushes;
+        rig.run(10_000);
+        assertEquals(rig.report(), flushesAfter, rig.status().flushes);
+        assertTrue(rig.report(), c.playedSilentFramesAfterAudio - silence <= TOLERATED_SILENCE_FRAMES);
+    }
+
+    /** A short hiccup of 60 ms (under the limits) must not flush: the position is only slow for a moment. */
+    @Test
+    public void aShortHiccupDoesNotFlush() {
+        DeviceModel m = new DeviceModel();
+        m.timestampPeriodMicros = 20_000;
+        DeviceRig rig = new DeviceRig(m);
+        rig.connect();
+        rig.run(8000);
+        long flushes = rig.status().flushes;
+        rig.sink.freezeOutput(40_000);
+        rig.run(6000);
+        assertEquals(rig.report(), flushes, rig.status().flushes);
+    }
+
+    @Test
+    public void aLegitimateFlushCostsAGapOfAboutTheOutputAheadAndNoMore() {
+        DeviceModel m = new DeviceModel();
+        m.timestampPeriodMicros = 20_000;
+        m.outputLatencyMicros = 35_000;
+        m.startThresholdFrames = 1920;
+        m.thresholdSettable = true;
+        DeviceRig rig = new DeviceRig(m);
+        rig.connect();
+        rig.run(8000);
+        DeviceSimSink.Counters c = rig.sink.counters();
+        long silence = c.playedSilentFramesAfterAudio;
+        rig.sink.freezeOutput(400_000); // makes the engine flush once
+        rig.run(5000);
+        long gapFrames = c.playedSilentFramesAfterAudio - silence;
+        // the gap is what the output holds ahead (~120 ms) plus its start-up (threshold 40 ms + latency 35 ms) plus slack
+        assertTrue("gap " + gapFrames * 1000 / 48000 + " ms: " + rig.report(), gapFrames <= 48000 * 400L / 1000);
     }
 }

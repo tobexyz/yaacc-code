@@ -38,6 +38,15 @@ public final class PlaybackTracker {
     private long candidateFrames;
     private long candidateAtMicros;
     private long outliers;
+    // ---- stall detection: the last reports as (frames, time) pairs, newest last, repeats of the same time left out
+    private static final int OBSERVATIONS = 32;
+    /** The reports must show the output standing still for at least this long (devices refresh their report in steps). */
+    static final long MIN_STALL_SPAN_MICROS = 250_000L;
+    private final long[] obsFrames = new long[OBSERVATIONS];
+    private final long[] obsAt = new long[OBSERVATIONS];
+    private int obsCount;
+    private int obsNext;
+    private int stalledSteps;
     private long resetAtMicros;
     private boolean valid;
     private long frames;
@@ -67,6 +76,9 @@ public final class PlaybackTracker {
         presentedAtMicros = 0;
         resetAtMicros = nowMicros;
         candidateValid = false;
+        obsCount = 0;
+        obsNext = 0;
+        stalledSteps = 0;
         revision++;
     }
 
@@ -84,6 +96,7 @@ public final class PlaybackTracker {
             rejected++;
             return false;
         }
+        observe(f, at);
         if (valid && f <= frames) {
             if (f < frames) {
                 rejected++; // going backwards is never true
@@ -96,6 +109,9 @@ public final class PlaybackTracker {
         }
         if (valid && outlierMicros != Long.MAX_VALUE) {
             if (offLine(frames, presentedAtMicros, f, at)) {
+                if (candidateValid && at <= candidateAtMicros) {
+                    return false; // the same odd report again confirms nothing
+                }
                 boolean confirmed = candidateValid && !offLine(candidateFrames, candidateAtMicros, f, at);
                 candidateFrames = f;
                 candidateAtMicros = at;
@@ -113,6 +129,54 @@ public final class PlaybackTracker {
         accepted++;
         revision++;
         return true;
+    }
+
+    /** Remembers a plausible report for the stall test (a report with the time of the previous one says nothing new). */
+    private void observe(long f, long at) {
+        if (obsCount > 0) {
+            int last = (obsNext + OBSERVATIONS - 1) % OBSERVATIONS;
+            if (at <= obsAt[last]) {
+                return;
+            }
+            long dt = at - obsAt[last];
+            if (dt >= 20_000L && obsFrames[last] > 0) {
+                boolean slow = (f - obsFrames[last]) * 1_000_000L < dt * sampleRate / 2;
+                stalledSteps = slow ? stalledSteps + 1 : 0;
+            }
+        }
+        obsFrames[obsNext] = f;
+        obsAt[obsNext] = at;
+        obsNext = (obsNext + 1) % OBSERVATIONS;
+        obsCount = Math.min(obsCount + 1, OBSERVATIONS);
+    }
+
+    /** True when the newest step between two reports (20 ms or more apart) moved less than half the nominal frames. */
+    public boolean stepLooksStalled() {
+        return stalledSteps > 0;
+    }
+
+    /**
+     * True when the output stood still or crawled: the last two steps between reports (20 ms or more apart each) played
+     * less than half of the frames that the time asks for, so did the last 100 ms or more of reports taken together, and
+     * the newest report is not older than 400 ms (one odd report is no stall).
+     * A stalled output is not starved by definition (the data may be queued), it simply does not play.
+     */
+    public boolean stalled(long nowMicros) {
+        if (obsCount < 3 || stalledSteps < 2) {
+            return false;
+        }
+        int newest = (obsNext + OBSERVATIONS - 1) % OBSERVATIONS;
+        if (nowMicros - obsAt[newest] > 400_000L || obsFrames[newest] <= 0) {
+            return false;
+        }
+        for (int back = 1; back < obsCount; back++) {
+            int i = (newest + OBSERVATIONS - back) % OBSERVATIONS;
+            long span = obsAt[newest] - obsAt[i];
+            if (span >= MIN_STALL_SPAN_MICROS) {
+                return (obsFrames[newest] - obsFrames[i]) * 1_000_000L < span * sampleRate / 2;
+            }
+        }
+        return false;
     }
 
     /** True when the report (f, at) is not where the line through (f0, at0) at the nominal rate puts it. */

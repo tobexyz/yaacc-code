@@ -39,11 +39,13 @@ public enum TraceKind {
     HARD_LATE("late over the hard limit", "drift us", "reports in a row", ""),
     FLUSH("flush", "reason", "written frames", "drift us"),
     UNDERRUN("underrun", "new", "total", "aligned"),
+    UNDERRUN_JUDGED("underrun counter judged", "verdict", "spurious in a row", "output ahead ms"),
     HOLE_MARKED("hole marked", "holes", "", ""),
     HOLE_RECOVERED("hole recovered", "holes", "", ""),
     DECODER_RESET("decoder reset", "why", "", ""),
     TIMESTAMP_ODD("timestamp on another clock base (first one)", "age ms", "", ""),
     HEAD_FALLBACK("position from head position now", "failed polls", "implausible", ""),
+    CONNECTION_LOST("connection lost", "why", "own limit", ""),
     POLLS("position reports", "taken", "refused", "held back"),
     QUEUE("queues", "waiting ms", "output ahead ms", "chunks");
 

@@ -189,6 +189,13 @@ public final class SnapcastClientEngine {
     private long lastPositionTraceMicros = Long.MIN_VALUE / 2;
     private boolean alignStartTraced;
     private boolean primeTraced;
+    // underrun counter judgement (Fix Group 8g)
+    private long suspectSinceMicros = -1;
+    private int spuriousInARow;
+    private boolean counterUnreliable;
+    private long underrunsCorroborated;
+    private long underrunsSpurious;
+    private long underrunRisesSinceTrace;
     private long lastRefusedTraceMicros = Long.MIN_VALUE / 2;
     private boolean stepTraced;
     /** Consecutive fresh position reports that said the output is more than hardResyncMs late. */
@@ -303,6 +310,14 @@ public final class SnapcastClientEngine {
         } catch (RuntimeException unexpected) {
             fail(EngineFailure.INTERNAL);
         }
+    }
+
+    /** As {@link #onConnectionLost()}, and the reason (a {@code LossReason} ordinal and our own limit code) goes in the trace. */
+    public void onConnectionLost(int reasonOrdinal, int ownLimitCode) {
+        if (!terminal) {
+            trace.add(clock.nowMicros(), TraceKind.CONNECTION_LOST, reasonOrdinal, ownLimitCode);
+        }
+        onConnectionLost();
     }
 
     /** The connection to the server was lost: silence the output; a reconnect brings the header again. */
@@ -430,6 +445,9 @@ public final class SnapcastClientEngine {
             sinkStarted = false;
             format = wanted;
             baselineUnderruns = sink.underrunCount();
+            counterUnreliable = false; // judged per output
+            spuriousInARow = 0;
+            suspectSinceMicros = -1;
             applyGain();
         }
         header = newHeader;
@@ -748,6 +766,7 @@ public final class SnapcastClientEngine {
         drift.reset();
         lastDriftRevision = -1;
         hardLateReports = 0;
+        suspectSinceMicros = -1;
     }
 
     // ---- the output
@@ -755,6 +774,7 @@ public final class SnapcastClientEngine {
     private void pump(long now) {
         pollPosition(now);
         checkUnderruns(now);
+        checkStall(now);
         if (terminal) {
             return;
         }
@@ -803,7 +823,7 @@ public final class SnapcastClientEngine {
     }
 
     private void pollPosition(long now) {
-        boolean calm = aligned && hardLateReports == 0;
+        boolean calm = aligned && hardLateReports == 0 && suspectSinceMicros < 0 && !tracker.stepLooksStalled();
         long interval = (calm ? cfg.positionPollSlowMs : cfg.positionPollFastMs) * 1000L;
         if (now - lastPositionPollMicros >= interval) {
             lastPositionPollMicros = now;
@@ -835,19 +855,70 @@ public final class SnapcastClientEngine {
         lastSummaryTraceMicros = now;
         long ahead = tracker.isValid() && rate > 0 ? (tracker.presentationMicros(writtenFrames) - now) / 1000L : -1;
         trace.add(now, TraceKind.DRIFT, lastDrift, aligned ? 1 : 0, ahead);
+        if (underrunRisesSinceTrace > 0) {
+            trace.add(now, TraceKind.UNDERRUN, underrunRisesSinceTrace, sink.underrunCount(), aligned ? 1 : 0);
+            underrunRisesSinceTrace = 0;
+        }
         trace.add(now, TraceKind.POLLS, tracker.acceptedCount(), tracker.rejectedCount(), tracker.outlierCount());
         trace.add(now, TraceKind.QUEUE, rate > 0 ? fifoFrames * 1000L / rate : 0, ahead, scheduler.queuedChunks());
     }
 
+    /**
+     * The platform's underrun counter is a hint, never a reason to flush by itself (a Nothing A142 on Android 16 raises it
+     * every 2048 frames with 110 ms queued): a rise is confirmed by the position (the output stood still, or holds
+     * less than {@code underrunAheadMs}) within {@code underrunConfirmMs}, otherwise it is counted as spurious and
+     * nothing is flushed. After {@code unreliableAfterRises} unconfirmed rises in a row the counter is no longer used for
+     * this output; a real starvation is then found by the stalled position or by writing too late.
+     */
     private void checkUnderruns(long now) {
         int count = sink.underrunCount();
         if (count > baselineUnderruns) {
-            underruns += count - baselineUnderruns;
-            trace.add(now, TraceKind.UNDERRUN, count - baselineUnderruns, count, aligned ? 1 : 0);
+            int delta = count - baselineUnderruns;
+            underruns += delta;
+            underrunRisesSinceTrace += delta;
             baselineUnderruns = count;
-            if (aligned) {
-                flushForRecovery(now, FlushReason.UNDERRUN);
+            if (aligned && !counterUnreliable && suspectSinceMicros < 0) {
+                suspectSinceMicros = now;
             }
+        }
+        if (suspectSinceMicros < 0) {
+            return;
+        }
+        if (!aligned || counterUnreliable) {
+            suspectSinceMicros = -1;
+        } else if (starvationEvidence(now)) {
+            suspectSinceMicros = -1;
+            spuriousInARow = 0;
+            underrunsCorroborated++;
+            trace.add(now, TraceKind.UNDERRUN_JUDGED, 1, 0, aheadMs(now));
+            flushForRecovery(now, FlushReason.UNDERRUN);
+        } else if (now - suspectSinceMicros >= cfg.underrunConfirmMs * 1000L) {
+            suspectSinceMicros = -1;
+            underrunsSpurious++;
+            spuriousInARow++;
+            trace.add(now, TraceKind.UNDERRUN_JUDGED, 2, spuriousInARow, aheadMs(now));
+            if (spuriousInARow >= cfg.unreliableAfterRises) {
+                counterUnreliable = true;
+                trace.add(now, TraceKind.UNDERRUN_JUDGED, 3, spuriousInARow, aheadMs(now));
+            }
+        }
+    }
+
+    private boolean starvationEvidence(long now) {
+        if (!tracker.isValid()) {
+            return false;
+        }
+        return tracker.stalled(now) || tracker.presentationMicros(writtenFrames) - now <= cfg.underrunAheadMs * 1000L;
+    }
+
+    private long aheadMs(long now) {
+        return tracker.isValid() && rate > 0 ? (tracker.presentationMicros(writtenFrames) - now) / 1000L : -1;
+    }
+
+    /** The output stood still although it holds data (it froze): flush and realign, as for any other lost output. */
+    private void checkStall(long now) {
+        if (aligned && tracker.isValid() && tracker.stalled(now)) {
+            flushForRecovery(now, FlushReason.POSITION_STALL);
         }
     }
 
@@ -876,7 +947,33 @@ public final class SnapcastClientEngine {
         writtenFrames = 0;
         tracker.reset(now);
         lastPositionPollMicros = Long.MIN_VALUE / 2;
-        dropTimeline();
+        switch (reason) {
+            case HARD_RESYNC:
+            case UNDERRUN:
+            case WRITER_BEHIND:
+            case POSITION_STALL:
+                keepTimeline(); // only the output was lost: the decoded audio is still on its timeline
+                break;
+            default:
+                dropTimeline(); // another stream or a new connection: whatever is queued belongs to the old one
+                break;
+        }
+    }
+
+    /**
+     * After a flush of the output alone: the decoded audio and the anchor stay, so the next write continues the stream
+     * where the output left it. Only the alignment is redone (from the first position the new output gives): the audio that
+     * was in the output is lost, the rest is padded or skipped exactly to its time, which costs the least gap a flush can.
+     */
+    private void keepTimeline() {
+        aligned = false;
+        alignStartTraced = false;
+        stepTraced = false;
+        pending = null;
+        drift.reset();
+        lastDriftRevision = -1;
+        hardLateReports = 0;
+        suspectSinceMicros = -1;
     }
 
     private long targetMicros(long streamFrame) {
@@ -1145,7 +1242,11 @@ public final class SnapcastClientEngine {
         s.flushesWriterBehind = flushesByReason[FlushReason.WRITER_BEHIND.ordinal()];
         s.flushesHeader = flushesByReason[FlushReason.HEADER.ordinal()];
         s.flushesConnectionLost = flushesByReason[FlushReason.CONNECTION_LOST.ordinal()];
+        s.flushesPositionStall = flushesByReason[FlushReason.POSITION_STALL.ordinal()];
         s.lastHardResyncDriftMicros = lastHardResyncDriftMicros;
+        s.underrunsCorroborated = underrunsCorroborated;
+        s.underrunsSpurious = underrunsSpurious;
+        s.underrunCounterUnreliable = counterUnreliable;
         s.trace = trace;
         s.outputSummary = sink.describe();
         s.positionReportsAccepted = tracker.acceptedCount();

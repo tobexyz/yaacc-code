@@ -55,6 +55,7 @@ final class DeviceSimSink extends StreamingSink {
         final DeviceModel model;
         final Counters counters = new Counters();
         Intent intent;
+        Track current;
         long firstPlayMicros = Long.MIN_VALUE / 2;
         long startedMicros = -1;
 
@@ -66,7 +67,8 @@ final class DeviceSimSink extends StreamingSink {
         @Override
         public TrackPort open(SinkFormat format) {
             counters.opens++;
-            return new Track(this, format);
+            current = new Track(this, format);
+            return current;
         }
     }
 
@@ -76,6 +78,8 @@ final class DeviceSimSink extends StreamingSink {
         int plays;
         int flushes;
         int underruns;
+        int realUnderruns;
+        int spuriousUnderruns;
         long playedAudibleFrames;
         long playedSilentFramesAfterAudio;
         long playedSilentFramesBeforeAudio;
@@ -105,6 +109,11 @@ final class DeviceSimSink extends StreamingSink {
         return "audible " + c.playedAudibleFrames + " frames in " + c.audibleRuns + " runs, silence after audio "
                 + c.playedSilentFramesAfterAudio + " (longest " + c.longestSilenceAfterAudio + "), opens " + c.opens
                 + ", plays " + c.plays + ", flushes " + c.flushes + ", underruns " + c.underruns;
+    }
+
+    /** The output stops consuming for this long; what is queued stays queued (a route hiccup, not a starvation). */
+    void freezeOutput(long micros) {
+        device.current.freeze(micros);
     }
 
     void forceUnderrun() {
@@ -169,19 +178,30 @@ final class DeviceSimSink extends StreamingSink {
             lastUpdate = t;
         }
 
+        private long frozenUntil = Long.MIN_VALUE;
+        private double spuriousFrames;
+
+        /** The output stops consuming for this long (a route hiccup): data stays queued, the position stands still. */
+        void freeze(long micros) {
+            advance(now());
+            frozenUntil = now() + micros;
+        }
+
         private void advance(long t) {
-            if (playing && !filling) {
-                long from = Math.max(lastUpdate, consumeStart);
+            if (playing && !filling && t > frozenUntil) {
+                long from = Math.max(Math.max(lastUpdate, consumeStart), frozenUntil);
                 if (t > from) {
                     double potential = (t - from) * format.getSampleRate() * m.speed / 1e6;
                     double available = written - played;
                     if (potential <= available) {
+                        spurious(potential, (long) available);
                         consume(potential, from, t);
                         starving = false;
                     } else {
                         consume(available, from, t);
                         if (!starving) {
                             starving = true;
+                            device.counters.realUnderruns++;
                             if (m.countUnderruns) {
                                 device.counters.underruns++;
                             }
@@ -193,6 +213,19 @@ final class DeviceSimSink extends StreamingSink {
                 }
             }
             lastUpdate = t;
+        }
+
+        /** The false counter: once per period of played frames while less than a full buffer is queued. */
+        private void spurious(double frames, long queuedBefore) {
+            if (m.spuriousUnderrunPeriodFrames <= 0 || frames <= 0 || queuedBefore >= m.bufferFrames) {
+                return;
+            }
+            spuriousFrames += frames;
+            while (spuriousFrames >= m.spuriousUnderrunPeriodFrames) {
+                spuriousFrames -= m.spuriousUnderrunPeriodFrames;
+                device.counters.spuriousUnderruns++;
+                device.counters.underruns++;
+            }
         }
 
         /** Takes frames out of the queue in order and measures what was played. */

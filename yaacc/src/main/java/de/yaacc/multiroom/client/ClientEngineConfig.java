@@ -41,6 +41,9 @@ public final class ClientEngineConfig {
     int hardResyncReports = 3;
     int positionOutlierMs = 150;
     int primeAfterMs = 200;
+    int underrunConfirmMs = 250;
+    int underrunAheadMs = 10;
+    int unreliableAfterRises = 5;
     int correctionIntervalFrames = 400;
     int minFlushIntervalMs = 500;
     int maxDecoderRestartsPerMinute = 12;
@@ -149,6 +152,30 @@ public final class ClientEngineConfig {
     /** The output must be this late in this many consecutive fresh position reports before it is flushed (default 3). */
     public ClientEngineConfig hardResyncReports(int value) {
         hardResyncReports = positive("hardResyncReports", value);
+        return this;
+    }
+
+    /**
+     * A rise of the platform's underrun counter flushes only when the position confirms it (stalled, or the output holds
+     * less than {@link #underrunAheadMs(int)} ms); the position gets this long to confirm (default 250 ms).
+     */
+    public ClientEngineConfig underrunConfirmMs(int value) {
+        underrunConfirmMs = positive("underrunConfirmMs", value);
+        return this;
+    }
+
+    /** The output holds less than this many ms ahead: confirms an underrun (default 10 ms). */
+    public ClientEngineConfig underrunAheadMs(int value) {
+        underrunAheadMs = positive("underrunAheadMs", value);
+        return this;
+    }
+
+    /**
+     * This many rises of the counter in a row that the position did not confirm: the counter is judged unreliable for
+     * this output and no longer evaluated (default 5).
+     */
+    public ClientEngineConfig unreliableAfterRises(int value) {
+        unreliableAfterRises = positive("unreliableAfterRises", value);
         return this;
     }
 

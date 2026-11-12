@@ -286,19 +286,50 @@ public class SnapcastClientEngineTest {
     }
 
     @Test
-    public void anUnderrunFlushesAndTheStreamIsAlignedAgain() {
+    public void anUnderrunThatThePositionConfirmsFlushesAndTheStreamIsAlignedAgain() {
         EngineRig rig = EngineRig.typical();
         rig.connect();
         rig.run(5000);
 
-        rig.sink.forceUnderrun();
+        rig.clock.advanceMillis(300); // the engine thread was blocked: the output ran dry
         rig.run(4000);
 
         EngineStatus s = rig.engine.status();
-        assertEquals(1, s.underruns);
+        assertTrue("underruns " + s.underruns, s.underruns >= 1);
         assertEquals(1, s.flushes);
         assertEquals(EngineState.PLAYING, s.state);
         assertFirstSampleOnTime(rig, 1500);
+    }
+
+    /** The counter alone is only a hint: a rise that the position does not confirm is counted and nothing is flushed. */
+    @Test
+    public void theReasonOfALostConnectionIsInTheTrace() {
+        EngineRig rig = EngineRig.typical();
+        rig.connect();
+        rig.run(2000);
+        rig.engine.onConnectionLost(de.yaacc.multiroom.protocol.SnapcastConnection.LossReason.TIMEOUT.ordinal(), 3);
+        String text = rig.engine.trace().text();
+        assertTrue(text, text.contains("connection lost  why=timeout  own limit=writer queue full"));
+        assertTrue(text, text.contains("reason=connection_lost"));
+    }
+
+    @Test
+    public void aBareRiseOfTheUnderrunCounterDoesNotFlush() {
+        EngineRig rig = EngineRig.typical();
+        rig.connect();
+        rig.run(5000);
+
+        for (int i = 0; i < 3; i++) {
+            rig.sink.forceUnderrun();
+            rig.run(600);
+        }
+
+        EngineStatus s = rig.engine.status();
+        assertEquals(3, s.underruns);
+        assertEquals(0, s.flushes);
+        assertEquals(3, s.underrunsSpurious);
+        assertEquals(0, s.underrunsCorroborated);
+        assertEquals(EngineState.PLAYING, s.state);
     }
 
     @Test
@@ -306,13 +337,13 @@ public class SnapcastClientEngineTest {
         EngineRig rig = EngineRig.typical();
         rig.connect();
         rig.run(5000);
-        for (int i = 0; i < 20; i++) {
-            rig.sink.forceUnderrun();
-            rig.run(60);
+        for (int i = 0; i < 8; i++) {
+            rig.clock.advanceMillis(250); // blocked again and again
+            rig.run(100);
         }
         EngineStatus s = rig.engine.status();
-        assertTrue("flushes " + s.flushes, s.flushes <= 3);
-        assertTrue(s.flushesSuppressed > 0);
+        assertTrue("flushes " + s.flushes, s.flushes <= 4);
+        assertTrue("suppressed " + s.flushesSuppressed, s.flushesSuppressed > 0);
     }
 
     // ---- gaps, overlaps, timelines

@@ -42,6 +42,10 @@ final class DeviceRig {
     int bufferMs = 1000;
     int stepMs = 5;
     long nextChunk;
+    /** False: the engine thread does not run (a CPU stall) while the chunks still arrive. */
+    boolean ticking = true;
+    /** False: the server sends nothing (an idle stream); the clock of the chunks goes on. */
+    boolean sending = true;
     long serverStart;
 
     DeviceRig(DeviceModel model) {
@@ -72,12 +76,18 @@ final class DeviceRig {
 
     void step() {
         while (serverStart + nextChunk * CHUNK_MS * 1000L + CHUNK_MS * 1000L <= serverNow()) {
+            if (!sending) {
+                nextChunk++;
+                continue;
+            }
             WireChunkMessage chunk = ClientFixtures.chunk(serverStart + nextChunk * CHUNK_MS * 1000L, nextChunk * chunkFrames,
                     chunkFrames, channels, bits);
             engine.onChunk(chunk);
             nextChunk++;
         }
-        engine.tick();
+        if (ticking) {
+            engine.tick();
+        }
         clock.advanceMillis(stepMs);
     }
 
@@ -85,6 +95,13 @@ final class DeviceRig {
         for (long t = 0; t < millis; t += stepMs) {
             step();
         }
+    }
+
+    /** The engine thread is blocked for this long; the chunks arrive meanwhile. */
+    void stallEngine(long millis) {
+        ticking = false;
+        run(millis);
+        ticking = true;
     }
 
     EngineStatus status() {

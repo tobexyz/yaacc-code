@@ -156,6 +156,27 @@ public final class SnapcastConnection implements Closeable {
             return detail;
         }
 
+        /**
+         * For a TIMEOUT, which limit of ours it was (a number, never the server's text): 1 the idle limit, 2 the handshake
+         * limit, 3 the writer queue was full ("the server does not read"), 4 a message in the middle was too slow or a read
+         * timed out; 0 for every other reason (the server or the network ended it).
+         */
+        public int getOwnLimitCode() {
+            if (reason != LossReason.TIMEOUT) {
+                return 0;
+            }
+            switch (detail) {
+                case "idle":
+                    return 1;
+                case "handshake":
+                    return 2;
+                case "the server does not read":
+                    return 3;
+                default:
+                    return 4;
+            }
+        }
+
         /** True when a retry would meet the same answer. */
         public boolean isPermanent() {
             return reason == LossReason.UNAUTHORIZED || reason == LossReason.UNSUPPORTED_CODEC

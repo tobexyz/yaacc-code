@@ -84,6 +84,12 @@ public final class EngineStatus implements Cloneable {
     public long flushesWriterBehind;
     public long flushesHeader;
     public long flushesConnectionLost;
+    public long flushesPositionStall;
+    /** Rises of the platform's underrun counter that the position confirmed / that it did not (no starvation). */
+    public long underrunsCorroborated;
+    public long underrunsSpurious;
+    /** True once the counter rose several times in a row without any sign of starvation: it is no longer used. */
+    public boolean underrunCounterUnreliable;
     /** The drift (positive: late) that caused the latest hard resync. */
     public long lastHardResyncDriftMicros;
     /** Reports of the output's position taken into account and refused (stale, from the future, going back, ...). */
