@@ -235,6 +235,14 @@ Notes are kept current as items are done (interruption safe). Tests first (red, 
 - [x] F8.15 (W5) windowed limit of decoder failures (OVERSIZED and DECODE_FAILED) -> `DECODER_FAILED`.
 - [x] F8.16 S16 (refused chunk does not use the reserved queue room), S17 (sustained play only re-arms; docs), S18 (Hello host name from the resolved address), S19 (watchdog guard), S20 (rejected Start leaves the notification text alone).
 
+## Group 8 backlog (security review cycle 3 suggestions, none blocking, not started)
+- [ ] B8.1 (S21) `EngineHost.abandon()` should call `discardQueue()` so a decoder that never returns does not keep 15 MiB counted until the thread leaves.
+- [ ] B8.2 (S22) Reset `offeredAny` and `lastOfferedMicros` on a new header and on a lost connection.
+- [ ] B8.3 (S23) Residual of S17: audio of 5 s or more every minute keeps the session and the locks for ever (like a stream of silence). Consider a cap on the share of the last hour with locks held; decide in Group 9 or after the owner's listening test.
+- [ ] B8.4 (S24) Coalesce ServerSettings in the host (a flood while the engine thread is stalled refused 1976 events and dropped the next header; only hurts the server's own stream).
+- [ ] B8.5 Wrap the `connect()` worker of the client service in `SafeRun` (it catches RuntimeException and IOException but not Error).
+- [ ] B8.6 Owner's listening test (task 8.1) and the kill criterion; report the numbers of the status screen (see `docs/tech.md` "How to try the Snapcast client (device spike)").
+
 ## Group 9 (Phase B): Renderer integration (P2)
 - **Notes carried from Group 8 (security review, known limits of the spike):** audio focus (pause on a call or another app) and `ACTION_AUDIO_BECOMING_NOISY` (pause when the headphones are pulled) are not handled by the client; a gain ramp or fade-in on volume changes and at the start of a stream is not built (it has to be done on the samples, `AudioTrack.setVolume` acts on audio already queued); the renderer integration must add focus handling, the noisy-headphones pause and the ramp, and must re-check the "Snapcast client" option on every start path (`SnapcastClientSpike.isEnabled`).
 - [ ] 9.1 Output "Snapcast group" for the YAACC renderer: the renderer feeds the group and the phone plays as a member; renderer volume/mute map to the client volume; the direct local output is off | `de.yaacc.upnp.server`, `de.yaacc.player`
