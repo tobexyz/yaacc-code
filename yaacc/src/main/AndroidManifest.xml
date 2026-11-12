@@ -51,6 +51,10 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- Snapcast client spike: a foreground service of type mediaPlayback; from target SDK 34 on this permission is required
+         for that type (a normal permission, granted at install). Wake lock, Wi-Fi lock, network and notification
+         permissions it also uses are declared above. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- Live stream of the device audio (AudioPlaybackCapture needs it, requested when the stream is started) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
@@ -116,6 +120,11 @@
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
         </service>
+        <service
+            android:name=".multiroom.client.SnapcastClientService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
         <service
             android:name=".upnp.server.YaaccUpnpServerService"
             android:enabled="true"

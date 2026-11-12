@@ -179,4 +179,10 @@
     <string name="settings_snapcast_about_summary">YAACC plays into an existing Snapcast server; it needs one reachable on your network.</string>
     <string name="settings_snapcast_discovery" translatable="false">settings_snapcast_discovery</string>
     <string name="settings_snapcast_servers" translatable="false">settings_snapcast_servers</string>
+    <string name="settings_snapcast_client_spike_title">Snapcast client spike (listen test)</string>
+    <string name="settings_snapcast_client_spike_summary">Experimental: shows a test screen where this phone plays as a Snapcast client, to check the sync by ear. Off by default. Audio and control are sent unencrypted. Not tested on a device yet.</string>
+    <string name="settings_snapcast_client_spike_open_title">Snapcast client listen test</string>
+    <string name="settings_snapcast_client_spike_open_summary">Connect this phone to a Snapcast server and see the sync numbers</string>
+    <string name="settings_snapcast_client_spike" translatable="false">settings_snapcast_client_spike</string>
+    <string name="settings_snapcast_client_spike_open" translatable="false">settings_snapcast_client_spike_open</string>
 </resources>

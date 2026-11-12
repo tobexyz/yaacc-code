@@ -130,4 +130,8 @@
     <string name="settings_snapcast_servers_summary">按地址添加服务器，或移除服务器</string>
     <string name="settings_snapcast_about_title">Snapcast 的要求</string>
     <string name="settings_snapcast_about_summary">YAACC 向现有的 Snapcast 服务器播放；你的网络中需要有一台可访问的服务器。</string>
+    <string name="settings_snapcast_client_spike_title">Snapcast 客户端试验（试听测试）</string>
+    <string name="settings_snapcast_client_spike_summary">实验性功能：显示一个测试界面，本手机作为 Snapcast 客户端播放，用耳朵检查同步。默认关闭。音频和控制未加密传输。尚未在真实设备上测试。</string>
+    <string name="settings_snapcast_client_spike_open_title">Snapcast 客户端试听测试</string>
+    <string name="settings_snapcast_client_spike_open_summary">将本手机连接到 Snapcast 服务器并查看同步数据</string>
 </resources>

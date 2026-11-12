@@ -365,4 +365,21 @@
     <string name="snapcast_servers_error_full">Sie können bis zu 16 Server hinzufügen</string>
     <string name="snapcast_servers_already">Dieser Server ist schon in der Liste</string>
     <string name="snapcast_servers_removed">Server entfernt. Seine ausgewählten Gruppen sind nicht mehr ausgewählt.</string>
+    <string name="snapcast_client_title">Snapcast-Client (Hörtest)</string>
+    <string name="snapcast_client_note">Experimentell. Dieses Telefon spielt als Snapcast-Client, damit Sie den Gleichlauf nach Gehör prüfen können. Audio und Steuerung sind nicht verschlüsselt. Der Server und seine Steuerprogramme sehen den Namen dieses Telefons und eine erzeugte Kennung.</string>
+    <string name="snapcast_client_host_hint">Serveradresse, optional :Port (Standard 1704)</string>
+    <string name="snapcast_client_latency_hint">Manuelle Latenz in ms (positiv spielt früher)</string>
+    <string name="snapcast_client_start">Start</string>
+    <string name="snapcast_client_stop">Stopp</string>
+    <string name="snapcast_client_apply_latency">Latenz übernehmen</string>
+    <string name="snapcast_client_close">Schließen</string>
+    <string name="snapcast_client_error_empty_host">Geben Sie die Adresse des Servers ein</string>
+    <string name="snapcast_client_error_invalid_host">Das ist keine gültige Adresse</string>
+    <string name="snapcast_client_error_invalid_latency">Geben Sie eine ganze Zahl in Millisekunden ein</string>
+    <string name="snapcast_client_notification_title">Snapcast-Client (Test)</string>
+    <string name="snapcast_client_notification_connecting">Verbinde …</string>
+    <string name="snapcast_client_notification_playing">Spielt</string>
+    <string name="snapcast_client_notification_reconnecting">Verbindung verloren, neuer Versuch …</string>
+    <string name="snapcast_client_notification_stopped">Gestoppt</string>
+    <string name="snapcast_client_notification_failed">Wegen eines Fehlers gestoppt</string>
 </resources>

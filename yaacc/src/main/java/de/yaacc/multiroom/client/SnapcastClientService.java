@@ -1,0 +1,480 @@
+/*
+ *
+ * Copyright (C) 2026 Tobias Schoene www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
+package de.yaacc.multiroom.client;
+
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.app.Service;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.ServiceInfo;
+import android.net.wifi.WifiManager;
+import android.os.Build;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Looper;
+import android.os.PowerManager;
+import android.os.Process;
+import android.os.SystemClock;
+
+import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
+import androidx.preference.PreferenceManager;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.security.SecureRandom;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import de.yaacc.R;
+import de.yaacc.Yaacc;
+import de.yaacc.multiroom.control.SocketTransport;
+import de.yaacc.multiroom.discovery.SnapcastResolver;
+import de.yaacc.multiroom.discovery.SnapcastServerKey;
+import de.yaacc.multiroom.protocol.HelloMessage;
+import de.yaacc.multiroom.protocol.MicroClock;
+import de.yaacc.multiroom.protocol.ServerSettingsMessage;
+import de.yaacc.multiroom.protocol.SnapcastConnection;
+import de.yaacc.settings.SettingsActivity;
+import de.yaacc.util.NotificationId;
+
+/**
+ * The phone as a Snapcast client, for the listen test (task 8.1): a foreground service of type {@code mediaPlayback}
+ * that owns the {@link SnapcastConnection}, the {@link SnapcastClientEngine} and the output while a session runs.
+ *
+ * <p><b>Lifetime.</b> It is started by the spike screen (never by the system: {@code START_NOT_STICKY}, not exported) and
+ * lives only while a session is on. A wake lock (partial, with a safety timeout of 8 hours) and a Wi-Fi lock are taken at
+ * the start and released at <b>every</b> end: the stop button, an error of the connection or of the engine, the
+ * watchdog, and {@code onDestroy}. The notification is the standard one with a Stop action. No listener socket is
+ * opened; the phone connects out to the one server the user typed in, by an address resolved once.
+ *
+ * <p><b>Disclosure.</b> The Hello carries the name of the phone as the UPnP server announces it, the program name, the
+ * generic words "Android" and "unknown", and an id derived per server from a secret of this installation
+ * ({@link SnapcastClientIdentity}); the MAC is the fixed placeholder. Nothing from the server is written to the log.
+ */
+public final class SnapcastClientService extends Service {
+
+    static final String ACTION_START = "de.yaacc.multiroom.client.START";
+    static final String ACTION_STOP = "de.yaacc.multiroom.client.STOP";
+    static final String ACTION_LATENCY = "de.yaacc.multiroom.client.LATENCY";
+    static final String EXTRA_HOST = "host";
+    static final String EXTRA_LATENCY_MS = "latencyMs";
+
+    private static final long WAKE_LOCK_SAFETY_TIMEOUT_MS = 8L * 60 * 60 * 1000;
+    private static final long WATCHDOG_INTERVAL_MS = 2_000L;
+    private static final long WATCHDOG_LIMIT_MS = 5_000L;
+    private static final long NOTIFICATION_INTERVAL_MS = 1_000L;
+
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final AtomicBoolean sessionStarted = new AtomicBoolean();
+    private final AtomicBoolean ended = new AtomicBoolean();
+    private final Object lockGuard = new Object();
+    private ExecutorService worker;
+    private PowerManager.WakeLock wakeLock;
+    private WifiManager.WifiLock wifiLock;
+    private volatile SnapcastConnection connection;
+    private volatile EngineHost host;
+    private volatile AudioTrackSink sink;
+    private volatile long startedAtMillis;
+    private long lastNotificationMillis;
+
+    // ---- entry points for the screen
+
+    /** Starts a session. Call from the UI (a foreground service may be started from there). */
+    public static void start(Context context, String hostText, int latencyMs) {
+        Intent intent = new Intent(context, SnapcastClientService.class).setAction(ACTION_START)
+                .putExtra(EXTRA_HOST, hostText).putExtra(EXTRA_LATENCY_MS, latencyMs);
+        ContextCompat.startForegroundService(context, intent);
+    }
+
+    /** Ends the session, if there is one. */
+    public static void stop(Context context) {
+        try {
+            context.startService(new Intent(context, SnapcastClientService.class).setAction(ACTION_STOP));
+        } catch (IllegalStateException backgroundStartRefused) {
+            // not running, and the app may not start a service from the background: nothing to stop
+        }
+    }
+
+    /** Changes the manual latency of the running session. */
+    public static void setLatency(Context context, int latencyMs) {
+        try {
+            context.startService(new Intent(context, SnapcastClientService.class).setAction(ACTION_LATENCY)
+                    .putExtra(EXTRA_LATENCY_MS, latencyMs));
+        } catch (IllegalStateException backgroundStartRefused) {
+            // not running
+        }
+    }
+
+    // ---- service
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        return null;
+    }
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent == null || intent.getAction() == null) {
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+        String action = intent.getAction();
+        if (ACTION_STOP.equals(action)) {
+            if (sessionStarted.get()) {
+                endSession(SnapcastClientRuntime.Ending.USER);
+            } else {
+                stopSelf();
+            }
+            return START_NOT_STICKY;
+        }
+        if (ACTION_LATENCY.equals(action)) {
+            EngineHost current = host;
+            if (current != null) {
+                current.setManualLatencyMs(clampLatency(intent.getIntExtra(EXTRA_LATENCY_MS, 0)));
+            }
+            return START_NOT_STICKY;
+        }
+        if (!ACTION_START.equals(action)) {
+            return START_NOT_STICKY;
+        }
+        try {
+            // started with startForegroundService(): the notification must come before anything else
+            showForeground(getString(R.string.snapcast_client_notification_connecting));
+            if (!sessionStarted.compareAndSet(false, true)) {
+                return START_NOT_STICKY; // a session runs already
+            }
+            beginSession(intent.getStringExtra(EXTRA_HOST), intent.getIntExtra(EXTRA_LATENCY_MS, 0));
+        } catch (RuntimeException unexpected) {
+            endSession(SnapcastClientRuntime.Ending.SERVICE_ERROR);
+        }
+        return START_NOT_STICKY;
+    }
+
+    private static int clampLatency(int value) {
+        return Math.max(SnapcastClientSpike.MIN_LATENCY_MS, Math.min(SnapcastClientSpike.MAX_LATENCY_MS, value));
+    }
+
+    private void beginSession(String hostText, int latencyMs) {
+        startedAtMillis = System.currentTimeMillis();
+        final SnapcastClientSpike.Request request = SnapcastClientSpike.check(hostText, String.valueOf(latencyMs));
+        if (request.getOutcome() != SnapcastClientSpike.Outcome.OK) {
+            endSession(SnapcastClientRuntime.Ending.BAD_ADDRESS);
+            return;
+        }
+        acquireLocks();
+        SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.CONNECTING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
+        worker = Executors.newSingleThreadExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "snapcast-client-start");
+            thread.setDaemon(true);
+            return thread;
+        });
+        try {
+            worker.execute(() -> connect(request));
+        } catch (RejectedExecutionException closed) {
+            endSession(SnapcastClientRuntime.Ending.SERVICE_ERROR);
+        }
+    }
+
+    /** On the worker: resolve once, build the pieces, start them. */
+    private void connect(SnapcastClientSpike.Request request) {
+        try {
+            InetAddress address = SnapcastResolver.system().resolve(request.getEndpoint());
+            MicroClock clock = MicroClock.fromNanoSource(SystemClock::elapsedRealtimeNanos);
+            String serverKey = SnapcastServerKey.of(request.getEndpoint()).asString();
+            HelloMessage hello = HelloMessage.create(SnapcastClientIdentity.deriveId(installSecret(), serverKey), phoneName(),
+                    "YAACC", "Android", "unknown", "spike");
+            SnapcastConnection newConnection = new SnapcastConnection(new SocketTransport(address, request.getEndpoint().getPort()),
+                    hello, new SnapcastConnection.Config(), clock, null, null);
+            AudioTrackSink newSink = new AudioTrackSink(clock);
+            ClientEngineConfig config = new ClientEngineConfig();
+            SnapcastClientEngine engine = new SnapcastClientEngine(config, newSink,
+                    new DefaultDecoderFactory(new AndroidDecoderFactory()), newConnection.getOffsetFilter(), clock);
+            engine.setManualLatencyMs(request.getLatencyMs());
+            EngineHost newHost = new EngineHost(engine, config.getTickMs(), SnapcastClientService::audioThread, new EngineHost.Observer() {
+                @Override
+                public void onStatus(EngineStatus status) {
+                    SnapcastClientRuntime.engine(status);
+                    main.post(() -> refreshNotification(false));
+                }
+
+                @Override
+                public void onEnded(EngineStatus status) {
+                    SnapcastClientRuntime.engine(status);
+                    if (status.failure != null) {
+                        endSession(SnapcastClientRuntime.Ending.ENGINE_FAILED);
+                    }
+                }
+            });
+            synchronized (this) {
+                if (ended.get()) {
+                    newConnection.close();
+                    newSink.release();
+                    return;
+                }
+                sink = newSink;
+                host = newHost;
+                connection = newConnection;
+            }
+            newHost.start();
+            newConnection.addListener(newHost);
+            newConnection.addListener(new Lifecycle());
+            newConnection.start();
+            main.post(() -> {
+                if (!ended.get()) {
+                    SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
+                    main.postDelayed(watchdog, WATCHDOG_INTERVAL_MS);
+                }
+            });
+        } catch (IOException unresolved) {
+            endSession(SnapcastClientRuntime.Ending.UNRESOLVED);
+        } catch (RuntimeException unexpected) {
+            endSession(SnapcastClientRuntime.Ending.SERVICE_ERROR);
+        }
+    }
+
+    private static Thread audioThread(Runnable body) {
+        Thread thread = new Thread(() -> {
+            Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
+            body.run();
+        }, "snapcast-audio");
+        thread.setDaemon(true);
+        return thread;
+    }
+
+    /** What the connection reports besides the audio: phases and the end of the retries. */
+    private final class Lifecycle implements SnapcastConnection.Listener {
+        @Override
+        public void onServerSettings(ServerSettingsMessage settings) {
+            main.post(() -> {
+                if (!ended.get()) {
+                    SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
+                    refreshNotification(true);
+                }
+            });
+        }
+
+        @Override
+        public void onLost(SnapcastConnection.Loss loss) {
+            main.post(() -> {
+                if (!ended.get()) {
+                    SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.RECONNECTING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
+                    refreshNotification(true);
+                }
+            });
+        }
+
+        @Override
+        public void onGaveUp(SnapcastConnection.Loss loss) {
+            endSession(loss.isPermanent() ? SnapcastClientRuntime.Ending.SERVER_REFUSED
+                    : SnapcastClientRuntime.Ending.CONNECTION_GAVE_UP);
+        }
+    }
+
+    private final Runnable watchdog = new Runnable() {
+        @Override
+        public void run() {
+            EngineHost current = host;
+            if (!ended.get() && current != null) {
+                if (current.isStalled(WATCHDOG_LIMIT_MS)) {
+                    AudioTrackSink output = sink;
+                    current.abandon(); // reports the end, which ends the session
+                    if (output != null) {
+                        output.release();
+                    }
+                } else {
+                    main.postDelayed(this, WATCHDOG_INTERVAL_MS);
+                }
+            }
+        }
+    };
+
+    /** Ends the session once, from any thread: locks go first, the blocking parts run on a thread of their own. */
+    private void endSession(SnapcastClientRuntime.Ending ending) {
+        if (!ended.compareAndSet(false, true)) {
+            return;
+        }
+        main.removeCallbacks(watchdog);
+        SnapcastClientRuntime.phase(ending == SnapcastClientRuntime.Ending.USER ? SnapcastClientRuntime.Phase.STOPPED
+                : SnapcastClientRuntime.Phase.FAILED, ending, startedAtMillis);
+        releaseLocks();
+        Thread teardown = new Thread(() -> {
+            teardown();
+            main.post(() -> {
+                stopForeground(STOP_FOREGROUND_REMOVE);
+                stopSelf();
+            });
+        }, "snapcast-client-teardown");
+        teardown.setDaemon(true);
+        teardown.start();
+    }
+
+    /** Closes the connection, ends the engine thread, frees the output. Blocks for up to a few seconds. */
+    private void teardown() {
+        SnapcastConnection c;
+        EngineHost h;
+        AudioTrackSink s;
+        synchronized (this) {
+            c = connection;
+            h = host;
+            s = sink;
+        }
+        if (c != null) {
+            c.close();
+        }
+        if (h != null) {
+            h.stop();
+        }
+        if (s != null) {
+            s.release();
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        if (ended.compareAndSet(false, true)) {
+            main.removeCallbacks(watchdog);
+            if (sessionStarted.get()) {
+                SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.STOPPED, SnapcastClientRuntime.Ending.USER, startedAtMillis);
+            }
+            Thread teardown = new Thread(this::teardown, "snapcast-client-teardown");
+            teardown.setDaemon(true);
+            teardown.start();
+        }
+        releaseLocks();
+        if (worker != null) {
+            worker.shutdownNow();
+        }
+        super.onDestroy();
+    }
+
+    // ---- locks
+
+    @SuppressWarnings("deprecation") // WIFI_MODE_FULL_HIGH_PERF is the only full lock before API 29
+    private void acquireLocks() {
+        synchronized (lockGuard) {
+            PowerManager power = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (power != null) {
+                wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "yaacc:snapcast-client");
+                wakeLock.setReferenceCounted(false);
+                wakeLock.acquire(WAKE_LOCK_SAFETY_TIMEOUT_MS);
+            }
+            WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wifi != null) {
+                wifiLock = wifi.createWifiLock(Build.VERSION.SDK_INT >= 29 ? WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+                        : WifiManager.WIFI_MODE_FULL_HIGH_PERF, "yaacc:snapcast-client");
+                wifiLock.setReferenceCounted(false);
+                wifiLock.acquire();
+            }
+        }
+    }
+
+    private void releaseLocks() {
+        synchronized (lockGuard) {
+            try {
+                if (wakeLock != null && wakeLock.isHeld()) {
+                    wakeLock.release();
+                }
+            } catch (RuntimeException alreadyReleased) {
+                // nothing left to release
+            }
+            wakeLock = null;
+            try {
+                if (wifiLock != null && wifiLock.isHeld()) {
+                    wifiLock.release();
+                }
+            } catch (RuntimeException alreadyReleased) {
+                // nothing left to release
+            }
+            wifiLock = null;
+        }
+    }
+
+    // ---- notification
+
+    private void showForeground(String text) {
+        Notification notification = buildNotification(text);
+        if (Build.VERSION.SDK_INT >= 29) {
+            startForeground(NotificationId.SNAPCAST_CLIENT.getId(), notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+        } else {
+            startForeground(NotificationId.SNAPCAST_CLIENT.getId(), notification);
+        }
+    }
+
+    private void refreshNotification(boolean force) {
+        long now = SystemClock.elapsedRealtime();
+        if (ended.get() || (!force && now - lastNotificationMillis < NOTIFICATION_INTERVAL_MS)) {
+            return;
+        }
+        lastNotificationMillis = now;
+        SnapcastClientRuntime.View view = SnapcastClientRuntime.get();
+        int text;
+        if (view.phase == SnapcastClientRuntime.Phase.RECONNECTING) {
+            text = R.string.snapcast_client_notification_reconnecting;
+        } else if (view.engine != null && view.engine.state == EngineState.PLAYING) {
+            text = R.string.snapcast_client_notification_playing;
+        } else {
+            text = R.string.snapcast_client_notification_connecting;
+        }
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (manager != null) {
+            manager.notify(NotificationId.SNAPCAST_CLIENT.getId(), buildNotification(getString(text)));
+        }
+    }
+
+    private Notification buildNotification(String text) {
+        PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, SettingsActivity.class),
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        PendingIntent stop = PendingIntent.getService(this, 1,
+                new Intent(this, SnapcastClientService.class).setAction(ACTION_STOP),
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        return new NotificationCompat.Builder(this, Yaacc.NOTIFICATION_CHANNEL_ID)
+                .setGroup(Yaacc.NOTIFICATION_GROUP_KEY)
+                .setContentTitle(getString(R.string.snapcast_client_notification_title))
+                .setContentText(text)
+                .setSmallIcon(R.drawable.ic_notification_default)
+                .setOngoing(true)
+                .setSilent(true)
+                .setContentIntent(open)
+                .addAction(android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.snapcast_client_stop), stop)
+                .build();
+    }
+
+    // ---- identity
+
+    private String installSecret() {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+        String secret = preferences.getString(SnapcastClientSpike.KEY_SECRET, null);
+        if (!SnapcastClientIdentity.isSecret(secret)) {
+            secret = SnapcastClientIdentity.newSecret(new SecureRandom());
+            preferences.edit().putString(SnapcastClientSpike.KEY_SECRET, secret).apply();
+        }
+        return secret;
+    }
+
+    /** The name the UPnP server announces (the same preference and default as the Snapcast feed uses). */
+    private String phoneName() {
+        return PreferenceManager.getDefaultSharedPreferences(this).getString(getString(R.string.settings_local_server_name_key), "Yaacc");
+    }
+}

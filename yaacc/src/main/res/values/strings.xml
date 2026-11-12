@@ -370,4 +370,21 @@
     <string name="snapcast_servers_error_full">You can add up to 16 servers</string>
     <string name="snapcast_servers_already">This server is in the list already</string>
     <string name="snapcast_servers_removed">Server removed. Its selected groups are no longer selected.</string>
+    <string name="snapcast_client_title">Snapcast client (listen test)</string>
+    <string name="snapcast_client_note">Experimental. This phone plays as a Snapcast client so that you can check the sync by ear. Audio and control are not encrypted. The server and its controllers see the name of this phone and a generated id.</string>
+    <string name="snapcast_client_host_hint">Server address, optional :port (default 1704)</string>
+    <string name="snapcast_client_latency_hint">Manual latency in ms (positive plays earlier)</string>
+    <string name="snapcast_client_start">Start</string>
+    <string name="snapcast_client_stop">Stop</string>
+    <string name="snapcast_client_apply_latency">Apply latency</string>
+    <string name="snapcast_client_close">Close</string>
+    <string name="snapcast_client_error_empty_host">Enter the address of the server</string>
+    <string name="snapcast_client_error_invalid_host">This is not a valid address</string>
+    <string name="snapcast_client_error_invalid_latency">Enter a whole number of milliseconds</string>
+    <string name="snapcast_client_notification_title">Snapcast client (test)</string>
+    <string name="snapcast_client_notification_connecting">Connecting…</string>
+    <string name="snapcast_client_notification_playing">Playing</string>
+    <string name="snapcast_client_notification_reconnecting">Connection lost, trying again…</string>
+    <string name="snapcast_client_notification_stopped">Stopped</string>
+    <string name="snapcast_client_notification_failed">Stopped because of an error</string>
 </resources>

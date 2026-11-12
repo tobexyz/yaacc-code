@@ -361,4 +361,21 @@
     <string name="snapcast_servers_error_full">最多可添加 16 个服务器</string>
     <string name="snapcast_servers_already">此服务器已在列表中</string>
     <string name="snapcast_servers_removed">服务器已移除。其已选中的组不再被选中。</string>
+    <string name="snapcast_client_title">Snapcast 客户端（试听测试）</string>
+    <string name="snapcast_client_note">实验性功能。本手机作为 Snapcast 客户端播放，以便你用耳朵检查同步。音频和控制均未加密。服务器及其控制端会看到本手机的名称和一个生成的标识。</string>
+    <string name="snapcast_client_host_hint">服务器地址，可选 :端口（默认 1704）</string>
+    <string name="snapcast_client_latency_hint">手动延迟（毫秒，正值提前播放）</string>
+    <string name="snapcast_client_start">开始</string>
+    <string name="snapcast_client_stop">停止</string>
+    <string name="snapcast_client_apply_latency">应用延迟</string>
+    <string name="snapcast_client_close">关闭</string>
+    <string name="snapcast_client_error_empty_host">请输入服务器地址</string>
+    <string name="snapcast_client_error_invalid_host">这不是有效的地址</string>
+    <string name="snapcast_client_error_invalid_latency">请输入整数毫秒值</string>
+    <string name="snapcast_client_notification_title">Snapcast 客户端（测试）</string>
+    <string name="snapcast_client_notification_connecting">正在连接…</string>
+    <string name="snapcast_client_notification_playing">正在播放</string>
+    <string name="snapcast_client_notification_reconnecting">连接已断开，正在重试…</string>
+    <string name="snapcast_client_notification_stopped">已停止</string>
+    <string name="snapcast_client_notification_failed">因错误而停止</string>
 </resources>

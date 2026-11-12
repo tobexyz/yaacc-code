@@ -130,4 +130,8 @@
     <string name="settings_snapcast_servers_summary">Añadir servidores por dirección o quitarlos</string>
     <string name="settings_snapcast_about_title">Qué necesita Snapcast</string>
     <string name="settings_snapcast_about_summary">YAACC reproduce en un servidor Snapcast existente; necesita uno accesible en su red.</string>
+    <string name="settings_snapcast_client_spike_title">Prueba del cliente Snapcast (escucha)</string>
+    <string name="settings_snapcast_client_spike_summary">Experimental: muestra una pantalla de prueba donde este teléfono reproduce como cliente Snapcast para comprobar la sincronización de oído. Desactivado por defecto. El audio y el control se envían sin cifrar. Aún no probado en un dispositivo.</string>
+    <string name="settings_snapcast_client_spike_open_title">Prueba de escucha del cliente Snapcast</string>
+    <string name="settings_snapcast_client_spike_open_summary">Conectar este teléfono a un servidor Snapcast y ver los valores de sincronización</string>
 </resources>

@@ -369,4 +369,21 @@
     <string name="snapcast_servers_error_full">Pode adicionar até 16 servidores</string>
     <string name="snapcast_servers_already">Este servidor já está na lista</string>
     <string name="snapcast_servers_removed">Servidor removido. Os seus grupos selecionados já não estão selecionados.</string>
+    <string name="snapcast_client_title">Cliente Snapcast (teste de audição)</string>
+    <string name="snapcast_client_note">Experimental. Este telefone reproduz como cliente Snapcast para que possa verificar a sincronização de ouvido. O áudio e o controlo não estão cifrados. O servidor e os seus controladores veem o nome deste telefone e um identificador gerado.</string>
+    <string name="snapcast_client_host_hint">Endereço do servidor, :porta opcional (predefinição 1704)</string>
+    <string name="snapcast_client_latency_hint">Latência manual em ms (positivo reproduz mais cedo)</string>
+    <string name="snapcast_client_start">Iniciar</string>
+    <string name="snapcast_client_stop">Parar</string>
+    <string name="snapcast_client_apply_latency">Aplicar latência</string>
+    <string name="snapcast_client_close">Fechar</string>
+    <string name="snapcast_client_error_empty_host">Introduza o endereço do servidor</string>
+    <string name="snapcast_client_error_invalid_host">Não é um endereço válido</string>
+    <string name="snapcast_client_error_invalid_latency">Introduza um número inteiro de milissegundos</string>
+    <string name="snapcast_client_notification_title">Cliente Snapcast (teste)</string>
+    <string name="snapcast_client_notification_connecting">A ligar…</string>
+    <string name="snapcast_client_notification_playing">A reproduzir</string>
+    <string name="snapcast_client_notification_reconnecting">Ligação perdida, a tentar de novo…</string>
+    <string name="snapcast_client_notification_stopped">Parado</string>
+    <string name="snapcast_client_notification_failed">Parado devido a um erro</string>
 </resources>

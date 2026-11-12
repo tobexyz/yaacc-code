@@ -62,6 +62,18 @@ public final class SnapcastEndpoint {
      * @return the endpoint, or null when the text is not a valid {@code host[:port]}
      */
     public static SnapcastEndpoint parse(String text) {
+        return parse(text, DEFAULT_CONTROL_PORT);
+    }
+
+    /**
+     * As {@link #parse(String)} with another port for an entry that has none (the client spike uses the stream port 1704).
+     *
+     * @param defaultPort 1 to 65535
+     */
+    public static SnapcastEndpoint parse(String text, int defaultPort) {
+        if (defaultPort < 1 || defaultPort > 65535) {
+            throw new IllegalArgumentException("port out of range");
+        }
         if (text == null || text.isEmpty() || text.length() > MAX_TEXT_LENGTH) {
             return null;
         }
@@ -100,7 +112,7 @@ public final class SnapcastEndpoint {
                 hostPart = text; // a bare IPv6 literal has no port
             }
         }
-        int port = DEFAULT_CONTROL_PORT;
+        int port = defaultPort;
         if (portPart != null) {
             port = parsePort(portPart);
             if (port < 0) {
