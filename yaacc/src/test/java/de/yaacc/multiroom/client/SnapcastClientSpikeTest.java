@@ -72,4 +72,40 @@ public class SnapcastClientSpikeTest {
         }
         assertEquals(SnapcastClientSpike.Outcome.INVALID_LATENCY, SnapcastClientSpike.check("host", "abc").getOutcome());
     }
+
+    // ---- security review of Group 8: the gate is checked again at the start, public addresses are warned about
+
+    @Test
+    public void theEnabledSettingIsReadSafelyAndOffByDefault() {
+        assertFalse(SnapcastClientSpike.isEnabled(null));
+        assertFalse(SnapcastClientSpike.isEnabled((key, def) -> def));
+        assertFalse("a damaged preference is off", SnapcastClientSpike.isEnabled((key, def) -> {
+            throw new ClassCastException("not a boolean");
+        }));
+        assertEquals(true, SnapcastClientSpike.isEnabled((key, def) -> SnapcastClientSpike.KEY_ENABLED.equals(key)));
+    }
+
+    @Test
+    public void onlyAddressesOutsideTheLocalRangesAreCalledPublic() {
+        String[][] cases = {{"192.168.1.5", "LOCAL"}, {"10.0.0.2", "LOCAL"}, {"172.16.5.5", "LOCAL"}, {"127.0.0.1", "LOCAL"},
+                {"169.254.1.1", "LOCAL"}, {"[fe80:0:0:0:0:0:0:1]", "LOCAL"}, {"[fd00:0:0:0:0:0:0:1]", "LOCAL"},
+                {"8.8.8.8", "PUBLIC"}, {"100.64.0.1", "PUBLIC"}, {"[2001:db8:0:0:0:0:0:1]", "PUBLIC"},
+                {"snap.local", "NAME"}, {"example.org", "NAME"}};
+        for (String[] c : cases) {
+            SnapcastClientSpike.Request r = SnapcastClientSpike.check(c[0], "");
+            assertEquals(c[0], SnapcastClientSpike.Outcome.OK, r.getOutcome());
+            assertEquals(c[0], c[1], SnapcastClientSpike.localityOf(r.getEndpoint()).name());
+        }
+    }
+
+    @Test
+    public void aServerOutsideTheLocalNetworkDoesNotGetTheNameOfThePhone() {
+        de.yaacc.multiroom.discovery.SnapcastEndpoint local = SnapcastClientSpike.check("192.168.1.5", "").getEndpoint();
+        de.yaacc.multiroom.discovery.SnapcastEndpoint remote = SnapcastClientSpike.check("8.8.8.8", "").getEndpoint();
+        de.yaacc.multiroom.discovery.SnapcastEndpoint name = SnapcastClientSpike.check("snap.local", "").getEndpoint();
+        assertEquals("Anna's phone", SnapcastClientSpike.helloHostName(local, "Anna's phone"));
+        assertEquals("a name may resolve anywhere; it is the user's choice and it is not looked up here", "Anna's phone",
+                SnapcastClientSpike.helloHostName(name, "Anna's phone"));
+        assertEquals("YAACC", SnapcastClientSpike.helloHostName(remote, "Anna's phone"));
+    }
 }

@@ -50,6 +50,13 @@ public final class EngineHost implements SnapcastConnection.Listener {
         void onEnded(EngineStatus status);
     }
 
+    /** The most payload that may wait for the engine thread (16 MiB: about 3 s of 192 kHz stereo; a real chunk is a few KB). */
+    static final long MAX_QUEUED_BYTES = 16L * 1024 * 1024;
+    /**
+     * The longest the thread handles events in one round before it runs the engine (writes to the output) and looks at stop
+     * again: 50 ms, below the 120 ms the engine writes ahead and far below the 5 s the watchdog allows for one event.
+     */
+    private static final long ROUND_BUDGET_NANOS = 50_000_000L;
     private static final int QUEUE_CAPACITY = 1024;
     private static final int CHUNK_LIMIT = QUEUE_CAPACITY * 3 / 4;
     private static final long STATUS_INTERVAL_NANOS = 250_000_000L;
@@ -62,6 +69,7 @@ public final class EngineHost implements SnapcastConnection.Listener {
     private final BlockingQueue<Runnable> events = new ArrayBlockingQueue<>(QUEUE_CAPACITY);
     private final AtomicReference<EngineStatus> latest = new AtomicReference<>();
     private final AtomicLong droppedForLackOfRoom = new AtomicLong();
+    private final AtomicLong queuedBytes = new AtomicLong();
     private volatile boolean running;
     private volatile boolean started;
     private volatile long loopStartedNanos;
@@ -133,6 +141,11 @@ public final class EngineHost implements SnapcastConnection.Listener {
         return latest.get();
     }
 
+    /** The payload bytes of the chunks that wait in the queue. */
+    public long queuedBytes() {
+        return queuedBytes.get();
+    }
+
     /** Chunks that found no room in the queue. */
     public long droppedForLackOfRoom() {
         return droppedForLackOfRoom.get();
@@ -194,12 +207,21 @@ public final class EngineHost implements SnapcastConnection.Listener {
 
     @Override
     public void onChunk(WireChunkMessage chunk) {
-        if (events.size() >= CHUNK_LIMIT) {
+        final int size = chunk.getPayloadLength();
+        if (events.size() >= CHUNK_LIMIT || queuedBytes.get() + size > MAX_QUEUED_BYTES) {
             droppedForLackOfRoom.incrementAndGet();
             post(engine::onChunkLost); // a flac stream can not find the hole by itself
             return;
         }
-        post(() -> engine.onChunk(chunk));
+        queuedBytes.addAndGet(size);
+        if (!events.offer(() -> {
+            queuedBytes.addAndGet(-size);
+            engine.onChunk(chunk);
+        })) {
+            queuedBytes.addAndGet(-size);
+            droppedForLackOfRoom.incrementAndGet();
+            post(engine::onChunkLost);
+        }
     }
 
     @Override
@@ -225,15 +247,22 @@ public final class EngineHost implements SnapcastConnection.Listener {
             while (running && !engine.isTerminal()) {
                 loopStartedNanos = nanos.getAsLong();
                 Runnable event = events.poll(tickMs, TimeUnit.MILLISECONDS);
-                loopStartedNanos = nanos.getAsLong();
+                long roundStart = nanos.getAsLong();
                 int handled = 0;
-                while (event != null && handled++ < 256) {
+                // Stop and abandon are honoured between events, and a round is bounded by time as well as by count, so
+                // a flood of slow events neither outlives Stop nor looks like a stuck thread (the stall clock restarts per event).
+                while (event != null && running && !abandoned && handled++ < 256) {
+                    loopStartedNanos = nanos.getAsLong();
                     event.run();
-                    event = engine.isTerminal() ? null : events.poll();
+                    if (engine.isTerminal() || nanos.getAsLong() - roundStart > ROUND_BUDGET_NANOS) {
+                        break;
+                    }
+                    event = events.poll();
                 }
+                loopStartedNanos = nanos.getAsLong();
                 engine.tick();
                 if (abandoned) {
-                    return;
+                    break;
                 }
                 long now = nanos.getAsLong();
                 if (now - lastPublish >= STATUS_INTERVAL_NANOS) {
@@ -247,10 +276,12 @@ public final class EngineHost implements SnapcastConnection.Listener {
             // on a worker an Error would end the process; the engine ends with a typed failure instead
             engine.abort(EngineFailure.INTERNAL);
         }
+        // this is the engine thread: the decoder and the output are freed here whichever way the loop ended (after an
+        // abandon the owner has released the output already; releasing twice is harmless)
+        engine.stop();
         if (abandoned) {
             return;
         }
-        engine.stop();
         EngineStatus status = engine.status();
         status.hostQueueDrops = droppedForLackOfRoom.get();
         synchronized (this) {

@@ -385,4 +385,6 @@
     <string name="snapcast_client_notification_connecting">Connecting…</string>
     <string name="snapcast_client_notification_playing">Playing</string>
     <string name="snapcast_client_notification_reconnecting">Connection lost, trying again…</string>
+    <string name="snapcast_client_warning_public">This address is not on your local network. Audio and control are not encrypted or authenticated on the way there.</string>
+    <string name="snapcast_client_busy">The previous session is still stopping. Tap Start again in a moment.</string>
 </resources>

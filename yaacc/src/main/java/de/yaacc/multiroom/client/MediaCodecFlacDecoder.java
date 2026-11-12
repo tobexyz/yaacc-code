@@ -23,7 +23,6 @@ import android.media.MediaCodec;
 import android.media.MediaCodecList;
 import android.media.MediaFormat;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
@@ -45,7 +44,10 @@ final class MediaCodecFlacDecoder implements FrameDecoder {
     private static final String MIME = "audio/flac";
     private static final long INPUT_TIMEOUT_US = 20_000L;
     private static final long OUTPUT_TIMEOUT_US = 5_000L;
-    private static final int MAX_INPUT_BYTES = 512 * 1024;
+    /** A FLAC chunk of the server is a few KB (20 ms); 128 KiB is far above a real chunk and far below what a flood needs. */
+    private static final int MAX_INPUT_BYTES = 128 * 1024;
+    private static final int MAX_OUTPUT_BUFFERS = 64;
+    private static final long DRAIN_DEADLINE_MS = 150L;
 
     private final byte[] header;
     private final int sampleRate;
@@ -119,37 +121,54 @@ final class MediaCodecFlacDecoder implements FrameDecoder {
         }
     }
 
+    /**
+     * Takes the decoded audio out of the codec through {@link CodecDrain}, which bounds it: the bytes (from the validated rate
+     * and channels, never from the FLAC block sizes), 64 buffers, and 150 ms for the chunk. At the first limit that is
+     * hit the codec is made anew (it holds more output we do not want) and the chunk fails.
+     */
     private byte[] drain() throws DecoderException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+        final MediaCodec current = codec;
+        final MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
         long limit = (long) maxFrames * channels * 4; // the most a chunk may give (float samples)
-        boolean tooMuch = false;
-        while (true) {
-            int index = codec.dequeueOutputBuffer(info, OUTPUT_TIMEOUT_US);
-            if (index >= 0) {
-                ByteBuffer buffer = codec.getOutputBuffer(index);
-                if (buffer != null && info.size > 0 && !tooMuch) {
-                    if (out.size() + (long) info.size > limit) {
-                        tooMuch = true;
-                    } else {
-                        byte[] piece = new byte[info.size];
-                        buffer.position(info.offset);
-                        buffer.get(piece);
-                        out.write(piece, 0, piece.length);
+        CodecDrain.Result result = new CodecDrain(limit, MAX_OUTPUT_BUFFERS, DRAIN_DEADLINE_MS, OUTPUT_TIMEOUT_US, System::nanoTime)
+                .run(new CodecDrain.Source() {
+                    @Override
+                    public CodecDrain.Step next(long timeoutMicros) {
+                        int index = current.dequeueOutputBuffer(info, timeoutMicros);
+                        if (index >= 0) {
+                            return new CodecDrain.Step(CodecDrain.Kind.BUFFER, info.size, index, info.offset);
+                        }
+                        if (index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                            return new CodecDrain.Step(CodecDrain.Kind.FORMAT_CHANGED, 0, -1, null);
+                        }
+                        if (index == MediaCodec.INFO_TRY_AGAIN_LATER) {
+                            return new CodecDrain.Step(CodecDrain.Kind.TRY_AGAIN, 0, -1, null);
+                        }
+                        return new CodecDrain.Step(CodecDrain.Kind.AGAIN, 0, -1, null); // INFO_OUTPUT_BUFFERS_CHANGED and others
                     }
-                }
-                codec.releaseOutputBuffer(index, false);
-            } else if (index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                checkOutputFormat(codec.getOutputFormat());
-            } else if (index == MediaCodec.INFO_TRY_AGAIN_LATER) {
-                break;
-            }
-            // INFO_OUTPUT_BUFFERS_CHANGED (deprecated) and others: look again
+
+                    @Override
+                    public byte[] copy(CodecDrain.Step step) {
+                        ByteBuffer buffer = current.getOutputBuffer(step.getIndex());
+                        byte[] piece = new byte[step.getSize()];
+                        if (buffer != null) {
+                            buffer.position((Integer) step.getHandle());
+                            buffer.get(piece);
+                        }
+                        return piece;
+                    }
+
+                    @Override
+                    public void release(CodecDrain.Step step) {
+                        current.releaseOutputBuffer(step.getIndex(), false);
+                    }
+                }, () -> checkOutputFormat(current.getOutputFormat()));
+        if (result.outcome != CodecDrain.Outcome.OK) {
+            reset(); // the codec may hold a flood of output; a new one starts clean
+            throw new DecoderException(result.outcome == CodecDrain.Outcome.OVER_LIMIT ? DecoderException.Reason.OVERSIZED
+                    : DecoderException.Reason.DECODE_FAILED, "the decoder gave more than a chunk may hold or took too long");
         }
-        if (tooMuch) {
-            throw new DecoderException(DecoderException.Reason.OVERSIZED, "chunk decodes to more than allowed");
-        }
-        byte[] pcm = out.toByteArray();
+        byte[] pcm = result.pcm;
         if (floatOutput) {
             return PcmConverter.toPcm16(pcm, 0, pcm.length / 4, PcmConverter.Encoding.FLOAT32);
         }

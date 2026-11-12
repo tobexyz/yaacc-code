@@ -384,4 +384,6 @@
     <string name="snapcast_client_notification_connecting">Connexion…</string>
     <string name="snapcast_client_notification_playing">Lecture</string>
     <string name="snapcast_client_notification_reconnecting">Connexion perdue, nouvel essai…</string>
+    <string name="snapcast_client_warning_public">Cette adresse n\'est pas sur votre réseau local. L\'audio et le contrôle ne sont ni chiffrés ni authentifiés sur le trajet.</string>
+    <string name="snapcast_client_busy">La session précédente est encore en cours d\'arrêt. Touchez de nouveau Démarrer dans un instant.</string>
 </resources>

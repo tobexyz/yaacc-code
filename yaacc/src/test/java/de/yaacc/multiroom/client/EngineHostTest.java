@@ -271,4 +271,171 @@ public class EngineHostTest {
         }
         host.stop();
     }
+
+    // ---- security review W1 of Group 8: the thread must obey Stop, a round is bounded, the queue is bounded in bytes
+
+    private static SnapcastClientEngine lenientEngine(SimulatedSink[] sinkOut, DecoderFactory decoders) {
+        MicroClock clock = MicroClock.monotonic();
+        SimulatedSink sink = SimulatedSink.typical(clock);
+        sinkOut[0] = sink;
+        // every chunk is "due now" and may be very late: the decoder is called for each one at once
+        ClientEngineConfig config = new ClientEngineConfig().releaseLeadMs(60_000).lateToleranceMs(600_000);
+        return new SnapcastClientEngine(config, sink, decoders, new ClientFixtures.FakeOffsets(0), clock);
+    }
+
+    private static final class SlowDecoders implements DecoderFactory {
+        final java.util.concurrent.atomic.AtomicInteger decodes = new java.util.concurrent.atomic.AtomicInteger();
+        final java.util.concurrent.atomic.AtomicInteger closes = new java.util.concurrent.atomic.AtomicInteger();
+        final long millis;
+
+        SlowDecoders(long millis) {
+            this.millis = millis;
+        }
+
+        @Override
+        public FrameDecoder create(de.yaacc.multiroom.protocol.CodecHeaderMessage header, int maxFrames) {
+            return new SnapcastClientEngineTest.PassThroughDecoder() {
+                @Override
+                public byte[] decode(byte[] payload) throws DecoderException {
+                    decodes.incrementAndGet();
+                    try {
+                        Thread.sleep(millis);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return super.decode(payload);
+                }
+
+                @Override
+                public void close() {
+                    closes.incrementAndGet();
+                }
+            };
+        }
+    }
+
+    private static void floodWithSlowChunks(EngineHost host, int count) {
+        host.onServerSettings(new ServerSettingsMessage(0, 0, false, 100));
+        host.onCodecHeader(ClientFixtures.flacHeaderMessage(48000, 2, 16));
+        long now = MicroClock.monotonic().nowMicros();
+        for (int i = 0; i < count; i++) {
+            host.onChunk(ClientFixtures.chunk(now, 0, 960, 2, 16));
+        }
+    }
+
+    @Test
+    public void stopEndsTheThreadPromptlyAndNothingIsDecodedAfterItReturns() throws Exception {
+        SimulatedSink[] sink = new SimulatedSink[1];
+        SlowDecoders decoders = new SlowDecoders(20);
+        Ends ends = new Ends();
+        EngineHost host = new EngineHost(lenientEngine(sink, decoders), 5, EngineHostTest::daemon, ends);
+        host.start();
+        floodWithSlowChunks(host, 700);
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (decoders.decodes.get() < 10 && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        assertTrue("the engine thread is decoding", decoders.decodes.get() >= 10);
+
+        long started = System.nanoTime();
+        host.stop();
+        long tookMillis = (System.nanoTime() - started) / 1_000_000L;
+        int atStop = decoders.decodes.get();
+        Thread.sleep(400);
+        assertTrue("stop() took " + tookMillis + " ms", tookMillis < 1000);
+        assertFalse("the thread ended", host.isRunning());
+        assertEquals("nothing is decoded after stop() returned", atStop, decoders.decodes.get());
+        assertTrue(decoders.closes.get() >= 1);
+    }
+
+    @Test
+    public void aFloodOfSlowChunksDoesNotLookLikeAStalledThread() throws Exception {
+        SimulatedSink[] sink = new SimulatedSink[1];
+        SlowDecoders decoders = new SlowDecoders(20);
+        Ends ends = new Ends();
+        EngineHost host = new EngineHost(lenientEngine(sink, decoders), 5, EngineHostTest::daemon, ends);
+        host.start();
+        floodWithSlowChunks(host, 700);
+        long until = System.nanoTime() + 3_500_000_000L;
+        while (System.nanoTime() < until) {
+            assertFalse("a thread that works through 20 ms events is not stuck (limit 1 s here, 5 s in the service)",
+                    host.isStalled(1000));
+            Thread.sleep(20);
+        }
+        assertTrue(decoders.decodes.get() > 50);
+        host.stop();
+    }
+
+    @Test
+    public void theHostQueueIsBoundedInBytesAndAChunkThatDoesNotFitIsReportedAsLost() throws Exception {
+        SimulatedSink[] sink = new SimulatedSink[1];
+        final CountDownLatch release = new CountDownLatch(1);
+        DecoderFactory stuck = (h, m) -> new SnapcastClientEngineTest.PassThroughDecoder() {
+            @Override
+            public byte[] decode(byte[] payload) throws DecoderException {
+                try {
+                    release.await(20, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return super.decode(payload);
+            }
+        };
+        Ends ends = new Ends();
+        EngineHost host = new EngineHost(lenientEngine(sink, stuck), 5, EngineHostTest::daemon, ends);
+        host.start();
+        host.onServerSettings(new ServerSettingsMessage(0, 0, false, 100));
+        host.onCodecHeader(ClientFixtures.flacHeaderMessage(48000, 2, 16));
+        long now = MicroClock.monotonic().nowMicros();
+        host.onChunk(ClientFixtures.chunk(now, 0, 960, 2, 16)); // the engine thread sticks in this one
+        Thread.sleep(300);
+        de.yaacc.multiroom.protocol.WireChunkMessage big = ClientFixtures.rawChunk(now, new byte[3 * 1024 * 1024]);
+        for (int i = 0; i < 100; i++) { // 300 MiB offered, the same object: only the accounting is real
+            host.onChunk(big);
+        }
+        assertTrue("queued " + host.queuedBytes(), host.queuedBytes() <= EngineHost.MAX_QUEUED_BYTES);
+        assertTrue("some were refused", host.droppedForLackOfRoom() >= 90);
+        release.countDown();
+        host.stop();
+    }
+
+    @Test
+    public void anAbandonedHostClosesItsDecoderWhenTheStuckThreadComesBack() throws Exception {
+        SimulatedSink[] sink = new SimulatedSink[1];
+        final CountDownLatch stuck = new CountDownLatch(1);
+        final CountDownLatch inside = new CountDownLatch(1);
+        final java.util.concurrent.atomic.AtomicInteger closes = new java.util.concurrent.atomic.AtomicInteger();
+        DecoderFactory hang = (h, m) -> new SnapcastClientEngineTest.PassThroughDecoder() {
+            @Override
+            public byte[] decode(byte[] payload) throws DecoderException {
+                inside.countDown();
+                try {
+                    stuck.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    // the abandon interrupts: the thread comes back
+                }
+                return super.decode(payload);
+            }
+
+            @Override
+            public void close() {
+                closes.incrementAndGet();
+            }
+        };
+        Ends ends = new Ends();
+        EngineHost host = new EngineHost(lenientEngine(sink, hang), 5, EngineHostTest::daemon, ends);
+        host.start();
+        host.onServerSettings(new ServerSettingsMessage(0, 0, false, 100));
+        host.onCodecHeader(ClientFixtures.flacHeaderMessage(48000, 2, 16));
+        host.onChunk(ClientFixtures.chunk(MicroClock.monotonic().nowMicros(), 0, 960, 2, 16));
+        assertTrue(inside.await(5, TimeUnit.SECONDS));
+        host.abandon();
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (host.isRunning() && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        assertFalse("the thread left", host.isRunning());
+        assertTrue("and closed the decoder on its way out", closes.get() >= 1);
+        stuck.countDown();
+    }
 }

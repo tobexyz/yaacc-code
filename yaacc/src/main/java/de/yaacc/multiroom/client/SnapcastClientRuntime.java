@@ -44,7 +44,7 @@ public final class SnapcastClientRuntime {
 
     /** Why a session ended on the connection side (typed, no server text). */
     public enum Ending {
-        NONE, USER, BAD_ADDRESS, UNRESOLVED, CONNECTION_GAVE_UP, SERVER_REFUSED, ENGINE_FAILED, SERVICE_ERROR
+        NONE, USER, BAD_ADDRESS, UNRESOLVED, CONNECTION_GAVE_UP, SERVER_REFUSED, ENGINE_FAILED, SERVICE_ERROR, NO_AUDIO, DISABLED
     }
 
     /** An immutable view for the screen. */

@@ -64,6 +64,7 @@ final class SnapcastClientSpikeDialog {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final EditText host;
     private final EditText latency;
+    private final TextView warning;
     private final Button start;
     private final Button stop;
     private final Button apply;
@@ -112,6 +113,28 @@ final class SnapcastClientSpikeDialog {
         host.setFilters(new InputFilter[]{new InputFilter.LengthFilter(300)});
         host.setText(preferences.getString(SnapcastClientSpike.KEY_LAST_HOST, ""));
         root.addView(host, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        warning = new TextView(context);
+        warning.setText(R.string.snapcast_client_warning_public);
+        warning.setTextSize(12);
+        warning.setTypeface(Typeface.DEFAULT_BOLD);
+        warning.setVisibility(android.view.View.GONE);
+        root.addView(warning);
+        host.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence text, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence text, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable text) {
+                showWarningIfPublic(text.toString());
+            }
+        });
+        showWarningIfPublic(host.getText().toString());
 
         latency = new EditText(context);
         latency.setSingleLine(true);
@@ -188,6 +211,14 @@ final class SnapcastClientSpikeDialog {
         } catch (RejectedExecutionException closed) {
             // dismissed meanwhile
         }
+    }
+
+    /** An IP literal outside the local ranges gets a warning (a host name is not looked up here; that is the user's choice). */
+    private void showWarningIfPublic(String text) {
+        de.yaacc.multiroom.discovery.SnapcastEndpoint endpoint = de.yaacc.multiroom.discovery.SnapcastEndpoint
+                .parse(text.trim(), de.yaacc.multiroom.protocol.SnapcastConnection.DEFAULT_PORT);
+        boolean isPublic = endpoint != null && SnapcastClientSpike.localityOf(endpoint) == SnapcastClientSpike.Locality.PUBLIC;
+        warning.setVisibility(isPublic ? android.view.View.VISIBLE : android.view.View.GONE);
     }
 
     private void onStart() {

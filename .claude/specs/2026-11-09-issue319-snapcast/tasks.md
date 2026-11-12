@@ -223,7 +223,15 @@ Notes are kept current as items are done (interruption safe). Tests first (red, 
 - [x] F8.7 S9 (tautology in `ClientSessionTest`), S11 (`lastPollNanos` origin), S14 (3.000 s gap boundary test).
 - [x] F8.8 S10 evaluated, not done, known limit documented in `docs/tech.md` guess 9: keeping the decoded audio before the hole (decision in `decisions.md`; known limit in `docs/tech.md` if not done).
 
+## Fix Group 8d: Address the security review of Group 8 (W1 to W3, S15 and cheap suggestions in `security-review.md`, "Cycle 1 (Group 8)"), started 2026-11-12
+- [x] F8.9 (W1) bounded FLAC drain (pure `CodecDrain` + fake codec), `EngineHost` round honours stop/abandon and a time budget, byte-bounded host queue (16 MiB, overflow = drop + `onChunkLost`), decoder closed when the thread leaves.
+- [x] F8.10 (W2) notification refresh policy (pure), no forced rebuild per ServerSettings, one pending main-thread post.
+- [x] F8.11 (W3) wake and Wi-Fi lock only while playing (60 s grace), session ends after 15 min without playing (`SessionPowerPolicy`), docs "only while playing".
+- [x] F8.12 (S15) hole marks ignored while unsynchronised and clamped to corrected server time + 5 s, no mark for `DROP_TOO_FAR_AHEAD`.
+- [x] F8.13 cheap suggestions: enabled re-check on START, decoder close on the watchdog path, native FLAC residual risk in `docs/tech.md`, second Start during teardown (toast), public address warning in the dialog (7 locales), `HostName` generic for public literals; gain ramp, audio focus and noisy headphones are known limits (Group 9 notes).
+
 ## Group 9 (Phase B): Renderer integration (P2)
+- **Notes carried from Group 8 (security review, known limits of the spike):** audio focus (pause on a call or another app) and `ACTION_AUDIO_BECOMING_NOISY` (pause when the headphones are pulled) are not handled by the client; a gain ramp or fade-in on volume changes and at the start of a stream is not built (it has to be done on the samples, `AudioTrack.setVolume` acts on audio already queued); the renderer integration must add focus handling, the noisy-headphones pause and the ramp, and must re-check the "Snapcast client" option on every start path (`SnapcastClientSpike.isEnabled`).
 - [ ] 9.1 Output "Snapcast group" for the YAACC renderer: the renderer feeds the group and the phone plays as a member; renderer volume/mute map to the client volume; the direct local output is off | `de.yaacc.upnp.server`, `de.yaacc.player`
   - **Accept**: a UPnP controller playing to the YAACC renderer is heard on the group in sync, including on the phone; volume from the controller moves the phone's client volume on the server.
   - **Verify**: `SnapcastRendererOutputTest` (pure mapping), owner's device test.

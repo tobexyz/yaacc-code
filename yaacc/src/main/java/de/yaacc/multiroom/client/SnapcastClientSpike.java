@@ -71,6 +71,16 @@ public final class SnapcastClientSpike {
         }
     }
 
+    /** Where the typed server is, as far as the text tells. */
+    public enum Locality {
+        /** An IP literal in the local ranges: loopback, private, link-local, unique-local. */
+        LOCAL,
+        /** An IP literal outside them: audio and control are unencrypted and unauthenticated on the way there. */
+        PUBLIC,
+        /** A host name: where it resolves is not looked up here (that would be a lookup on the main thread). */
+        NAME
+    }
+
     private SnapcastClientSpike() {
     }
 
@@ -120,5 +130,30 @@ public final class SnapcastClientSpike {
             value = -value;
         }
         return (int) Math.max(MIN_LATENCY_MS, Math.min(MAX_LATENCY_MS, value));
+    }
+
+    /** @return whether the option is on; off for no source, a missing value or a value that can not be read */
+    public static boolean isEnabled(de.yaacc.multiroom.SnapcastSettings.BooleanSource source) {
+        if (source == null) {
+            return ENABLED_DEFAULT;
+        }
+        try {
+            return source.getBoolean(KEY_ENABLED, ENABLED_DEFAULT);
+        } catch (RuntimeException damaged) {
+            return ENABLED_DEFAULT;
+        }
+    }
+
+    public static Locality localityOf(SnapcastEndpoint endpoint) {
+        java.net.InetAddress address = endpoint.getAddress();
+        if (address == null) {
+            return Locality.NAME;
+        }
+        return de.yaacc.multiroom.discovery.SnapcastAddressFilter.isAccepted(address) ? Locality.LOCAL : Locality.PUBLIC;
+    }
+
+    /** The host name for the Hello: the name of the phone for a local server, a generic one for a public address. */
+    public static String helloHostName(SnapcastEndpoint endpoint, String phoneName) {
+        return localityOf(endpoint) == Locality.PUBLIC ? "YAACC" : phoneName;
     }
 }

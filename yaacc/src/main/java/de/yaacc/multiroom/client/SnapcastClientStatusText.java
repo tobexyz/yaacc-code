@@ -95,6 +95,10 @@ public final class SnapcastClientStatusText {
                 return "the audio engine failed";
             case SERVICE_ERROR:
                 return "internal error of the service";
+            case NO_AUDIO:
+                return "no audio for 15 minutes, so the session was ended (the locks are only held while it plays)";
+            case DISABLED:
+                return "the option was switched off";
             default:
                 return "";
         }

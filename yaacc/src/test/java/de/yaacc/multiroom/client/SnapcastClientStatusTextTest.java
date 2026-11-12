@@ -56,4 +56,10 @@ public class SnapcastClientStatusTextTest {
         assertTrue(text, text.contains("no decoder"));
         assertFalse(text.contains("null"));
     }
+
+    @Test
+    public void theTwoNewEndingsAreExplained() {
+        assertTrue(SnapcastClientStatusText.endingText(SnapcastClientRuntime.Ending.NO_AUDIO).contains("15 minutes"));
+        assertTrue(SnapcastClientStatusText.endingText(SnapcastClientRuntime.Ending.DISABLED).contains("switched off"));
+    }
 }

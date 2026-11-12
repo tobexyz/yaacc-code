@@ -245,6 +245,66 @@ public class SnapcastClientEngineFlacHolesTest {
         assertEquals(0, rig.engine.status().streamHolesRecovered);
     }
 
+    // ---- security review S15: a hostile server must not be able to keep a flac stream re-anchoring for good
+
+    private static de.yaacc.multiroom.protocol.WireChunkMessage absurd(long serverMicros) {
+        return ClientFixtures.rawChunk(Math.max(-2_147_483_648L * 1_000_000L, Math.min(2_147_483_647L * 1_000_000L, serverMicros)),
+                new byte[3840]);
+    }
+
+    private static double audibleFractionAfter(EngineRig rig, long millis) {
+        long before = rig.sink.audibleFrames;
+        rig.run(millis);
+        return (rig.sink.audibleFrames - before) / (millis * 48.0);
+    }
+
+    @Test
+    public void seventyChunksAnHourAheadALateChunkAndAChunkTwoHoursAheadLeaveTheStreamAudible() {
+        EngineRig rig = flac();
+        rig.run(3000);
+        long now = rig.serverNow();
+        for (int i = 0; i < 70; i++) {
+            rig.engine.onChunk(absurd(now + 3_600_000_000L + i * 20_000L)); // DROP_TOO_FAR_AHEAD, each
+        }
+        rig.engine.onChunk(absurd(now - 5_000_000L)); // DROP_LATE: a low mark
+        rig.engine.onChunk(absurd(now + 7_200_000_000L)); // a high mark
+        double fraction = audibleFractionAfter(rig, 30_000);
+        assertTrue("audible " + fraction, fraction > 0.95);
+        assertTrue(rig.engine.status().failure == null);
+    }
+
+    @Test
+    public void absurdChunksWhileTheClockIsNotSynchronisedLeaveMostOfTheStreamAudible() {
+        EngineRig rig = EngineRig.flac48();
+        rig.offsets.synced = false;
+        rig.connect();
+        long now = rig.serverNow();
+        for (int i = 0; i < 520; i++) {
+            rig.engine.onChunk(absurd(now + 3_600_000_000L + i * 20_000L)); // fill the queue of the scheduler
+        }
+        for (int i = 0; i < 70; i++) {
+            rig.engine.onChunk(absurd(now + 3_600_000_000L + (600 + i) * 20_000L)); // DROP_QUEUE_FULL, each
+        }
+        rig.engine.onChunk(absurd(0)); // a low mark
+        rig.engine.onChunk(absurd(now + 7_200_000_000L)); // a high mark
+        rig.run(2000);
+        rig.offsets.synced = true;
+        rig.run(5000);
+        double fraction = audibleFractionAfter(rig, 30_000);
+        assertTrue("audible " + fraction, fraction > 0.75);
+        assertTrue(rig.engine.status().failure == null);
+    }
+
+    @Test
+    public void aRealHoleIsStillFoundWhileTheClockIsSynchronised() {
+        EngineRig rig = flac();
+        rig.lose(500);
+        rig.run(12_000);
+        finish(rig);
+        assertEquals(1, rig.engine.status().streamHolesRecovered);
+        assertAligned("a real hole after the change", rig);
+    }
+
     @Test
     public void pcmIsUnchangedByAllThis() {
         EngineRig rig = EngineRig.typical();

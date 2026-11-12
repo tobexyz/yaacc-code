@@ -376,4 +376,6 @@
     <string name="snapcast_client_notification_connecting">正在连接…</string>
     <string name="snapcast_client_notification_playing">正在播放</string>
     <string name="snapcast_client_notification_reconnecting">连接已断开，正在重试…</string>
+    <string name="snapcast_client_warning_public">此地址不在你的本地网络中。音频和控制在传输途中未加密也未经身份验证。</string>
+    <string name="snapcast_client_busy">上一个会话仍在停止中。请稍后再点按“开始”。</string>
 </resources>

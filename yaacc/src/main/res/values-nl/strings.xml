@@ -380,4 +380,6 @@
     <string name="snapcast_client_notification_connecting">Verbinden…</string>
     <string name="snapcast_client_notification_playing">Speelt</string>
     <string name="snapcast_client_notification_reconnecting">Verbinding verbroken, opnieuw proberen…</string>
+    <string name="snapcast_client_warning_public">Dit adres staat niet in uw lokale netwerk. Audio en besturing zijn onderweg niet versleuteld of geauthenticeerd.</string>
+    <string name="snapcast_client_busy">De vorige sessie wordt nog gestopt. Tik zo meteen opnieuw op Starten.</string>
 </resources>

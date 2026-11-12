@@ -384,4 +384,6 @@
     <string name="snapcast_client_notification_connecting">A ligar…</string>
     <string name="snapcast_client_notification_playing">A reproduzir</string>
     <string name="snapcast_client_notification_reconnecting">Ligação perdida, a tentar de novo…</string>
+    <string name="snapcast_client_warning_public">Este endereço não está na sua rede local. O áudio e o controlo não estão cifrados nem autenticados pelo caminho.</string>
+    <string name="snapcast_client_busy">A sessão anterior ainda está a terminar. Toque em Iniciar novamente dentro de instantes.</string>
 </resources>

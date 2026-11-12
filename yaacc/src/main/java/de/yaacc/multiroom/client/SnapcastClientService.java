@@ -34,6 +34,7 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.os.Process;
 import android.os.SystemClock;
+import android.widget.Toast;
 
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
@@ -95,8 +96,10 @@ public final class SnapcastClientService extends Service {
     private volatile EngineHost host;
     private volatile AudioSink sink;
     private volatile long startedAtMillis;
-    private long lastNotificationMillis;
-    private long lastWakeLockRenewMillis;
+    private final NotificationPolicy notificationPolicy = new NotificationPolicy();
+    private final AtomicBoolean refreshPending = new AtomicBoolean();
+    private SessionPowerPolicy powerPolicy; // main thread only
+    private SnapcastClientRuntime.Phase lastPhaseShown;
     private volatile Integer pendingLatencyMs;
 
     // ---- entry points for the screen
@@ -170,8 +173,17 @@ public final class SnapcastClientService extends Service {
         try {
             // started with startForegroundService(): the notification must come before anything else
             showForeground(getString(R.string.snapcast_client_notification_connecting));
+            if (ended.get()) {
+                // this instance is still tearing down the session before: the pending stop removes the notification again
+                Toast.makeText(this, R.string.snapcast_client_busy, Toast.LENGTH_LONG).show();
+                return START_NOT_STICKY;
+            }
             if (!sessionStarted.compareAndSet(false, true)) {
                 return START_NOT_STICKY; // a session runs already
+            }
+            if (!SnapcastClientSpike.isEnabled(PreferenceManager.getDefaultSharedPreferences(this)::getBoolean)) {
+                endSession(SnapcastClientRuntime.Ending.DISABLED); // "default off" holds for every caller, not only the dialog
+                return START_NOT_STICKY;
             }
             beginSession(intent.getStringExtra(EXTRA_HOST), intent.getIntExtra(EXTRA_LATENCY_MS, 0));
         } catch (RuntimeException unexpected) {
@@ -192,6 +204,8 @@ public final class SnapcastClientService extends Service {
             return;
         }
         acquireLocks();
+        powerPolicy = new SessionPowerPolicy(SystemClock.elapsedRealtime());
+        main.postDelayed(watchdog, WATCHDOG_INTERVAL_MS);
         SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.CONNECTING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
         worker = Executors.newSingleThreadExecutor(runnable -> {
             Thread thread = new Thread(runnable, "snapcast-client-start");
@@ -210,7 +224,8 @@ public final class SnapcastClientService extends Service {
         try {
             InetAddress address = SnapcastResolver.system().resolve(request.getEndpoint());
             String serverKey = SnapcastServerKey.of(request.getEndpoint()).asString();
-            HelloMessage hello = HelloMessage.create(SnapcastClientIdentity.deriveId(installSecret(), serverKey), phoneName(),
+            HelloMessage hello = HelloMessage.create(SnapcastClientIdentity.deriveId(installSecret(), serverKey),
+                    SnapcastClientSpike.helloHostName(request.getEndpoint(), phoneName()),
                     "YAACC", "Android", "unknown", "spike");
             ClientSession session = ClientSession.assemble(new SocketTransport(address, request.getEndpoint().getPort()), hello,
                     request.getLatencyMs(), AudioTrackSink::new, new DefaultDecoderFactory(new AndroidDecoderFactory()),
@@ -219,7 +234,7 @@ public final class SnapcastClientService extends Service {
                         @Override
                         public void onStatus(EngineStatus status) {
                             SnapcastClientRuntime.engine(status);
-                            main.post(() -> refreshNotification(false));
+                            requestNotificationRefresh();
                         }
 
                         @Override
@@ -254,7 +269,6 @@ public final class SnapcastClientService extends Service {
             main.post(() -> {
                 if (!ended.get()) {
                     SnapcastClientRuntime.phaseWhileActive(SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
-                    main.postDelayed(watchdog, WATCHDOG_INTERVAL_MS);
                 }
             });
         } catch (IOException unresolved) {
@@ -277,10 +291,15 @@ public final class SnapcastClientService extends Service {
     private final class Lifecycle implements SnapcastConnection.Listener {
         @Override
         public void onServerSettings(ServerSettingsMessage settings) {
+            // A server can send these as fast as the connection accepts frames: only the first one after a connect or a
+            // reconnect changes anything, and nothing is posted to the main thread for the rest (security review W2).
+            if (SnapcastClientRuntime.get().phase == SnapcastClientRuntime.Phase.RUNNING) {
+                return;
+            }
             main.post(() -> {
                 if (!ended.get()) {
                     SnapcastClientRuntime.phaseWhileActive(SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
-                    refreshNotification(true);
+                    refreshNotification();
                 }
             });
         }
@@ -290,7 +309,7 @@ public final class SnapcastClientService extends Service {
             main.post(() -> {
                 if (!ended.get()) {
                     SnapcastClientRuntime.phaseWhileActive(SnapcastClientRuntime.Phase.RECONNECTING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
-                    refreshNotification(true);
+                    refreshNotification();
                 }
             });
         }
@@ -302,24 +321,51 @@ public final class SnapcastClientService extends Service {
         }
     }
 
+    /**
+     * Every 2 seconds on the main thread: the watchdog of the engine thread, and the power policy (locks only while the
+     * engine plays, an end after 15 minutes without audio, see {@link SessionPowerPolicy}).
+     */
     private final Runnable watchdog = new Runnable() {
         @Override
         public void run() {
+            if (ended.get()) {
+                return;
+            }
             EngineHost current = host;
-            if (!ended.get() && current != null) {
-                if (current.isStalled(WATCHDOG_LIMIT_MS)) {
-                    AudioSink output = sink;
-                    current.abandon(); // reports the end, which ends the session
-                    if (output != null) {
-                        output.release();
-                    }
-                } else {
-                    renewWakeLockIfDue();
-                    main.postDelayed(this, WATCHDOG_INTERVAL_MS);
+            if (current != null && current.isStalled(WATCHDOG_LIMIT_MS)) {
+                AudioSink output = sink;
+                current.abandon(); // reports the end, which ends the session
+                if (output != null) {
+                    output.release();
                 }
+                return;
+            }
+            powerTick();
+            if (!ended.get()) {
+                main.postDelayed(this, WATCHDOG_INTERVAL_MS);
             }
         }
     };
+
+    private void powerTick() {
+        SnapcastClientRuntime.View view = SnapcastClientRuntime.get();
+        boolean playing = view.phase == SnapcastClientRuntime.Phase.RUNNING && view.engine != null
+                && view.engine.state == EngineState.PLAYING;
+        SessionPowerPolicy.Decision decision = powerPolicy.update(SystemClock.elapsedRealtime(), playing);
+        if (decision.end) {
+            endSession(SnapcastClientRuntime.Ending.NO_AUDIO);
+            return;
+        }
+        if (decision.releaseNow) {
+            releaseLocks();
+        }
+        if (decision.acquireNow) {
+            acquireLocks();
+        }
+        if (decision.renewNow) {
+            renewWakeLock();
+        }
+    }
 
     /** Ends the session once, from any thread: locks go first, the blocking parts run on a thread of their own. */
     private void endSession(SnapcastClientRuntime.Ending ending) {
@@ -382,19 +428,11 @@ public final class SnapcastClientService extends Service {
 
     // ---- locks
 
-    /**
-     * The wake lock has a safety timeout of 8 hours; a longer session renews it (every 30 minutes) so it does not run out
-     * silently. The Wi-Fi lock has no timeout.
-     */
-    private void renewWakeLockIfDue() {
-        long now = SystemClock.elapsedRealtime();
-        if (!LockPolicy.shouldRenewWakeLock(now, lastWakeLockRenewMillis)) {
-            return;
-        }
+    /** The wake lock has a safety timeout of 8 hours; while the session plays it is renewed every 30 minutes. */
+    private void renewWakeLock() {
         synchronized (lockGuard) {
             if (wakeLock != null && !ended.get()) {
                 wakeLock.acquire(LockPolicy.WAKE_LOCK_SAFETY_TIMEOUT_MS);
-                lastWakeLockRenewMillis = now;
             }
         }
     }
@@ -407,12 +445,14 @@ public final class SnapcastClientService extends Service {
      */
     private void acquireLocks() {
         synchronized (lockGuard) {
+            if (ended.get() || wakeLock != null || wifiLock != null) {
+                return; // the session is over, or the locks are held
+            }
             PowerManager power = (PowerManager) getSystemService(Context.POWER_SERVICE);
             if (power != null) {
                 wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "yaacc:snapcast-client");
                 wakeLock.setReferenceCounted(false);
                 wakeLock.acquire(LockPolicy.WAKE_LOCK_SAFETY_TIMEOUT_MS);
-                lastWakeLockRenewMillis = SystemClock.elapsedRealtime();
             }
             WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
             if (wifi != null) {
@@ -455,12 +495,21 @@ public final class SnapcastClientService extends Service {
         }
     }
 
-    private void refreshNotification(boolean force) {
-        long now = SystemClock.elapsedRealtime();
-        if (ended.get() || (!force && now - lastNotificationMillis < NOTIFICATION_INTERVAL_MS)) {
+    /** Asks for a refresh from any thread; at most one request waits on the main thread at any time. */
+    private void requestNotificationRefresh() {
+        if (refreshPending.compareAndSet(false, true)) {
+            main.post(() -> {
+                refreshPending.set(false);
+                refreshNotification();
+            });
+        }
+    }
+
+    /** Main thread. Rebuilds the notification only when its text changed (see {@link NotificationPolicy}). */
+    private void refreshNotification() {
+        if (ended.get()) {
             return;
         }
-        lastNotificationMillis = now;
         SnapcastClientRuntime.View view = SnapcastClientRuntime.get();
         int text;
         if (view.phase == SnapcastClientRuntime.Phase.RECONNECTING) {
@@ -470,6 +519,11 @@ public final class SnapcastClientService extends Service {
         } else {
             text = R.string.snapcast_client_notification_connecting;
         }
+        boolean phaseChange = view.phase != lastPhaseShown;
+        if (!notificationPolicy.shouldRefresh(text, phaseChange, SystemClock.elapsedRealtime())) {
+            return;
+        }
+        lastPhaseShown = view.phase;
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) {
             manager.notify(NotificationId.SNAPCAST_CLIENT.getId(), buildNotification(getString(text)));

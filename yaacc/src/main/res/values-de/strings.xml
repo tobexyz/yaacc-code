@@ -380,4 +380,6 @@
     <string name="snapcast_client_notification_connecting">Verbinde …</string>
     <string name="snapcast_client_notification_playing">Spielt</string>
     <string name="snapcast_client_notification_reconnecting">Verbindung verloren, neuer Versuch …</string>
+    <string name="snapcast_client_warning_public">Diese Adresse liegt nicht in Ihrem lokalen Netzwerk. Audio und Steuerung sind auf dem Weg dorthin weder verschlüsselt noch authentifiziert.</string>
+    <string name="snapcast_client_busy">Die vorherige Sitzung wird noch beendet. Tippen Sie gleich noch einmal auf Start.</string>
 </resources>

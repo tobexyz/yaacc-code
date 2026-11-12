@@ -69,6 +69,8 @@ public final class SnapcastClientEngine {
     /** The most microseconds {@code framesFor} multiplies by the rate (about 3 hours; more is clamped, not wrapped). */
     /** Holes remembered one by one (about 1.3 seconds of a stream that loses every second chunk, per 64). */
     private static final int MAX_HOLES = 64;
+    /** The scheduler drops chunks stamped more than this after the corrected clock; no hole can be later. */
+    private static final long HOLE_FUTURE_LIMIT_MICROS = 5_000_000L;
     private static final long MAX_FRAMES_FOR_MICROS = 10_000_000_000L;
     private static final long RESTART_WINDOW_MICROS = 60_000_000L;
 
@@ -268,8 +270,9 @@ public final class SnapcastClientEngine {
         try {
             long dropsBefore = schedulerDrops();
             ChunkScheduler.Decision decision = scheduler.offer(chunk);
-            if (schedulerDrops() != dropsBefore) {
-                markHoleAfter(chunk.timestampMicros()); // this chunk was dropped
+            if (schedulerDrops() != dropsBefore && decision.getAction() != ChunkScheduler.Action.DROP_TOO_FAR_AHEAD) {
+                // this chunk was dropped; one stamped more than 5 s ahead can not be a chunk of the stream, so it is no hole
+                markHoleAfter(chunk.timestampMicros());
             }
             lastOfferedMicros = chunk.timestampMicros();
             offeredAny = true;
@@ -490,6 +493,15 @@ public final class SnapcastClientEngine {
      * timestamp, which is right but costs the decoded audio waiting at each one. Counted in {@code holeOverflows}.
      */
     private void markHoleAfter(long micros) {
+        if (micros != Long.MIN_VALUE) {
+            // Timestamps are the server's. While the clock is not synchronised nothing can be told, and no real chunk is
+            // later than the corrected server time plus 5 s (what the scheduler accepts): a later mark could only be
+            // made by a server that wants the stream to be re-anchored at every chunk (review S15 of Group 8).
+            if (!offsets.isSynchronized()) {
+                return;
+            }
+            micros = Math.min(micros, clock.nowMicros() + offsets.offsetMicros() + HOLE_FUTURE_LIMIT_MICROS);
+        }
         if (holes.size() >= MAX_HOLES && !holes.contains(micros)) {
             holeOverflows++;
             overflowFrom = Math.min(overflowFrom, micros);
