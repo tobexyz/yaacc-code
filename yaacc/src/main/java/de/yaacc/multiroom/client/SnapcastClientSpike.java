@@ -156,4 +156,13 @@ public final class SnapcastClientSpike {
     public static String helloHostName(SnapcastEndpoint endpoint, String phoneName) {
         return localityOf(endpoint) == Locality.PUBLIC ? "YAACC" : phoneName;
     }
+
+    /**
+     * The host name for the Hello decided from the address the connection really uses (the result of the name lookup), not
+     * from the text that was typed: a dynamic DNS name or a form like {@code 0x08.0x08.0x08.0x08} is a "name" for the
+     * parser and a public address for the platform (review S18 of Group 8).
+     */
+    public static String helloHostName(java.net.InetAddress resolved, String phoneName) {
+        return de.yaacc.multiroom.discovery.SnapcastAddressFilter.isAccepted(resolved) ? phoneName : "YAACC";
+    }
 }

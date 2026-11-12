@@ -821,12 +821,13 @@ public class SnapcastClientEngineTest {
     }
 
     @Test
-    public void aGoodChunkInBetweenResetsTheRunOfFailures() {
+    public void aGoodChunkInBetweenResetsTheRunOfConsecutiveFailures() {
         final int[] calls = {0};
         DecoderFactory flaky = (h, m) -> new PassThroughDecoder() {
             @Override
             public byte[] decode(byte[] payload) throws DecoderException {
-                if (++calls[0] % 5 != 0) {
+                // seven failures in a row, then a good chunk, once: fewer than 8 in a row and fewer than 12 in a minute
+                if (++calls[0] <= 7) {
                     throw new DecoderException(DecoderException.Reason.DECODE_FAILED, "bad");
                 }
                 return super.decode(payload);
@@ -836,7 +837,100 @@ public class SnapcastClientEngineTest {
         rig.connect();
         rig.run(3000);
         assertNull(rig.engine.status().failure);
-        assertTrue(rig.engine.status().decodeFailures > 10);
+        assertEquals(7, rig.engine.status().decodeFailures);
+    }
+
+    // ---- security review W5 of Group 8: re-creating a decoder is not for free, so failures are limited in time
+
+    private static DecoderFactory throwing(final DecoderException.Reason reason, final int everyNth, final int[] calls) {
+        return (h, m) -> new PassThroughDecoder() {
+            @Override
+            public byte[] decode(byte[] payload) throws DecoderException {
+                if (++calls[0] % everyNth == 0) {
+                    throw new DecoderException(reason, "hostile");
+                }
+                return super.decode(payload);
+            }
+        };
+    }
+
+    @Test
+    public void aServerWhoseChunksAreAlwaysOversizedEndsTheEngineShortlyAfterTheLimit() {
+        final int[] calls = {0};
+        EngineRig rig = new EngineRig(SimulatedSink::typical, new ClientEngineConfig(),
+                throwing(DecoderException.Reason.OVERSIZED, 1, calls), 48000, 2, 16);
+        rig.flac = true;
+        rig.connect();
+        rig.run(20_000);
+        EngineStatus s = rig.engine.status();
+        assertEquals(EngineState.FAILED, s.state);
+        assertEquals(EngineFailure.DECODER_FAILED, s.failure);
+        assertTrue("decoder calls " + calls[0] + ": it stopped at the 13th failure in a minute", calls[0] <= 14);
+    }
+
+    @Test
+    public void fiveThousandOversizedChunksNeverGetPastTheLimit() {
+        final int[] calls = {0};
+        ClientEngineConfig lenient = new ClientEngineConfig().releaseLeadMs(60_000).lateToleranceMs(600_000);
+        EngineRig rig = new EngineRig(SimulatedSink::typical, lenient, throwing(DecoderException.Reason.OVERSIZED, 1, calls),
+                48000, 2, 16);
+        rig.flac = true;
+        rig.connect();
+        rig.sending = false;
+        for (int i = 0; i < 5000; i++) {
+            rig.engine.onChunk(ClientFixtures.chunk(rig.serverNow(), 0, 960, 2, 16));
+        }
+        assertEquals(EngineFailure.DECODER_FAILED, rig.engine.status().failure);
+        assertTrue("decoder calls " + calls[0], calls[0] <= 14);
+    }
+
+    @Test
+    public void chunksThatDecodeToMoreThanAChunkMayHoldCountForTheLimitToo() {
+        ClientEngineConfig lenient = new ClientEngineConfig().releaseLeadMs(60_000).lateToleranceMs(600_000);
+        EngineRig rig = new EngineRig(SimulatedSink::typical, lenient, (h, m) -> new PassThroughDecoder(), 48000, 2, 16);
+        rig.flac = true;
+        rig.connect();
+        rig.sending = false;
+        for (int i = 0; i < 40; i++) {
+            rig.engine.onChunk(ClientFixtures.rawChunk(rig.serverNow(), new byte[48000 * 4 * 4])); // each decodes to 4 s
+        }
+        assertEquals(EngineFailure.DECODER_FAILED, rig.engine.status().failure);
+        assertTrue(rig.engine.status().droppedOversized <= 13);
+    }
+
+    @Test
+    public void aFewOversizedChunksInAHealthyStreamDoNotEndIt() {
+        final int[] calls = {0};
+        EngineRig rig = new EngineRig(SimulatedSink::typical, new ClientEngineConfig(),
+                throwing(DecoderException.Reason.OVERSIZED, 100, calls), 48000, 2, 16);
+        rig.flac = true;
+        rig.connect();
+        rig.run(10_000); // about 3 oversized chunks of 500
+        assertNull(rig.engine.status().failure);
+        assertTrue(rig.engine.status().droppedOversized >= 2);
+    }
+
+    @Test
+    public void failuresThatAreNotInARowCountInTheWindowToo() {
+        final int[] calls = {0};
+        EngineRig rig = new EngineRig(SimulatedSink::typical, new ClientEngineConfig(),
+                throwing(DecoderException.Reason.DECODE_FAILED, 2, calls), 48000, 2, 16);
+        rig.flac = true;
+        rig.connect();
+        rig.run(20_000); // every second chunk fails: never 8 in a row, but 12 in a minute are soon there
+        assertEquals(EngineFailure.DECODER_FAILED, rig.engine.status().failure);
+    }
+
+    @Test
+    public void failuresSpreadOverManyMinutesDoNotAddUp() {
+        final int[] calls = {0};
+        EngineRig rig = new EngineRig(SimulatedSink::typical, new ClientEngineConfig(),
+                throwing(DecoderException.Reason.DECODE_FAILED, 1500, calls), 48000, 2, 16); // one every 30 s
+        rig.flac = true;
+        rig.connect();
+        rig.run(10 * 60_000L);
+        assertNull(rig.engine.status().failure);
+        assertTrue(rig.engine.status().decodeFailures >= 15);
     }
 
     // ---- stopping

@@ -438,4 +438,209 @@ public class EngineHostTest {
         assertTrue("and closed the decoder on its way out", closes.get() >= 1);
         stuck.countDown();
     }
+
+    // ---- security review W4 and S16 of Group 8 (cycle 2): no event is lost, no byte is counted for ever
+
+    /** The first chunk takes {@code firstMillis}, every other one is instant. */
+    private static final class FirstSlowDecoders implements DecoderFactory {
+        final java.util.concurrent.atomic.AtomicInteger decodes = new java.util.concurrent.atomic.AtomicInteger();
+        final long firstMillis;
+        final CountDownLatch inFirst = new CountDownLatch(1);
+
+        FirstSlowDecoders(long firstMillis) {
+            this.firstMillis = firstMillis;
+        }
+
+        @Override
+        public FrameDecoder create(de.yaacc.multiroom.protocol.CodecHeaderMessage header, int maxFrames) {
+            return new SnapcastClientEngineTest.PassThroughDecoder() {
+                @Override
+                public byte[] decode(byte[] payload) throws DecoderException {
+                    if (decodes.incrementAndGet() == 1) {
+                        inFirst.countDown();
+                        try {
+                            Thread.sleep(firstMillis);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                    return super.decode(payload);
+                }
+            };
+        }
+    }
+
+    private static void waitUntil(java.util.function.BooleanSupplier condition, String what) throws Exception {
+        long deadline = System.nanoTime() + 8_000_000_000L;
+        while (!condition.getAsBoolean()) {
+            assertTrue("timeout: " + what, System.nanoTime() < deadline);
+            Thread.sleep(5);
+        }
+    }
+
+    @Test
+    public void fourHundredChunksBehindOneSlowDecodeAreAllDecodedAndNoByteStaysCounted() throws Exception {
+        SimulatedSink[] sink = new SimulatedSink[1];
+        FirstSlowDecoders decoders = new FirstSlowDecoders(300);
+        Ends ends = new Ends();
+        EngineHost host = new EngineHost(lenientEngine(sink, decoders), 5, EngineHostTest::daemon, ends);
+        host.start();
+        host.onServerSettings(new ServerSettingsMessage(0, 0, false, 100));
+        host.onCodecHeader(ClientFixtures.flacHeaderMessage(48000, 2, 16));
+        long now = MicroClock.monotonic().nowMicros();
+        host.onChunk(ClientFixtures.chunk(now, 0, 960, 2, 16));
+        assertTrue(decoders.inFirst.await(5, TimeUnit.SECONDS));
+        for (int i = 0; i < 400; i++) { // queued while the engine thread is in the slow decode
+            host.onChunk(ClientFixtures.chunk(now, 0, 960, 2, 16));
+        }
+        waitUntil(() -> decoders.decodes.get() >= 401 && host.queuedBytes() == 0, "401 decodes");
+        assertEquals("every chunk was decoded, none thrown away at the 257th place", 401, decoders.decodes.get());
+        assertEquals(0, host.queuedBytes());
+        host.stop();
+    }
+
+    @Test
+    public void aSettingsMessageAsTheTwoHundredFiftySeventhEventIsNotLost() throws Exception {
+        SimulatedSink[] sink = new SimulatedSink[1];
+        FirstSlowDecoders decoders = new FirstSlowDecoders(300);
+        Ends ends = new Ends();
+        EngineHost host = new EngineHost(lenientEngine(sink, decoders), 5, EngineHostTest::daemon, ends);
+        host.start();
+        host.onServerSettings(new ServerSettingsMessage(0, 0, false, 100));
+        host.onCodecHeader(ClientFixtures.flacHeaderMessage(48000, 2, 16));
+        long now = MicroClock.monotonic().nowMicros();
+        host.onChunk(ClientFixtures.chunk(now, 0, 960, 2, 16)); // event 1 of the round, slow
+        assertTrue(decoders.inFirst.await(5, TimeUnit.SECONDS));
+        for (int i = 0; i < 256; i++) { // a full round of the next cycle ...
+            host.onChunk(ClientFixtures.chunk(now, 0, 960, 2, 16));
+        }
+        host.onServerSettings(new ServerSettingsMessage(0, 0, false, 37)); // ... and this one in the 257th place
+        waitUntil(() -> host.latestStatus() != null && host.latestStatus().volume == 37, "the settings of the 257th event");
+        host.stop();
+    }
+
+    @Test
+    public void theAttackOfEightRoundsLeavesNoPhantomBytes() throws Exception {
+        SimulatedSink[] sink = new SimulatedSink[1];
+        final java.util.concurrent.atomic.AtomicInteger slowOnes = new java.util.concurrent.atomic.AtomicInteger();
+        DecoderFactory decoders = (h, m) -> new SnapcastClientEngineTest.PassThroughDecoder() {
+            @Override
+            public byte[] decode(byte[] payload) throws DecoderException {
+                if (payload.length == 1000 * 4) { // the slow chunk of a cycle
+                    slowOnes.incrementAndGet();
+                    try {
+                        Thread.sleep(200);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                return super.decode(payload);
+            }
+        };
+        Ends ends = new Ends();
+        EngineHost host = new EngineHost(lenientEngine(sink, decoders), 5, EngineHostTest::daemon, ends);
+        host.start();
+        host.onServerSettings(new ServerSettingsMessage(0, 0, false, 100));
+        host.onCodecHeader(ClientFixtures.flacHeaderMessage(48000, 2, 16));
+        long now = MicroClock.monotonic().nowMicros();
+        de.yaacc.multiroom.protocol.WireChunkMessage big = ClientFixtures.rawChunk(now, new byte[3 * 1024 * 1024]);
+        for (int cycle = 1; cycle <= 8; cycle++) {
+            final int expected = cycle;
+            host.onChunk(ClientFixtures.chunk(now, 0, 1000, 2, 16)); // slow
+            waitUntil(() -> slowOnes.get() >= expected, "cycle " + expected);
+            for (int i = 0; i < 255; i++) {
+                host.onServerSettings(new ServerSettingsMessage(0, 0, false, 100)); // small events
+            }
+            host.onChunk(big); // lands on the 257th place
+            waitUntil(() -> host.queuedBytes() == 0, "queue drained in cycle " + expected);
+        }
+        assertEquals(0, host.queuedBytes());
+        assertEquals("the cap was never filled with phantom bytes: nothing was refused", 0, host.droppedForLackOfRoom());
+        host.stop();
+    }
+
+    @Test
+    public void afterAStopNoByteIsStillCounted() throws Exception {
+        SimulatedSink[] sink = new SimulatedSink[1];
+        final CountDownLatch release = new CountDownLatch(1);
+        final CountDownLatch inside = new CountDownLatch(1);
+        DecoderFactory stuck = (h, m) -> new SnapcastClientEngineTest.PassThroughDecoder() {
+            @Override
+            public byte[] decode(byte[] payload) throws DecoderException {
+                inside.countDown();
+                try {
+                    release.await(20, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return super.decode(payload);
+            }
+        };
+        Ends ends = new Ends();
+        EngineHost host = new EngineHost(lenientEngine(sink, stuck), 5, EngineHostTest::daemon, ends);
+        host.start();
+        host.onServerSettings(new ServerSettingsMessage(0, 0, false, 100));
+        host.onCodecHeader(ClientFixtures.flacHeaderMessage(48000, 2, 16));
+        long now = MicroClock.monotonic().nowMicros();
+        host.onChunk(ClientFixtures.chunk(now, 0, 960, 2, 16));
+        assertTrue(inside.await(5, TimeUnit.SECONDS));
+        de.yaacc.multiroom.protocol.WireChunkMessage big = ClientFixtures.rawChunk(now, new byte[2 * 1024 * 1024]);
+        for (int i = 0; i < 4; i++) {
+            host.onChunk(big);
+        }
+        assertTrue(host.queuedBytes() >= 8 * 1024 * 1024);
+        release.countDown();
+        host.stop();
+        assertEquals("what was queued when the host stopped is not counted any more", 0, host.queuedBytes());
+    }
+
+    @Test
+    public void aHostThatNeverRanAndIsStoppedCountsNoBytes() {
+        SimulatedSink[] sink = new SimulatedSink[1];
+        EngineHost host = new EngineHost(lenientEngine(sink, new DefaultDecoderFactory(null)), 5, EngineHostTest::daemon, new Ends());
+        host.onChunk(ClientFixtures.rawChunk(MicroClock.monotonic().nowMicros(), new byte[1024 * 1024]));
+        assertEquals(1024 * 1024, host.queuedBytes());
+        host.stop();
+        assertEquals(0, host.queuedBytes());
+    }
+
+    @Test
+    public void refusedChunksDoNotUseUpTheRoomOfSettingsHeadersAndLosses() throws Exception {
+        SimulatedSink[] sink = new SimulatedSink[1];
+        final CountDownLatch release = new CountDownLatch(1);
+        final CountDownLatch inside = new CountDownLatch(1);
+        DecoderFactory stuck = (h, m) -> new SnapcastClientEngineTest.PassThroughDecoder() {
+            @Override
+            public byte[] decode(byte[] payload) throws DecoderException {
+                inside.countDown();
+                try {
+                    release.await(20, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return super.decode(payload);
+            }
+        };
+        Ends ends = new Ends();
+        EngineHost host = new EngineHost(lenientEngine(sink, stuck), 5, EngineHostTest::daemon, ends);
+        host.start();
+        host.onServerSettings(new ServerSettingsMessage(0, 0, false, 100));
+        host.onCodecHeader(ClientFixtures.flacHeaderMessage(48000, 2, 16));
+        long now = MicroClock.monotonic().nowMicros();
+        host.onChunk(ClientFixtures.chunk(now, 0, 960, 2, 16));
+        assertTrue(inside.await(5, TimeUnit.SECONDS));
+        de.yaacc.multiroom.protocol.WireChunkMessage big = ClientFixtures.rawChunk(now, new byte[3 * 1024 * 1024]);
+        for (int i = 0; i < 1500; i++) {
+            host.onChunk(big);
+        }
+        long refused = host.droppedForLackOfRoom();
+        host.onServerSettings(new ServerSettingsMessage(0, 0, false, 37));
+        host.onCodecHeader(ClientFixtures.flacHeaderMessage(44100, 2, 16));
+        host.onLost(null);
+        assertEquals("settings, header and loss found room; only chunks were refused", refused, host.droppedForLackOfRoom());
+        assertEquals("1495 of the 1500 chunks did not fit", 1495, refused);
+        release.countDown();
+        waitUntil(() -> host.latestStatus() != null && host.latestStatus().volume == 37, "the settings after the flood");
+        host.stop();
+    }
 }

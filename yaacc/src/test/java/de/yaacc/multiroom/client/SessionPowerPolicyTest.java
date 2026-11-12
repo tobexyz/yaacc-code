@@ -71,8 +71,10 @@ public class SessionPowerPolicyTest {
         assertTrue(playing.holdLocks);
         assertTrue("taken again once", playing.acquireNow);
         assertFalse(policy.update(3 * MINUTE + 2 * SECOND, true).acquireNow);
+        policy.update(3 * MINUTE + 4 * SECOND, true);
+        policy.update(3 * MINUTE + 6 * SECOND, true); // 6 s in a row: that counts as playing
         // 14 minutes without audio after playing is not the end; 15 is
-        long lastPlayed = 3 * MINUTE + 2 * SECOND;
+        long lastPlayed = 3 * MINUTE + 6 * SECOND;
         assertFalse(policy.update(lastPlayed + 14 * MINUTE, false).end);
         assertTrue(policy.update(lastPlayed + 15 * MINUTE, false).end);
     }
@@ -110,5 +112,45 @@ public class SessionPowerPolicyTest {
         for (long now = 0; now <= 24 * 60 * MINUTE; now += 30 * SECOND) {
             assertFalse(policy.update(now, true).end);
         }
+    }
+
+    // ---- security review S17 of Group 8: a second of audio now and then must not keep the session alive
+
+    @Test
+    public void aSecondOfAudioEverySeventySecondsEndsTheSessionAtTheCeilingAndHoldsTheLocksRarely() {
+        SessionPowerPolicy policy = new SessionPowerPolicy(0);
+        long held = 0;
+        long endedAt = -1;
+        for (long now = 0; now <= 30 * MINUTE && endedAt < 0; now += 2 * SECOND) {
+            boolean playing = now % (70 * SECOND) < 2 * SECOND; // one tick of audio in 70 s
+            SessionPowerPolicy.Decision d = policy.update(now, playing);
+            if (d.end) {
+                endedAt = now;
+            } else if (d.holdLocks) {
+                held += 2 * SECOND;
+            }
+        }
+        assertEquals("the ceiling counts from the start: sparse audio does not re-arm it", SessionPowerPolicy.NO_AUDIO_CEILING_MS, endedAt);
+        assertTrue("locks held " + held + " ms of " + endedAt, held <= endedAt / 10 + SessionPowerPolicy.GRACE_MS);
+    }
+
+    @Test
+    public void audioThatPlaysFiveSecondsInARowReArmsTheGraceAndTheCeiling() {
+        SessionPowerPolicy policy = new SessionPowerPolicy(0);
+        for (long now = 0; now <= 3 * 60 * MINUTE; now += 2 * SECOND) {
+            boolean playing = now % (14 * MINUTE) < 8 * SECOND; // 8 s of audio every 14 minutes
+            assertFalse("ended at " + now, policy.update(now, playing).end);
+        }
+    }
+
+    @Test
+    public void audioOfFourSecondsEveryMinuteDoesNotReArm() {
+        SessionPowerPolicy policy = new SessionPowerPolicy(0);
+        boolean ended = false;
+        for (long now = 0; now <= 20 * MINUTE; now += 2 * SECOND) {
+            boolean playing = now % MINUTE < 4 * SECOND; // ticks at 0, 2: continuity 2 s only
+            ended |= policy.update(now, playing).end;
+        }
+        assertTrue(ended);
     }
 }

@@ -24,7 +24,7 @@ package de.yaacc.multiroom.client;
  * connection every 11 seconds) must not keep the CPU and the radio awake for hours. So:
  * <ul>
  * <li>the locks are held while the engine plays, and for {@value #GRACE_MS} ms after the session starts or after the last
- * time it played (connecting, a short pause of the stream, a reconnect), then released;</li>
+ * time it played for {@value #SUSTAINED_MS} ms in a row (connecting, a short pause of the stream, a reconnect), then released;</li>
  * <li>they are taken again as soon as it plays again;</li>
  * <li>the wake lock is renewed every 30 minutes, only while the locks are held;</li>
  * <li>a session that has not played for {@value #NO_AUDIO_CEILING_MS} ms (15 minutes) ends, whatever the connection does.</li>
@@ -35,6 +35,8 @@ public final class SessionPowerPolicy {
 
     public static final long GRACE_MS = 60_000L;
     public static final long NO_AUDIO_CEILING_MS = 15L * 60 * 1000;
+    /** Audio must have played this long without a break to count as playing for the grace and the ceiling. */
+    public static final long SUSTAINED_MS = 5_000L;
 
     /** What to do now. */
     public static final class Decision {
@@ -54,6 +56,7 @@ public final class SessionPowerPolicy {
     }
 
     private long lastPlayingMillis;
+    private long playingSinceMillis = -1;
     private long lastAcquiredMillis;
     private boolean holding = true; // the service takes the locks when the session starts
 
@@ -64,7 +67,16 @@ public final class SessionPowerPolicy {
 
     public synchronized Decision update(long nowMillis, boolean playing) {
         if (playing) {
-            lastPlayingMillis = nowMillis;
+            if (playingSinceMillis < 0) {
+                playingSinceMillis = nowMillis;
+            }
+            // only audio that played for a while re-arms the grace and the ceiling: a second of audio now and then
+            // (while the locks are held for it) must not keep a session alive for ever (review S17 of Group 8)
+            if (nowMillis - playingSinceMillis >= SUSTAINED_MS) {
+                lastPlayingMillis = nowMillis;
+            }
+        } else {
+            playingSinceMillis = -1;
         }
         long idle = nowMillis - lastPlayingMillis;
         boolean end = idle >= NO_AUDIO_CEILING_MS;

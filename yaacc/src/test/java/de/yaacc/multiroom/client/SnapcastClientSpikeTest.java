@@ -108,4 +108,26 @@ public class SnapcastClientSpikeTest {
                 SnapcastClientSpike.helloHostName(name, "Anna's phone"));
         assertEquals("YAACC", SnapcastClientSpike.helloHostName(remote, "Anna's phone"));
     }
+
+    @Test
+    public void theHostNameOfTheHelloIsDecidedFromTheResolvedAddress() throws Exception {
+        de.yaacc.multiroom.discovery.SnapcastResolver publicLookup = new de.yaacc.multiroom.discovery.SnapcastResolver(
+                host -> java.net.InetAddress.getByAddress(new byte[]{8, 8, 8, 8}), 1000);
+        de.yaacc.multiroom.discovery.SnapcastResolver localLookup = new de.yaacc.multiroom.discovery.SnapcastResolver(
+                host -> java.net.InetAddress.getByAddress(new byte[]{(byte) 192, (byte) 168, 1, 7}), 1000);
+        for (String typed : new String[]{"dyn.example.org", "0x08.0x08.0x08.0x08"}) {
+            SnapcastClientSpike.Request request = SnapcastClientSpike.check(typed, "");
+            assertEquals(typed, SnapcastClientSpike.Outcome.OK, request.getOutcome());
+            assertEquals("a name for the parser", SnapcastClientSpike.Locality.NAME,
+                    SnapcastClientSpike.localityOf(request.getEndpoint()));
+            assertEquals("the typed text says nothing about it", "Anna's phone",
+                    SnapcastClientSpike.helloHostName(request.getEndpoint(), "Anna's phone"));
+            assertEquals("the resolved address does", "YAACC", SnapcastClientSpike.helloHostName(
+                    publicLookup.resolve(request.getEndpoint()), "Anna's phone"));
+            assertEquals("Anna's phone", SnapcastClientSpike.helloHostName(
+                    localLookup.resolve(request.getEndpoint()), "Anna's phone"));
+        }
+        assertEquals("YAACC", SnapcastClientSpike.helloHostName(java.net.InetAddress.getByName("::ffff:8.8.8.8"), "x"));
+        assertEquals("x", SnapcastClientSpike.helloHostName(java.net.InetAddress.getByName("127.0.0.1"), "x"));
+    }
 }

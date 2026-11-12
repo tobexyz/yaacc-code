@@ -154,6 +154,7 @@ public final class SnapcastClientEngine {
     private long lastAudioWrittenMicros = Long.MIN_VALUE / 2;
     private int consecutiveDecodeFailures;
     private final ArrayDeque<Long> restartTimes = new ArrayDeque<>();
+    private final ArrayDeque<Long> decoderFailureTimes = new ArrayDeque<>();
     private boolean connectionLost;
 
     private int bufferMs = 1000;
@@ -563,18 +564,19 @@ public final class SnapcastClientEngine {
             pcm = decoder.decode(chunk.getPayload());
             consecutiveDecodeFailures = 0;
         } catch (DecoderException | RuntimeException e) {
-            if (e instanceof DecoderException && ((DecoderException) e).getReason() == DecoderException.Reason.OVERSIZED) {
+            boolean oversized = e instanceof DecoderException
+                    && ((DecoderException) e).getReason() == DecoderException.Reason.OVERSIZED;
+            if (oversized) {
                 droppedOversized++;
-                if (!pcmCodec && anchorValid) {
-                    recoverHole();
-                }
-                return;
+            } else {
+                decodeFailures++;
             }
-            decodeFailures++;
             if (!pcmCodec && anchorValid) {
                 recoverHole();
             }
-            if (++consecutiveDecodeFailures >= cfg.maxConsecutiveDecodeFailures) {
+            // an oversized chunk counts as a failure for the limit: it makes the platform decoder start anew, and a real
+            // server never sends one (security review W5 of Group 8)
+            if (noteDecoderFailure() || (!oversized && ++consecutiveDecodeFailures >= cfg.maxConsecutiveDecodeFailures)) {
                 fail(EngineFailure.DECODER_FAILED);
             }
             return;
@@ -592,6 +594,9 @@ public final class SnapcastClientEngine {
             droppedOversized++;
             if (!pcmCodec && anchorValid) {
                 recoverHole();
+            }
+            if (noteDecoderFailure()) {
+                fail(EngineFailure.DECODER_FAILED);
             }
             return;
         }
@@ -658,6 +663,16 @@ public final class SnapcastClientEngine {
         fifoFrames += frames;
         nextExpectedFrame = start + frames;
         chunksPlayed++;
+    }
+
+    /** Records a chunk the decoder could not take; true when there were more than the limit in the last 60 s. */
+    private boolean noteDecoderFailure() {
+        long now = clock.nowMicros();
+        while (!decoderFailureTimes.isEmpty() && now - decoderFailureTimes.peekFirst() > RESTART_WINDOW_MICROS) {
+            decoderFailureTimes.pollFirst();
+        }
+        decoderFailureTimes.addLast(now);
+        return decoderFailureTimes.size() > cfg.maxDecoderFailuresPerMinute;
     }
 
     private void newAnchor(WireChunkMessage chunk, boolean pcmCodec) {

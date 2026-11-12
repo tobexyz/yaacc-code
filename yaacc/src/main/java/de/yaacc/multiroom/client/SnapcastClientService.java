@@ -172,7 +172,10 @@ public final class SnapcastClientService extends Service {
         }
         try {
             // started with startForegroundService(): the notification must come before anything else
-            showForeground(getString(R.string.snapcast_client_notification_connecting));
+            // started with startForegroundService(): a notification must be posted at once. For the call that starts the
+            // session that is "connecting"; for a second Start it is the text that is shown already (and the policy is told),
+            // so a rejected Start does not change what the user sees (review S20 of Group 8)
+            showForeground(sessionStarted.get() ? currentForegroundText() : getString(R.string.snapcast_client_notification_connecting));
             if (ended.get()) {
                 // this instance is still tearing down the session before: the pending stop removes the notification again
                 Toast.makeText(this, R.string.snapcast_client_busy, Toast.LENGTH_LONG).show();
@@ -225,7 +228,7 @@ public final class SnapcastClientService extends Service {
             InetAddress address = SnapcastResolver.system().resolve(request.getEndpoint());
             String serverKey = SnapcastServerKey.of(request.getEndpoint()).asString();
             HelloMessage hello = HelloMessage.create(SnapcastClientIdentity.deriveId(installSecret(), serverKey),
-                    SnapcastClientSpike.helloHostName(request.getEndpoint(), phoneName()),
+                    SnapcastClientSpike.helloHostName(address, phoneName()),
                     "YAACC", "Android", "unknown", "spike");
             ClientSession session = ClientSession.assemble(new SocketTransport(address, request.getEndpoint().getPort()), hello,
                     request.getLatencyMs(), AudioTrackSink::new, new DefaultDecoderFactory(new AndroidDecoderFactory()),
@@ -328,6 +331,11 @@ public final class SnapcastClientService extends Service {
     private final Runnable watchdog = new Runnable() {
         @Override
         public void run() {
+            // a lock call that throws must end the session, not the process (review S19 of Group 8)
+            SafeRun.run(this::step, () -> endSession(SnapcastClientRuntime.Ending.SERVICE_ERROR));
+        }
+
+        private void step() {
             if (ended.get()) {
                 return;
             }
@@ -511,14 +519,7 @@ public final class SnapcastClientService extends Service {
             return;
         }
         SnapcastClientRuntime.View view = SnapcastClientRuntime.get();
-        int text;
-        if (view.phase == SnapcastClientRuntime.Phase.RECONNECTING) {
-            text = R.string.snapcast_client_notification_reconnecting;
-        } else if (view.engine != null && view.engine.state == EngineState.PLAYING) {
-            text = R.string.snapcast_client_notification_playing;
-        } else {
-            text = R.string.snapcast_client_notification_connecting;
-        }
+        NotificationText text = currentText(view);
         boolean phaseChange = view.phase != lastPhaseShown;
         if (!notificationPolicy.shouldRefresh(text, phaseChange, SystemClock.elapsedRealtime())) {
             return;
@@ -526,7 +527,28 @@ public final class SnapcastClientService extends Service {
         lastPhaseShown = view.phase;
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager != null) {
-            manager.notify(NotificationId.SNAPCAST_CLIENT.getId(), buildNotification(getString(text)));
+            manager.notify(NotificationId.SNAPCAST_CLIENT.getId(), buildNotification(getString(textResource(text))));
+        }
+    }
+
+    private String currentForegroundText() {
+        NotificationText text = currentText(SnapcastClientRuntime.get());
+        notificationPolicy.shouldRefresh(text, true, SystemClock.elapsedRealtime()); // records it as the one shown
+        return getString(textResource(text));
+    }
+
+    private static NotificationText currentText(SnapcastClientRuntime.View view) {
+        return NotificationText.of(view.phase, view.engine == null ? null : view.engine.state);
+    }
+
+    private static int textResource(NotificationText text) {
+        switch (text) {
+            case PLAYING:
+                return R.string.snapcast_client_notification_playing;
+            case RECONNECTING:
+                return R.string.snapcast_client_notification_reconnecting;
+            default:
+                return R.string.snapcast_client_notification_connecting;
         }
     }
 

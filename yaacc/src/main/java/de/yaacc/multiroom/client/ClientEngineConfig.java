@@ -42,6 +42,7 @@ public final class ClientEngineConfig {
     int minFlushIntervalMs = 500;
     int maxDecoderRestartsPerMinute = 12;
     int maxConsecutiveDecodeFailures = 8;
+    int maxDecoderFailuresPerMinute = 12;
     int positionPollFastMs = 50;
     int positionPollSlowMs = 500;
     int positionTimeoutMs = 5_000;
@@ -163,6 +164,15 @@ public final class ClientEngineConfig {
     /** Chunks in a row that may fail to decode before the session ends (default 8). */
     public ClientEngineConfig maxConsecutiveDecodeFailures(int value) {
         maxConsecutiveDecodeFailures = positive("maxConsecutiveDecodeFailures", value);
+        return this;
+    }
+
+    /**
+     * Chunks that fail to decode or are too large for the decoder may happen this often in 60 seconds before the session
+     * ends (default 12, the figure of the header restarts); a platform decoder is made anew after each one.
+     */
+    public ClientEngineConfig maxDecoderFailuresPerMinute(int value) {
+        maxDecoderFailuresPerMinute = positive("maxDecoderFailuresPerMinute", value);
         return this;
     }
 
