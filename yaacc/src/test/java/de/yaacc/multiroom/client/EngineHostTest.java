@@ -156,4 +156,119 @@ public class EngineHostTest {
         assertNotNull(host.latestStatus());
         stuck.countDown();
     }
+
+    @Test
+    public void stopBeforeStartIsFinalAndNoThreadEverRuns() throws Exception {
+        SimulatedSink[] sink = new SimulatedSink[1];
+        Ends ends = new Ends();
+        EngineHost host = new EngineHost(engine(sink, new DefaultDecoderFactory(null)), 5, EngineHostTest::daemon, ends);
+        host.stop();
+        host.start(); // the caller that was too late
+        assertFalse(host.isRunning());
+        assertTrue("the end was reported once", ends.ended.await(2, TimeUnit.SECONDS));
+        Thread.sleep(100);
+        assertFalse("still no thread", host.isRunning());
+        assertEquals(EngineState.STOPPED, ends.last.get().state);
+        host.stop(); // twice is fine
+    }
+
+    @Test
+    public void startAndStopFromTwoThreadsAtOnceAlwaysEndWithNoThread() throws Exception {
+        for (int round = 0; round < 200; round++) {
+            SimulatedSink[] sink = new SimulatedSink[1];
+            Ends ends = new Ends();
+            final EngineHost host = new EngineHost(engine(sink, new DefaultDecoderFactory(null)), 2, EngineHostTest::daemon, ends);
+            final CountDownLatch go = new CountDownLatch(1);
+            Thread starter = new Thread(() -> {
+                try {
+                    go.await();
+                } catch (InterruptedException e) {
+                    return;
+                }
+                host.start();
+            });
+            Thread stopper = new Thread(() -> {
+                try {
+                    go.await();
+                } catch (InterruptedException e) {
+                    return;
+                }
+                host.stop();
+            });
+            starter.start();
+            stopper.start();
+            go.countDown();
+            starter.join();
+            stopper.join();
+            host.stop();
+            assertTrue("round " + round, ends.ended.await(5, TimeUnit.SECONDS));
+            long deadline = System.nanoTime() + 3_000_000_000L;
+            while (host.isRunning() && System.nanoTime() < deadline) {
+                Thread.sleep(2);
+            }
+            assertFalse("round " + round + ": a thread is left", host.isRunning());
+        }
+    }
+
+    @Test
+    public void theStatusIsPublishedEvenWhenTheNanoClockHasANegativeOrigin() throws Exception {
+        SimulatedSink[] sink = new SimulatedSink[1];
+        Ends ends = new Ends();
+        // System.nanoTime() may be negative (its origin is arbitrary); the first publish must not wait for it to turn positive
+        EngineHost host = new EngineHost(engine(sink, new DefaultDecoderFactory(null)), 5, EngineHostTest::daemon, ends,
+                () -> System.nanoTime() - Long.MAX_VALUE / 2);
+        host.start();
+        assertTrue(ends.gotStatus.await(5, TimeUnit.SECONDS));
+        host.stop();
+    }
+
+    @Test
+    public void anAbandonedHostReportsACopyAndDoesNotChangeTheStatusOthersHold() throws Exception {
+        SimulatedSink[] sink = new SimulatedSink[1];
+        Ends ends = new Ends();
+        EngineHost host = new EngineHost(engine(sink, new DefaultDecoderFactory(null)), 5, EngineHostTest::daemon, ends);
+        host.start();
+        assertTrue(ends.gotStatus.await(5, TimeUnit.SECONDS));
+        EngineStatus held = host.latestStatus();
+        EngineState before = held.state;
+        host.abandon();
+        assertEquals("the object somebody holds is not changed", before, held.state);
+        assertEquals(EngineFailure.STALLED, host.latestStatus().failure);
+    }
+
+    @Test
+    public void chunksThatFindNoRoomAreCountedInTheStatus() throws Exception {
+        SimulatedSink[] sink = new SimulatedSink[1];
+        final CountDownLatch release = new CountDownLatch(1);
+        DecoderFactory slow = (h, m) -> new SnapcastClientEngineTest.PassThroughDecoder() {
+            @Override
+            public byte[] decode(byte[] payload) throws DecoderException {
+                try {
+                    release.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return super.decode(payload);
+            }
+        };
+        Ends ends = new Ends();
+        EngineHost host = new EngineHost(engine(sink, slow), 5, EngineHostTest::daemon, ends);
+        host.start();
+        host.onCodecHeader(ClientFixtures.pcmHeader(48000, 2, 16));
+        host.onServerSettings(new ServerSettingsMessage(0, 0, false, 100));
+        long now = MicroClock.monotonic().nowMicros();
+        host.onChunk(ClientFixtures.chunk(now + 100_000, 0, 960, 2, 16)); // the engine thread waits in the decoder
+        Thread.sleep(300);
+        for (int i = 0; i < 3000; i++) {
+            host.onChunk(ClientFixtures.chunk(0, 0, 10, 2, 16));
+        }
+        assertTrue(host.droppedForLackOfRoom() > 0);
+        release.countDown();
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (host.latestStatus() == null || host.latestStatus().hostQueueDrops == 0) {
+            assertTrue("the drops are in the status", System.nanoTime() < deadline);
+            Thread.sleep(10);
+        }
+        host.stop();
+    }
 }

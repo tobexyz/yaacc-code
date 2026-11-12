@@ -385,6 +385,4 @@
     <string name="snapcast_client_notification_connecting">Connecting…</string>
     <string name="snapcast_client_notification_playing">Playing</string>
     <string name="snapcast_client_notification_reconnecting">Connection lost, trying again…</string>
-    <string name="snapcast_client_notification_stopped">Stopped</string>
-    <string name="snapcast_client_notification_failed">Stopped because of an error</string>
 </resources>

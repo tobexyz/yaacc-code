@@ -48,6 +48,8 @@ public final class ClientEngineConfig {
     int underrunSlackMs = 20;
     int maxBlocksPerTick = 8;
     int tickMs = 10;
+    long rebaseFrames = 1L << 34;
+    long maxAnchorDifferenceMicros = 15_000_000_000_000L;
 
     private static int positive(String name, int value) {
         if (value < 1) {
@@ -173,6 +175,18 @@ public final class ClientEngineConfig {
     /** How long the engine thread waits between cycles (default 10 ms). */
     public ClientEngineConfig tickMs(int value) {
         tickMs = positive("tickMs", value);
+        return this;
+    }
+
+    /**
+     * The timeline is shifted in place (whole seconds, exactly) when this many frames have run from its anchor, so the
+     * frame counts stay small whatever the length of the session (default 2^34, days of playback).
+     */
+    public ClientEngineConfig rebaseFrames(long value) {
+        if (value < 1) {
+            throw new IllegalArgumentException("rebaseFrames must be at least 1");
+        }
+        rebaseFrames = value;
         return this;
     }
 

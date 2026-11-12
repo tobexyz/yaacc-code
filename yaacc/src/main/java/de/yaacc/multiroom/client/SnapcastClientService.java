@@ -53,7 +53,6 @@ import de.yaacc.multiroom.control.SocketTransport;
 import de.yaacc.multiroom.discovery.SnapcastResolver;
 import de.yaacc.multiroom.discovery.SnapcastServerKey;
 import de.yaacc.multiroom.protocol.HelloMessage;
-import de.yaacc.multiroom.protocol.MicroClock;
 import de.yaacc.multiroom.protocol.ServerSettingsMessage;
 import de.yaacc.multiroom.protocol.SnapcastConnection;
 import de.yaacc.settings.SettingsActivity;
@@ -64,8 +63,8 @@ import de.yaacc.util.NotificationId;
  * that owns the {@link SnapcastConnection}, the {@link SnapcastClientEngine} and the output while a session runs.
  *
  * <p><b>Lifetime.</b> It is started by the spike screen (never by the system: {@code START_NOT_STICKY}, not exported) and
- * lives only while a session is on. A wake lock (partial, with a safety timeout of 8 hours) and a Wi-Fi lock are taken at
- * the start and released at <b>every</b> end: the stop button, an error of the connection or of the engine, the
+ * lives only while a session is on. A wake lock (partial, with a safety timeout of 8 hours, renewed while the session runs)
+ * and a Wi-Fi lock are taken at the start and released at <b>every</b> end: the stop button, an error of the connection or of the engine, the
  * watchdog, and {@code onDestroy}. The notification is the standard one with a Stop action. No listener socket is
  * opened; the phone connects out to the one server the user typed in, by an address resolved once.
  *
@@ -81,7 +80,6 @@ public final class SnapcastClientService extends Service {
     static final String EXTRA_HOST = "host";
     static final String EXTRA_LATENCY_MS = "latencyMs";
 
-    private static final long WAKE_LOCK_SAFETY_TIMEOUT_MS = 8L * 60 * 60 * 1000;
     private static final long WATCHDOG_INTERVAL_MS = 2_000L;
     private static final long WATCHDOG_LIMIT_MS = 5_000L;
     private static final long NOTIFICATION_INTERVAL_MS = 1_000L;
@@ -95,9 +93,11 @@ public final class SnapcastClientService extends Service {
     private WifiManager.WifiLock wifiLock;
     private volatile SnapcastConnection connection;
     private volatile EngineHost host;
-    private volatile AudioTrackSink sink;
+    private volatile AudioSink sink;
     private volatile long startedAtMillis;
     private long lastNotificationMillis;
+    private long lastWakeLockRenewMillis;
+    private volatile Integer pendingLatencyMs;
 
     // ---- entry points for the screen
 
@@ -150,13 +150,21 @@ public final class SnapcastClientService extends Service {
             return START_NOT_STICKY;
         }
         if (ACTION_LATENCY.equals(action)) {
+            int latency = clampLatency(intent.getIntExtra(EXTRA_LATENCY_MS, 0));
             EngineHost current = host;
             if (current != null) {
-                current.setManualLatencyMs(clampLatency(intent.getIntExtra(EXTRA_LATENCY_MS, 0)));
+                current.setManualLatencyMs(latency);
+            } else if (sessionStarted.get() && !ended.get()) {
+                pendingLatencyMs = latency; // the host is not built yet: connect() applies it
+            } else if (!sessionStarted.get()) {
+                stopSelf(); // nothing to apply it to; do not linger
             }
             return START_NOT_STICKY;
         }
         if (!ACTION_START.equals(action)) {
+            if (!sessionStarted.get()) {
+                stopSelf();
+            }
             return START_NOT_STICKY;
         }
         try {
@@ -201,32 +209,30 @@ public final class SnapcastClientService extends Service {
     private void connect(SnapcastClientSpike.Request request) {
         try {
             InetAddress address = SnapcastResolver.system().resolve(request.getEndpoint());
-            MicroClock clock = MicroClock.fromNanoSource(SystemClock::elapsedRealtimeNanos);
             String serverKey = SnapcastServerKey.of(request.getEndpoint()).asString();
             HelloMessage hello = HelloMessage.create(SnapcastClientIdentity.deriveId(installSecret(), serverKey), phoneName(),
                     "YAACC", "Android", "unknown", "spike");
-            SnapcastConnection newConnection = new SnapcastConnection(new SocketTransport(address, request.getEndpoint().getPort()),
-                    hello, new SnapcastConnection.Config(), clock, null, null);
-            AudioTrackSink newSink = new AudioTrackSink(clock);
-            ClientEngineConfig config = new ClientEngineConfig();
-            SnapcastClientEngine engine = new SnapcastClientEngine(config, newSink,
-                    new DefaultDecoderFactory(new AndroidDecoderFactory()), newConnection.getOffsetFilter(), clock);
-            engine.setManualLatencyMs(request.getLatencyMs());
-            EngineHost newHost = new EngineHost(engine, config.getTickMs(), SnapcastClientService::audioThread, new EngineHost.Observer() {
-                @Override
-                public void onStatus(EngineStatus status) {
-                    SnapcastClientRuntime.engine(status);
-                    main.post(() -> refreshNotification(false));
-                }
+            ClientSession session = ClientSession.assemble(new SocketTransport(address, request.getEndpoint().getPort()), hello,
+                    request.getLatencyMs(), AudioTrackSink::new, new DefaultDecoderFactory(new AndroidDecoderFactory()),
+                    SystemClock::elapsedRealtimeNanos, new ClientEngineConfig(), SnapcastClientService::audioThread,
+                    new EngineHost.Observer() {
+                        @Override
+                        public void onStatus(EngineStatus status) {
+                            SnapcastClientRuntime.engine(status);
+                            main.post(() -> refreshNotification(false));
+                        }
 
-                @Override
-                public void onEnded(EngineStatus status) {
-                    SnapcastClientRuntime.engine(status);
-                    if (status.failure != null) {
-                        endSession(SnapcastClientRuntime.Ending.ENGINE_FAILED);
-                    }
-                }
-            });
+                        @Override
+                        public void onEnded(EngineStatus status) {
+                            SnapcastClientRuntime.engine(status);
+                            if (status.failure != null) {
+                                endSession(SnapcastClientRuntime.Ending.ENGINE_FAILED);
+                            }
+                        }
+                    });
+            SnapcastConnection newConnection = session.connection();
+            EngineHost newHost = session.host();
+            AudioSink newSink = session.sink();
             synchronized (this) {
                 if (ended.get()) {
                     newConnection.close();
@@ -237,13 +243,17 @@ public final class SnapcastClientService extends Service {
                 host = newHost;
                 connection = newConnection;
             }
+            Integer latencyAsked = pendingLatencyMs;
+            if (latencyAsked != null) {
+                newHost.setManualLatencyMs(latencyAsked); // Apply was tapped while the session was still being built
+            }
             newHost.start();
             newConnection.addListener(newHost);
             newConnection.addListener(new Lifecycle());
             newConnection.start();
             main.post(() -> {
                 if (!ended.get()) {
-                    SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
+                    SnapcastClientRuntime.phaseWhileActive(SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
                     main.postDelayed(watchdog, WATCHDOG_INTERVAL_MS);
                 }
             });
@@ -269,7 +279,7 @@ public final class SnapcastClientService extends Service {
         public void onServerSettings(ServerSettingsMessage settings) {
             main.post(() -> {
                 if (!ended.get()) {
-                    SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
+                    SnapcastClientRuntime.phaseWhileActive(SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
                     refreshNotification(true);
                 }
             });
@@ -279,7 +289,7 @@ public final class SnapcastClientService extends Service {
         public void onLost(SnapcastConnection.Loss loss) {
             main.post(() -> {
                 if (!ended.get()) {
-                    SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.RECONNECTING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
+                    SnapcastClientRuntime.phaseWhileActive(SnapcastClientRuntime.Phase.RECONNECTING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
                     refreshNotification(true);
                 }
             });
@@ -298,12 +308,13 @@ public final class SnapcastClientService extends Service {
             EngineHost current = host;
             if (!ended.get() && current != null) {
                 if (current.isStalled(WATCHDOG_LIMIT_MS)) {
-                    AudioTrackSink output = sink;
+                    AudioSink output = sink;
                     current.abandon(); // reports the end, which ends the session
                     if (output != null) {
                         output.release();
                     }
                 } else {
+                    renewWakeLockIfDue();
                     main.postDelayed(this, WATCHDOG_INTERVAL_MS);
                 }
             }
@@ -334,7 +345,7 @@ public final class SnapcastClientService extends Service {
     private void teardown() {
         SnapcastConnection c;
         EngineHost h;
-        AudioTrackSink s;
+        AudioSink s;
         synchronized (this) {
             c = connection;
             h = host;
@@ -371,19 +382,41 @@ public final class SnapcastClientService extends Service {
 
     // ---- locks
 
-    @SuppressWarnings("deprecation") // WIFI_MODE_FULL_HIGH_PERF is the only full lock before API 29
+    /**
+     * The wake lock has a safety timeout of 8 hours; a longer session renews it (every 30 minutes) so it does not run out
+     * silently. The Wi-Fi lock has no timeout.
+     */
+    private void renewWakeLockIfDue() {
+        long now = SystemClock.elapsedRealtime();
+        if (!LockPolicy.shouldRenewWakeLock(now, lastWakeLockRenewMillis)) {
+            return;
+        }
+        synchronized (lockGuard) {
+            if (wakeLock != null && !ended.get()) {
+                wakeLock.acquire(LockPolicy.WAKE_LOCK_SAFETY_TIMEOUT_MS);
+                lastWakeLockRenewMillis = now;
+            }
+        }
+    }
+
+    /**
+     * Wi-Fi lock: {@code FULL_HIGH_PERF} up to Android 13 (it holds Wi-Fi out of power save with the screen off), and
+     * {@code FULL_LOW_LATENCY} from Android 14, where the platform replaced the first by the second and that one is only
+     * active with the screen on and the app in the foreground (see {@link LockPolicy}). So from API 34 the lock is
+     * taken but does nothing for a screen-off session; that is a limit of the platform, not something the app can fix.
+     */
     private void acquireLocks() {
         synchronized (lockGuard) {
             PowerManager power = (PowerManager) getSystemService(Context.POWER_SERVICE);
             if (power != null) {
                 wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "yaacc:snapcast-client");
                 wakeLock.setReferenceCounted(false);
-                wakeLock.acquire(WAKE_LOCK_SAFETY_TIMEOUT_MS);
+                wakeLock.acquire(LockPolicy.WAKE_LOCK_SAFETY_TIMEOUT_MS);
+                lastWakeLockRenewMillis = SystemClock.elapsedRealtime();
             }
             WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
             if (wifi != null) {
-                wifiLock = wifi.createWifiLock(Build.VERSION.SDK_INT >= 29 ? WifiManager.WIFI_MODE_FULL_LOW_LATENCY
-                        : WifiManager.WIFI_MODE_FULL_HIGH_PERF, "yaacc:snapcast-client");
+                wifiLock = wifi.createWifiLock(LockPolicy.wifiMode(Build.VERSION.SDK_INT), "yaacc:snapcast-client");
                 wifiLock.setReferenceCounted(false);
                 wifiLock.acquire();
             }

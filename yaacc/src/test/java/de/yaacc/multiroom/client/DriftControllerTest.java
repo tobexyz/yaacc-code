@@ -126,4 +126,17 @@ public class DriftControllerTest {
         assertEquals(0, c.smoothedMicros());
         assertEquals(0, c.plan(960, 48000));
     }
+
+    @Test
+    public void aLongQuietTimeDoesNotSaveUpCreditForABurstOfCorrections() {
+        DriftController c = controller();
+        for (int block = 0; block < 500; block++) {
+            c.plan(960, 48000); // no measurements yet: nothing to do, the credit only grows up to its cap
+        }
+        feed(c, 25_000, 7);
+        int first = c.plan(960, 48000);
+        assertTrue("first correction " + first, first >= 1 && first <= 2);
+        int second = c.plan(960, 48000);
+        assertTrue("then at most one frame per interval again: " + second, second <= 2);
+    }
 }

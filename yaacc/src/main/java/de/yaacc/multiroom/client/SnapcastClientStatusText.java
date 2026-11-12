@@ -63,6 +63,8 @@ public final class SnapcastClientStatusText {
                 s.stepSkippedFrames, s.stepPaddedFrames, s.gapsFilled));
         text.append(String.format(Locale.ROOT, "resyncs: timeline %d, flushes %d (suppressed %d), underruns %d, epoch changes %d%n",
                 s.timelineResyncs, s.flushes, s.flushesSuppressed, s.underruns, s.epochChanges));
+        text.append(String.format(Locale.ROOT, "stream: holes re-anchored (flac) %d, timeline rebases %d, chunks lost in the host queue %d%n",
+                s.streamHolesRecovered, s.timelineRebases, s.hostQueueDrops));
         text.append(String.format(Locale.ROOT, "dropped: late %d, too far ahead %d, queue full %d, oversized %d, fifo full %d, overlap %d, partial bytes %d%n",
                 s.droppedLate, s.droppedTooFarAhead, s.droppedQueueFull, s.droppedOversized, s.droppedFifoFull,
                 s.droppedOverlap, s.droppedPartialBytes));

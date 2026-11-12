@@ -72,18 +72,29 @@ public final class SnapcastClientRuntime {
     }
 
     public static void phase(Phase phase, Ending ending, long startedAtMillis) {
-        View old = VIEW.get();
-        VIEW.set(new View(phase, ending, phase == Phase.CONNECTING ? null : old.engine, startedAtMillis));
+        // one atomic step: the engine thread publishes at the same time and must not bring an old phase back
+        VIEW.updateAndGet(old -> new View(phase, ending, phase == Phase.CONNECTING ? null : old.engine, startedAtMillis));
+    }
+
+    /**
+     * As {@link #phase} but only while a session is still on, decided in the same atomic step: a late "connected" or
+     * "lost" from another thread can not bring a finished session back to life (check-then-act would).
+     */
+    public static void phaseWhileActive(Phase phase, Ending ending, long startedAtMillis) {
+        VIEW.updateAndGet(old -> isActive(old.phase)
+                ? new View(phase, ending, phase == Phase.CONNECTING ? null : old.engine, startedAtMillis) : old);
+    }
+
+    private static boolean isActive(Phase p) {
+        return p == Phase.CONNECTING || p == Phase.RUNNING || p == Phase.RECONNECTING;
     }
 
     public static void engine(EngineStatus status) {
-        View old = VIEW.get();
-        VIEW.set(new View(old.phase, old.ending, status, old.startedAtMillis));
+        VIEW.updateAndGet(old -> new View(old.phase, old.ending, status, old.startedAtMillis));
     }
 
     /** True while a session is starting or running. */
     public static boolean isActive() {
-        Phase p = VIEW.get().phase;
-        return p == Phase.CONNECTING || p == Phase.RUNNING || p == Phase.RECONNECTING;
+        return isActive(VIEW.get().phase);
     }
 }

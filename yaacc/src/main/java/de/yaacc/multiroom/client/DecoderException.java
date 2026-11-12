@@ -42,11 +42,6 @@ public final class DecoderException extends Exception {
         this.reason = reason;
     }
 
-    public DecoderException(Reason reason, String message, Throwable cause) {
-        super(message, cause);
-        this.reason = reason;
-    }
-
     public Reason getReason() {
         return reason;
     }

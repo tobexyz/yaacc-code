@@ -70,6 +70,21 @@ final class SimulatedSink implements AudioSink {
     private long reportedAt = Long.MIN_VALUE / 2;
     private int generation;
     final List<Write> writes = new ArrayList<>();
+    /** False for the long runs: the audio is analysed on the way in and not kept (hours of audio would not fit). */
+    boolean keepWrites = true;
+    /** Frames counted before the first write, to run across the 2^31 and 2^32 frame marks quickly. */
+    long initialFrames;
+
+    // ---- online analysis of what was written (markers as in ClientFixtures)
+    long audibleFrames;
+    /** The longest run of silent frames after audio had started (a hole), in the current generation. */
+    long longestHole;
+    /** Neighbouring audible frames whose media numbers differ by something other than 0, 1 or 2. */
+    long badSteps;
+    private boolean audibleSeen;
+    private long silentRun;
+    private long lastMedia = -1;
+    private long lastAudibleSinkFrame = -2;
 
     SimulatedSink(de.yaacc.multiroom.protocol.MicroClock clock, int capacityFrames, long outputLatencyMicros, double speed, long positionPeriodMicros) {
         this.clock = clock;
@@ -91,8 +106,8 @@ final class SimulatedSink implements AudioSink {
         format = f;
         open = true;
         opens++;
-        written = 0;
-        played = 0;
+        written = initialFrames;
+        played = initialFrames;
         started = false;
         generation++;
     }
@@ -129,13 +144,46 @@ final class SimulatedSink implements AudioSink {
         long room = capacityFrames - queued;
         int frames = (int) Math.max(0, Math.min(length / format.getFrameBytes(), room));
         if (frames > 0) {
-            byte[] copy = new byte[frames * format.getFrameBytes()];
-            System.arraycopy(data, offset, copy, 0, copy.length);
-            writes.add(new Write(written, copy, generation));
+            analyse(data, offset, frames, written);
+            if (keepWrites) {
+                byte[] copy = new byte[frames * format.getFrameBytes()];
+                System.arraycopy(data, offset, copy, 0, copy.length);
+                writes.add(new Write(written, copy, generation));
+            }
             written += frames;
             underrunActive = false;
         }
         return frames * format.getFrameBytes();
+    }
+
+    private void analyse(byte[] data, int offset, int frames, long firstSinkFrame) {
+        int fb = format.getFrameBytes();
+        boolean stereo = format.getChannels() == 2;
+        for (int i = 0; i < frames; i++) {
+            int at = offset + i * fb;
+            int left = (short) ((data[at] & 0xff) | (data[at + 1] << 8));
+            if (left == 0) {
+                if (audibleSeen) {
+                    silentRun++;
+                    longestHole = Math.max(longestHole, silentRun);
+                }
+                continue;
+            }
+            int high = stereo ? (short) ((data[at + 2] & 0xff) | (data[at + 3] << 8)) : 1;
+            long media = (long) (high - 1) * 20000L + (left - 1);
+            long sinkFrame = firstSinkFrame + i;
+            if (audibleSeen && sinkFrame == lastAudibleSinkFrame + 1) {
+                long step = media - lastMedia;
+                if (step < 0 || step > 2) {
+                    badSteps++;
+                }
+            }
+            audibleSeen = true;
+            silentRun = 0;
+            lastMedia = media;
+            lastAudibleSinkFrame = sinkFrame;
+            audibleFrames++;
+        }
     }
 
     @Override
@@ -152,12 +200,16 @@ final class SimulatedSink implements AudioSink {
     public void flush() {
         flushes++;
         advance(clock.nowMicros());
-        written = 0;
-        played = 0;
+        written = initialFrames;
+        played = initialFrames;
         started = false;
         underrunActive = false;
         reported = null;
         generation++;
+        audibleSeen = false;
+        silentRun = 0;
+        lastMedia = -1;
+        lastAudibleSinkFrame = -2;
     }
 
     @Override
@@ -197,6 +249,15 @@ final class SimulatedSink implements AudioSink {
         }
         open = false;
         started = false;
+    }
+
+    /** Counts {@code delta} frames more as if the output had played that long already (the audio is not touched). */
+    void shiftFrameCounts(long delta) {
+        advance(clock.nowMicros());
+        written += delta;
+        played += delta;
+        lastAudibleSinkFrame += delta;
+        reported = null;
     }
 
     void forceUnderrun() {

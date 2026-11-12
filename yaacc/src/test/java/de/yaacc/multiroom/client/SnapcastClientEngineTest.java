@@ -264,6 +264,28 @@ public class SnapcastClientEngineTest {
     }
 
     @Test
+    public void aSecondHardResyncWithinTheMinimumIntervalIsNotAnotherFlush() {
+        EngineRig rig = EngineRig.typical();
+        rig.bufferMs = 3000; // room for two steps of 600 ms before the chunks would be late on arrival
+        rig.connect();
+        rig.run(5000);
+
+        rig.offsets.offset += 600_000L; // 600 ms late: flush number one
+        rig.run(400);
+        assertEquals(1, rig.engine.status().flushes);
+        assertTrue("aligned again, so that the next step is judged by the hard bound", rig.engine.status().aligned);
+        long skippedBefore = rig.engine.status().stepSkippedFrames + 960 * rig.engine.status().droppedLate;
+
+        rig.offsets.offset += 600_000L; // again, less than 500 ms after the flush
+        rig.run(3000);
+
+        EngineStatus s = rig.engine.status();
+        assertEquals("the second one is skipped over, not flushed", 1, s.flushes);
+        assertTrue(s.stepSkippedFrames + 960 * s.droppedLate - skippedBefore >= 20_000);
+        assertEquals(EngineState.PLAYING, s.state);
+    }
+
+    @Test
     public void anUnderrunFlushesAndTheStreamIsAlignedAgain() {
         EngineRig rig = EngineRig.typical();
         rig.connect();
@@ -532,6 +554,104 @@ public class SnapcastClientEngineTest {
         assertEquals(1, rig.engine.status().droppedOversized);
         assertEquals(0, rig.engine.status().chunksPlayed);
         assertNull(rig.engine.status().failure);
+    }
+
+    // ---- flac: a hole in the stream must not shift it for good (review W1 of Group 8)
+
+    /** The drift of the last audible frame against its time; the engine's own number can not show a shift of the index. */
+    private static long lastFrameDrift(EngineRig rig) {
+        ClientFixtures.Trace trace = rig.trace();
+        int last = trace.size() - 1;
+        return rig.sink.presentationTimeOf(trace.sinkFrame(last)) - rig.targetOf(trace.mediaFrame(last));
+    }
+
+    @Test
+    public void aFlacChunkThatArrivesTooLateIsDroppedAndTheStreamIsAnchoredAgainByItsTimestamps() {
+        EngineRig rig = EngineRig.flac48();
+        rig.connect();
+        rig.run(6000);
+        assertNear("before the loss", 0, lastFrameDrift(rig), 1500);
+
+        rig.delayNextChunk(1200); // this chunk reaches the client after its play time
+        rig.run(20_000);
+
+        EngineStatus s = rig.engine.status();
+        assertEquals(1, s.droppedLate);
+        assertEquals("the hole was found and counted", 1, s.streamHolesRecovered);
+        assertNear("after the loss the stream is where the timestamps say", 0, lastFrameDrift(rig), 1500);
+        assertEquals(EngineState.PLAYING, s.state);
+    }
+
+    @Test
+    public void aFlacChunkThatFailsToDecodeLeavesNoShiftEither() {
+        final int[] calls = {0};
+        DecoderFactory flaky = (h, m) -> new PassThroughDecoder() {
+            @Override
+            public byte[] decode(byte[] payload) throws DecoderException {
+                if (++calls[0] == 400) {
+                    throw new DecoderException(DecoderException.Reason.DECODE_FAILED, "bad");
+                }
+                return super.decode(payload);
+            }
+        };
+        EngineRig rig = new EngineRig(SimulatedSink::typical, new ClientEngineConfig(), flaky, 48000, 2, 16);
+        rig.flac = true;
+        rig.connect();
+        rig.run(20_000);
+
+        EngineStatus s = rig.engine.status();
+        assertEquals(1, s.decodeFailures);
+        assertEquals(1, s.streamHolesRecovered);
+        assertNear("no shift", 0, lastFrameDrift(rig), 1500);
+    }
+
+    @Test
+    public void aChunkThatNeverReachedTheEngineIsReportedAndTheFlacStreamRecovers() {
+        EngineRig rig = EngineRig.flac48();
+        rig.connect();
+        rig.run(6000);
+        rig.nextChunk++; // the transport or the host queue lost one chunk
+        rig.engine.onChunkLost();
+        rig.run(10_000);
+
+        assertEquals(1, rig.engine.status().streamHolesRecovered);
+        assertNear("no shift", 0, lastFrameDrift(rig), 1500);
+    }
+
+    @Test
+    public void aLostPcmChunkIsStillFilledByTheGapRuleAndIsNoHoleOfTheOtherKind() {
+        EngineRig rig = EngineRig.typical();
+        rig.connect();
+        rig.run(6000);
+        rig.delayNextChunk(1200);
+        rig.run(10_000);
+        assertEquals(0, rig.engine.status().streamHolesRecovered);
+        assertEquals(1, rig.engine.status().gapsFilled);
+        assertNear("pcm", 0, lastFrameDrift(rig), 1500);
+    }
+
+    @Test
+    public void aFlacDecoderThatHoldsBackTheFirstChunksStillAnchorsOnTheFirstChunk() {
+        final int[] calls = {0};
+        DecoderFactory slowStart = (h, m) -> new PassThroughDecoder() {
+            private byte[] held;
+
+            @Override
+            public byte[] decode(byte[] payload) throws DecoderException {
+                // the output of a chunk comes out with the next chunk, as from a decoder that is one chunk behind
+                byte[] out = held == null ? new byte[0] : held;
+                held = payload.clone();
+                calls[0]++;
+                return out;
+            }
+        };
+        EngineRig rig = new EngineRig(SimulatedSink::typical, new ClientEngineConfig(), slowStart, 48000, 2, 16);
+        rig.flac = true;
+        rig.connect();
+        rig.run(4000);
+        ClientFixtures.Trace trace = rig.trace();
+        assertEquals("the first audible frame is the first frame of the stream", 0, trace.mediaFrame(0));
+        assertNear("on its time", rig.targetOf(0), rig.sink.presentationTimeOf(trace.sinkFrame(0)), 1500);
     }
 
     // ---- the connection, epochs

@@ -86,6 +86,11 @@ public final class PlaybackTracker {
         return true;
     }
 
+    /** For tests: the output has counted {@code delta} frames more. */
+    void debugShift(long delta) {
+        frames += delta;
+    }
+
     public boolean isValid() {
         return valid;
     }

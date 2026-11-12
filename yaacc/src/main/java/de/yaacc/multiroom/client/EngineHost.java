@@ -29,6 +29,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 
 /**
  * Runs a {@link SnapcastClientEngine} on its own thread and connects it to a {@link SnapcastConnection}: it is the
@@ -56,6 +57,7 @@ public final class EngineHost implements SnapcastConnection.Listener {
     private final SnapcastClientEngine engine;
     private final Observer observer;
     private final int tickMs;
+    private final LongSupplier nanos;
     private final Thread thread;
     private final BlockingQueue<Runnable> events = new ArrayBlockingQueue<>(QUEUE_CAPACITY);
     private final AtomicReference<EngineStatus> latest = new AtomicReference<>();
@@ -65,29 +67,55 @@ public final class EngineHost implements SnapcastConnection.Listener {
     private volatile long loopStartedNanos;
     private volatile boolean busy;
     private volatile boolean abandoned;
+    private boolean stopRequested; // guarded by this
+    private boolean endReported; // guarded by this
 
     public EngineHost(SnapcastClientEngine engine, int tickMs, ThreadFactory threads, Observer observer) {
+        this(engine, tickMs, threads, observer, System::nanoTime);
+    }
+
+    /** As above with the source of the nanosecond clock used for the cycle timing (a test gives one with another origin). */
+    EngineHost(SnapcastClientEngine engine, int tickMs, ThreadFactory threads, Observer observer, LongSupplier nanos) {
+        this.nanos = nanos;
         this.engine = engine;
         this.tickMs = tickMs;
         this.observer = observer;
         this.thread = threads.newThread(this::loop);
     }
 
-    public void start() {
-        if (started) {
+    /** Starts the thread, unless {@link #stop()} or {@link #abandon()} came first: a stop is final. */
+    public synchronized void start() {
+        if (started || stopRequested) {
             return;
         }
         started = true;
         running = true;
-        loopStartedNanos = System.nanoTime();
+        loopStartedNanos = nanos.getAsLong();
         thread.start();
     }
 
-    /** Asks the thread to stop the engine and end; waits a little for it. Do not call it on the main thread. */
+    /**
+     * Asks the thread to stop the engine and end; waits a little for it. Do not call it on the main thread. A stop is
+     * final: after it {@link #start()} does nothing, so a caller that is too late can not leave a thread behind. A host that
+     * never ran is ended here (its engine is touched by nobody else) and the end is reported.
+     */
     public void stop() {
-        running = false;
+        synchronized (this) {
+            stopRequested = true;
+            running = false;
+            if (!started) {
+                if (!endReported) {
+                    endReported = true;
+                    engine.stop();
+                    EngineStatus status = engine.status();
+                    latest.set(status);
+                    observer.onEnded(status);
+                }
+                return;
+            }
+        }
         events.offer(() -> { });
-        if (started && thread != Thread.currentThread()) {
+        if (thread != Thread.currentThread()) {
             try {
                 thread.join(2_000L);
             } catch (InterruptedException e) {
@@ -116,22 +144,27 @@ public final class EngineHost implements SnapcastConnection.Listener {
      */
     public boolean isStalled(long limitMs) {
         return started && thread.isAlive() && !abandoned
-                && (System.nanoTime() - loopStartedNanos) > limitMs * 1_000_000L;
+                && (nanos.getAsLong() - loopStartedNanos) > limitMs * 1_000_000L;
     }
 
     /**
      * Gives the thread up (it is stuck): the owner frees the output itself. The observer hears the end once, now.
      */
     public void abandon() {
+        synchronized (this) {
+            stopRequested = true;
+            if (endReported) {
+                return;
+            }
+            endReported = true;
+        }
         abandoned = true;
         running = false;
-        EngineStatus status = new EngineStatus();
         EngineStatus last = latest.get();
-        if (last != null) {
-            status = last;
-        }
+        EngineStatus status = last != null ? last.copy() : new EngineStatus(); // never change an object others hold
         status.state = EngineState.FAILED;
         status.failure = EngineFailure.STALLED;
+        status.hostQueueDrops = droppedForLackOfRoom.get();
         latest.set(status);
         observer.onEnded(status);
         thread.interrupt();
@@ -163,6 +196,7 @@ public final class EngineHost implements SnapcastConnection.Listener {
     public void onChunk(WireChunkMessage chunk) {
         if (events.size() >= CHUNK_LIMIT) {
             droppedForLackOfRoom.incrementAndGet();
+            post(engine::onChunkLost); // a flac stream can not find the hole by itself
             return;
         }
         post(() -> engine.onChunk(chunk));
@@ -186,12 +220,12 @@ public final class EngineHost implements SnapcastConnection.Listener {
     // ---- the thread
 
     private void loop() {
-        long lastPublish = 0;
+        long lastPublish = nanos.getAsLong() - STATUS_INTERVAL_NANOS; // the first cycle publishes, whatever the origin
         try {
             while (running && !engine.isTerminal()) {
-                loopStartedNanos = System.nanoTime();
+                loopStartedNanos = nanos.getAsLong();
                 Runnable event = events.poll(tickMs, TimeUnit.MILLISECONDS);
-                loopStartedNanos = System.nanoTime();
+                loopStartedNanos = nanos.getAsLong();
                 int handled = 0;
                 while (event != null && handled++ < 256) {
                     event.run();
@@ -201,7 +235,7 @@ public final class EngineHost implements SnapcastConnection.Listener {
                 if (abandoned) {
                     return;
                 }
-                long now = System.nanoTime();
+                long now = nanos.getAsLong();
                 if (now - lastPublish >= STATUS_INTERVAL_NANOS) {
                     lastPublish = now;
                     publish();
@@ -218,6 +252,13 @@ public final class EngineHost implements SnapcastConnection.Listener {
         }
         engine.stop();
         EngineStatus status = engine.status();
+        status.hostQueueDrops = droppedForLackOfRoom.get();
+        synchronized (this) {
+            if (endReported) {
+                return;
+            }
+            endReported = true;
+        }
         latest.set(status);
         observer.onEnded(status);
     }
@@ -227,6 +268,7 @@ public final class EngineHost implements SnapcastConnection.Listener {
             return; // the end was reported already; a late status must not replace it
         }
         EngineStatus status = engine.status();
+        status.hostQueueDrops = droppedForLackOfRoom.get();
         latest.set(status);
         observer.onStatus(status);
     }

@@ -30,6 +30,8 @@ import de.yaacc.multiroom.protocol.WireChunkMessage;
 final class EngineRig {
 
     static final long OFFSET = 7_000_000_000L;
+    /** The real offset of the server clock; the engine's estimate is {@code offsets.offset}. */
+    long trueOffset = OFFSET;
     static final int CHUNK_MS = 20;
 
     final ManualMicroClock clock = new ManualMicroClock(10_000_000L);
@@ -39,7 +41,9 @@ final class EngineRig {
     final int rate;
     final int channels;
     final int bits;
-    final long serverStart;
+    boolean flac;
+    private final java.util.ArrayDeque<Object[]> held = new java.util.ArrayDeque<>();
+    long serverStart;
     final int chunkFrames;
     int bufferMs = 1000;
     int latencyMs = 0;
@@ -65,18 +69,51 @@ final class EngineRig {
         this.bits = bits;
         this.chunkFrames = rate * CHUNK_MS / 1000;
         this.serverStart = clock.nowMicros() + OFFSET;
+        this.flac = false;
         this.engine = new SnapcastClientEngine(config, sink, decoders, offsets, clock);
     }
 
     /** Settings and header, as the server sends them after the hello. */
     void connect() {
         engine.onServerSettings(new ServerSettingsMessage(bufferMs, latencyMs, false, 100));
-        engine.onCodecHeader(ClientFixtures.pcmHeader(rate, channels, bits));
+        engine.onCodecHeader(header());
     }
 
     long serverNow() {
-        return clock.nowMicros() + OFFSET;
+        return clock.nowMicros() + trueOffset;
     }
+
+    /** A long run: nothing is kept of the audio, only analysed on the way in. */
+    static EngineRig longRun(double speed) {
+        EngineRig rig = withSpeed(speed);
+        rig.sink.keepWrites = false;
+        rig.stepMs = 10;
+        return rig;
+    }
+
+    /** A flac stream: the decoder of the test passes 16 bit stereo through. */
+    static EngineRig flac48() {
+        EngineRig rig = new EngineRig(SimulatedSink::typical, new ClientEngineConfig(),
+                (h, m) -> new SnapcastClientEngineTest.PassThroughDecoder(), 48000, 2, 16);
+        rig.flac = true;
+        return rig;
+    }
+
+    /** The server restarts: its clock is now {@code newTrueOffset} ahead of ours, the filter notices (a new epoch). */
+    void restartServer(long newTrueOffset) {
+        trueOffset = newTrueOffset;
+        offsets.offset = newTrueOffset;
+        offsets.epoch++;
+        serverStart = clock.nowMicros() + newTrueOffset;
+        nextChunk = 0;
+    }
+
+    /** The next chunk reaches the client this long after it was recorded (late chunks are dropped by the scheduler). */
+    void delayNextChunk(long millis) {
+        delayNext = millis;
+    }
+
+    private long delayNext;
 
     long chunkTimestamp(long chunk) {
         return serverStart + chunk * CHUNK_MS * 1000L;
@@ -92,8 +129,16 @@ final class EngineRig {
         while (sending && chunkTimestamp(nextChunk) + CHUNK_MS * 1000L <= serverNow()) {
             WireChunkMessage chunk = ClientFixtures.chunk(chunkTimestamp(nextChunk), nextChunk * chunkFrames, chunkFrames,
                     channels, bits);
-            engine.onChunk(chunk);
+            if (delayNext > 0) {
+                held.addLast(new Object[]{clock.nowMicros() + delayNext * 1000L, chunk});
+                delayNext = 0;
+            } else {
+                engine.onChunk(chunk);
+            }
             nextChunk++;
+        }
+        while (!held.isEmpty() && (Long) held.peekFirst()[0] <= clock.nowMicros()) {
+            engine.onChunk((WireChunkMessage) held.pollFirst()[1]);
         }
         engine.tick();
         clock.advanceMillis(stepMs);
@@ -110,6 +155,6 @@ final class EngineRig {
     }
 
     CodecHeaderMessage header() {
-        return ClientFixtures.pcmHeader(rate, channels, bits);
+        return flac ? ClientFixtures.flacHeaderMessage(rate, channels, bits) : ClientFixtures.pcmHeader(rate, channels, bits);
     }
 }

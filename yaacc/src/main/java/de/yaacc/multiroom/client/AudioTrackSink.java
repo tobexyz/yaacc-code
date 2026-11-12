@@ -50,7 +50,8 @@ public final class AudioTrackSink implements AudioSink {
 
     private final MicroClock clock;
     private final AudioTimestamp timestamp = new AudioTimestamp();
-    private AudioTrack track;
+    /** Volatile: the watchdog may release the output from another thread while the engine thread still uses it. */
+    private volatile AudioTrack track;
     private SinkFormat format;
     private boolean started;
     private int failures;
@@ -76,8 +77,9 @@ public final class AudioTrackSink implements AudioSink {
             throw new AudioSinkException(AudioSinkException.Reason.FORMAT_REFUSED, "the device refuses this format");
         }
         int wantedBytes = (int) ((long) wanted.getSampleRate() * wanted.getFrameBytes() * BUFFER_MS / 1000L);
+        AudioTrack created;
         try {
-            track = new AudioTrack.Builder()
+            created = new AudioTrack.Builder()
                     .setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
                             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
                     .setAudioFormat(new AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT)
@@ -88,7 +90,8 @@ public final class AudioTrackSink implements AudioSink {
         } catch (UnsupportedOperationException | IllegalArgumentException e) {
             throw new AudioSinkException(AudioSinkException.Reason.OPEN_FAILED, "the output could not be created");
         }
-        if (track.getState() != AudioTrack.STATE_INITIALIZED) {
+        track = created;
+        if (created.getState() != AudioTrack.STATE_INITIALIZED) {
             release();
             throw new AudioSinkException(AudioSinkException.Reason.OPEN_FAILED, "the output did not initialise");
         }
@@ -108,10 +111,11 @@ public final class AudioTrackSink implements AudioSink {
 
     @Override
     public int write(byte[] data, int offset, int length) throws AudioSinkException {
-        if (track == null) {
+        AudioTrack current = track;
+        if (current == null) {
             throw new AudioSinkException(AudioSinkException.Reason.WRITE_FAILED, "no output");
         }
-        int took = track.write(data, offset, length, AudioTrack.WRITE_NON_BLOCKING);
+        int took = current.write(data, offset, length, AudioTrack.WRITE_NON_BLOCKING);
         if (took < 0) {
             throw new AudioSinkException(AudioSinkException.Reason.WRITE_FAILED, "write failed (" + took + ")");
         }
@@ -120,14 +124,15 @@ public final class AudioTrackSink implements AudioSink {
 
     @Override
     public void start() throws AudioSinkException {
-        if (track == null) {
+        AudioTrack current = track;
+        if (current == null) {
             throw new AudioSinkException(AudioSinkException.Reason.START_FAILED, "no output");
         }
         if (started) {
             return;
         }
         try {
-            track.play();
+            current.play();
         } catch (IllegalStateException e) {
             throw new AudioSinkException(AudioSinkException.Reason.START_FAILED, "the output could not be started");
         }
@@ -136,12 +141,13 @@ public final class AudioTrackSink implements AudioSink {
 
     @Override
     public void flush() {
-        if (track == null) {
+        AudioTrack current = track;
+        if (current == null) {
             return;
         }
         try {
-            track.pause(); // flush() only works on a paused or stopped track
-            track.flush();
+            current.pause(); // flush() only works on a paused or stopped track
+            current.flush();
         } catch (IllegalStateException ignored) {
             // a dead track fails the next write, which the engine reports
         }
@@ -152,7 +158,8 @@ public final class AudioTrackSink implements AudioSink {
 
     @Override
     public PlaybackPosition position() {
-        if (track == null || !started) {
+        AudioTrack current = track;
+        if (current == null || !started) {
             return null;
         }
         long nowNanos = System.nanoTime();
@@ -164,7 +171,7 @@ public final class AudioTrackSink implements AudioSink {
         if (!usingHead) {
             boolean ok;
             try {
-                ok = track.getTimestamp(timestamp);
+                ok = current.getTimestamp(timestamp);
             } catch (IllegalStateException e) {
                 ok = false;
             }
@@ -183,7 +190,7 @@ public final class AudioTrackSink implements AudioSink {
             }
         }
         if (usingHead) {
-            position = new PlaybackPosition(Math.max(0, unsignedHead() - baseline), clock.nowMicros());
+            position = new PlaybackPosition(Math.max(0, unsignedHead(current) - baseline), clock.nowMicros());
         }
         if (position != null) {
             lastPosition = position;
@@ -192,18 +199,24 @@ public final class AudioTrackSink implements AudioSink {
     }
 
     private long unsignedHead() {
-        return track == null ? 0 : track.getPlaybackHeadPosition() & 0xffffffffL;
+        return unsignedHead(track);
+    }
+
+    private static long unsignedHead(AudioTrack current) {
+        return current == null ? 0 : current.getPlaybackHeadPosition() & 0xffffffffL;
     }
 
     @Override
     public int underrunCount() {
-        return track == null ? 0 : track.getUnderrunCount();
+        AudioTrack current = track;
+        return current == null ? 0 : current.getUnderrunCount();
     }
 
     @Override
     public void setGain(float gain) {
-        if (track != null) {
-            track.setVolume(gain);
+        AudioTrack current = track;
+        if (current != null) {
+            current.setVolume(gain);
         }
     }
 

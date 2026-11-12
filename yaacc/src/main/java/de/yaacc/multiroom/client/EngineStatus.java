@@ -20,9 +20,10 @@ package de.yaacc.multiroom.client;
 
 /**
  * A snapshot of the engine for the status screen and the tests: plain numbers and typed values, nothing from the
- * server except the numbers it influenced. Immutable; the fields are public on purpose (a data holder).
+ * server except the numbers it influenced. The fields are public on purpose (a data holder); by convention nobody changes
+ * a snapshot after it was published, a changed one is made from {@link #copy()}.
  */
-public final class EngineStatus {
+public final class EngineStatus implements Cloneable {
 
     public EngineState state = EngineState.WAITING_FOR_STREAM;
     public EngineFailure failure;
@@ -67,6 +68,12 @@ public final class EngineStatus {
     public long stepSkippedFrames;
     public long stepPaddedFrames;
     public long timelineResyncs;
+    /** Times the timeline was shifted in place to keep the frame counts small (not a glitch). */
+    public long timelineRebases;
+    /** Holes in a flac stream (a chunk dropped or failed) that were recovered by anchoring anew. */
+    public long streamHolesRecovered;
+    /** Chunks that found no room in the queue of the engine thread. */
+    public long hostQueueDrops;
     public long flushes;
     public long flushesSuppressed;
     public long underruns;
@@ -75,4 +82,13 @@ public final class EngineStatus {
     public long epochChanges;
     public long connectionLosses;
     public long elapsedMs;
+
+    /** A copy to change without touching the object others hold (all fields are numbers, enums or strings). */
+    public EngineStatus copy() {
+        try {
+            return (EngineStatus) super.clone();
+        } catch (CloneNotSupportedException e) {
+            throw new IllegalStateException(e);
+        }
+    }
 }

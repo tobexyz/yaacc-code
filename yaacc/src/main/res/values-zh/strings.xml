@@ -376,6 +376,4 @@
     <string name="snapcast_client_notification_connecting">正在连接…</string>
     <string name="snapcast_client_notification_playing">正在播放</string>
     <string name="snapcast_client_notification_reconnecting">连接已断开，正在重试…</string>
-    <string name="snapcast_client_notification_stopped">已停止</string>
-    <string name="snapcast_client_notification_failed">因错误而停止</string>
 </resources>

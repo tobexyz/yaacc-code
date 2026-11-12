@@ -66,17 +66,15 @@ import java.util.ArrayDeque;
  */
 public final class SnapcastClientEngine {
 
-    /** A timeline may run this far from its anchor before it starts anew (10 minutes). */
-    private static final long MAX_TIMELINE_MICROS = 600_000_000L;
-    /** Frames from the anchor after which the timeline starts anew (keeps the arithmetic far from overflow). */
-    private static final long MAX_TIMELINE_FRAMES = 1L << 38;
+    /** The most microseconds {@code framesFor} multiplies by the rate (about 3 hours; more is clamped, not wrapped). */
+    private static final long MAX_FRAMES_FOR_MICROS = 10_000_000_000L;
     private static final long RESTART_WINDOW_MICROS = 60_000_000L;
 
     /** Decoded audio that waits for its time. */
     private static final class Block {
         final byte[] pcm;
         final int frames;
-        final long start;
+        long start;
         int consumed;
         boolean exact;
 
@@ -123,6 +121,12 @@ public final class SnapcastClientEngine {
     private final ArrayDeque<Block> fifo = new ArrayDeque<>();
     private long fifoFrames;
     private boolean anchorValid;
+    private boolean candidateValid;
+    private long candidateServerMicros;
+    private boolean holePending;
+    private long holeAfterMicros = Long.MAX_VALUE;
+    private boolean offeredAny;
+    private long lastOfferedMicros;
     private long anchorServerMicros;
     private long nextExpectedFrame;
     private boolean aligned;
@@ -166,6 +170,8 @@ public final class SnapcastClientEngine {
     private long stepSkipped;
     private long stepPadded;
     private long timelineResyncs;
+    private long timelineRebases;
+    private long streamHolesRecovered;
     private long flushes;
     private long flushesSuppressed;
     private long underruns;
@@ -254,7 +260,13 @@ public final class SnapcastClientEngine {
             return;
         }
         try {
+            long dropsBefore = schedulerDrops();
             ChunkScheduler.Decision decision = scheduler.offer(chunk);
+            if (schedulerDrops() != dropsBefore) {
+                markHoleAfter(chunk.timestampMicros()); // this chunk was dropped
+            }
+            lastOfferedMicros = chunk.timestampMicros();
+            offeredAny = true;
             if (decision.getAction() == ChunkScheduler.Action.PLAY_AT) {
                 drainDue(); // anything older goes first
                 process(chunk);
@@ -320,6 +332,19 @@ public final class SnapcastClientEngine {
     /** Ends the session with a failure that the caller found (a watchdog, an exception on the engine thread). */
     public void abort(EngineFailure reason) {
         fail(reason);
+    }
+
+    /** A chunk was lost before it reached the engine (the host queue was full): a flac stream can not find the hole. */
+    public void onChunkLost() {
+        if (!terminal && header != null && header.getCodec() != Codec.PCM && offeredAny) {
+            markHoleAfter(lastOfferedMicros); // the lost chunk would have followed the last one offered
+        }
+    }
+
+    /** For tests: the output has counted {@code delta} frames more (to cross 2^31 and 2^32 without playing for hours). */
+    void debugAdvanceFrameCounts(long delta) {
+        writtenFrames += delta;
+        tracker.debugShift(delta);
     }
 
     public boolean isTerminal() {
@@ -445,8 +470,23 @@ public final class SnapcastClientEngine {
 
     // ---- chunks
 
+    private long schedulerDrops() {
+        return scheduler.droppedLate() + scheduler.droppedTooFarAhead() + scheduler.droppedQueueFull();
+    }
+
+    /** Remembers that a chunk with a timestamp above {@code micros} follows a hole (the earliest hole counts). */
+    private void markHoleAfter(long micros) {
+        holePending = true;
+        holeAfterMicros = Math.min(holeAfterMicros, micros);
+    }
+
     private void drainDue() {
-        for (ChunkScheduler.ScheduledChunk due : scheduler.releaseDue()) {
+        long dropsBefore = schedulerDrops();
+        java.util.List<ChunkScheduler.ScheduledChunk> dueChunks = scheduler.releaseDue();
+        if (schedulerDrops() != dropsBefore) {
+            markHoleAfter(Long.MIN_VALUE); // chunks that waited became late: they were older than every chunk now due
+        }
+        for (ChunkScheduler.ScheduledChunk due : dueChunks) {
             if (terminal) {
                 return;
             }
@@ -458,6 +498,15 @@ public final class SnapcastClientEngine {
         if (decoder == null) {
             return;
         }
+        boolean pcmCodec = header.getCodec() == Codec.PCM;
+        if (holePending && chunk.timestampMicros() > holeAfterMicros) {
+            // a flac chunk before this one never got here: the frame counting can not see the hole, the timestamps can
+            holePending = false;
+            holeAfterMicros = Long.MAX_VALUE;
+            if (!pcmCodec && anchorValid) {
+                recoverHole();
+            }
+        }
         byte[] pcm;
         try {
             pcm = decoder.decode(chunk.getPayload());
@@ -465,9 +514,15 @@ public final class SnapcastClientEngine {
         } catch (DecoderException | RuntimeException e) {
             if (e instanceof DecoderException && ((DecoderException) e).getReason() == DecoderException.Reason.OVERSIZED) {
                 droppedOversized++;
+                if (!pcmCodec && anchorValid) {
+                    recoverHole();
+                }
                 return;
             }
             decodeFailures++;
+            if (!pcmCodec && anchorValid) {
+                recoverHole();
+            }
             if (++consecutiveDecodeFailures >= cfg.maxConsecutiveDecodeFailures) {
                 fail(EngineFailure.DECODER_FAILED);
             }
@@ -475,32 +530,43 @@ public final class SnapcastClientEngine {
         }
         int frames = pcm.length / outFrameBytes;
         if (frames == 0) {
+            if (!pcmCodec && !anchorValid && !candidateValid) {
+                // a decoder that is a chunk behind: the stream starts at the first chunk, not at the first output
+                candidateValid = true;
+                candidateServerMicros = chunk.timestampMicros();
+            }
             return;
         }
         if (frames > maxChunkFrames) {
             droppedOversized++;
+            if (!pcmCodec && anchorValid) {
+                recoverHole();
+            }
             return;
         }
-        boolean pcmCodec = header.getCodec() == Codec.PCM;
         if (fifoFrames + frames > maxFifoFrames) {
             droppedFifoFull++;
             if (!pcmCodec && anchorValid) {
-                nextExpectedFrame += frames; // flac has no per-chunk timestamps to find the hole again
+                recoverHole();
             }
             return;
         }
         long start;
         boolean exact = false;
-        if (!anchorValid || nextExpectedFrame > MAX_TIMELINE_FRAMES) {
-            newAnchor(chunk);
+        if (!anchorValid) {
+            newAnchor(chunk, pcmCodec);
             start = 0;
             exact = true;
         } else {
+            if (nextExpectedFrame > cfg.rebaseFrames) {
+                rebaseTimeline();
+            }
             long difference = chunk.timestampMicros() - anchorServerMicros;
-            if (Math.abs(difference) > MAX_TIMELINE_MICROS) {
+            // only a guard against overflow of difference * rate; continuity is judged by the gap between chunks below
+            if (Math.abs(difference) > cfg.maxAnchorDifferenceMicros) {
                 timelineResyncs++;
                 dropTimeline();
-                newAnchor(chunk);
+                newAnchor(chunk, pcmCodec);
                 start = 0;
                 exact = true;
             } else if (pcmCodec) {
@@ -513,7 +579,7 @@ public final class SnapcastClientEngine {
                     if (gap * 1000L / rate > cfg.maxGapFillMs) {
                         timelineResyncs++;
                         dropTimeline();
-                        newAnchor(chunk);
+                        newAnchor(chunk, pcmCodec);
                         start = 0;
                     } else {
                         gapsFilled++;
@@ -543,10 +609,39 @@ public final class SnapcastClientEngine {
         chunksPlayed++;
     }
 
-    private void newAnchor(WireChunkMessage chunk) {
+    private void newAnchor(WireChunkMessage chunk, boolean pcmCodec) {
         anchorValid = true;
-        anchorServerMicros = chunk.timestampMicros();
+        anchorServerMicros = !pcmCodec && candidateValid ? candidateServerMicros : chunk.timestampMicros();
+        candidateValid = false;
         nextExpectedFrame = 0;
+    }
+
+    /**
+     * A flac chunk is missing (dropped, failed, lost): the frames that follow would be placed one chunk too early for good.
+     * The timeline is dropped so that the next chunk is placed exactly by its timestamp (the output is left alone).
+     */
+    private void recoverHole() {
+        streamHolesRecovered++;
+        dropTimeline();
+    }
+
+    /**
+     * Moves the anchor forward by whole seconds of frames, in place and exactly (a whole number of seconds is a whole
+     * number of microseconds and of frames), so the frame counts stay small however long the session runs. The play
+     * time of every frame and the continuity test are unchanged by it; nothing is dropped or realigned.
+     */
+    private void rebaseTimeline() {
+        long seconds = nextExpectedFrame / rate;
+        if (seconds < 1) {
+            return;
+        }
+        long shiftFrames = seconds * rate;
+        anchorServerMicros += seconds * 1_000_000L;
+        nextExpectedFrame -= shiftFrames;
+        for (Block block : fifo) {
+            block.start -= shiftFrames;
+        }
+        timelineRebases++;
     }
 
     /** Forgets the timeline: queued audio, the anchor and the alignment. The output is left as it is. */
@@ -554,6 +649,9 @@ public final class SnapcastClientEngine {
         fifo.clear();
         fifoFrames = 0;
         anchorValid = false;
+        candidateValid = false;
+        holePending = false;
+        holeAfterMicros = Long.MAX_VALUE;
         nextExpectedFrame = 0;
         aligned = false;
         pending = null;
@@ -650,7 +748,7 @@ public final class SnapcastClientEngine {
     }
 
     private int framesFor(long micros) {
-        long frames = (micros * rate + 500_000L) / 1_000_000L;
+        long frames = (Math.min(micros, MAX_FRAMES_FOR_MICROS) * rate + 500_000L) / 1_000_000L;
         return (int) Math.max(1, Math.min(Integer.MAX_VALUE, frames));
     }
 
@@ -857,6 +955,8 @@ public final class SnapcastClientEngine {
         s.stepSkippedFrames = stepSkipped;
         s.stepPaddedFrames = stepPadded;
         s.timelineResyncs = timelineResyncs;
+        s.timelineRebases = timelineRebases;
+        s.streamHolesRecovered = streamHolesRecovered;
         s.flushes = flushes;
         s.flushesSuppressed = flushesSuppressed;
         s.underruns = underruns;
