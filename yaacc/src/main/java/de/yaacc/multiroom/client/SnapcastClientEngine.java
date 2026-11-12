@@ -177,6 +177,40 @@ public final class SnapcastClientEngine {
     private long correctionDropped;
     private long correctionRepeated;
     private long stepSkipped;
+    // measurements for the trace and the status (Fix Group 8h)
+    private long writesTotal;
+    private long shortWrites;
+    private long shortWriteFramesMissing;
+    private long worstShortWriteFrames;
+    private long maxWriteMicros;
+    private long maxWriteMicrosSecond;
+    private long worstShortWriteSecond;
+    private long shortWritesSecond;
+    private long writesSecond;
+    private long lastTickMicros = Long.MIN_VALUE;
+    private long maxTickGapMicros;
+    private long maxTickGapMicrosSecond;
+    private long ticksSecond;
+    private long correctionBlocks;
+    private long correctionLargestBlock;
+    private long correctionDroppedSecond;
+    private long correctionRepeatedSecond;
+    private long correctionLargestSecond;
+    private long stepsWhilePlaying;
+    private long lastTracedOffset = Long.MIN_VALUE;
+    private long maxTickMicros;
+    private long maxChunkMicros;
+    private long maxPollMicros;
+    private long maxTickMicrosSecond;
+    private long maxChunkMicrosSecond;
+    private long maxPollMicrosSecond;
+    // the restart of a stream after a pause
+    private long lastChunkMicros = Long.MIN_VALUE;
+    private long chunkSpacingMicros = 20_000L;
+    private long streamResumes;
+    private long lastResumeGapMs;
+    private long lastResumeToAudioMs = -1;
+    private long resumePendingSince = -1;
     private long stepPadded;
     private long timelineResyncs;
     private long timelineRebases;
@@ -217,7 +251,9 @@ public final class SnapcastClientEngine {
         this.offsets = offsets;
         this.clock = clock;
         this.scheduler = new ChunkScheduler(offsets, clock,
-                new ChunkScheduler.Config().lateToleranceMs(cfg.lateToleranceMs).releaseLeadMs(cfg.releaseLeadMs));
+                new ChunkScheduler.Config().lateToleranceMs(cfg.lateToleranceMs)
+                        // the engine writes up to maxAheadMs before the play time: the audio must be released before that
+                        .releaseLeadMs(Math.max(cfg.releaseLeadMs, cfg.maxAheadMs + 130)));
         this.seenEpoch = offsets.epoch();
         this.startedAtMicros = clock.nowMicros();
         this.trace = new EventTrace(startedAtMicros);
@@ -248,6 +284,11 @@ public final class SnapcastClientEngine {
     }
 
     public void onOffsetUpdate(long offsetMicros, long jitterMicros) {
+        if (lastTracedOffset == Long.MIN_VALUE || Math.abs(offsetMicros - lastTracedOffset) >= 500) {
+            trace.add(clock.nowMicros(), TraceKind.CLOCK, offsetMicros,
+                    lastTracedOffset == Long.MIN_VALUE ? 0 : offsetMicros - lastTracedOffset, jitterMicros);
+            lastTracedOffset = offsetMicros;
+        }
         reportedOffset = offsetMicros;
         reportedJitter = jitterMicros;
     }
@@ -291,6 +332,7 @@ public final class SnapcastClientEngine {
             droppedBeforeHeader++;
             return;
         }
+        long chunkStarted = clock.nowMicros();
         try {
             long dropsBefore = schedulerDrops();
             ChunkScheduler.Decision decision = scheduler.offer(chunk);
@@ -307,6 +349,9 @@ public final class SnapcastClientEngine {
                 drainDue(); // anything older goes first
                 process(chunk);
             }
+            long took = Math.max(0, clock.nowMicros() - chunkStarted);
+            maxChunkMicros = Math.max(maxChunkMicros, took);
+            maxChunkMicrosSecond = Math.max(maxChunkMicrosSecond, took);
         } catch (RuntimeException unexpected) {
             fail(EngineFailure.INTERNAL);
         }
@@ -327,6 +372,7 @@ public final class SnapcastClientEngine {
         }
         connectionLosses++;
         forgetHoles();
+        lastChunkMicros = Long.MIN_VALUE;
         connectionLost = true;
         state = EngineState.CONNECTION_LOST;
         scheduler.reset();
@@ -347,11 +393,20 @@ public final class SnapcastClientEngine {
             return;
         }
         try {
+            long tickAt = clock.nowMicros();
+            if (lastTickMicros != Long.MIN_VALUE) {
+                long gap = Math.max(0, tickAt - lastTickMicros);
+                maxTickGapMicros = Math.max(maxTickGapMicros, gap);
+                maxTickGapMicrosSecond = Math.max(maxTickGapMicrosSecond, gap);
+            }
+            lastTickMicros = tickAt;
+            ticksSecond++;
             int epoch = offsets.epoch();
             if (epoch != seenEpoch) {
                 seenEpoch = epoch;
                 epochChanges++;
                 forgetHoles();
+                lastChunkMicros = Long.MIN_VALUE;
                 dropTimeline(); // the scheduler empties its own queue; the output is neither flushed nor re-created
             }
             if (header != null && !connectionLost) {
@@ -360,7 +415,10 @@ public final class SnapcastClientEngine {
                     pump(clock.nowMicros());
                 }
             }
-            updateState(clock.nowMicros());
+            long done = clock.nowMicros();
+            updateState(done);
+            maxTickMicros = Math.max(maxTickMicros, done - tickAt);
+            maxTickMicrosSecond = Math.max(maxTickMicrosSecond, done - tickAt);
         } catch (RuntimeException unexpected) {
             fail(EngineFailure.INTERNAL);
         }
@@ -418,6 +476,7 @@ public final class SnapcastClientEngine {
         }
         closeDecoder();
         forgetHoles();
+        lastChunkMicros = Long.MIN_VALUE;
         int newRate = newHeader.getSampleRate(); // validated by the protocol layer: 8000 to 192000
         int maxFrames = (int) Math.min(Integer.MAX_VALUE, (long) newRate * cfg.maxChunkMs / 1000L);
         try {
@@ -579,6 +638,9 @@ public final class SnapcastClientEngine {
             return;
         }
         boolean pcmCodec = header.getCodec() == Codec.PCM;
+        if (!pcmCodec) {
+            noteFlacTimestamp(chunk.timestampMicros());
+        }
         if (!holes.isEmpty() || overflowFrom != Long.MAX_VALUE) {
             // a flac chunk before this one never got here: the frame counting can not see the hole, the timestamps can.
             // Every hole below this chunk is dealt with by one re-anchoring here; holes above it stay for their own chunk.
@@ -675,17 +737,33 @@ public final class SnapcastClientEngine {
                 } else if (gap > tolerance) {
                     if (gap * 1000L / rate > cfg.maxGapFillMs) {
                         timelineResyncs++;
+                        noteResume(gap * 1000L / rate, 1);
                         dropTimeline();
                         newAnchor(chunk, pcmCodec);
                         start = 0;
                     } else {
                         gapsFilled++;
+                        if (gap * 1000L / rate >= 300) {
+                            noteResume(gap * 1000L / rate, 2);
+                        }
                         start = declared;
                     }
                     exact = true;
                 } else {
                     long overlap = -gap;
                     droppedOverlap++;
+                    if (overlap * 1000L / rate > cfg.maxGapFillMs) {
+                        // far in the past: the timestamps went back (a restarted stream), not an overlap of chunks
+                        timelineResyncs++;
+                        noteResume(overlap * 1000L / rate, 1);
+                        dropTimeline();
+                        newAnchor(chunk, pcmCodec);
+                        fifo.addLast(new Block(pcm, frames, 0, true));
+                        fifoFrames += frames;
+                        nextExpectedFrame = frames;
+                        chunksPlayed++;
+                        return;
+                    }
                     if (overlap >= frames) {
                         return;
                     }
@@ -704,6 +782,43 @@ public final class SnapcastClientEngine {
         fifoFrames += frames;
         nextExpectedFrame = start + frames;
         chunksPlayed++;
+    }
+
+    /**
+     * A flac chunk is placed after the one before by counting frames (the decoder's output does not line up with the
+     * chunks), which can not see that the source paused: the next chunks would be due the pause earlier than the output
+     * can play them (the owner's trace: late by 7.6 s and 9.86 s, everything skipped, no sound). The timestamps can: when
+     * a chunk is not where the spacing of the stream says, the timeline is dropped and the chunk is placed by its own
+     * timestamp.
+     */
+    private void noteFlacTimestamp(long timestamp) {
+        long previous = lastChunkMicros;
+        lastChunkMicros = timestamp;
+        if (previous == Long.MIN_VALUE) {
+            return;
+        }
+        long delta = timestamp - previous;
+        long off = delta - chunkSpacingMicros;
+        if (Math.abs(off) <= cfg.flacGapMs * 1000L) {
+            if (delta > 0 && delta <= 2_000_000L) {
+                chunkSpacingMicros = delta;
+            }
+            return;
+        }
+        if (anchorValid) {
+            timelineResyncs++;
+            noteResume(Math.abs(off) / 1000L, 1);
+            dropTimeline();
+        }
+    }
+
+    private void noteResume(long gapMs, int action) {
+        long now = clock.nowMicros();
+        streamResumes++;
+        lastResumeGapMs = gapMs;
+        lastResumeToAudioMs = -1;
+        resumePendingSince = now;
+        trace.add(now, TraceKind.STREAM_RESUMED, gapMs, action);
     }
 
     /** Records a chunk the decoder could not take; true when there were more than the limit in the last 60 s. */
@@ -823,12 +938,17 @@ public final class SnapcastClientEngine {
     }
 
     private void pollPosition(long now) {
-        boolean calm = aligned && hardLateReports == 0 && suspectSinceMicros < 0 && !tracker.stepLooksStalled();
+        boolean calm = aligned && hardLateReports == 0 && suspectSinceMicros < 0 && !tracker.stepLooksStalled()
+                && Math.abs(lastDrift) <= cfg.gradualLimitMs * 1000L;
         long interval = (calm ? cfg.positionPollSlowMs : cfg.positionPollFastMs) * 1000L;
         if (now - lastPositionPollMicros >= interval) {
             lastPositionPollMicros = now;
             long heldBefore = tracker.outlierCount();
+            long pollStarted = clock.nowMicros();
             PlaybackPosition position = sink.position();
+            long pollTook = Math.max(0, clock.nowMicros() - pollStarted);
+            maxPollMicros = Math.max(maxPollMicros, pollTook);
+            maxPollMicrosSecond = Math.max(maxPollMicrosSecond, pollTook);
             if (tracker.update(position, writtenFrames, now)) {
                 if (now - lastPositionTraceMicros >= 250_000L) {
                     lastPositionTraceMicros = now;
@@ -860,6 +980,24 @@ public final class SnapcastClientEngine {
             underrunRisesSinceTrace = 0;
         }
         trace.add(now, TraceKind.POLLS, tracker.acceptedCount(), tracker.rejectedCount(), tracker.outlierCount());
+        trace.add(now, TraceKind.LOOP, ticksSecond, maxTickGapMicrosSecond / 1000L, maxWriteMicrosSecond);
+        trace.add(now, TraceKind.WRITES, writesSecond, shortWritesSecond, worstShortWriteSecond);
+        trace.add(now, TraceKind.CALLS, maxTickMicrosSecond, maxChunkMicrosSecond, maxPollMicrosSecond);
+        maxTickMicrosSecond = 0;
+        maxChunkMicrosSecond = 0;
+        maxPollMicrosSecond = 0;
+        if (correctionDroppedSecond + correctionRepeatedSecond > 0) {
+            trace.add(now, TraceKind.CORRECTIONS, correctionDroppedSecond, correctionRepeatedSecond, correctionLargestSecond);
+        }
+        ticksSecond = 0;
+        maxTickGapMicrosSecond = 0;
+        maxWriteMicrosSecond = 0;
+        writesSecond = 0;
+        shortWritesSecond = 0;
+        worstShortWriteSecond = 0;
+        correctionDroppedSecond = 0;
+        correctionRepeatedSecond = 0;
+        correctionLargestSecond = 0;
         trace.add(now, TraceKind.QUEUE, rate > 0 ? fifoFrames * 1000L / rate : 0, ahead, scheduler.queuedChunks());
     }
 
@@ -998,6 +1136,12 @@ public final class SnapcastClientEngine {
             outSilence(blockFrames);
             return true;
         }
+        if (!aligned && !offsets.isSettled()) {
+            // the clock estimate still moves (a few samples only): aligning to it would be aligning to a guess that
+            // changes tens of milliseconds a second later; the output is kept fed with silence meanwhile
+            outSilence(blockFrames);
+            return true;
+        }
         long raw = tracker.presentationMicros(writtenFrames) - targetMicros(head.start + head.consumed);
         lastDrift = raw;
         boolean exact = head.exact || !aligned;
@@ -1012,6 +1156,10 @@ public final class SnapcastClientEngine {
                     return false;
                 }
                 int pad = Math.min(blockFrames, framesFor(-raw));
+                if (aligned) {
+                    stepsWhilePlaying++;
+                    trace.add(now, TraceKind.STEP_PLAYING, pad, 0, raw);
+                }
                 if (!stepTraced) {
                     stepTraced = true;
                     trace.add(now, TraceKind.ALIGN_STEP, pad, 0, raw);
@@ -1019,6 +1167,14 @@ public final class SnapcastClientEngine {
                 stepPadded += pad;
                 outSilence(pad);
                 return true;
+            }
+            if (raw > cfg.maxSkipMs * 1000L) {
+                // Throwing away more than this because the stream "is late" is never right (the anchor is wrong): the
+                // timeline starts anew and the next chunk is placed by its own timestamp.
+                timelineResyncs++;
+                noteResume(raw / 1000L, 3);
+                dropTimeline();
+                return false;
             }
             if (raw > cfg.alignToleranceMicros) {
                 boolean suspicious = aligned && raw > cfg.hardResyncMs * 1000L;
@@ -1042,6 +1198,10 @@ public final class SnapcastClientEngine {
                     return writeNext(head, now);
                 }
                 int skip = Math.min(framesFor(raw), head.remaining());
+                if (aligned) {
+                    stepsWhilePlaying++;
+                    trace.add(now, TraceKind.STEP_PLAYING, 0, skip, raw);
+                }
                 if (!stepTraced) {
                     stepTraced = true;
                     trace.add(now, TraceKind.ALIGN_STEP, 0, skip, raw);
@@ -1064,15 +1224,21 @@ public final class SnapcastClientEngine {
             }
         } else {
             long limit = cfg.gradualLimitMs * 1000L;
-            if (raw > limit || raw < -limit) {
-                head.exact = true; // a step: done exactly, not frame by frame
-                return false;
-            }
-            hardLateReports = 0;
             if (tracker.revision() != lastDriftRevision) {
                 lastDriftRevision = tracker.revision();
                 drift.addMeasurement(raw);
             }
+            // A step (an exact pad or skip: audible) only for a drift that the median of the last measurements shows; one
+            // noisy report (the age of a position jitters by tens of ms) must not cut the stream.
+            long judged = drift.isReady() ? drift.smoothedMicros() : raw;
+            // Far too late (the output holds old audio): the exact path at once, it asks for several fresh reports itself
+            boolean farLate = raw > cfg.hardResyncMs * 1000L;
+            if (farLate || judged > limit || judged < -limit) {
+                head.exact = true; // a step: done exactly, not frame by frame
+                drift.reset(); // what was measured before the step says nothing about the output after it
+                return false;
+            }
+            hardLateReports = 0;
         }
         return writeNext(head, now);
     }
@@ -1087,7 +1253,9 @@ public final class SnapcastClientEngine {
             outOffset = head.consumed * fb;
             outLength = n * fb;
         } else {
-            byte[] corrected = FrameCorrector.apply(head.pcm, head.consumed * fb, n, fb, correction);
+            byte[] corrected = cfg.smoothCorrections
+                    ? FrameCorrector.applySmooth(head.pcm, head.consumed * fb, n, fb / 2, correction)
+                    : FrameCorrector.apply(head.pcm, head.consumed * fb, n, fb, correction);
             int used = n - corrected.length / fb; // positive: dropped
             if (used > 0) {
                 correctionDropped += used;
@@ -1095,6 +1263,15 @@ public final class SnapcastClientEngine {
                 correctionRepeated -= used;
             }
             drift.applied(used * 1_000_000L / rate);
+            correctionBlocks++;
+            long size = Math.abs(used);
+            correctionLargestBlock = Math.max(correctionLargestBlock, size);
+            correctionLargestSecond = Math.max(correctionLargestSecond, size);
+            if (used > 0) {
+                correctionDroppedSecond += used;
+            } else {
+                correctionRepeatedSecond -= used;
+            }
             outData = corrected;
             outOffset = 0;
             outLength = corrected.length;
@@ -1105,6 +1282,11 @@ public final class SnapcastClientEngine {
             fifo.pollFirst();
         }
         lastAudioWrittenMicros = now;
+        if (resumePendingSince >= 0) {
+            lastResumeToAudioMs = (now - resumePendingSince) / 1000L;
+            trace.add(now, TraceKind.FIRST_AUDIO, lastResumeToAudioMs);
+            resumePendingSince = -1;
+        }
         return true;
     }
 
@@ -1146,8 +1328,22 @@ public final class SnapcastClientEngine {
 
     private int write(byte[] data, int offset, int length, long now) {
         try {
+            long startedAt = clock.nowMicros();
             int took = sink.write(data, offset, length);
+            long duration = Math.max(0, clock.nowMicros() - startedAt);
+            maxWriteMicros = Math.max(maxWriteMicros, duration);
+            maxWriteMicrosSecond = Math.max(maxWriteMicrosSecond, duration);
+            writesTotal++;
+            writesSecond++;
             took = Math.max(0, Math.min(length, took)) / outFrameBytes * outFrameBytes;
+            if (took < length) {
+                long missing = (length - took) / outFrameBytes;
+                shortWrites++;
+                shortWritesSecond++;
+                shortWriteFramesMissing += missing;
+                worstShortWriteFrames = Math.max(worstShortWriteFrames, missing);
+                worstShortWriteSecond = Math.max(worstShortWriteSecond, missing);
+            }
             if (took > 0) {
                 writtenFrames += took / outFrameBytes;
                 if (!sinkStarted) {
@@ -1160,6 +1356,7 @@ public final class SnapcastClientEngine {
             }
             return took;
         } catch (AudioSinkException e) {
+            trace.add(now, TraceKind.WRITE_FAILED, e.getReason().ordinal());
             fail(EngineFailure.SINK_FAILED);
             return 0;
         }
@@ -1244,6 +1441,23 @@ public final class SnapcastClientEngine {
         s.flushesConnectionLost = flushesByReason[FlushReason.CONNECTION_LOST.ordinal()];
         s.flushesPositionStall = flushesByReason[FlushReason.POSITION_STALL.ordinal()];
         s.lastHardResyncDriftMicros = lastHardResyncDriftMicros;
+        s.streamResumes = streamResumes;
+        s.lastResumeGapMs = lastResumeGapMs;
+        s.lastResumeToAudioMs = lastResumeToAudioMs;
+        s.writeAheadMs = cfg.maxAheadMs;
+        s.writes = writesTotal;
+        s.shortWrites = shortWrites;
+        s.shortWriteFramesMissing = shortWriteFramesMissing;
+        s.worstShortWriteFrames = worstShortWriteFrames;
+        s.maxWriteMicros = maxWriteMicros;
+        s.maxTickGapMs = maxTickGapMicros / 1000L;
+        s.maxTickMicros = maxTickMicros;
+        s.maxChunkMicros = maxChunkMicros;
+        s.maxPositionPollMicros = maxPollMicros;
+        s.correctionBlocks = correctionBlocks;
+        s.correctionLargestBlockFrames = correctionLargestBlock;
+        s.stepsWhilePlaying = stepsWhilePlaying;
+        s.driftSmoothedMicros = drift.smoothedMicros();
         s.underrunsCorroborated = underrunsCorroborated;
         s.underrunsSpurious = underrunsSpurious;
         s.underrunCounterUnreliable = counterUnreliable;

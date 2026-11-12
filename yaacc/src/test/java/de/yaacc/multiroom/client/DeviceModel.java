@@ -50,6 +50,16 @@ final class DeviceModel {
     /** Every this many refreshes one report is odd: its frame count lags by {@code glitchLagMicros} but it carries the poll time. */
     int glitchEveryRefreshes;
     long glitchLagMicros = 400_000;
+    /** From this long after the first play() the reported times are late by {@code timestampBiasMicros} (a latency the HAL adds). */
+    long biasAfterMicros;
+    long timestampBiasMicros;
+    /** Each report's time is early by a random 0..this (a jittery age), the frames are those of the true moment. */
+    long timestampNoiseMicros;
+    /** A write takes whole multiples of this many frames only (when it cannot take all); 1: any number. */
+    int writeGranularityFrames = 1;
+    /** A call of getTimestamp / write blocks the calling (engine) thread for this long. */
+    long timestampCostMicros;
+    long writeCostMicros;
     /** The position counters restart at 0 after a flush; false: they go on. */
     boolean resetOnFlush = true;
     /** A track that ran dry plays again only after the buffer was filled to the threshold again. */

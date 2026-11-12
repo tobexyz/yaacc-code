@@ -86,6 +86,31 @@ public final class EngineStatus implements Cloneable {
     public long flushesConnectionLost;
     public long flushesPositionStall;
     /** Rises of the platform's underrun counter that the position confirmed / that it did not (no starvation). */
+    /** How far ahead of the playback position the engine keeps the output filled, in ms. */
+    public int writeAheadMs;
+    public long writes;
+    /** Writes that took fewer frames than offered, the frames missing in all of them and in the worst one. */
+    public long shortWrites;
+    public long shortWriteFramesMissing;
+    public long worstShortWriteFrames;
+    public long maxWriteMicros;
+    /** The longest time between two ticks of the engine thread, in ms. */
+    public long maxTickGapMs;
+    /** The longest one engine tick, one chunk (decode and queue) and one position poll took, in microseconds. */
+    public long maxTickMicros;
+    public long maxChunkMicros;
+    public long maxPositionPollMicros;
+    /** Blocks that had a frame dropped or repeated, and the most frames changed in one block. */
+    public long correctionBlocks;
+    public long correctionLargestBlockFrames;
+    /** Exact pads or skips after the stream was aligned (a step in a playing stream). */
+    public long stepsWhilePlaying;
+    /** The median of the last drift measurements (what the corrections act on). */
+    public long driftSmoothedMicros;
+    /** Restarts of the stream after a pause: how many, the gap of the last one and how long its first audio took. */
+    public long streamResumes;
+    public long lastResumeGapMs;
+    public long lastResumeToAudioMs = -1;
     public long underrunsCorroborated;
     public long underrunsSpurious;
     /** True once the counter rose several times in a row without any sign of starvation: it is no longer used. */

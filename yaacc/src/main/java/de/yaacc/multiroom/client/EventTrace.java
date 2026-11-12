@@ -27,7 +27,7 @@ import java.util.Locale;
  */
 public final class EventTrace {
 
-    public static final int CAPACITY = 300;
+    public static final int CAPACITY = 600;
 
     private final long startMicros;
     private final long[] atMicros = new long[CAPACITY];

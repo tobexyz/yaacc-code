@@ -69,4 +69,63 @@ public final class FrameCorrector {
         System.arraycopy(data, offset + index * frameBytes, out, written * frameBytes, rest * frameBytes);
         return out;
     }
+
+    /** Frames of the window over which one dropped or repeated frame is spread. */
+    public static final int SMOOTH_WINDOW = 32;
+
+    /**
+     * As {@link #apply} for 16 bit little endian interleaved samples, but each dropped or repeated frame is spread over
+     * a window of {@value #SMOOTH_WINDOW} frames by linear interpolation (32 frames are played as 31 or 33, the first and
+     * the last frame of the window are untouched). The step between two neighbouring samples then stays at the slope
+     * of the signal, where cutting one sample doubles it (a click in a pure tone). Used for at most two corrections in a
+     * block that is long enough; anything else is done as {@link #apply} does it.
+     *
+     * @param channels samples per frame
+     */
+    public static byte[] applySmooth(byte[] data, int offset, int frames, int channels, int correction) {
+        int frameBytes = channels * 2;
+        int n = Math.abs(correction);
+        if (channels < 1 || n == 0 || n > 2 || frames < n * (SMOOTH_WINDOW + 2)) {
+            return apply(data, offset, frames, frameBytes, correction);
+        }
+        if (frames < 0 || offset < 0 || (long) offset + (long) frames * frameBytes > data.length) {
+            throw new IllegalArgumentException("block outside the data");
+        }
+        boolean drop = correction > 0;
+        int w = SMOOTH_WINDOW;
+        int perWindow = drop ? w - 1 : w + 1;
+        byte[] out = new byte[(frames - (drop ? n : -n)) * frameBytes];
+        int read = 0;
+        int written = 0;
+        for (int k = 0; k < n; k++) {
+            int middle = (int) (((2L * k + 1) * frames) / (2L * n));
+            int start = Math.max(read, Math.min(middle - w / 2, frames - w));
+            int run = start - read;
+            System.arraycopy(data, offset + read * frameBytes, out, written * frameBytes, run * frameBytes);
+            written += run;
+            read = start;
+            for (int j = 0; j < perWindow; j++) {
+                double x = drop ? j * (w - 1.0) / (w - 2.0) : j * (w - 1.0) / w;
+                int i0 = (int) Math.floor(x);
+                int i1 = Math.min(i0 + 1, w - 1);
+                double f = x - i0;
+                for (int c = 0; c < channels; c++) {
+                    int a = sample(data, offset + ((read + i0) * channels + c) * 2);
+                    int b = sample(data, offset + ((read + i1) * channels + c) * 2);
+                    int v = (int) Math.round(a + (b - a) * f);
+                    int at = (written + j) * frameBytes + c * 2;
+                    out[at] = (byte) v;
+                    out[at + 1] = (byte) (v >> 8);
+                }
+            }
+            written += perWindow;
+            read += w;
+        }
+        System.arraycopy(data, offset + read * frameBytes, out, written * frameBytes, (frames - read) * frameBytes);
+        return out;
+    }
+
+    private static int sample(byte[] data, int at) {
+        return (short) ((data[at] & 0xff) | (data[at + 1] << 8));
+    }
 }

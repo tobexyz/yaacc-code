@@ -36,6 +36,11 @@ final class DeviceSimSink extends StreamingSink {
         long targetMicros(long mediaFrame);
     }
 
+    /** The stream is a sine whose neighbouring samples differ by at most this much. */
+    void setSineSlope(double slope) {
+        device.sineSlope = slope;
+    }
+
     void setIntent(Intent intent) {
         device.intent = intent;
     }
@@ -55,6 +60,7 @@ final class DeviceSimSink extends StreamingSink {
         final DeviceModel model;
         final Counters counters = new Counters();
         Intent intent;
+        double sineSlope;
         Track current;
         long firstPlayMicros = Long.MIN_VALUE / 2;
         long startedMicros = -1;
@@ -91,6 +97,12 @@ final class DeviceSimSink extends StreamingSink {
         long refusedWrites;
         long firstPlayedAudioMicros = -1;
         long silenceRun;
+        /** Sine stream: the largest step between neighbouring samples written, and steps above 1.1 x the tone's slope. */
+        double sineMaxStep;
+        long sineStepsOverSlope;
+        /** Marker stream: neighbouring audible frames whose media numbers are not consecutive, and the largest gap. */
+        long mediaJumps;
+        long largestMediaJump;
         /** Largest |played time - intended time| in micros over audible runs that began after the first 8 s (settled). */
         long maxSyncErrorAfterSettleMicros;
         long syncSamples;
@@ -139,6 +151,8 @@ final class DeviceSimSink extends StreamingSink {
         private boolean haveReport;
         private int threshold;
         private long refreshes;
+        private long reportNoise;
+        private final java.util.Random random = new java.util.Random(7);
         private long reportedAt;
         private long consumedFrames;
 
@@ -147,6 +161,13 @@ final class DeviceSimSink extends StreamingSink {
             this.m = device.model;
             this.format = format;
             this.threshold = Math.max(1, Math.min(m.startThresholdFrames, m.bufferFrames));
+        }
+
+        /** The calling thread is blocked: the manual clock goes on. */
+        private void block(long micros) {
+            if (micros > 0 && device.clock instanceof ManualMicroClock) {
+                ((ManualMicroClock) device.clock).advanceMicros(micros);
+            }
         }
 
         private long now() {
@@ -283,8 +304,38 @@ final class DeviceSimSink extends StreamingSink {
             }
         }
 
+        private int prevLeft;
+        private long prevMedia = Long.MIN_VALUE;
+
+        /** What the engine wrote: steps of a sine, jumps of the frame markers (only within one run of audio). */
+        private void analyse(int left, boolean audible, long media) {
+            Counters c = device.counters;
+            if (!audible) {
+                prevLeft = 0;
+                prevMedia = Long.MIN_VALUE;
+                return;
+            }
+            if (device.sineSlope > 0) {
+                if (prevLeft != 0) {
+                    double step = Math.abs(left - prevLeft);
+                    c.sineMaxStep = Math.max(c.sineMaxStep, step);
+                    if (step > device.sineSlope * 1.1) {
+                        c.sineStepsOverSlope++;
+                    }
+                }
+                prevLeft = left;
+            } else {
+                if (prevMedia != Long.MIN_VALUE && media != prevMedia + 1) {
+                    c.mediaJumps++;
+                    c.largestMediaJump = Math.max(c.largestMediaJump, Math.abs(media - prevMedia - 1));
+                }
+                prevMedia = media;
+            }
+        }
+
         @Override
         public int write(byte[] data, int offset, int length) throws AudioSinkException {
+            block(m.writeCostMicros);
             long t = now();
             advance(t);
             long queued = written - (long) Math.floor(played);
@@ -292,6 +343,7 @@ final class DeviceSimSink extends StreamingSink {
             int frames = (int) Math.max(0, Math.min(length / fb, m.bufferFrames - queued));
             if (frames < length / fb) {
                 device.counters.refusedWrites++;
+                frames = frames / m.writeGranularityFrames * m.writeGranularityFrames;
             }
             if (frames > 0) {
                 boolean current = false;
@@ -304,6 +356,7 @@ final class DeviceSimSink extends StreamingSink {
                     int right = (short) ((data[at + 2] & 0xff) | (data[at + 3] << 8));
                     boolean audible = left != 0;
                     long media = audible ? (long) (right - 1) * 20000L + (left - 1) : 0;
+                    analyse(left, audible, media);
                     boolean split = i > 0 && (audible != current || (audible && media != previousMedia + 1));
                     if (split) {
                         runs.addLast(new long[]{runFrames, current ? 1 : 0, runMedia});
@@ -369,6 +422,7 @@ final class DeviceSimSink extends StreamingSink {
         @Override
         public boolean timestamp(long[] out) {
             device.counters.timestampCalls++;
+            block(m.timestampCostMicros);
             long t = now();
             advance(t);
             long since = m.timestampAvailableOnlyAfterRun ? t - device.firstPlayMicros : t - consumeStart;
@@ -377,6 +431,7 @@ final class DeviceSimSink extends StreamingSink {
             }
             if (!haveReport || t - refreshedAt >= m.timestampPeriodMicros) {
                 refreshes++;
+                reportNoise = m.timestampNoiseMicros > 0 ? random.nextInt((int) m.timestampNoiseMicros + 1) : 0;
                 reportedFrames = (long) Math.floor(played);
                 reportedAt = t;
                 if (m.glitchEveryRefreshes > 0 && refreshes % m.glitchEveryRefreshes == 0) {
@@ -386,7 +441,11 @@ final class DeviceSimSink extends StreamingSink {
                 haveReport = true;
             }
             out[0] = (reportedFrames + counterBase) & 0xffffffffL;
-            long nano = (m.timestampTimeIsPollTime ? t : refreshedAt) * 1000L + m.timestampBaseDeltaNanos;
+            long reportTime = (m.timestampTimeIsPollTime ? t : refreshedAt) - reportNoise;
+            if (m.timestampBiasMicros != 0 && t - device.firstPlayMicros >= m.biasAfterMicros) {
+                reportTime += m.timestampBiasMicros;
+            }
+            long nano = reportTime * 1000L + m.timestampBaseDeltaNanos;
             out[1] = nano;
             device.counters.timestampOk++;
             return true;

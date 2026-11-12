@@ -46,6 +46,15 @@ public enum TraceKind {
     TIMESTAMP_ODD("timestamp on another clock base (first one)", "age ms", "", ""),
     HEAD_FALLBACK("position from head position now", "failed polls", "implausible", ""),
     CONNECTION_LOST("connection lost", "why", "own limit", ""),
+    STREAM_RESUMED("stream resumed", "gap ms", "action (1 re-anchor, 2 gap filled, 3 too late to skip)", ""),
+    FIRST_AUDIO("first audio written after the resume", "after ms", "", ""),
+    LOOP("engine loop, last second", "ticks", "max gap ms", "longest write us"),
+    CALLS("longest calls, last second", "tick us", "one chunk us", "position poll us"),
+    WRITES("writes, last second", "writes", "short", "worst short (frames missing)"),
+    CORRECTIONS("corrections, last second", "dropped frames", "repeated frames", "largest in one block"),
+    STEP_PLAYING("pad or skip while playing", "pad frames", "skip frames", "drift us"),
+    CLOCK("clock offset", "offset us", "change us", "jitter us"),
+    WRITE_FAILED("write failed", "reason", "", ""),
     POLLS("position reports", "taken", "refused", "held back"),
     QUEUE("queues", "waiting ms", "output ahead ms", "chunks");
 

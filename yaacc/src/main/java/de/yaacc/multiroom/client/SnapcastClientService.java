@@ -80,6 +80,7 @@ public final class SnapcastClientService extends Service {
     static final String ACTION_LATENCY = "de.yaacc.multiroom.client.LATENCY";
     static final String EXTRA_HOST = "host";
     static final String EXTRA_LATENCY_MS = "latencyMs";
+    static final String EXTRA_WRITE_AHEAD_MS = "writeAheadMs";
 
     private static final long WATCHDOG_INTERVAL_MS = 2_000L;
     private static final long WATCHDOG_LIMIT_MS = 5_000L;
@@ -101,13 +102,20 @@ public final class SnapcastClientService extends Service {
     private SessionPowerPolicy powerPolicy; // main thread only
     private SnapcastClientRuntime.Phase lastPhaseShown;
     private volatile Integer pendingLatencyMs;
+    private volatile int writeAheadMs = SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS;
 
     // ---- entry points for the screen
 
     /** Starts a session. Call from the UI (a foreground service may be started from there). */
     public static void start(Context context, String hostText, int latencyMs) {
+        start(context, hostText, latencyMs, SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS);
+    }
+
+    /** @param writeAheadMs how far ahead of the playback position the output is kept filled (applied at the start only) */
+    public static void start(Context context, String hostText, int latencyMs, int writeAheadMs) {
         Intent intent = new Intent(context, SnapcastClientService.class).setAction(ACTION_START)
-                .putExtra(EXTRA_HOST, hostText).putExtra(EXTRA_LATENCY_MS, latencyMs);
+                .putExtra(EXTRA_HOST, hostText).putExtra(EXTRA_LATENCY_MS, latencyMs)
+                .putExtra(EXTRA_WRITE_AHEAD_MS, writeAheadMs);
         ContextCompat.startForegroundService(context, intent);
     }
 
@@ -188,6 +196,8 @@ public final class SnapcastClientService extends Service {
                 endSession(SnapcastClientRuntime.Ending.DISABLED); // "default off" holds for every caller, not only the dialog
                 return START_NOT_STICKY;
             }
+            writeAheadMs = SnapcastClientSpike.clampWriteAhead(
+                    intent.getIntExtra(EXTRA_WRITE_AHEAD_MS, SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS));
             beginSession(intent.getStringExtra(EXTRA_HOST), intent.getIntExtra(EXTRA_LATENCY_MS, 0));
         } catch (RuntimeException unexpected) {
             endSession(SnapcastClientRuntime.Ending.SERVICE_ERROR);
@@ -232,7 +242,8 @@ public final class SnapcastClientService extends Service {
                     "YAACC", "Android", "unknown", "spike");
             ClientSession session = ClientSession.assemble(new SocketTransport(address, request.getEndpoint().getPort()), hello,
                     request.getLatencyMs(), AudioTrackSink::new, new DefaultDecoderFactory(new AndroidDecoderFactory()),
-                    SystemClock::elapsedRealtimeNanos, new ClientEngineConfig(), SnapcastClientService::audioThread,
+                    SystemClock::elapsedRealtimeNanos, new ClientEngineConfig().maxAheadMs(writeAheadMs).smoothCorrections(true),
+                    SnapcastClientService::audioThread,
                     new EngineHost.Observer() {
                         @Override
                         public void onStatus(EngineStatus status) {

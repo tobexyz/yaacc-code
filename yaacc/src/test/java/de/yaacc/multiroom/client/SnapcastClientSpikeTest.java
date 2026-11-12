@@ -130,4 +130,24 @@ public class SnapcastClientSpikeTest {
         assertEquals("YAACC", SnapcastClientSpike.helloHostName(java.net.InetAddress.getByName("::ffff:8.8.8.8"), "x"));
         assertEquals("x", SnapcastClientSpike.helloHostName(java.net.InetAddress.getByName("127.0.0.1"), "x"));
     }
+
+    @Test
+    public void theWriteAheadIsAWholeNumberOfMillisecondsClampedTo40To350() {
+        assertEquals(Integer.valueOf(120), SnapcastClientSpike.parseWriteAhead(""));
+        assertEquals(Integer.valueOf(120), SnapcastClientSpike.parseWriteAhead(null));
+        assertEquals(Integer.valueOf(120), SnapcastClientSpike.parseWriteAhead("  "));
+        assertEquals(Integer.valueOf(250), SnapcastClientSpike.parseWriteAhead(" 250 "));
+        assertEquals(Integer.valueOf(40), SnapcastClientSpike.parseWriteAhead("40"));
+        assertEquals(Integer.valueOf(350), SnapcastClientSpike.parseWriteAhead("350"));
+        assertEquals(Integer.valueOf(40), SnapcastClientSpike.parseWriteAhead("0"));
+        assertEquals(Integer.valueOf(350), SnapcastClientSpike.parseWriteAhead("99999"));
+        assertEquals(Integer.valueOf(350), SnapcastClientSpike.parseWriteAhead("999999"));
+        assertNull(SnapcastClientSpike.parseWriteAhead("1234567"));
+        assertNull(SnapcastClientSpike.parseWriteAhead("-5"));
+        assertNull(SnapcastClientSpike.parseWriteAhead("12a"));
+        assertNull(SnapcastClientSpike.parseWriteAhead("1.5"));
+        assertEquals(120, SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS);
+        assertEquals(40, SnapcastClientSpike.clampWriteAhead(-3));
+        assertEquals(350, SnapcastClientSpike.clampWriteAhead(Integer.MAX_VALUE));
+    }
 }

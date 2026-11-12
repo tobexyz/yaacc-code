@@ -68,6 +68,7 @@ final class SnapcastClientSpikeDialog {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final EditText host;
     private final EditText latency;
+    private final EditText writeAhead;
     private final TextView warning;
     private final Button start;
     private final Button stop;
@@ -150,6 +151,15 @@ final class SnapcastClientSpikeDialog {
         latency.setFilters(new InputFilter[]{new InputFilter.LengthFilter(8)});
         latency.setText(String.valueOf(preferences.getInt(SnapcastClientSpike.KEY_LAST_LATENCY, 0)));
         root.addView(latency, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        writeAhead = new EditText(context);
+        writeAhead.setSingleLine(true);
+        writeAhead.setHint(R.string.snapcast_client_write_ahead_hint);
+        writeAhead.setInputType(InputType.TYPE_CLASS_NUMBER);
+        writeAhead.setFilters(new InputFilter[]{new InputFilter.LengthFilter(4)});
+        writeAhead.setText(String.valueOf(preferences.getInt(SnapcastClientSpike.KEY_LAST_WRITE_AHEAD,
+                SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS)));
+        root.addView(writeAhead, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         LinearLayout buttons = new LinearLayout(context);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
@@ -258,9 +268,16 @@ final class SnapcastClientSpikeDialog {
             default:
                 break;
         }
+        writeAhead.setError(null);
+        Integer ahead = SnapcastClientSpike.parseWriteAhead(writeAhead.getText().toString());
+        if (ahead == null) {
+            writeAhead.setError(context.getString(R.string.snapcast_client_error_invalid_write_ahead));
+            return;
+        }
         preferences.edit().putString(SnapcastClientSpike.KEY_LAST_HOST, host.getText().toString().trim())
-                .putInt(SnapcastClientSpike.KEY_LAST_LATENCY, request.getLatencyMs()).apply();
-        SnapcastClientService.start(context, host.getText().toString().trim(), request.getLatencyMs());
+                .putInt(SnapcastClientSpike.KEY_LAST_LATENCY, request.getLatencyMs())
+                .putInt(SnapcastClientSpike.KEY_LAST_WRITE_AHEAD, ahead).apply();
+        SnapcastClientService.start(context, host.getText().toString().trim(), request.getLatencyMs(), ahead);
     }
 
     private void onApplyLatency() {

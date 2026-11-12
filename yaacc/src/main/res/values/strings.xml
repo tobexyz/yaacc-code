@@ -384,6 +384,8 @@
     <string name="snapcast_client_error_empty_host">Enter the address of the server</string>
     <string name="snapcast_client_error_invalid_host">This is not a valid address</string>
     <string name="snapcast_client_error_invalid_latency">Enter a whole number of milliseconds</string>
+    <string name="snapcast_client_write_ahead_hint">Write-ahead in ms (40 to 350, default 120)</string>
+    <string name="snapcast_client_error_invalid_write_ahead">Enter a whole number from 40 to 350</string>
     <string name="snapcast_client_notification_title">Snapcast client (test)</string>
     <string name="snapcast_client_notification_connecting">Connecting…</string>
     <string name="snapcast_client_notification_playing">Playing</string>

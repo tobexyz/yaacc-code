@@ -257,6 +257,14 @@ Notes are kept current as items are done (interruption safe). Tests first (red, 
 - [x] G8.5 Connection loss reason (and our own limit) in the trace; idle stream test; findings in docs/tech.md guess 16
 - [x] G8.6 Drift labelled as stale when not aligned; trace sample and the new guess 15 in docs/tech.md
 
+## Fix Group 8h: The owner's 18 s and two restart traces (restart after a pause, drift step, little breaks), started 2026-11-12
+- [x] H8.1 Restart after a pause of the source (flac: late by the pause, everything skipped, no sound): `DeviceRestartTest` (1/3/10/60 s x header again / reconnect / epoch, the two owner traces, 3 h with a pause every 5 min), fix: flac timestamp jump re-anchors, skip bound 1 s, pcm backwards timestamps, restart in status and trace
+- [x] H8.2 Drift step after the alignment: aligning waits for a settled clock estimate, steps judged by the median, smooth corrections (interpolated over 32 frames), poll 250 ms; `DeviceDriftTest`
+- [x] H8.3 Write-ahead field in the spike dialog (40..350, default 120, 7 locales), status line, chunk release lead follows
+- [x] H8.4 Trace and status: corrections, short writes, tick gap, longest tick/chunk/poll, clock offset, pad/skip while playing, stream restarts
+- [x] H8.5 Periodic jobs and the thread: `DeviceJobBudgetTest`, review result in docs/tech.md 16
+- [ ] H8.6 (owner) Next trace: look at `clock offset`, `corrections`, `engine loop`, `longest calls` lines for the little breaks
+
 ## Group 9 (Phase B): Renderer integration (P2)
 - **Notes carried from Group 8 (security review, known limits of the spike):** audio focus (pause on a call or another app) and `ACTION_AUDIO_BECOMING_NOISY` (pause when the headphones are pulled) are not handled by the client; a gain ramp or fade-in on volume changes and at the start of a stream is not built (it has to be done on the samples, `AudioTrack.setVolume` acts on audio already queued); the renderer integration must add focus handling, the noisy-headphones pause and the ramp, and must re-check the "Snapcast client" option on every start path (`SnapcastClientSpike.isEnabled`).
 - [ ] 9.1 Output "Snapcast group" for the YAACC renderer: the renderer feeds the group and the phone plays as a member; renderer volume/mute map to the client volume; the direct local output is off | `de.yaacc.upnp.server`, `de.yaacc.player`

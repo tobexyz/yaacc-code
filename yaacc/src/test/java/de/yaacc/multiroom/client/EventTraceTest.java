@@ -70,7 +70,7 @@ public class EventTraceTest {
             t.add(i, TraceKind.QUEUE, i, i, i);
         }
         assertEquals(EventTrace.CAPACITY, t.size());
-        assertTrue(t.text().length() < 40_000);
+        assertTrue(t.text().length() < 80_000);
     }
 
     @Test

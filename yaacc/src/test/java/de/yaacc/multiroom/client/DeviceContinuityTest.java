@@ -259,16 +259,21 @@ public class DeviceContinuityTest {
         assertContinuous(new DeviceRig(m), 30_000);
     }
 
-    /** The control: the engine as it was (every report is taken at once) flushes because of such a report. */
+    /**
+     * Even with the other protections off (a lone odd report is taken at once, one report is enough to flush) the odd
+     * report alone does not cut the stream: a step needs the median of the last measurements, and the flush for
+     * lateness needs fresh reports that agree.
+     */
     @Test
-    public void oddReportFlushesWhenOneReportIsEnough() {
+    public void anOddReportDoesNotFlushEvenWithTheOtherProtectionsOff() {
         DeviceModel m = new DeviceModel();
         m.timestampPeriodMicros = 200_000;
         m.glitchEveryRefreshes = 7;
         DeviceRig rig = new DeviceRig(m, new ClientEngineConfig().hardResyncReports(1).positionOutlierMs(1_000_000));
         rig.connect();
         rig.run(30_000);
-        assertTrue(rig.report(), rig.status().flushes > 0);
+        assertEquals(rig.report(), 0, rig.status().flushes);
+        assertEquals(rig.report(), 0, rig.status().stepsWhilePlaying);
     }
 
     // ---- the event trace of a run

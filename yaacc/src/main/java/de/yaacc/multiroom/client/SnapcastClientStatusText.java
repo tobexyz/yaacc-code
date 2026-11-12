@@ -61,8 +61,14 @@ public final class SnapcastClientStatusText {
         text.append(String.format(Locale.ROOT, "volume: %d%s%n", s.volume, s.muted ? " (muted)" : ""));
         text.append(String.format(Locale.ROOT, "chunks: received %d, queued %d, decoded waiting %d ms, played %d%n",
                 s.chunksReceived, s.chunksWaiting, s.decodedWaitingMs, s.chunksPlayed));
-        text.append(String.format(Locale.ROOT, "corrections: dropped %d frames, repeated %d frames%n",
-                s.correctionDroppedFrames, s.correctionRepeatedFrames));
+        text.append(String.format(Locale.ROOT, "corrections: dropped %d frames, repeated %d frames in %d blocks, most in one block %d frames; pads or skips while playing %d; smoothed drift %s%n",
+                s.correctionDroppedFrames, s.correctionRepeatedFrames, s.correctionBlocks, s.correctionLargestBlockFrames,
+                s.stepsWhilePlaying, ms(s.driftSmoothedMicros)));
+        text.append(String.format(Locale.ROOT, "stream restarts after a pause: %d, last gap %d ms, its first audio written after %s%n",
+                s.streamResumes, s.lastResumeGapMs, s.lastResumeToAudioMs < 0 ? "-" : s.lastResumeToAudioMs + " ms"));
+        text.append(String.format(Locale.ROOT, "writes: %d, short %d (frames missing %d, worst %d), longest write %d us, write-ahead %d ms, longest gap between engine ticks %d ms; longest tick %d us, chunk %d us, position poll %d us%n",
+                s.writes, s.shortWrites, s.shortWriteFramesMissing, s.worstShortWriteFrames, s.maxWriteMicros, s.writeAheadMs,
+                s.maxTickGapMs, s.maxTickMicros, s.maxChunkMicros, s.maxPositionPollMicros));
         text.append(String.format(Locale.ROOT, "steps: skipped %d frames, padded %d frames, gaps filled %d%n",
                 s.stepSkippedFrames, s.stepPaddedFrames, s.gapsFilled));
         text.append(String.format(Locale.ROOT, "resyncs: timeline %d, flushes %d (suppressed %d), underruns %d, epoch changes %d%n",

@@ -41,6 +41,9 @@ public final class ClientEngineConfig {
     int hardResyncReports = 3;
     int positionOutlierMs = 150;
     int primeAfterMs = 200;
+    boolean smoothCorrections;
+    int flacGapMs = 300;
+    int maxSkipMs = 1_000;
     int underrunConfirmMs = 250;
     int underrunAheadMs = 10;
     int unreliableAfterRises = 5;
@@ -50,7 +53,7 @@ public final class ClientEngineConfig {
     int maxConsecutiveDecodeFailures = 8;
     int maxDecoderFailuresPerMinute = 12;
     int positionPollFastMs = 50;
-    int positionPollSlowMs = 500;
+    int positionPollSlowMs = 250;
     int positionTimeoutMs = 5_000;
     int underrunSlackMs = 20;
     int maxBlocksPerTick = 8;
@@ -152,6 +155,35 @@ public final class ClientEngineConfig {
     /** The output must be this late in this many consecutive fresh position reports before it is flushed (default 3). */
     public ClientEngineConfig hardResyncReports(int value) {
         hardResyncReports = positive("hardResyncReports", value);
+        return this;
+    }
+
+    /**
+     * A dropped or repeated frame is spread over a short window by interpolation (a local resampling of 32 frames to 31
+     * or 33) instead of cutting one sample; the step in a pure tone is then no larger than the signal's own slope
+     * (default off: the engine tests read the marker of every frame; the client service switches it on).
+     */
+    public ClientEngineConfig smoothCorrections(boolean value) {
+        smoothCorrections = value;
+        return this;
+    }
+
+    /**
+     * A flac chunk whose timestamp is more than this far from where the chunk before it ended (the source paused, many
+     * chunks were lost, the server clock jumped) starts the timeline anew: flac chunks are placed by counting frames, which
+     * cannot see a pause (default 300 ms).
+     */
+    public ClientEngineConfig flacGapMs(int value) {
+        flacGapMs = positive("flacGapMs", value);
+        return this;
+    }
+
+    /**
+     * The most audio the engine throws away in one go because it thinks the stream is late; beyond it the timeline is
+     * dropped and the next chunk is placed by its own timestamp (default 1000 ms).
+     */
+    public ClientEngineConfig maxSkipMs(int value) {
+        maxSkipMs = positive("maxSkipMs", value);
         return this;
     }
 

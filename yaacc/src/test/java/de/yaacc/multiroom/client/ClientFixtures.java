@@ -93,6 +93,24 @@ final class ClientFixtures {
                 b.array());
     }
 
+    /** A phase-continuous 440 Hz sine of amplitude 12000 (never exactly 0), the same samples in all channels, 16 bit. */
+    static WireChunkMessage sineChunk(long serverMicros, long firstFrame, int frames, int channels, int rate) {
+        ByteBuffer b = ByteBuffer.allocate(frames * channels * 2).order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < frames; i++) {
+            int v = sineSample(firstFrame + i, rate);
+            for (int c = 0; c < channels; c++) {
+                b.putShort((short) v);
+            }
+        }
+        return new WireChunkMessage((int) Math.floorDiv(serverMicros, 1_000_000L), (int) Math.floorMod(serverMicros, 1_000_000L),
+                b.array());
+    }
+
+    static int sineSample(long frame, int rate) {
+        int v = (int) Math.round(12000 * Math.sin(2 * Math.PI * 440 * frame / rate + 0.3));
+        return v == 0 ? 1 : v;
+    }
+
     static WireChunkMessage rawChunk(long serverMicros, byte[] payload) {
         return new WireChunkMessage((int) Math.floorDiv(serverMicros, 1_000_000L), (int) Math.floorMod(serverMicros, 1_000_000L),
                 payload);
@@ -149,6 +167,8 @@ final class ClientFixtures {
     /** The offset source of the tests: whatever the test sets. */
     static final class FakeOffsets implements OffsetSource {
         volatile boolean synced = true;
+        /** Null: settled as soon as synchronised. */
+        volatile Boolean settled;
         volatile long offset;
         volatile int epoch;
 
@@ -159,6 +179,11 @@ final class ClientFixtures {
         @Override
         public boolean isSynchronized() {
             return synced;
+        }
+
+        @Override
+        public boolean isSettled() {
+            return settled != null ? settled && synced : synced;
         }
 
         @Override

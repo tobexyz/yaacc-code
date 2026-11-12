@@ -36,6 +36,12 @@ public final class SnapcastClientSpike {
     /** The per-installation secret of the Hello id, see {@link SnapcastClientIdentity}. */
     public static final String KEY_SECRET = "snapcast_client_spike_secret";
 
+    public static final String KEY_LAST_WRITE_AHEAD = "snapcast_client_spike_write_ahead_ms";
+    /** How far ahead of the playback position the output is kept filled (an experiment: a longer one is safer, slower). */
+    public static final int MIN_WRITE_AHEAD_MS = 40;
+    public static final int MAX_WRITE_AHEAD_MS = 350;
+    public static final int DEFAULT_WRITE_AHEAD_MS = 120;
+
     public static final int MIN_LATENCY_MS = -2000;
     public static final int MAX_LATENCY_MS = 2000;
 
@@ -103,6 +109,30 @@ public final class SnapcastClientSpike {
             return new Request(Outcome.INVALID_LATENCY, null, 0);
         }
         return new Request(Outcome.OK, endpoint, latency);
+    }
+
+    /** @return the write-ahead clamped to 40..350; the default for empty text; null for text that is no whole number */
+    public static Integer parseWriteAhead(String text) {
+        String t = text == null ? "" : text.trim();
+        if (t.isEmpty()) {
+            return DEFAULT_WRITE_AHEAD_MS;
+        }
+        if (t.length() > 6) {
+            return null;
+        }
+        long value = 0;
+        for (int i = 0; i < t.length(); i++) {
+            char c = t.charAt(i);
+            if (c < '0' || c > '9') {
+                return null;
+            }
+            value = value * 10 + (c - '0');
+        }
+        return clampWriteAhead((int) Math.min(value, Integer.MAX_VALUE));
+    }
+
+    public static int clampWriteAhead(int value) {
+        return Math.max(MIN_WRITE_AHEAD_MS, Math.min(MAX_WRITE_AHEAD_MS, value));
     }
 
     /** @return the latency clamped to the range; 0 for empty text; null for text that is no whole number */
