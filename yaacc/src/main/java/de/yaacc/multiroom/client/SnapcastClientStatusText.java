@@ -52,6 +52,9 @@ public final class SnapcastClientStatusText {
         text.append(String.format(Locale.ROOT, "output: ahead %s, position age %s, source %s%n",
                 s.outputAheadMs < 0 ? "-" : s.outputAheadMs + " ms", s.positionAgeMs < 0 ? "-" : s.positionAgeMs + " ms",
                 s.positionSource.isEmpty() ? "-" : s.positionSource));
+        if (s.outputSummary != null && !s.outputSummary.isEmpty()) {
+            text.append("output details: ").append(s.outputSummary).append('\n');
+        }
         text.append(String.format(Locale.ROOT, "sync: drift %s (+ = late), buffer %d ms, server latency %d ms, manual latency %d ms%n",
                 ms(s.driftMicros), s.bufferMs, s.serverLatencyMs, s.manualLatencyMs));
         text.append(String.format(Locale.ROOT, "volume: %d%s%n", s.volume, s.muted ? " (muted)" : ""));
@@ -63,6 +66,11 @@ public final class SnapcastClientStatusText {
                 s.stepSkippedFrames, s.stepPaddedFrames, s.gapsFilled));
         text.append(String.format(Locale.ROOT, "resyncs: timeline %d, flushes %d (suppressed %d), underruns %d, epoch changes %d%n",
                 s.timelineResyncs, s.flushes, s.flushesSuppressed, s.underruns, s.epochChanges));
+        text.append(String.format(Locale.ROOT, "flushes by cause: hard resync %d (last drift %s), underrun %d, writer behind %d, header %d, connection lost %d%n",
+                s.flushesHardResync, ms(s.lastHardResyncDriftMicros), s.flushesUnderrun, s.flushesWriterBehind, s.flushesHeader,
+                s.flushesConnectionLost));
+        text.append(String.format(Locale.ROOT, "position reports: taken %d, refused %d%n", s.positionReportsAccepted,
+                s.positionReportsRejected));
         text.append(String.format(Locale.ROOT, "stream: holes re-anchored (flac) %d, timeline rebases %d, chunks lost in the host queue %d%n",
                 s.streamHolesRecovered, s.timelineRebases, s.hostQueueDrops));
         text.append(String.format(Locale.ROOT, "dropped: late %d, too far ahead %d, queue full %d, oversized %d, fifo full %d, overlap %d, partial bytes %d%n",

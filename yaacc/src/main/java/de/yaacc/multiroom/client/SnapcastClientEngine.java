@@ -182,6 +182,18 @@ public final class SnapcastClientEngine {
     private long timelineRebases;
     private long streamHolesRecovered;
     private long flushes;
+    private final long[] flushesByReason = new long[FlushReason.values().length];
+    private long lastHardResyncDriftMicros;
+    private final EventTrace trace;
+    private long lastSummaryTraceMicros = Long.MIN_VALUE / 2;
+    private long lastPositionTraceMicros = Long.MIN_VALUE / 2;
+    private boolean alignStartTraced;
+    private boolean primeTraced;
+    private long lastRefusedTraceMicros = Long.MIN_VALUE / 2;
+    private boolean stepTraced;
+    /** Consecutive fresh position reports that said the output is more than hardResyncMs late. */
+    private int hardLateReports;
+    private long hardLateRevision = -1;
     private long flushesSuppressed;
     private long underruns;
     private long headersIgnored;
@@ -201,6 +213,8 @@ public final class SnapcastClientEngine {
                 new ChunkScheduler.Config().lateToleranceMs(cfg.lateToleranceMs).releaseLeadMs(cfg.releaseLeadMs));
         this.seenEpoch = offsets.epoch();
         this.startedAtMicros = clock.nowMicros();
+        this.trace = new EventTrace(startedAtMicros);
+        sink.attachTrace(trace);
         this.drift = new DriftController(cfg.deadBandMicros, cfg.correctionIntervalFrames);
         updateScheduler();
     }
@@ -239,10 +253,12 @@ public final class SnapcastClientEngine {
         try {
             if (header != null && header.equals(newHeader)) {
                 headersIgnored++;
+                trace.add(now, TraceKind.HEADER_IGNORED);
                 if (connectionLost) { // the same stream again after a reconnect
                     connectionLost = false;
                     if (decoder != null) {
                         decoder.reset();
+                        trace.add(now, TraceKind.DECODER_RESET, 2);
                     }
                     scheduler.codecHeaderAccepted();
                     state = EngineState.BUFFERING;
@@ -275,6 +291,9 @@ public final class SnapcastClientEngine {
                 // this chunk was dropped; one stamped more than 5 s ahead can not be a chunk of the stream, so it is no hole
                 markHoleAfter(chunk.timestampMicros());
             }
+            if (schedulerDrops() != dropsBefore) {
+                trace.add(clock.nowMicros(), TraceKind.CHUNK_DROPPED, decision.getAction().ordinal(), schedulerDrops());
+            }
             lastOfferedMicros = chunk.timestampMicros();
             offeredAny = true;
             if (decision.getAction() == ChunkScheduler.Action.PLAY_AT) {
@@ -298,9 +317,10 @@ public final class SnapcastClientEngine {
         scheduler.reset();
         if (decoder != null) {
             decoder.reset();
+            trace.add(clock.nowMicros(), TraceKind.DECODER_RESET, 1);
         }
         if (sinkOpen) {
-            flushSink(clock.nowMicros());
+            flushSink(clock.nowMicros(), FlushReason.CONNECTION_LOST);
         } else {
             dropTimeline();
         }
@@ -418,17 +438,19 @@ public final class SnapcastClientEngine {
         blockFrames = Math.max(1, (int) ((long) rate * cfg.blockMs / 1000L));
         maxChunkFrames = maxFrames;
         maxFifoFrames = (long) rate * cfg.maxFifoMs / 1000L;
-        prefillFrames = Math.max(1, (long) rate * cfg.prefillMs / 1000L);
+        // an output that plays only after a threshold is queued needs at least that much before it can report a position
+        prefillFrames = Math.max(Math.max(1, (long) rate * cfg.prefillMs / 1000L), sink.startThresholdFrames());
         maxAheadMicros = cfg.maxAheadMs * 1000L;
         silence = new byte[blockFrames * outFrameBytes];
-        tracker = new PlaybackTracker(rate);
+        tracker = new PlaybackTracker(rate, cfg.positionOutlierMs * 1000L);
         scheduler.reset();
         scheduler.codecHeaderAccepted();
         updateScheduler();
         connectionLost = false;
         consecutiveDecodeFailures = 0;
         // a new stream: whatever the output holds belongs to the old one
-        flushSink(now);
+        flushSink(now, FlushReason.HEADER);
+        trace.add(now, TraceKind.HEADER_ACCEPTED, newRate, newHeader.getChannels(), newHeader.getBitsPerSample());
         state = EngineState.BUFFERING;
     }
 
@@ -510,6 +532,7 @@ public final class SnapcastClientEngine {
             return;
         }
         holes.add(micros);
+        trace.add(clock.nowMicros(), TraceKind.HOLE_MARKED, holes.size());
     }
 
     /** The whole stream starts over (a header, a lost connection, a new epoch): the holes of the old one mean nothing. */
@@ -688,6 +711,7 @@ public final class SnapcastClientEngine {
      */
     private void recoverHole() {
         streamHolesRecovered++;
+        trace.add(clock.nowMicros(), TraceKind.HOLE_RECOVERED, streamHolesRecovered);
         dropTimeline();
     }
 
@@ -718,9 +742,12 @@ public final class SnapcastClientEngine {
         candidateValid = false;
         nextExpectedFrame = 0;
         aligned = false;
+        alignStartTraced = false;
+        stepTraced = false;
         pending = null;
         drift.reset();
         lastDriftRevision = -1;
+        hardLateReports = 0;
     }
 
     // ---- the output
@@ -746,10 +773,10 @@ public final class SnapcastClientEngine {
                 }
                 if (aligned && ahead < -cfg.underrunSlackMs * 1000L) {
                     underruns++; // we were too late with the data: the output ran dry without saying so
-                    flushForRecovery(now);
+                    flushForRecovery(now, FlushReason.WRITER_BEHIND);
                     continue;
                 }
-            } else if (writtenFrames >= prefillFrames) {
+            } else if (writtenFrames >= prefillFrames && !priming(now)) {
                 break;
             }
             if (!nextOutput(now)) {
@@ -761,44 +788,91 @@ public final class SnapcastClientEngine {
         }
     }
 
+    /**
+     * True while the output has not given any position although it has been playing for a while: then it is probably
+     * still waiting for more data (a start threshold we do not know), so more silence is queued until it is full. The
+     * silence is aligned over later like the prefill.
+     */
+    private boolean priming(long now) {
+        boolean prime = sinkStarted && now - sinkStartedAtMicros >= cfg.primeAfterMs * 1000L;
+        if (prime && !primeTraced) {
+            primeTraced = true;
+            trace.add(now, TraceKind.PRIME, writtenFrames, sink.startThresholdFrames());
+        }
+        return prime;
+    }
+
     private void pollPosition(long now) {
-        long interval = (aligned ? cfg.positionPollSlowMs : cfg.positionPollFastMs) * 1000L;
+        boolean calm = aligned && hardLateReports == 0;
+        long interval = (calm ? cfg.positionPollSlowMs : cfg.positionPollFastMs) * 1000L;
         if (now - lastPositionPollMicros >= interval) {
             lastPositionPollMicros = now;
-            tracker.update(sink.position(), writtenFrames, now);
+            long heldBefore = tracker.outlierCount();
+            PlaybackPosition position = sink.position();
+            if (tracker.update(position, writtenFrames, now)) {
+                if (now - lastPositionTraceMicros >= 250_000L) {
+                    lastPositionTraceMicros = now;
+                    trace.add(now, TraceKind.POSITION, position.getFrames(), tracker.ageMicros(now) / 1000L,
+                            writtenFrames - position.getFrames());
+                }
+            } else if (tracker.outlierCount() != heldBefore && position != null) {
+                trace.add(now, TraceKind.POSITION_HELD, position.getFrames(), (now - position.getPresentedAtMicros()) / 1000L);
+            } else if (position != null && (position.getFrames() > writtenFrames || position.getFrames() < 0)
+                    && now - lastRefusedTraceMicros >= 1_000_000L) {
+                lastRefusedTraceMicros = now; // more frames played than written: the counter is not the one we think
+                trace.add(now, TraceKind.POSITION_REFUSED, position.getFrames(), writtenFrames,
+                        (now - position.getPresentedAtMicros()) / 1000L);
+            }
+            traceSummary(now);
         }
+    }
+
+    /** Once per second: the drift, the position reports and the queues. */
+    private void traceSummary(long now) {
+        if (now - lastSummaryTraceMicros < 1_000_000L) {
+            return;
+        }
+        lastSummaryTraceMicros = now;
+        long ahead = tracker.isValid() && rate > 0 ? (tracker.presentationMicros(writtenFrames) - now) / 1000L : -1;
+        trace.add(now, TraceKind.DRIFT, lastDrift, aligned ? 1 : 0, ahead);
+        trace.add(now, TraceKind.POLLS, tracker.acceptedCount(), tracker.rejectedCount(), tracker.outlierCount());
+        trace.add(now, TraceKind.QUEUE, rate > 0 ? fifoFrames * 1000L / rate : 0, ahead, scheduler.queuedChunks());
     }
 
     private void checkUnderruns(long now) {
         int count = sink.underrunCount();
         if (count > baselineUnderruns) {
             underruns += count - baselineUnderruns;
+            trace.add(now, TraceKind.UNDERRUN, count - baselineUnderruns, count, aligned ? 1 : 0);
             baselineUnderruns = count;
             if (aligned) {
-                flushForRecovery(now);
+                flushForRecovery(now, FlushReason.UNDERRUN);
             }
         }
     }
 
-    private void flushForRecovery(long now) {
+    private void flushForRecovery(long now, FlushReason reason) {
         if (now - lastFlushAtMicros < cfg.minFlushIntervalMs * 1000L) {
             flushesSuppressed++;
             dropTimeline();
             return;
         }
-        flushSink(now);
+        flushSink(now, reason);
     }
 
-    private void flushSink(long now) {
+    private void flushSink(long now, FlushReason reason) {
         lastFlushAtMicros = now;
+        trace.add(now, TraceKind.FLUSH, reason.ordinal(), writtenFrames, lastDrift);
         if (sinkStarted || writtenFrames > 0) {
             flushes++; // a fresh output that never ran is not a flush worth reporting
+            flushesByReason[reason.ordinal()]++;
         }
         if (sinkOpen && (sinkStarted || writtenFrames > 0)) {
             sink.flush();
             baselineUnderruns = sink.underrunCount();
         }
         sinkStarted = false;
+        primeTraced = false;
         writtenFrames = 0;
         tracker.reset(now);
         lastPositionPollMicros = Long.MIN_VALUE / 2;
@@ -831,22 +905,50 @@ public final class SnapcastClientEngine {
         lastDrift = raw;
         boolean exact = head.exact || !aligned;
         if (exact) {
+            if (!aligned && !alignStartTraced && (raw < -cfg.alignToleranceMicros || raw > cfg.alignToleranceMicros)) {
+                alignStartTraced = true;
+                trace.add(now, TraceKind.ALIGN_START, raw, writtenFrames, fifoFrames * 1000L / Math.max(1, rate));
+            }
             if (raw < -cfg.alignToleranceMicros) {
                 if (-raw > cfg.maxPadMs * 1000L) {
                     dropTimeline(); // too far ahead to wait for
                     return false;
                 }
                 int pad = Math.min(blockFrames, framesFor(-raw));
+                if (!stepTraced) {
+                    stepTraced = true;
+                    trace.add(now, TraceKind.ALIGN_STEP, pad, 0, raw);
+                }
                 stepPadded += pad;
                 outSilence(pad);
                 return true;
             }
             if (raw > cfg.alignToleranceMicros) {
-                if (aligned && raw > cfg.hardResyncMs * 1000L && now - lastFlushAtMicros >= cfg.minFlushIntervalMs * 1000L) {
-                    flushSink(now); // the output holds old audio that is late
-                    return false;
+                boolean suspicious = aligned && raw > cfg.hardResyncMs * 1000L;
+                if (suspicious) {
+                    // One report that says "late" may be a stale or odd one: act only when several fresh ones agree.
+                    if (tracker.revision() != hardLateRevision) {
+                        hardLateRevision = tracker.revision();
+                        hardLateReports++;
+                        trace.add(now, TraceKind.HARD_LATE, raw, hardLateReports);
+                    }
+                    if (hardLateReports >= cfg.hardResyncReports && now - lastFlushAtMicros >= cfg.minFlushIntervalMs * 1000L) {
+                        lastHardResyncDriftMicros = raw;
+                        flushSink(now, FlushReason.HARD_RESYNC); // the output holds old audio that is late
+                        return false;
+                    }
+                } else {
+                    hardLateReports = 0;
+                }
+                if (suspicious) {
+                    // not confirmed yet: play on as the position was before, do not skip audio on one report
+                    return writeNext(head, now);
                 }
                 int skip = Math.min(framesFor(raw), head.remaining());
+                if (!stepTraced) {
+                    stepTraced = true;
+                    trace.add(now, TraceKind.ALIGN_STEP, 0, skip, raw);
+                }
                 head.consumed += skip;
                 fifoFrames -= skip;
                 stepSkipped += skip;
@@ -856,7 +958,9 @@ public final class SnapcastClientEngine {
                 return false;
             }
             head.exact = false;
+            hardLateReports = 0;
             if (!aligned) {
+                trace.add(now, TraceKind.ALIGNED, raw, stepPadded, stepSkipped);
                 aligned = true;
                 drift.reset();
                 lastDriftRevision = tracker.revision();
@@ -867,11 +971,17 @@ public final class SnapcastClientEngine {
                 head.exact = true; // a step: done exactly, not frame by frame
                 return false;
             }
+            hardLateReports = 0;
             if (tracker.revision() != lastDriftRevision) {
                 lastDriftRevision = tracker.revision();
                 drift.addMeasurement(raw);
             }
         }
+        return writeNext(head, now);
+    }
+
+    /** Outputs the next block of the head of the queue (with the gradual correction). */
+    private boolean writeNext(Block head, long now) {
         int n = Math.min(blockFrames, head.remaining());
         int correction = drift.plan(n, rate);
         int fb = outFrameBytes;
@@ -944,9 +1054,11 @@ public final class SnapcastClientEngine {
             if (took > 0) {
                 writtenFrames += took / outFrameBytes;
                 if (!sinkStarted) {
+                    trace.add(now, TraceKind.FIRST_WRITE, took / outFrameBytes, sink.startThresholdFrames());
                     sink.start();
                     sinkStarted = true;
                     sinkStartedAtMicros = now;
+                    trace.add(now, TraceKind.PLAY, writtenFrames, sink.startThresholdFrames());
                 }
             }
             return took;
@@ -971,6 +1083,11 @@ public final class SnapcastClientEngine {
         } else {
             state = EngineState.BUFFERING;
         }
+    }
+
+    /** The event trace (thread safe; it outlives the engine's session in the last status). */
+    public EventTrace trace() {
+        return trace;
     }
 
     /** A snapshot; call it from the engine thread. */
@@ -1023,6 +1140,16 @@ public final class SnapcastClientEngine {
         s.streamHolesRecovered = streamHolesRecovered;
         s.holeOverflows = holeOverflows;
         s.flushes = flushes;
+        s.flushesHardResync = flushesByReason[FlushReason.HARD_RESYNC.ordinal()];
+        s.flushesUnderrun = flushesByReason[FlushReason.UNDERRUN.ordinal()];
+        s.flushesWriterBehind = flushesByReason[FlushReason.WRITER_BEHIND.ordinal()];
+        s.flushesHeader = flushesByReason[FlushReason.HEADER.ordinal()];
+        s.flushesConnectionLost = flushesByReason[FlushReason.CONNECTION_LOST.ordinal()];
+        s.lastHardResyncDriftMicros = lastHardResyncDriftMicros;
+        s.trace = trace;
+        s.outputSummary = sink.describe();
+        s.positionReportsAccepted = tracker.acceptedCount();
+        s.positionReportsRejected = tracker.rejectedCount() + tracker.outlierCount();
         s.flushesSuppressed = flushesSuppressed;
         s.underruns = underruns;
         s.headersIgnored = headersIgnored;

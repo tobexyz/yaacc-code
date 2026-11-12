@@ -90,4 +90,37 @@ public class PlaybackTrackerTest {
         t.reset(NOW + 1);
         assertFalse(t.isValid());
     }
+
+    // ---- outliers: a lone odd report is not taken, a level shift that the next report confirms is
+
+    @Test
+    public void aLoneOddReportIsHeldBackAndTheLineGoesOn() {
+        PlaybackTracker t = new PlaybackTracker(48000, 150_000);
+        assertTrue(t.update(new PlaybackPosition(48_000, NOW), 200_000, NOW));
+        // 200 ms later the frame count lags by 160 ms
+        assertFalse(t.update(new PlaybackPosition(48_000 + 1_920, NOW + 200_000), 200_000, NOW + 200_000));
+        assertEquals(1, t.outlierCount());
+        assertEquals(NOW, t.presentationMicros(48_000));
+        // the next report is on the old line again: taken
+        assertTrue(t.update(new PlaybackPosition(48_000 + 19_200, NOW + 400_000), 200_000, NOW + 400_000));
+        assertEquals(NOW + 400_000, t.presentationMicros(48_000 + 19_200));
+    }
+
+    @Test
+    public void aLevelShiftThatTheNextReportConfirmsIsTaken() {
+        PlaybackTracker t = new PlaybackTracker(48000, 150_000);
+        assertTrue(t.update(new PlaybackPosition(48_000, NOW), 400_000, NOW));
+        // the output stood still for 160 ms: from now on the frames lag by 160 ms
+        assertFalse(t.update(new PlaybackPosition(48_000 + 1_920, NOW + 200_000), 400_000, NOW + 200_000));
+        assertTrue(t.update(new PlaybackPosition(48_000 + 11_520, NOW + 400_000), 400_000, NOW + 400_000));
+        assertEquals(NOW + 400_000, t.presentationMicros(48_000 + 11_520));
+    }
+
+    @Test
+    public void withoutAGateEveryReportIsTaken() {
+        PlaybackTracker t = new PlaybackTracker(48000);
+        assertTrue(t.update(new PlaybackPosition(48_000, NOW), 200_000, NOW));
+        assertTrue(t.update(new PlaybackPosition(48_000 + 100, NOW + 200_000), 200_000, NOW + 200_000));
+        assertEquals(0, t.outlierCount());
+    }
 }

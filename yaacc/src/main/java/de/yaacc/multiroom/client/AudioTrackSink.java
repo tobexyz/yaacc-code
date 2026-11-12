@@ -26,217 +26,159 @@ import android.media.AudioTrack;
 import de.yaacc.multiroom.protocol.MicroClock;
 
 /**
- * The audio output on Android: an {@link AudioTrack} in streaming mode, 16 bit PCM, mono or stereo, written without
- * blocking. Thin glue, not unit tested; what it reports is checked by the engine ({@link PlaybackTracker}).
+ * The audio output on Android: a {@link StreamingSink} (all the logic, pure and tested) on an {@link AudioTrack} in
+ * streaming mode, 16 bit PCM, mono or stereo, written without blocking. This class is only the thin platform adapter.
  *
  * <p><b>Positions.</b> {@code AudioTrack.getTimestamp()} gives a frame position (the low 32 bits, wrapping) and the time it
- * is presented, on {@code CLOCK_MONOTONIC} ({@code System.nanoTime()}). The engine's clock is the boot-time clock
- * ({@code elapsedRealtimeNanos}, which also counts while the device sleeps), so the time is converted by its age:
- * the engine time is "now on the engine clock minus (nanoTime now minus the timestamp's nanoTime)". When the platform
- * gives no timestamp for a while (some routes never do) the head position is used with the current time instead; that is
- * coarse (it moves in steps of a buffer period) and is reported as such ({@link #positionSource()}).
+ * is presented, on {@code CLOCK_MONOTONIC} ({@code System.nanoTime()}); {@link StreamingSink} converts it to the engine's
+ * clock by the age of the report.
  *
- * <p><b>Guesses that need a device</b> (see {@code docs/tech.md}): that {@code flush()} resets the frame position to 0 (the
- * documentation says so for the head position; the position right after a flush is read and subtracted in case a device
- * does not), that a timestamp taken before the flush is recognised by its time, and that the track runs without an
- * underrun at the buffer size chosen here (400 ms).
+ * <p><b>Start threshold.</b> A streaming track does not play after {@code play()} until the data path is filled to a
+ * minimum level (the whole buffer by default; Android 12 can lower it, {@code setStartThresholdInFrames}). The adapter
+ * lowers it where it can and tells the engine the level ({@link #startThresholdFrames()}), which writes that much silence
+ * before it expects a position.
  */
-public final class AudioTrackSink implements AudioSink {
+public final class AudioTrackSink extends StreamingSink {
 
     private static final int BUFFER_MS = 400;
-    /** Failed timestamp polls (a poll is at least {@code MIN_POLL_NANOS} apart) after which the head position is used. */
-    private static final int TIMESTAMP_FAILURES_BEFORE_FALLBACK = 40;
-    private static final long MIN_POLL_NANOS = 20_000_000L;
-
-    private final MicroClock clock;
-    private final AudioTimestamp timestamp = new AudioTimestamp();
-    /** Volatile: the watchdog may release the output from another thread while the engine thread still uses it. */
-    private volatile AudioTrack track;
-    private SinkFormat format;
-    private boolean started;
-    private int failures;
-    private boolean usingHead;
-    private long lastPollNanos = Long.MIN_VALUE / 2; // System.nanoTime() has an arbitrary origin: never compare with 0
-    private long flushedAtNanos = Long.MIN_VALUE / 2;
-    private long wrapBase;
-    private long lastLow;
-    private long baseline;
-    private PlaybackPosition lastPosition;
 
     /** @param clock the clock of the engine (the one the connection's time sync uses) */
     public AudioTrackSink(MicroClock clock) {
-        this.clock = clock;
+        super(clock, AndroidTrack::open);
     }
 
-    @Override
-    public void open(SinkFormat wanted) throws AudioSinkException {
-        release();
-        int mask = wanted.getChannels() == 1 ? AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
-        int minBytes = AudioTrack.getMinBufferSize(wanted.getSampleRate(), mask, AudioFormat.ENCODING_PCM_16BIT);
-        if (minBytes <= 0) {
-            throw new AudioSinkException(AudioSinkException.Reason.FORMAT_REFUSED, "the device refuses this format");
-        }
-        int wantedBytes = (int) ((long) wanted.getSampleRate() * wanted.getFrameBytes() * BUFFER_MS / 1000L);
-        AudioTrack created;
-        try {
-            created = new AudioTrack.Builder()
-                    .setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
-                    .setAudioFormat(new AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                            .setSampleRate(wanted.getSampleRate()).setChannelMask(mask).build())
-                    .setBufferSizeInBytes(Math.max(minBytes, wantedBytes))
-                    .setTransferMode(AudioTrack.MODE_STREAM)
-                    .build();
-        } catch (UnsupportedOperationException | IllegalArgumentException e) {
-            throw new AudioSinkException(AudioSinkException.Reason.OPEN_FAILED, "the output could not be created");
-        }
-        track = created;
-        if (created.getState() != AudioTrack.STATE_INITIALIZED) {
-            release();
-            throw new AudioSinkException(AudioSinkException.Reason.OPEN_FAILED, "the output did not initialise");
-        }
-        format = wanted;
-        resetPositionState();
-    }
+    /** The {@link TrackPort} on an {@link AudioTrack}. */
+    private static final class AndroidTrack implements TrackPort {
+        private final AudioTimestamp timestamp = new AudioTimestamp();
+        private final AudioTrack track;
 
-    private void resetPositionState() {
-        started = false;
-        failures = 0;
-        usingHead = false;
-        lastPollNanos = Long.MIN_VALUE / 2;
-        wrapBase = 0;
-        lastLow = 0;
-        lastPosition = null;
-    }
+        private AndroidTrack(AudioTrack track) {
+            this.track = track;
+        }
 
-    @Override
-    public int write(byte[] data, int offset, int length) throws AudioSinkException {
-        AudioTrack current = track;
-        if (current == null) {
-            throw new AudioSinkException(AudioSinkException.Reason.WRITE_FAILED, "no output");
+        static TrackPort open(SinkFormat wanted) throws AudioSinkException {
+            int mask = wanted.getChannels() == 1 ? AudioFormat.CHANNEL_OUT_MONO : AudioFormat.CHANNEL_OUT_STEREO;
+            int minBytes = AudioTrack.getMinBufferSize(wanted.getSampleRate(), mask, AudioFormat.ENCODING_PCM_16BIT);
+            if (minBytes <= 0) {
+                throw new AudioSinkException(AudioSinkException.Reason.FORMAT_REFUSED, "the device refuses this format");
+            }
+            int wantedBytes = (int) ((long) wanted.getSampleRate() * wanted.getFrameBytes() * BUFFER_MS / 1000L);
+            AudioTrack created;
+            try {
+                created = new AudioTrack.Builder()
+                        .setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
+                        .setAudioFormat(new AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                                .setSampleRate(wanted.getSampleRate()).setChannelMask(mask).build())
+                        .setBufferSizeInBytes(Math.max(minBytes, wantedBytes))
+                        .setTransferMode(AudioTrack.MODE_STREAM)
+                        .build();
+            } catch (UnsupportedOperationException | IllegalArgumentException e) {
+                throw new AudioSinkException(AudioSinkException.Reason.OPEN_FAILED, "the output could not be created");
+            }
+            if (created.getState() != AudioTrack.STATE_INITIALIZED) {
+                created.release();
+                throw new AudioSinkException(AudioSinkException.Reason.OPEN_FAILED, "the output did not initialise");
+            }
+            return new AndroidTrack(created);
         }
-        int took = current.write(data, offset, length, AudioTrack.WRITE_NON_BLOCKING);
-        if (took < 0) {
-            throw new AudioSinkException(AudioSinkException.Reason.WRITE_FAILED, "write failed (" + took + ")");
-        }
-        return took;
-    }
 
-    @Override
-    public void start() throws AudioSinkException {
-        AudioTrack current = track;
-        if (current == null) {
-            throw new AudioSinkException(AudioSinkException.Reason.START_FAILED, "no output");
+        @Override
+        public int bufferFrames() {
+            return track.getBufferSizeInFrames();
         }
-        if (started) {
-            return;
-        }
-        try {
-            current.play();
-        } catch (IllegalStateException e) {
-            throw new AudioSinkException(AudioSinkException.Reason.START_FAILED, "the output could not be started");
-        }
-        started = true;
-    }
 
-    @Override
-    public void flush() {
-        AudioTrack current = track;
-        if (current == null) {
-            return;
+        @Override
+        public int startThresholdFrames() {
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                return track.getStartThresholdInFrames();
+            }
+            return track.getBufferSizeInFrames(); // device specific below Android 12: assume the whole buffer
         }
-        try {
-            current.pause(); // flush() only works on a paused or stopped track
-            current.flush();
-        } catch (IllegalStateException ignored) {
-            // a dead track fails the next write, which the engine reports
-        }
-        flushedAtNanos = System.nanoTime();
-        resetPositionState();
-        baseline = unsignedHead();
-    }
 
-    @Override
-    public PlaybackPosition position() {
-        AudioTrack current = track;
-        if (current == null || !started) {
-            return null;
+        @Override
+        public int requestStartThresholdFrames(int frames) {
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                try {
+                    return track.setStartThresholdInFrames(Math.max(1, Math.min(frames, track.getBufferCapacityInFrames())));
+                } catch (IllegalArgumentException | IllegalStateException refused) {
+                    return track.getStartThresholdInFrames();
+                }
+            }
+            return startThresholdFrames();
         }
-        long nowNanos = System.nanoTime();
-        if (nowNanos - lastPollNanos < MIN_POLL_NANOS) {
-            return lastPosition;
+
+        @Override
+        public int write(byte[] data, int offset, int length) throws AudioSinkException {
+            int took = track.write(data, offset, length, AudioTrack.WRITE_NON_BLOCKING);
+            if (took < 0) {
+                throw new AudioSinkException(AudioSinkException.Reason.WRITE_FAILED, "write failed (" + took + ")");
+            }
+            return took;
         }
-        lastPollNanos = nowNanos;
-        PlaybackPosition position = null;
-        if (!usingHead) {
+
+        @Override
+        public void play() throws AudioSinkException {
+            try {
+                track.play();
+            } catch (IllegalStateException e) {
+                throw new AudioSinkException(AudioSinkException.Reason.START_FAILED, "the output could not be started");
+            }
+        }
+
+        @Override
+        public void pauseAndFlush() {
+            try {
+                track.pause(); // flush() only works on a paused or stopped track
+                track.flush();
+            } catch (IllegalStateException ignored) {
+                // a dead track fails the next write, which the engine reports
+            }
+        }
+
+        @Override
+        public boolean timestamp(long[] out) {
             boolean ok;
             try {
-                ok = current.getTimestamp(timestamp);
+                ok = track.getTimestamp(timestamp);
             } catch (IllegalStateException e) {
-                ok = false;
+                return false;
             }
-            if (ok && timestamp.nanoTime >= flushedAtNanos) {
-                failures = 0;
-                long low = timestamp.framePosition & 0xffffffffL;
-                if (low < lastLow && lastLow - low > 0x80000000L) {
-                    wrapBase += 1L << 32;
-                }
-                lastLow = low;
-                long frames = wrapBase + low - baseline;
-                long ageMicros = (nowNanos - timestamp.nanoTime) / 1000L;
-                position = new PlaybackPosition(Math.max(0, frames), clock.nowMicros() - ageMicros);
-            } else if (!ok && ++failures >= TIMESTAMP_FAILURES_BEFORE_FALLBACK) {
-                usingHead = true;
+            if (ok) {
+                out[0] = timestamp.framePosition;
+                out[1] = timestamp.nanoTime;
             }
+            return ok;
         }
-        if (usingHead) {
-            position = new PlaybackPosition(Math.max(0, unsignedHead(current) - baseline), clock.nowMicros());
+
+        @Override
+        public long nanoTime() {
+            return System.nanoTime();
         }
-        if (position != null) {
-            lastPosition = position;
+
+        @Override
+        public long headPosition() {
+            return track.getPlaybackHeadPosition() & 0xffffffffL;
         }
-        return lastPosition;
-    }
 
-    private long unsignedHead() {
-        return unsignedHead(track);
-    }
-
-    private static long unsignedHead(AudioTrack current) {
-        return current == null ? 0 : current.getPlaybackHeadPosition() & 0xffffffffL;
-    }
-
-    @Override
-    public int underrunCount() {
-        AudioTrack current = track;
-        return current == null ? 0 : current.getUnderrunCount();
-    }
-
-    @Override
-    public void setGain(float gain) {
-        AudioTrack current = track;
-        if (current != null) {
-            current.setVolume(gain);
+        @Override
+        public int underrunCount() {
+            return track.getUnderrunCount();
         }
-    }
 
-    @Override
-    public String positionSource() {
-        return usingHead ? "head position (coarse)" : "timestamp";
-    }
+        @Override
+        public void setGain(float gain) {
+            track.setVolume(gain);
+        }
 
-    @Override
-    public void release() {
-        AudioTrack old = track;
-        track = null;
-        started = false;
-        if (old != null) {
+        @Override
+        public void release() {
             try {
-                old.pause();
+                track.pause();
             } catch (IllegalStateException ignored) {
                 // already dead
             }
-            old.release();
+            track.release();
         }
     }
 }

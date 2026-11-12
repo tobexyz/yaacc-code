@@ -38,6 +38,9 @@ public final class ClientEngineConfig {
     int deadBandMicros = 2_000;
     int gradualLimitMs = 30;
     int hardResyncMs = 300;
+    int hardResyncReports = 3;
+    int positionOutlierMs = 150;
+    int primeAfterMs = 200;
     int correctionIntervalFrames = 400;
     int minFlushIntervalMs = 500;
     int maxDecoderRestartsPerMinute = 12;
@@ -140,6 +143,30 @@ public final class ClientEngineConfig {
     /** Playback this late (the output holds old audio) is flushed (default 300 ms). */
     public ClientEngineConfig hardResyncMs(int value) {
         hardResyncMs = positive("hardResyncMs", value);
+        return this;
+    }
+
+    /** The output must be this late in this many consecutive fresh position reports before it is flushed (default 3). */
+    public ClientEngineConfig hardResyncReports(int value) {
+        hardResyncReports = positive("hardResyncReports", value);
+        return this;
+    }
+
+    /**
+     * A position report that is off the extrapolation of the previous one by more than this is held back until the next
+     * report confirms it (default 150 ms).
+     */
+    public ClientEngineConfig positionOutlierMs(int value) {
+        positionOutlierMs = positive("positionOutlierMs", value);
+        return this;
+    }
+
+    /**
+     * When the output has not given a position this long after the first write, the engine keeps queueing silence until
+     * the output is full: an output that waits for a full buffer before it plays would never start otherwise (default 200).
+     */
+    public ClientEngineConfig primeAfterMs(int value) {
+        primeAfterMs = positive("primeAfterMs", value);
         return this;
     }
 

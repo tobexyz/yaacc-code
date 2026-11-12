@@ -78,7 +78,22 @@ public final class EngineStatus implements Cloneable {
     public long hostQueueDrops;
     public long flushes;
     public long flushesSuppressed;
+    /** Flushes by what caused them: the sum is {@link #flushes} (a flush at a new header or a loss is counted there too). */
+    public long flushesHardResync;
+    public long flushesUnderrun;
+    public long flushesWriterBehind;
+    public long flushesHeader;
+    public long flushesConnectionLost;
+    /** The drift (positive: late) that caused the latest hard resync. */
+    public long lastHardResyncDriftMicros;
+    /** Reports of the output's position taken into account and refused (stale, from the future, going back, ...). */
+    public long positionReportsAccepted;
+    public long positionReportsRejected;
     public long underruns;
+    /** The bounded event trace (shared, thread safe); null before the engine existed. */
+    public EventTrace trace;
+    /** One line about the output: buffer, start threshold, underruns, timestamp health. */
+    public String outputSummary = "";
     public long headersIgnored;
     public long decoderStarts;
     public long epochChanges;

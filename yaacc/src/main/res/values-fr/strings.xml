@@ -376,6 +376,9 @@
     <string name="snapcast_client_start">Démarrer</string>
     <string name="snapcast_client_stop">Arrêter</string>
     <string name="snapcast_client_apply_latency">Appliquer la latence</string>
+    <string name="snapcast_client_copy_trace">Copier la trace</string>
+    <string name="snapcast_client_trace_copied">Trace copiée dans le presse-papiers</string>
+    <string name="snapcast_client_trace_empty">Pas encore de trace</string>
     <string name="snapcast_client_close">Fermer</string>
     <string name="snapcast_client_error_empty_host">Saisissez l\'adresse du serveur</string>
     <string name="snapcast_client_error_invalid_host">Ce n\'est pas une adresse valide</string>

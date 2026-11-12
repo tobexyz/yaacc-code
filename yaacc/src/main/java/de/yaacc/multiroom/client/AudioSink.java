@@ -52,6 +52,23 @@ public interface AudioSink {
     /** A linear gain, 0 to 1. */
     void setGain(float gain);
 
+    /**
+     * How many frames the engine must have written before the output really starts playing (the streaming start threshold
+     * of the platform); 0 when the output starts at once.
+     */
+    default int startThresholdFrames() {
+        return 0;
+    }
+
+    /** Lets the output note its own events (position source changes) in the engine's trace. */
+    default void attachTrace(EventTrace trace) {
+    }
+
+    /** One line about the output (buffer, threshold, timestamp health) for the status and the trace. */
+    default String describe() {
+        return "";
+    }
+
     /** A label of where {@link #position()} comes from, for the status line. */
     String positionSource();
 

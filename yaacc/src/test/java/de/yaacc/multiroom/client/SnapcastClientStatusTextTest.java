@@ -47,6 +47,25 @@ public class SnapcastClientStatusTextTest {
     }
 
     @Test
+    public void theFlushesAreCountedByCauseWithTheDriftThatTriggeredTheLastHardResync() {
+        EngineStatus status = new EngineStatus();
+        status.flushesHardResync = 7;
+        status.flushesUnderrun = 2;
+        status.flushesWriterBehind = 3;
+        status.flushesHeader = 1;
+        status.flushesConnectionLost = 4;
+        status.lastHardResyncDriftMicros = 395_000;
+        status.positionReportsAccepted = 120;
+        status.positionReportsRejected = 9;
+        SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Ending.NONE, 0);
+        SnapcastClientRuntime.engine(status);
+        String text = SnapcastClientStatusText.of(SnapcastClientRuntime.get(), 0);
+        assertTrue(text, text.contains("hard resync 7 (last drift +395"));
+        assertTrue(text, text.contains("underrun 2, writer behind 3, header 1, connection lost 4"));
+        assertTrue(text, text.contains("position reports: taken 120, refused 9"));
+    }
+
+    @Test
     public void aFailureIsExplainedInWordsAndNeverWithTextFromTheServer() {
         EngineStatus status = new EngineStatus();
         status.failure = EngineFailure.DECODER_UNAVAILABLE;

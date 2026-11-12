@@ -18,6 +18,8 @@
  */
 package de.yaacc.settings;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Typeface;
@@ -30,6 +32,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.Toast;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AlertDialog;
@@ -46,6 +49,7 @@ import de.yaacc.multiroom.client.SnapcastClientRuntime;
 import de.yaacc.multiroom.client.SnapcastClientService;
 import de.yaacc.multiroom.client.SnapcastClientSpike;
 import de.yaacc.multiroom.client.SnapcastClientStatusText;
+import de.yaacc.multiroom.client.SnapcastClientTraceReport;
 import de.yaacc.multiroom.ui.SnapcastServerListModel;
 
 /**
@@ -69,6 +73,7 @@ final class SnapcastClientSpikeDialog {
     private final Button stop;
     private final Button apply;
     private final TextView status;
+    private final TextView summary;
     private final ExecutorService worker = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "snapcast-client-spike");
         thread.setDaemon(true);
@@ -87,7 +92,9 @@ final class SnapcastClientSpikeDialog {
             start.setEnabled(!active);
             stop.setEnabled(active);
             apply.setEnabled(active);
-            status.setText(SnapcastClientStatusText.of(SnapcastClientRuntime.get(), System.currentTimeMillis()));
+            SnapcastClientRuntime.View view = SnapcastClientRuntime.get();
+            status.setText(SnapcastClientStatusText.of(view, System.currentTimeMillis()));
+            summary.setText(SnapcastClientTraceReport.summary(view.engine, deviceDescription()));
             main.postDelayed(this, REFRESH_MS);
         }
     };
@@ -159,6 +166,19 @@ final class SnapcastClientSpikeDialog {
         buttons.addView(stop);
         buttons.addView(apply);
         root.addView(buttons);
+
+        LinearLayout traceRow = new LinearLayout(context);
+        traceRow.setOrientation(LinearLayout.HORIZONTAL);
+        Button copyTrace = new Button(context);
+        copyTrace.setText(R.string.snapcast_client_copy_trace);
+        copyTrace.setOnClickListener(v -> onCopyTrace());
+        traceRow.addView(copyTrace);
+        summary = new TextView(context);
+        summary.setTypeface(Typeface.MONOSPACE);
+        summary.setTextSize(10);
+        summary.setTextIsSelectable(true);
+        traceRow.addView(summary, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        root.addView(traceRow);
 
         status = new TextView(context);
         status.setTypeface(Typeface.MONOSPACE);
@@ -251,5 +271,26 @@ final class SnapcastClientSpikeDialog {
         }
         preferences.edit().putInt(SnapcastClientSpike.KEY_LAST_LATENCY, value).apply();
         SnapcastClientService.setLatency(context, value);
+    }
+
+    /** Device model and API level for the report; the model name is the device's, never the server's. */
+    private static String deviceDescription() {
+        return android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL + " / API " + android.os.Build.VERSION.SDK_INT;
+    }
+
+    /** Puts the summary, the status text and the event trace on the clipboard, to paste into a report. */
+    private void onCopyTrace() {
+        SnapcastClientRuntime.View view = SnapcastClientRuntime.get();
+        if (view.engine == null || view.engine.trace == null || view.engine.trace.size() == 0) {
+            Toast.makeText(context, R.string.snapcast_client_trace_empty, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard == null) {
+            return;
+        }
+        String report = SnapcastClientTraceReport.of(view, deviceDescription(), System.currentTimeMillis());
+        clipboard.setPrimaryClip(ClipData.newPlainText("snapcast trace", report));
+        Toast.makeText(context, R.string.snapcast_client_trace_copied, Toast.LENGTH_SHORT).show();
     }
 }

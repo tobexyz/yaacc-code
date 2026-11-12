@@ -372,6 +372,9 @@
     <string name="snapcast_client_start">Starten</string>
     <string name="snapcast_client_stop">Stoppen</string>
     <string name="snapcast_client_apply_latency">Latentie toepassen</string>
+    <string name="snapcast_client_copy_trace">Trace kopiëren</string>
+    <string name="snapcast_client_trace_copied">Trace naar het klembord gekopieerd</string>
+    <string name="snapcast_client_trace_empty">Nog geen trace</string>
     <string name="snapcast_client_close">Sluiten</string>
     <string name="snapcast_client_error_empty_host">Voer het adres van de server in</string>
     <string name="snapcast_client_error_invalid_host">Dit is geen geldig adres</string>

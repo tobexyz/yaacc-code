@@ -33,6 +33,11 @@ public final class PlaybackTracker {
     static final long MAX_AGE_MICROS = 3_000_000L;
 
     private final int sampleRate;
+    private final long outlierMicros;
+    private boolean candidateValid;
+    private long candidateFrames;
+    private long candidateAtMicros;
+    private long outliers;
     private long resetAtMicros;
     private boolean valid;
     private long frames;
@@ -42,7 +47,17 @@ public final class PlaybackTracker {
     private long revision;
 
     public PlaybackTracker(int sampleRate) {
+        this(sampleRate, Long.MAX_VALUE);
+    }
+
+    /**
+     * @param outlierMicros a report that is off the extrapolation of the last one by more than this is not taken at once:
+     *                      it must be confirmed by the next report (a lone odd report would make the engine think the
+     *                      output is far ahead or behind, and stop writing or skip audio)
+     */
+    public PlaybackTracker(int sampleRate, long outlierMicros) {
         this.sampleRate = sampleRate;
+        this.outlierMicros = outlierMicros;
     }
 
     /** Forget everything: the output was flushed at {@code nowMicros}, positions older than that do not count. */
@@ -51,6 +66,7 @@ public final class PlaybackTracker {
         frames = 0;
         presentedAtMicros = 0;
         resetAtMicros = nowMicros;
+        candidateValid = false;
         revision++;
     }
 
@@ -78,12 +94,36 @@ public final class PlaybackTracker {
             rejected++; // more frames at an earlier time
             return false;
         }
+        if (valid && outlierMicros != Long.MAX_VALUE) {
+            if (offLine(frames, presentedAtMicros, f, at)) {
+                boolean confirmed = candidateValid && !offLine(candidateFrames, candidateAtMicros, f, at);
+                candidateFrames = f;
+                candidateAtMicros = at;
+                candidateValid = true;
+                if (!confirmed) {
+                    outliers++;
+                    return false;
+                }
+            }
+            candidateValid = false;
+        }
         frames = f;
         presentedAtMicros = at;
         valid = true;
         accepted++;
         revision++;
         return true;
+    }
+
+    /** True when the report (f, at) is not where the line through (f0, at0) at the nominal rate puts it. */
+    private boolean offLine(long f0, long at0, long f, long at) {
+        long expected = f0 + Math.floorDiv((at - at0) * (long) sampleRate, 1_000_000L);
+        return Math.abs(f - expected) * 1_000_000L / sampleRate > outlierMicros;
+    }
+
+    /** Reports that were held back because they were off the line (and not confirmed by the next one). */
+    public long outlierCount() {
+        return outliers;
     }
 
     /** For tests: the output has counted {@code delta} frames more. */

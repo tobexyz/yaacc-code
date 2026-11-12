@@ -368,6 +368,9 @@
     <string name="snapcast_client_start">开始</string>
     <string name="snapcast_client_stop">停止</string>
     <string name="snapcast_client_apply_latency">应用延迟</string>
+    <string name="snapcast_client_copy_trace">复制跟踪</string>
+    <string name="snapcast_client_trace_copied">跟踪已复制到剪贴板</string>
+    <string name="snapcast_client_trace_empty">暂无跟踪</string>
     <string name="snapcast_client_close">关闭</string>
     <string name="snapcast_client_error_empty_host">请输入服务器地址</string>
     <string name="snapcast_client_error_invalid_host">这不是有效的地址</string>
