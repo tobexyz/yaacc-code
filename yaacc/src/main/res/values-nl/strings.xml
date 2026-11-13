@@ -371,6 +371,10 @@
     <string name="snapcast_servers_error_full">U kunt maximaal 16 servers toevoegen</string>
     <string name="snapcast_servers_already">Deze server staat al in de lijst</string>
     <string name="snapcast_servers_removed">Server verwijderd. De geselecteerde groepen ervan zijn niet meer geselecteerd.</string>
+    <string name="snapcast_servers_discovery_title">Zoekrapport</string>
+    <string name="snapcast_servers_discovery_copy">Rapport kopiëren</string>
+    <string name="snapcast_servers_discovery_copied">Rapport naar het klembord gekopieerd</string>
+    <string name="snapcast_servers_discovery_note">Het rapport toont de gevonden servers met hun adressen in uw netwerk, en de status van wifi en zoeken. Bekijk het voordat u het ergens plakt. Zolang dit venster open is en Snapcast-servers zoeken aanstaat, wordt het netwerk doorzocht.</string>
     <string name="snapcast_client_title">Snapcast-client (luistest)</string>
     <string name="snapcast_client_note">Experimenteel. Deze telefoon speelt als Snapcast-client, zodat u de synchronisatie op het gehoor kunt controleren. Audio en besturing zijn niet versleuteld. De server en zijn controllers zien de naam van deze telefoon en een gegenereerde id.</string>
     <string name="snapcast_client_host_hint">Serveradres, optioneel :poort (standaard 1704)</string>
@@ -381,6 +385,10 @@
     <string name="snapcast_client_copy_trace">Trace kopiëren</string>
     <string name="snapcast_client_trace_copied">Trace naar het klembord gekopieerd</string>
     <string name="snapcast_client_trace_empty">Nog geen trace</string>
+    <string name="snapcast_client_choose_server">Server kiezen</string>
+    <string name="snapcast_client_choose_title">Bekende servers</string>
+    <string name="snapcast_client_choose_none">Nog geen bekende servers. Voeg er een toe in de instellingen onder Snapcast-servers.</string>
+    <string name="snapcast_client_choose_last">laatst gebruikt</string>
     <string name="snapcast_client_close">Sluiten</string>
     <string name="snapcast_client_error_empty_host">Voer het adres van de server in</string>
     <string name="snapcast_client_error_invalid_host">Dit is geen geldig adres</string>

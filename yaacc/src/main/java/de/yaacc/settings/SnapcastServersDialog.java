@@ -18,7 +18,10 @@
  */
 package de.yaacc.settings;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
+import android.graphics.Typeface;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.InputFilter;
@@ -51,6 +54,12 @@ import de.yaacc.multiroom.ui.SnapcastServerListModel;
  * {@link SnapcastServerListModel}, no credentials, at most 16) and the servers that are listed, each removable when the
  * user typed it in or it was remembered. Thin Android glue; every decision is in the model. The model's calls run on a
  * worker (removing a server closes its connection), and the result is posted back to the main thread.
+ *
+ * <p>Below the list is the discovery report (task 11.6, {@link de.yaacc.multiroom.discovery.SnapcastDiscoveryReport}): what the
+ * scan browses, what the system reported, the state of the switch, Wi-Fi, permission and multicast lock, with a button that
+ * copies it. While the dialog is open the scan runs if the switch "Find Snapcast servers" is on (the dialog counts as a page of
+ * the discovery, not of the connections), so the report is live; the text is refreshed every second. The report is for the
+ * screen and the clipboard only: it names the servers found and their addresses, which the note beside the button says.
  */
 final class SnapcastServersDialog {
 
@@ -62,9 +71,26 @@ final class SnapcastServersDialog {
         thread.setDaemon(true);
         return thread;
     });
+    private static final long REPORT_REFRESH_MS = 1000L;
+
     private final EditText input;
     private final LinearLayout list;
+    private final TextView report;
     private AlertDialog dialog;
+    private boolean shown;
+    private String drawnRows;
+    private String reportText = "";
+
+    private final Runnable reportLoop = new Runnable() {
+        @Override
+        public void run() {
+            if (!shown) {
+                return;
+            }
+            refresh();
+            main.postDelayed(this, REPORT_REFRESH_MS);
+        }
+    };
 
     private SnapcastServersDialog(Context context) {
         this.context = context;
@@ -89,22 +115,61 @@ final class SnapcastServersDialog {
         root.addView(add, addParams);
         list = new LinearLayout(context);
         list.setOrientation(LinearLayout.VERTICAL);
+        // the list and the report scroll together: a phone in landscape has room for little else
+        LinearLayout content = new LinearLayout(context);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.addView(list);
+        TextView reportTitle = new TextView(context);
+        reportTitle.setText(R.string.snapcast_servers_discovery_title);
+        reportTitle.setTextAppearance(android.R.style.TextAppearance_Material_Medium);
+        reportTitle.setPadding(0, (int) (16 * density), 0, (int) (4 * density));
+        content.addView(reportTitle);
+        report = new TextView(context);
+        report.setTypeface(Typeface.MONOSPACE);
+        report.setTextSize(10);
+        report.setTextIsSelectable(true);
+        content.addView(report);
+        Button copy = new Button(context);
+        copy.setText(R.string.snapcast_servers_discovery_copy);
+        copy.setOnClickListener(v -> copyReport());
+        content.addView(copy, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        TextView note = new TextView(context);
+        note.setText(R.string.snapcast_servers_discovery_note);
+        note.setTextSize(12);
+        content.addView(note);
         ScrollView scroll = new ScrollView(context);
-        scroll.addView(list);
+        scroll.addView(content);
         root.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         dialog = new AlertDialog.Builder(context)
                 .setTitle(R.string.settings_snapcast_servers_title)
                 .setView(root)
                 .setPositiveButton(android.R.string.ok, null)
                 .create();
-        dialog.setOnDismissListener(d -> worker.shutdown());
+        dialog.setOnDismissListener(d -> {
+            shown = false;
+            main.removeCallbacks(reportLoop);
+            SnapcastHub.getShared(this.context).diagnosticsClosed();
+            worker.shutdown();
+        });
     }
 
     /** Opens the dialog. */
     static void show(Context context) {
-        SnapcastServersDialog shown = new SnapcastServersDialog(context);
-        shown.dialog.show();
-        shown.refresh();
+        SnapcastServersDialog opened = new SnapcastServersDialog(context);
+        opened.dialog.show();
+        opened.shown = true;
+        SnapcastHub.getShared(context).diagnosticsOpened();
+        opened.reportLoop.run();
+    }
+
+    /** Puts the report on the clipboard. It names the servers found and their addresses; the note beside the button says so. */
+    private void copyReport() {
+        ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard == null || reportText.isEmpty()) {
+            return;
+        }
+        clipboard.setPrimaryClip(ClipData.newPlainText("snapcast discovery", reportText));
+        Toast.makeText(context, R.string.snapcast_servers_discovery_copied, Toast.LENGTH_SHORT).show();
     }
 
     private void add() {
@@ -144,14 +209,35 @@ final class SnapcastServersDialog {
         try {
             worker.execute(() -> {
                 final List<SnapcastServerListModel.Row> rows = model.rows();
-                main.post(() -> draw(rows));
+                final String text = SnapcastHub.getShared(context).discoveryReport();
+                main.post(() -> {
+                    showReport(text);
+                    draw(rows);
+                });
             });
         } catch (java.util.concurrent.RejectedExecutionException closed) {
             // the dialog was dismissed meanwhile
         }
     }
 
+    private void showReport(String text) {
+        reportText = text;
+        if (!text.contentEquals(report.getText())) {
+            report.setText(text); // plain text, cleaned by the report: nothing of the network is a link or markup
+        }
+    }
+
     private void draw(List<SnapcastServerListModel.Row> rows) {
+        // the list is redrawn only when it changed: the report refreshes every second, and a redraw would eat a tap on "remove"
+        StringBuilder signature = new StringBuilder();
+        for (SnapcastServerListModel.Row row : rows) {
+            signature.append(row.getEndpointText()).append('|').append(row.getName()).append('|').append(row.getKind())
+                    .append('|').append(row.isAnnounced()).append('\n');
+        }
+        if (signature.toString().equals(drawnRows)) {
+            return;
+        }
+        drawnRows = signature.toString();
         list.removeAllViews();
         float density = context.getResources().getDisplayMetrics().density;
         if (rows.isEmpty()) {

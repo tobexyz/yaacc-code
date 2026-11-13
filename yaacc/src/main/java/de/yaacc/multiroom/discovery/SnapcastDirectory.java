@@ -76,6 +76,8 @@ public final class SnapcastDirectory {
 
     private static final int MAX_DISPLAY_NAME = 64;
     private static final int MAX_SERVICE_NAME = 256;
+    /** The room that the type and the separator take in a service id. */
+    private static final int MAX_TYPE_PREFIX = 40;
 
     /** Told when the list of servers changed; called on the thread that made the change, without a lock held. */
     public interface Listener {
@@ -176,14 +178,28 @@ public final class SnapcastDirectory {
     }
 
     /**
-     * A service was found and resolved.
+     * A service was found and resolved; its name is both its identity and its display text.
      *
      * @return true if the server is listed now (new or already known), false if it was refused: an address outside
      * the local ranges, a port outside {@value #MIN_DISCOVERED_PORT} to 65535, no or an oversized service name, or the
      * list is full
      */
     public boolean serviceFound(String serviceName, InetAddress address, int port) {
-        if (serviceName == null || serviceName.isEmpty() || serviceName.length() > MAX_SERVICE_NAME
+        return serviceFound(serviceName, serviceName, address, port);
+    }
+
+    /**
+     * A service was found and resolved, with an identity of its own: the same name under two service types (a server of
+     * Snapcast 0.32 announces its control port twice, see {@link SnapcastServiceTypes}) is two services, so the loss of
+     * one does not drop the server while the other is still announced. The name is display text only.
+     *
+     * @param serviceId   what {@link #serviceLost(String)} will be given; see {@link SnapcastServiceTypes#serviceId}
+     * @param serviceName the name the network gave the service
+     * @return as {@link #serviceFound(String, InetAddress, int)}
+     */
+    public boolean serviceFound(String serviceId, String serviceName, InetAddress address, int port) {
+        if (serviceId == null || serviceId.isEmpty() || serviceId.length() > MAX_SERVICE_NAME + MAX_TYPE_PREFIX
+                || serviceName == null || serviceName.isEmpty() || serviceName.length() > MAX_SERVICE_NAME
                 || !SnapcastAddressFilter.isAccepted(address) || port < MIN_DISCOVERED_PORT) {
             return false;
         }
@@ -196,7 +212,7 @@ public final class SnapcastDirectory {
         boolean listed;
         synchronized (lock) {
             changed |= expireLocked();
-            SnapcastServerKey previous = byServiceName.get(serviceName);
+            SnapcastServerKey previous = byServiceName.get(serviceId);
             if (!browsing) {
                 // a late callback of a scan that was switched off (security review S41): nothing is listed
                 listed = false;
@@ -208,7 +224,7 @@ public final class SnapcastDirectory {
                     listed = false;
                 } else {
                     if (previous != null && !previous.equals(key)) {
-                        changed |= detachLocked(serviceName, previous);
+                        changed |= detachLocked(serviceId, previous);
                     }
                     if (node == null) {
                         node = new Node(endpoint, nextOrder++);
@@ -216,12 +232,12 @@ public final class SnapcastDirectory {
                         changed = true;
                     }
                     String display = SnapcastDisplayText.of(serviceName, MAX_DISPLAY_NAME);
-                    changed |= node.services.add(serviceName) || node.lostAt >= 0
+                    changed |= node.services.add(serviceId) || node.lostAt >= 0
                             || !display.equals(node.displayName) || !sameAddress(node.endpoint, endpoint);
                     node.lostAt = -1;
                     node.displayName = display;
                     node.endpoint = endpoint;
-                    byServiceName.put(serviceName, key);
+                    byServiceName.put(serviceId, key);
                     listed = true;
                 }
             }
@@ -234,7 +250,7 @@ public final class SnapcastDirectory {
         return a.getAddress() == null ? b.getAddress() == null : a.getAddress().equals(b.getAddress());
     }
 
-    /** A service is gone (a "lost" event names only the service). */
+    /** A service is gone (a "lost" event names only the service; the id is the one given to {@code serviceFound}). */
     public void serviceLost(String serviceName) {
         boolean changed = false;
         synchronized (lock) {

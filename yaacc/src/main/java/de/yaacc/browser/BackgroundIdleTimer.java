@@ -22,16 +22,21 @@ import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 
+import androidx.annotation.OptIn;
+import androidx.media3.common.util.UnstableApi;
 import androidx.preference.PreferenceManager;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.multiroom.client.SnapcastClientRuntime;
+import de.yaacc.player.SnapcastPlayer;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.YaaccLogger;
 
 /**
  * Process-wide background idle timer: exits the app five minutes after the last browser activity
- * stopped, unless something is still running. Browser activities call
+ * stopped, unless something is still running (the rule is {@link AutoCloseRule}: the UPnP services, a
+ * player, a Snapcast client session or a Snapcast feed). Browser activities call
  * {@link #browserStarted(Context)} from {@code onStart} and {@link #browserStopped(Context)} from
  * {@code onStop}; the counting rules are in {@link StartedBrowserCounter}.
  * <p>
@@ -66,6 +71,8 @@ public final class BackgroundIdleTimer {
         return counter;
     }
 
+    // SnapcastPlayer is marked unstable only because it extends the Media3 based local player; it is only tested by type here
+    @OptIn(markerClass = UnstableApi.class)
     private static void exitIfIdle(Context appContext) {
         if (!(appContext instanceof Yaacc)) {
             return;
@@ -74,12 +81,21 @@ public final class BackgroundIdleTimer {
         UpnpClient client = yaacc.getUpnpClient();
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(appContext);
         boolean playersActive = client != null && !client.getCurrentPlayers().isEmpty();
-        boolean serverEnabled = preferences.getBoolean(appContext.getString(R.string.settings_local_server_chkbx), false);
-        boolean rendererEnabled = preferences.getBoolean(appContext.getString(R.string.settings_local_server_receiver_chkbx), false);
-        boolean proxyEnabled = preferences.getBoolean(appContext.getString(R.string.settings_local_server_proxy_chkbx), false);
-        if (!playersActive && !serverEnabled && !rendererEnabled && !proxyEnabled) {
+        // a player that feeds a Snapcast group is also a player; it is asked on its own so that the rule does not depend on it
+        boolean feedActive = client != null && client.getCurrentPlayers().stream().anyMatch(p -> p instanceof SnapcastPlayer);
+        AutoCloseRule.Facts facts = new AutoCloseRule.Facts()
+                .playersActive(playersActive)
+                .serverEnabled(preferences.getBoolean(appContext.getString(R.string.settings_local_server_chkbx), false))
+                .rendererEnabled(preferences.getBoolean(appContext.getString(R.string.settings_local_server_receiver_chkbx), false))
+                .proxyEnabled(preferences.getBoolean(appContext.getString(R.string.settings_local_server_proxy_chkbx), false))
+                .snapcastClientSessionActive(SnapcastClientRuntime.isActive())
+                .snapcastFeedActive(feedActive);
+        AutoCloseRule.Keep keep = AutoCloseRule.reasonToStay(facts);
+        if (keep == AutoCloseRule.Keep.NONE) {
             YaaccLogger.d(BackgroundIdleTimer.class.getName(), "Idle in background, exiting");
             yaacc.exit();
+        } else {
+            YaaccLogger.d(BackgroundIdleTimer.class.getName(), "Idle in background, staying open: " + keep);
         }
     }
 

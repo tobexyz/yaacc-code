@@ -449,6 +449,40 @@ public class SnapcastControlsTest {
     }
 
     @Test
+    public void aClientThatTheFreshStatusDoesNotKnowIsNotAdded() {
+        caller.serverMembers = new String[]{"a", "b", "c"}; // "ghost" left the server (deleted) after the sheet was opened
+
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d", "ghost"), Arrays.asList("b")));
+        actions.runAll();
+
+        assertEquals(1, caller.count("Group.SetClients"));
+        assertEquals("[\"a\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    @Test
+    public void aChangeThatOnlyAddsAnUnknownClientMakesNoCall() {
+        caller.serverMembers = new String[]{"a", "b", "c"};
+
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("ghost"), Collections.<String>emptyList()));
+        actions.runAll();
+
+        assertEquals(0, caller.count("Group.SetClients"));
+        assertTrue(failures.isEmpty());
+    }
+
+    @Test
+    public void anUnknownClientIsDroppedAlsoWhenTheCachedModelIsUsed() {
+        // no fresh read (the rate limit refused or it failed): the cached model decides, and it does not know "ghost" either
+        caller.failure = new SnapcastException(SnapcastException.Kind.TIMEOUT, 0, "slow", null, null);
+        caller.failOnly = "Server.GetStatus";
+
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d", "ghost"), Arrays.asList("b")));
+        actions.runAll();
+
+        assertEquals("[\"a\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    @Test
     public void aLinkChangeThatLeavesNothingToDoMakesNoCall() {
         caller.serverMembers = new String[]{"a", "c"}; // "b" left on its own, "c" is in already
 

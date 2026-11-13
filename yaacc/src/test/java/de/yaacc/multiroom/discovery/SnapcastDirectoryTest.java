@@ -647,5 +647,55 @@ public class SnapcastDirectoryTest {
 
         assertEquals(before, notifications);
     }
-}
 
+    // ---- one server announced under several service types (task 11.6): the id of a service carries the type
+
+    @Test
+    public void oneServerUnderTwoTypesIsOneEntry() throws Exception {
+        String ctrl = SnapcastServiceTypes.serviceId("_snapcast-ctrl._tcp", "Snapcast");
+        String tcp = SnapcastServiceTypes.serviceId("_snapcast-tcp._tcp", "Snapcast");
+
+        assertTrue(directory.serviceFound(ctrl, "Snapcast", ip(192, 168, 1, 5), 1705));
+        assertTrue(directory.serviceFound(tcp, "Snapcast", ip(192, 168, 1, 5), 1705));
+
+        assertEquals(1, directory.servers().size());
+        assertEquals("Snapcast", directory.servers().get(0).getDisplayName());
+    }
+
+    @Test
+    public void theServerStaysWhileOneOfItsTypesIsStillAnnounced() throws Exception {
+        String ctrl = SnapcastServiceTypes.serviceId("_snapcast-ctrl._tcp", "Snapcast");
+        String tcp = SnapcastServiceTypes.serviceId("_snapcast-tcp._tcp", "Snapcast");
+        directory.serviceFound(ctrl, "Snapcast", ip(192, 168, 1, 5), 1705);
+        directory.serviceFound(tcp, "Snapcast", ip(192, 168, 1, 5), 1705);
+
+        directory.serviceLost(tcp);
+
+        assertTrue(directory.servers().get(0).isDiscovered());
+        assertFalse(directory.servers().get(0).isLost());
+
+        directory.serviceLost(ctrl);
+
+        assertTrue(directory.servers().get(0).isLost());
+    }
+
+    @Test
+    public void theDisplayNameNeverShowsTheTypeOrTheId() throws Exception {
+        String id = SnapcastServiceTypes.serviceId("_snapcast-tcp._tcp", "Living room");
+        directory.serviceFound(id, "Living room", ip(192, 168, 1, 5), 1705);
+
+        assertEquals("Living room", directory.servers().get(0).getDisplayName());
+    }
+
+    @Test
+    public void aTooLongNameIsRefusedWhateverTheId() throws Exception {
+        StringBuilder name = new StringBuilder();
+        for (int i = 0; i < 300; i++) {
+            name.append('x');
+        }
+        assertFalse(directory.serviceFound("id", name.toString(), ip(192, 168, 1, 5), 1705));
+        assertFalse(directory.serviceFound("", "Snapcast", ip(192, 168, 1, 5), 1705));
+        assertFalse(directory.serviceFound("id", null, ip(192, 168, 1, 5), 1705));
+        assertEquals(0, directory.servers().size());
+    }
+}

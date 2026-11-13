@@ -29,7 +29,7 @@ The synthetic receiver device (or a receiver seam), the PCM capture sink and the
 - Group volume: the server has no group volume; YAACC computes the average and applies relative changes to the members (same idea as the MusicCast group slider), respecting 0-100 and muted clients.
 
 ### Discovery
-- mDNS (src, `server/snapserver.cpp`): the server publishes `_snapcast._tcp` (stream port, default 1704), `_snapcast-ctrl._tcp` (TCP control, 1705), `_snapcast-http._tcp` (1780). Use Android's `NsdManager` for `_snapcast-ctrl._tcp` (no new library); multicast lock only while the receivers page is visible (see `ReceiverLiveUpdates` start/stop). (resolve behavior on API 27+ is checked in task 3.1; manual entry is the fallback.)
+- mDNS (src, `server/snapserver.cpp`): the server publishes `_snapcast._tcp` (stream port, default 1704), `_snapcast-ctrl._tcp` (TCP control, 1705), `_snapcast-http._tcp` (1780). Use Android's `NsdManager` for `_snapcast-ctrl._tcp` (0.33 and newer) and `_snapcast-tcp._tcp` (0.32 and older), see `docs/tech.md` "Service types by version" (no new library); multicast lock only while the receivers page is visible (see `ReceiverLiveUpdates` start/stop). (resolve behavior on API 27+ is checked in task 3.1; manual entry is the fallback.)
 - Manual entry in settings (`host[:port]`) for networks without mDNS; stored as a plain list, no credentials.
 - Server identity: the stable key is the control endpoint chosen by the user / host name from `Server.GetStatus` (`server.host.name`, `mac`; both may be empty, see `docs/tech.md`); a server found twice (mDNS + manual) is merged.
 

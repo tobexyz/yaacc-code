@@ -26,15 +26,24 @@ import android.os.Handler;
 import android.os.Looper;
 
 import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.List;
 
 import de.yaacc.multiroom.control.MonotonicClock;
 import de.yaacc.util.YaaccLogger;
 
 /**
- * The Android side of the server discovery: browses {@code _snapcast-ctrl._tcp} with {@link NsdManager} and gives
+ * The Android side of the server discovery: browses the control service of a snapserver with {@link NsdManager} and gives
  * every resolved service to the {@link SnapcastDirectory}. Thin on purpose: what to accept (the address ranges, the
  * cap, the merge, the names as display text) is decided by the pure classes; the order of the resolutions by
- * {@link SnapcastResolveQueue}. This class cannot be tested on the JVM.
+ * {@link SnapcastResolveQueue}; which types are browsed by {@link SnapcastServiceTypes}. This class cannot be tested on
+ * the JVM.
+ *
+ * <p><b>Types.</b> One {@code discoverServices} call per type ({@code NsdManager} takes one type per listener): the control
+ * port is announced as {@code _snapcast-ctrl._tcp} by Snapcast 0.33 and newer and as {@code _snapcast-tcp._tcp} by 0.32 and
+ * older, which browsing only the new name never found; the stream type {@code _snapcast._tcp} is browsed for the report
+ * only (a server that announces its stream but not its control port can be told from silence) and is never resolved or
+ * listed. Everything the callbacks report goes to the {@link SnapcastDiscoveryLog} for the report the user can read.
  *
  * <p><b>Lifetime.</b> Nothing runs until {@link #start()}, which the receivers page calls when it becomes visible, and
  * everything stops with {@link #stop()}: the discovery, the queue and the multicast lock. The lock is held only
@@ -43,37 +52,62 @@ import de.yaacc.util.YaaccLogger;
  * the app.
  *
  * <p><b>Trust.</b> The announcement is not authenticated and the service has no TXT records. The service name is
- * display text and the key to match a "lost" event; the address comes from the resolution as a number, so no name
- * lookup happens here, and the connection later uses that {@link InetAddress}.
+ * display text and (with the type) the key to match a "lost" event; the address comes from the resolution as a number, so no
+ * name lookup happens here, and the connection later uses that {@link InetAddress}.
  */
 public final class SnapcastNsd {
 
-    /** The service type of the TCP control port of a snapserver. */
-    static final String SERVICE_TYPE = "_snapcast-ctrl._tcp";
     private static final long RESOLVE_TIMEOUT_MILLIS = 10_000L;
     private static final int QUEUE_CAPACITY = 2 * SnapcastDirectory.MAX_SERVERS;
 
+    /** One browse: the type, its listener and its stop handle. */
+    private static final class Browse {
+        final String type;
+        final SnapcastBrowseHandle handle = new SnapcastBrowseHandle();
+        NsdManager.DiscoveryListener listener;
+        boolean failed;
+
+        Browse(String type) {
+            this.type = type;
+        }
+    }
+
     private final Context context;
     private final SnapcastDirectory directory;
+    private final SnapcastDiscoveryLog log;
     private final SnapcastResolveQueue<NsdServiceInfo> queue;
+    private final SnapcastResolveRetry retry = new SnapcastResolveRetry();
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable pump = this::pump;
 
     private NsdManager nsdManager;
     private WifiManager.MulticastLock multicastLock;
-    private NsdManager.DiscoveryListener discoveryListener;
-    private SnapcastBrowseHandle browseHandle;
+    private SnapcastDiscoveryReport.LockState lockState = SnapcastDiscoveryReport.LockState.NOT_HELD;
+    private final List<Browse> browses = new ArrayList<>();
     private boolean started;
     private int generation;
 
-    public SnapcastNsd(Context context, SnapcastDirectory directory) {
+    public SnapcastNsd(Context context, SnapcastDirectory directory, SnapcastDiscoveryLog log) {
         this.context = context.getApplicationContext();
         this.directory = directory;
+        this.log = log;
         this.queue = new SnapcastResolveQueue<>(MonotonicClock.SYSTEM, RESOLVE_TIMEOUT_MILLIS, QUEUE_CAPACITY);
     }
 
     public synchronized boolean isStarted() {
         return started;
+    }
+
+    /** The state of the multicast lock, for the report. */
+    public synchronized SnapcastDiscoveryReport.LockState lockState() {
+        if (multicastLock != null) {
+            try {
+                return multicastLock.isHeld() ? SnapcastDiscoveryReport.LockState.HELD : SnapcastDiscoveryReport.LockState.NOT_HELD;
+            } catch (RuntimeException unreadable) {
+                return lockState;
+            }
+        }
+        return lockState;
     }
 
     /** Starts browsing. Does nothing when it runs already. */
@@ -83,68 +117,111 @@ public final class SnapcastNsd {
         }
         // first: even without a discovery service, a remembered server must get its grace period (nothing confirms it)
         directory.discoveryRestarted();
+        log.scanStarted();
+        retry.clear();
         nsdManager = (NsdManager) context.getSystemService(Context.NSD_SERVICE);
         if (nsdManager == null) {
+            log.record(SnapcastDiscoveryLog.Kind.BROWSE_REFUSED, "(no NsdManager)", "", SnapcastNsdErrors.PLATFORM_THREW, "");
             return;
         }
         acquireMulticastLock();
         final int myGeneration = ++generation;
-        final SnapcastBrowseHandle handle = new SnapcastBrowseHandle();
-        browseHandle = handle;
-        discoveryListener = new NsdManager.DiscoveryListener() {
+        browses.clear();
+        for (String type : SnapcastServiceTypes.browsed()) {
+            Browse browse = new Browse(type);
+            browse.listener = newListener(browse, myGeneration);
+            browses.add(browse);
+            log.record(SnapcastDiscoveryLog.Kind.BROWSE_REQUESTED, type, "", 0, "");
+            try {
+                nsdManager.discoverServices(type, NsdManager.PROTOCOL_DNS_SD, browse.listener);
+            } catch (RuntimeException e) {
+                // the platform refused this one (no network service, a permission): the other types and the manual servers still work
+                YaaccLogger.w(SnapcastNsd.class.getName(), "Snapcast discovery could not be started: " + e.getClass().getSimpleName());
+                browse.failed = true;
+                browse.handle.onStartFailed();
+                log.record(SnapcastDiscoveryLog.Kind.BROWSE_REFUSED, type, "", SnapcastNsdErrors.PLATFORM_THREW, "");
+            }
+        }
+        if (allFailed()) {
+            browses.clear();
+            releaseMulticastLock();
+            return;
+        }
+        started = true;
+    }
+
+    private boolean allFailed() {
+        for (Browse browse : browses) {
+            if (!browse.failed) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private NsdManager.DiscoveryListener newListener(final Browse browse, final int myGeneration) {
+        return new NsdManager.DiscoveryListener() {
             @Override
             public void onStartDiscoveryFailed(String serviceType, int errorCode) {
-                handle.onStartFailed();
+                browse.handle.onStartFailed();
+                log.record(SnapcastDiscoveryLog.Kind.BROWSE_START_FAILED, browse.type, "", errorCode, "");
                 YaaccLogger.w(SnapcastNsd.class.getName(), "Snapcast discovery did not start, code " + errorCode);
-                stopIfCurrent(myGeneration);
+                browseFailed(browse, myGeneration);
             }
 
             @Override
             public void onStopDiscoveryFailed(String serviceType, int errorCode) {
+                log.record(SnapcastDiscoveryLog.Kind.BROWSE_STOP_FAILED, browse.type, "", errorCode, "");
                 YaaccLogger.d(SnapcastNsd.class.getName(), "Snapcast discovery did not stop cleanly, code " + errorCode);
             }
 
             @Override
             public void onDiscoveryStarted(String serviceType) {
+                log.record(SnapcastDiscoveryLog.Kind.BROWSE_STARTED, browse.type, "", 0, "");
                 // the services arrive through onServiceFound; a stop that came before this is made now
-                if (handle.onStarted()) {
-                    stopBrowse(this);
+                if (browse.handle.onStarted()) {
+                    stopBrowse(browse.listener);
                 }
             }
 
             @Override
             public void onDiscoveryStopped(String serviceType) {
-                // nothing to do
+                log.record(SnapcastDiscoveryLog.Kind.BROWSE_STOPPED, browse.type, "", 0, "");
             }
 
             @Override
             public void onServiceFound(NsdServiceInfo info) {
-                if (info == null || info.getServiceType() == null || !info.getServiceType().startsWith(SERVICE_TYPE)
-                        || !isCurrent(myGeneration)) {
-                    return; // another type, or an earlier browse whose stop is still waiting for its confirmation
+                if (info == null || !isCurrent(myGeneration)) {
+                    return; // an earlier browse whose stop is still waiting for its confirmation
                 }
-                if (queue.offer(info.getServiceName(), info)) {
+                SnapcastServiceTypes.Role role = SnapcastServiceTypes.roleOf(info.getServiceType());
+                if (role == null) {
+                    log.record(SnapcastDiscoveryLog.Kind.FOUND_IGNORED, String.valueOf(info.getServiceType()), info.getServiceName(), 0, "");
+                    return; // another type
+                }
+                log.record(SnapcastDiscoveryLog.Kind.FOUND, info.getServiceType(), info.getServiceName(), 0, "");
+                if (!SnapcastServiceTypes.isListed(role)) {
+                    return; // the stream service: counted for the report, never resolved
+                }
+                if (queue.offer(serviceId(info), info)) {
                     pump();
+                } else {
+                    log.record(SnapcastDiscoveryLog.Kind.QUEUE_FULL, info.getServiceType(), info.getServiceName(), 0, "");
                 }
             }
 
             @Override
             public void onServiceLost(NsdServiceInfo info) {
                 if (info != null && isCurrent(myGeneration)) {
-                    directory.serviceLost(info.getServiceName());
+                    log.record(SnapcastDiscoveryLog.Kind.LOST, String.valueOf(info.getServiceType()), info.getServiceName(), 0, "");
+                    directory.serviceLost(serviceId(info));
                 }
             }
         };
-        try {
-            nsdManager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener);
-            started = true;
-        } catch (RuntimeException e) {
-            // the platform refused (no network service, a permission): manual servers still work
-            YaaccLogger.w(SnapcastNsd.class.getName(), "Snapcast discovery could not be started: " + e.getClass().getSimpleName());
-            releaseMulticastLock();
-            discoveryListener = null;
-            browseHandle = null;
-        }
+    }
+
+    private static String serviceId(NsdServiceInfo info) {
+        return SnapcastServiceTypes.serviceId(info.getServiceType(), info.getServiceName());
     }
 
     /** Stops browsing, drops the queue and releases the multicast lock. Does nothing when it is stopped. */
@@ -154,14 +231,18 @@ public final class SnapcastNsd {
         }
         started = false;
         generation++;
-        handler.removeCallbacks(pump);
+        handler.removeCallbacksAndMessages(null); // the pump and the retries
         queue.clear();
+        retry.clear();
         // an early stop (before the platform confirmed the start) is held back by the handle until onDiscoveryStarted
-        if (nsdManager != null && discoveryListener != null && browseHandle != null && browseHandle.requestStop()) {
-            stopBrowse(discoveryListener);
+        if (nsdManager != null) {
+            for (Browse browse : browses) {
+                if (browse.listener != null && browse.handle.requestStop()) {
+                    stopBrowse(browse.listener);
+                }
+            }
         }
-        discoveryListener = null;
-        browseHandle = null;
+        browses.clear();
         releaseMulticastLock();
     }
 
@@ -180,12 +261,16 @@ public final class SnapcastNsd {
         }
     }
 
-    private synchronized void stopIfCurrent(int expectedGeneration) {
-        if (expectedGeneration == generation && started) {
+    /** One browse could not start; the others go on, and when none is left the whole discovery is over. */
+    private synchronized void browseFailed(Browse browse, int expectedGeneration) {
+        if (expectedGeneration != generation || !started) {
+            return;
+        }
+        browse.failed = true;
+        if (allFailed()) {
             started = false;
             queue.clear();
-            discoveryListener = null;
-            browseHandle = null;
+            browses.clear();
             releaseMulticastLock();
         }
     }
@@ -207,20 +292,32 @@ public final class SnapcastNsd {
             return;
         }
         final SnapcastResolveQueue.Pending<NsdServiceInfo> queued = next;
+        final NsdServiceInfo asked = queued.getItem();
         try {
-            manager.resolveService(next.getItem(), new NsdManager.ResolveListener() {
+            manager.resolveService(asked, new NsdManager.ResolveListener() {
                 @Override
                 public void onResolveFailed(NsdServiceInfo info, int errorCode) {
+                    log.record(SnapcastDiscoveryLog.Kind.RESOLVE_FAILED, asked.getServiceType(), asked.getServiceName(), errorCode, "");
                     queue.done(queued);
+                    if (retry.shouldRetry(queued.getName(), errorCode)) {
+                        // a busy platform or a failure that passes: the same service again after a short wait
+                        handler.postDelayed(() -> {
+                            if (isCurrent(myGeneration) && queue.offer(queued.getName(), asked)) {
+                                pump();
+                            }
+                        }, SnapcastResolveRetry.DELAY_MILLIS);
+                    }
                     pump();
                 }
 
                 @Override
                 public void onServiceResolved(NsdServiceInfo info) {
                     queue.done(queued);
+                    retry.succeeded(queued.getName());
                     if (info != null && isCurrent(myGeneration)) {
                         InetAddress host = info.getHost(); // a number: no lookup
-                        directory.serviceFound(info.getServiceName(), host, info.getPort());
+                        boolean listed = directory.serviceFound(queued.getName(), info.getServiceName(), host, info.getPort());
+                        recordResolved(asked, host, info.getPort(), listed);
                     }
                     pump();
                 }
@@ -231,6 +328,14 @@ public final class SnapcastNsd {
         } catch (RuntimeException e) {
             queue.done(queued);
         }
+    }
+
+    private void recordResolved(NsdServiceInfo asked, InetAddress host, int port, boolean listed) {
+        SnapcastEndpoint endpoint = host == null ? null : SnapcastEndpoint.fromAddress(host, port);
+        String where = endpoint != null ? endpoint.toString() : host != null ? host.getHostAddress() + ":" + port : "";
+        SnapcastDiscoveryLog.Kind kind = host == null ? SnapcastDiscoveryLog.Kind.RESOLVED_EMPTY
+                : listed ? SnapcastDiscoveryLog.Kind.RESOLVED : SnapcastDiscoveryLog.Kind.RESOLVED_REFUSED;
+        log.record(kind, asked.getServiceType(), asked.getServiceName(), 0, where);
     }
 
     private synchronized boolean isCurrent(int expectedGeneration) {
@@ -244,9 +349,13 @@ public final class SnapcastNsd {
                 multicastLock = wifi.createMulticastLock("yaacc-snapcast");
                 multicastLock.setReferenceCounted(false);
                 multicastLock.acquire();
+                lockState = SnapcastDiscoveryReport.LockState.HELD;
+            } else {
+                lockState = SnapcastDiscoveryReport.LockState.UNAVAILABLE;
             }
         } catch (RuntimeException e) {
             multicastLock = null; // without the lock the discovery may still work
+            lockState = SnapcastDiscoveryReport.LockState.FAILED;
         }
     }
 
@@ -259,5 +368,6 @@ public final class SnapcastNsd {
             // already released
         }
         multicastLock = null;
+        lockState = SnapcastDiscoveryReport.LockState.NOT_HELD;
     }
 }

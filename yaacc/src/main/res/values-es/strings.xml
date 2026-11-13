@@ -375,6 +375,10 @@
     <string name="snapcast_servers_error_full">Puede añadir hasta 16 servidores</string>
     <string name="snapcast_servers_already">Este servidor ya está en la lista</string>
     <string name="snapcast_servers_removed">Servidor quitado. Sus grupos seleccionados ya no están seleccionados.</string>
+    <string name="snapcast_servers_discovery_title">Informe de búsqueda</string>
+    <string name="snapcast_servers_discovery_copy">Copiar informe</string>
+    <string name="snapcast_servers_discovery_copied">Informe copiado al portapapeles</string>
+    <string name="snapcast_servers_discovery_note">El informe muestra los servidores encontrados con sus direcciones en su red, y el estado de la Wi-Fi y de la búsqueda. Revíselo antes de pegarlo en algún sitio. Mientras esta ventana esté abierta y Buscar servidores Snapcast esté activado, se busca en la red.</string>
     <string name="snapcast_client_title">Cliente Snapcast (prueba de escucha)</string>
     <string name="snapcast_client_note">Experimental. Este teléfono reproduce como cliente Snapcast para que pueda comprobar la sincronización de oído. El audio y el control no están cifrados. El servidor y sus controladores ven el nombre de este teléfono y un identificador generado.</string>
     <string name="snapcast_client_host_hint">Dirección del servidor, :puerto opcional (predeterminado 1704)</string>
@@ -385,6 +389,10 @@
     <string name="snapcast_client_copy_trace">Copiar traza</string>
     <string name="snapcast_client_trace_copied">Traza copiada al portapapeles</string>
     <string name="snapcast_client_trace_empty">Aún no hay traza</string>
+    <string name="snapcast_client_choose_server">Elegir servidor</string>
+    <string name="snapcast_client_choose_title">Servidores conocidos</string>
+    <string name="snapcast_client_choose_none">Aún no hay servidores conocidos. Añada uno en los ajustes, en Servidores Snapcast.</string>
+    <string name="snapcast_client_choose_last">usado la última vez</string>
     <string name="snapcast_client_close">Cerrar</string>
     <string name="snapcast_client_error_empty_host">Introduzca la dirección del servidor</string>
     <string name="snapcast_client_error_invalid_host">No es una dirección válida</string>

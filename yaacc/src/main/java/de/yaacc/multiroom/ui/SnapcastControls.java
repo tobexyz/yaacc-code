@@ -302,7 +302,9 @@ public final class SnapcastControls {
     /**
      * The change the link sheet made: some clients join the group, some members leave it, in one {@code Group.SetClients}
      * call that carries the <b>exact</b> member list. The list is computed from a fresh status (see below), so a client
-     * that another controller added since the sheet was opened stays; nothing is sent when the change leaves the members as
+     * that another controller added since the sheet was opened normally stays (when the read is refused by the rate limit or
+     * fails, the cached model decides and such a client can be dropped), and an id to add that the status does not know
+     * (the client was deleted meanwhile) is left out; nothing is sent when the change leaves the members as
      * they are; a change that would leave the group without a client is refused ({@code NOT_POSSIBLE}), because an empty list
      * dissolves the group. Clients that leave get a group of their own on the server, so none is left without one.
      */
@@ -314,8 +316,20 @@ public final class SnapcastControls {
         final List<String> removed = new ArrayList<>(change.getRemoved());
         submit(actions, Action.GROUP_CLIENTS, () -> {
             Linked linked = linked(key);
-            SnapcastGroup group = freshGroup(linked, groupId);
-            List<String> wanted = SnapcastClientCandidates.wantedAfter(group, added, removed);
+            SnapcastServerStatus fresh = freshStatus(linked);
+            SnapcastGroup group = fresh.findGroup(groupId);
+            if (group == null) {
+                throw new Gone();
+            }
+            // S35: an id to add is kept only if the fresh status still has that client (it may have been deleted since the sheet
+            // was opened; the server would refuse the whole list for an id it does not know)
+            List<String> known = new ArrayList<>();
+            for (String id : added) {
+                if (id != null && fresh.findClient(id) != null) {
+                    known.add(id);
+                }
+            }
+            List<String> wanted = SnapcastClientCandidates.wantedAfter(group, known, removed);
             if (wanted == null) {
                 throw new NotPossible();
             }
@@ -331,19 +345,18 @@ public final class SnapcastControls {
     }
 
     /**
-     * The group as the server has it now, for a change of its members: {@code Group.SetClients} takes the full list and
+     * The status as the server has it now, for a change of its members: {@code Group.SetClients} takes the full list and
      * removes every client that is not in it, so the list is computed from a fresh status (one round trip, within the rate
-     * limit of the model; the cached model when the limit refuses or the read fails). A candidate list that a picker
-     * showed is only a snapshot of the moment it was opened; this is what keeps a client that another controller added
-     * meanwhile from being dropped.
+     * limit of the model; the cached model when the limit refuses or the read fails, so then a client that another controller
+     * added or deleted meanwhile is only as known as the model). A candidate list that a picker showed is only a snapshot of
+     * the moment it was opened; this is what keeps a client that another controller added meanwhile from being dropped.
      */
-    private static SnapcastGroup freshGroup(Linked linked, String groupId) throws Gone {
+    private static SnapcastServerStatus freshStatus(Linked linked) throws Gone {
         SnapcastServerStatus fresh = linked.operations.freshStatusOrModel();
-        SnapcastGroup group = fresh == null ? null : fresh.findGroup(groupId);
-        if (group == null) {
+        if (fresh == null) {
             throw new Gone();
         }
-        return group;
+        return fresh;
     }
 
     // ---- plumbing

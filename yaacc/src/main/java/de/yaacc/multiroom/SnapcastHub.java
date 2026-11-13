@@ -37,6 +37,8 @@ import de.yaacc.multiroom.control.MonotonicClock;
 import de.yaacc.multiroom.control.RetryScheduler;
 import de.yaacc.multiroom.control.SnapcastRpc;
 import de.yaacc.multiroom.discovery.SnapcastDirectory;
+import de.yaacc.multiroom.discovery.SnapcastDiscoveryLog;
+import de.yaacc.multiroom.discovery.SnapcastDiscoveryReport;
 import de.yaacc.multiroom.discovery.SnapcastManualServers;
 import de.yaacc.multiroom.discovery.SnapcastNsd;
 import de.yaacc.multiroom.discovery.SnapcastPreferencesStorage;
@@ -68,6 +70,7 @@ public final class SnapcastHub implements SnapcastGroupSource {
     private final SnapcastDirectory directory = new SnapcastDirectory(MonotonicClock.SYSTEM, SnapcastDirectory.DEFAULT_GRACE_MILLIS);
     private final SnapcastManualServers manualServers;
     private final SnapcastSelectedServers selectedServers;
+    private final SnapcastDiscoveryLog discoveryLog = new SnapcastDiscoveryLog(MonotonicClock.SYSTEM);
     private final SnapcastNsd nsd;
     private final SnapcastReceivers receivers;
     private final SnapcastFeedSessions feeds;
@@ -80,7 +83,7 @@ public final class SnapcastHub implements SnapcastGroupSource {
         this.manualServers = new SnapcastManualServers(new SnapcastPreferencesStorage(this.context));
         this.selectedServers = new SnapcastSelectedServers(
                 new SnapcastPreferencesStorage(this.context, SnapcastPreferencesStorage.SELECTED_KEY), directory);
-        this.nsd = new SnapcastNsd(this.context, directory);
+        this.nsd = new SnapcastNsd(this.context, directory, discoveryLog);
         final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(runnable -> {
             Thread thread = new Thread(runnable, "snapcast-hub");
             thread.setDaemon(true);
@@ -189,6 +192,77 @@ public final class SnapcastHub implements SnapcastGroupSource {
     public void pageStopped() {
         gate.pageStopped();
         receivers.pageStopped();
+    }
+
+    /**
+     * The Snapcast server settings are open (task 11.6): with the switch on the scan runs while they are, so that the report
+     * shows a live scan. Only the scan, not the connections of a receivers page. Pair with {@link #diagnosticsClosed()}.
+     */
+    public void diagnosticsOpened() {
+        gate.pageStarted();
+    }
+
+    public void diagnosticsClosed() {
+        gate.pageStopped();
+    }
+
+    /**
+     * The discovery report for the screen and the clipboard (see {@link SnapcastDiscoveryReport}). It names the servers
+     * and addresses found: the caller says so near the copy button.
+     */
+    public String discoveryReport() {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        List<SnapcastDiscoveryReport.ServerLine> servers = new java.util.ArrayList<>();
+        for (SnapcastDirectory.Entry entry : directory.servers()) {
+            SnapcastDiscoveryReport.Origin origin = entry.isManual() ? SnapcastDiscoveryReport.Origin.TYPED
+                    : entry.isRemembered() && !entry.isDiscovered() && !entry.isLost() ? SnapcastDiscoveryReport.Origin.REMEMBERED
+                    : SnapcastDiscoveryReport.Origin.FOUND;
+            servers.add(new SnapcastDiscoveryReport.ServerLine(entry.getKey().asString(), entry.getDisplayName(), origin));
+        }
+        SnapcastDiscoveryReport.Facts facts = new SnapcastDiscoveryReport.Facts()
+                .device(android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL + " / API " + android.os.Build.VERSION.SDK_INT)
+                .switchOn(SnapcastSettings.isDiscoveryEnabled(preferences::getBoolean))
+                .scanRunning(nsd.isStarted())
+                .wifi(wifiState())
+                .multicastPermission(multicastPermission())
+                .multicastLock(nsd.lockState())
+                .servers(servers);
+        return SnapcastDiscoveryReport.of(facts, discoveryLog.snapshot());
+    }
+
+    private SnapcastDiscoveryReport.Tri multicastPermission() {
+        try {
+            return context.checkSelfPermission(android.Manifest.permission.CHANGE_WIFI_MULTICAST_STATE)
+                    == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    ? SnapcastDiscoveryReport.Tri.YES : SnapcastDiscoveryReport.Tri.NO;
+        } catch (RuntimeException unreadable) {
+            return SnapcastDiscoveryReport.Tri.UNKNOWN;
+        }
+    }
+
+    /** Whether the default network is Wi-Fi (or Ethernet, which also carries mDNS); needs ACCESS_NETWORK_STATE, which the app has. */
+    private SnapcastDiscoveryReport.Tri wifiState() {
+        try {
+            android.net.ConnectivityManager manager = (android.net.ConnectivityManager) context
+                    .getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (manager == null) {
+                return SnapcastDiscoveryReport.Tri.UNKNOWN;
+            }
+            android.net.Network network = manager.getActiveNetwork();
+            android.net.NetworkCapabilities capabilities = network == null ? null : manager.getNetworkCapabilities(network);
+            if (capabilities == null) {
+                return SnapcastDiscoveryReport.Tri.NO;
+            }
+            if (capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)
+                    || capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)) {
+                return SnapcastDiscoveryReport.Tri.YES;
+            }
+            // a VPN hides what carries it: not a reason to say "no Wi-Fi"
+            return capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)
+                    ? SnapcastDiscoveryReport.Tri.UNKNOWN : SnapcastDiscoveryReport.Tri.NO;
+        } catch (RuntimeException unreadable) {
+            return SnapcastDiscoveryReport.Tri.UNKNOWN;
+        }
     }
 
     public void addChangeListener(SnapcastReceivers.ChangeListener listener) {
