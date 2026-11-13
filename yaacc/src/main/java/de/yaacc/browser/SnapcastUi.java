@@ -28,12 +28,14 @@ import java.util.concurrent.Executors;
 
 import de.yaacc.R;
 import de.yaacc.multiroom.SnapcastHub;
+import de.yaacc.multiroom.SnapcastReceivers;
 import de.yaacc.multiroom.control.MonotonicClock;
-import de.yaacc.multiroom.ui.SnapcastClientCandidates;
 import de.yaacc.multiroom.ui.SnapcastControls;
+import de.yaacc.multiroom.ui.SnapcastLinkChoices;
 import de.yaacc.multiroom.ui.SnapcastMemberRows;
 import de.yaacc.multiroom.ui.SnapcastRowText;
 import de.yaacc.multiroom.ui.SnapcastToastGate;
+import de.yaacc.multiroom.ui.SnapcastVolumeKeys;
 
 /**
  * What the Snapcast rows and the group sheet share: the one {@link SnapcastControls} of the app (two daemon threads, one
@@ -46,6 +48,7 @@ final class SnapcastUi {
     private static final long TOAST_GAP_MILLIS = 3_000L;
 
     private static SnapcastControls controls;
+    private static SnapcastVolumeKeys volumeKeys;
 
     private SnapcastUi() {
     }
@@ -66,6 +69,37 @@ final class SnapcastUi {
                     });
         }
         return controls;
+    }
+
+    /** The hardware volume keys of the app: they change the group volume through {@link #controls}. */
+    static synchronized SnapcastVolumeKeys volumeKeys(final Context context) {
+        if (volumeKeys == null) {
+            final Context app = context.getApplicationContext();
+            final SnapcastControls shared = controls(app);
+            final SnapcastRowText.Words words = rowWords(app);
+            volumeKeys = new SnapcastVolumeKeys(id -> rowOf(app, id, words), new SnapcastVolumeKeys.Sink() {
+                @Override
+                public void setGroupVolume(de.yaacc.multiroom.discovery.SnapcastServerKey key, String groupId, int percent) {
+                    shared.setGroupVolume(key, groupId, percent);
+                }
+
+                @Override
+                public void setGroupMuted(de.yaacc.multiroom.discovery.SnapcastServerKey key, String groupId, boolean muted) {
+                    shared.setGroupMuted(key, groupId, muted);
+                }
+            }, MonotonicClock.SYSTEM);
+        }
+        return volumeKeys;
+    }
+
+    /** The row of a group as it looks now, from the model of its server (in memory, no network). */
+    static SnapcastRowText.Row rowOf(Context context, String receiverId, SnapcastRowText.Words words) {
+        SnapcastReceivers.GroupState state = SnapcastHub.getShared(context).getReceivers().stateOf(receiverId);
+        if (state == null) {
+            // the server is no longer listed: the endpoint is still shown, it is in the id (security review S20)
+            return SnapcastRowText.of(null, null, false, SnapcastRowText.endpointOf(receiverId), words);
+        }
+        return SnapcastRowText.of(state.getGroup(), state.getStatus(), state.isOnline(), state.getEndpointText(), words);
     }
 
     private static Executor daemonExecutor(final String name) {
@@ -136,9 +170,9 @@ final class SnapcastUi {
         return () -> context.getString(R.string.snapcast_member_unnamed);
     }
 
-    /** The labels of nameless clients and groups in the "add client" list. */
-    static SnapcastClientCandidates.Words candidateWords(final Context context) {
-        return new SnapcastClientCandidates.Words() {
+    /** The texts of the rows of the link sheet. */
+    static SnapcastLinkChoices.Words linkWords(final Context context) {
+        return new SnapcastLinkChoices.Words() {
             @Override
             public String unnamedClient() {
                 return context.getString(R.string.snapcast_member_unnamed);
@@ -147,6 +181,26 @@ final class SnapcastUi {
             @Override
             public String unnamedGroup() {
                 return context.getString(R.string.snapcast_group);
+            }
+
+            @Override
+            public String inGroup(String client, String group) {
+                return context.getString(R.string.snapcast_sheet_candidate_in_group, client, group);
+            }
+
+            @Override
+            public String inGroupThatEnds(String client, String group) {
+                return context.getString(R.string.snapcast_sheet_candidate_empties, client, group);
+            }
+
+            @Override
+            public String lastMember(String client) {
+                return context.getString(R.string.snapcast_link_last_member, client);
+            }
+
+            @Override
+            public String offline(String label) {
+                return label + " \u00b7 " + context.getString(R.string.snapcast_offline);
             }
         };
     }

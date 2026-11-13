@@ -69,6 +69,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     private final TrackFailurePolicy failurePolicy = new TrackFailurePolicy();
     // a stop after failures that could not be carried out (a command was still running); the next user action clears it
     private volatile boolean stopOutstanding;
+    // set when the player is destroyed: a retry of a stop or a late error then does nothing (no toast for a player that is gone)
+    private volatile boolean destroyed;
 
     public LocalMediaSessionPlayer(UpnpClient upnpClient, String name, String shortName) {
         this(upnpClient);
@@ -145,9 +147,25 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
      * {@link #trackFailed}. An index outside the list gives a track without a title.
      */
     void trackFailedAt(String errorCodeName, int index, boolean hasNext) {
-        List<PlayableItem> items = getItems();
-        String title = index >= 0 && index < items.size() ? items.get(index).getTitle() : null;
-        trackFailed(errorCodeName, title, index + 1, hasNext);
+        trackFailed(errorCodeName, titleAt(index), index + 1, hasNext);
+    }
+
+    /**
+     * The title of the item at {@code index}, or null. The list can be edited from another thread (an OpenHome controller
+     * removes an item) between the size check and the read, and an entry can be null: a lost race must not crash the listener
+     * on the main thread, the toast then names the position instead.
+     */
+    private String titleAt(int index) {
+        try {
+            List<PlayableItem> items = getItems();
+            if (index < 0 || index >= items.size()) {
+                return null;
+            }
+            PlayableItem item = items.get(index);
+            return item == null ? null : item.getTitle();
+        } catch (RuntimeException lostRace) {
+            return null;
+        }
     }
 
     /**
@@ -159,6 +177,9 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
      * @param number the position of the track in the list, counted from one, 0 if not known: shown when the title is no use
      */
     void trackFailed(String errorCodeName, String title, int number, boolean hasNext) {
+        if (destroyed) {
+            return; // a late error of a player that is gone: nothing to skip, nothing to say
+        }
         YaaccLogger.d(getClass().getName(), "ExoPlayer error: " + errorCodeName);
         if (failurePolicy.onFailure(hasNext) == TrackFailurePolicy.Decision.SKIP) {
             String shown = TrackToastText.title(title);
@@ -196,6 +217,9 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
 
     /** As {@link #stopWhenFree(int)}; {@code whenStopped} runs when a stop was accepted (not when it was ignored the last time). */
     void stopWhenFree(int attempt, Runnable whenStopped) {
+        if (destroyed) {
+            return; // the retry outlived the player: no stop, no toast, no further retry
+        }
         if (isProcessingCommand() && attempt < STOP_RETRIES) {
             postToMainDelayed(() -> stopWhenFree(attempt + 1, whenStopped), STOP_RETRY_MILLIS);
             return;
@@ -209,6 +233,12 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         } else if (whenStopped != null) {
             whenStopped.run();
         }
+    }
+
+    /** From now on retries and late errors of this player do nothing. */
+    void markDestroyed() {
+        destroyed = true;
+        stopOutstanding = false;
     }
 
     /** True when a stop after a failure could not be carried out; the next user action clears it. */
@@ -901,6 +931,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     @Override
     public void onDestroy() {
         YaaccLogger.d(getClass().getName(), "onDestroy called");
+        markDestroyed(); // before anything is released: a retry of a stop is still scheduled maybe
 
         // Release notification manager on main thread
         if (notificationManager != null) {

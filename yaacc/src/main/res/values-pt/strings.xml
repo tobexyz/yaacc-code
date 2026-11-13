@@ -329,6 +329,12 @@
     <string name="snapcast_row_server">Servidor %1$s</string>
     <string name="snapcast_row_group_gone">Este grupo já não existe no servidor</string>
     <string name="snapcast_row_settings">Definições do grupo Snapcast</string>
+    <string name="snapcast_row_link">Ligar clientes deste grupo Snapcast</string>
+    <string name="snapcast_link_keep_one">Um grupo mantém pelo menos um cliente.</string>
+    <string name="snapcast_link_none">Não há outro cliente neste servidor</string>
+    <string name="snapcast_link_last_member">%1$s (último cliente deste grupo)</string>
+    <string name="snapcast_mute_state_on">Silenciado</string>
+    <string name="snapcast_mute_state_off">Não silenciado</string>
     <string name="snapcast_sheet_group_volume">Volume do grupo</string>
     <string name="snapcast_sheet_group_mute">Silenciar grupo</string>
     <string name="snapcast_sheet_stream">Fluxo</string>
@@ -337,9 +343,6 @@
     <string name="snapcast_sheet_stream_unavailable">%1$s (indisponível)</string>
     <string name="snapcast_sheet_stream_current">%1$s (atual)</string>
     <string name="snapcast_sheet_no_streams">O servidor não lista nenhum fluxo</string>
-    <string name="snapcast_sheet_add_client">Adicionar cliente</string>
-    <string name="snapcast_sheet_add_client_title">Adicionar clientes a este grupo</string>
-    <string name="snapcast_sheet_add_client_none">Todos os clientes deste servidor já estão neste grupo</string>
     <string name="snapcast_sheet_candidate_in_group">%1$s (no grupo %2$s)</string>
     <string name="snapcast_sheet_candidate_empties">%1$s (no grupo %2$s, que deixa de existir)</string>
     <string name="snapcast_sheet_members">Clientes</string>
@@ -349,7 +352,6 @@
     <string name="snapcast_member_actions">Ações para %1$s</string>
     <string name="snapcast_member_rename">Mudar o nome</string>
     <string name="snapcast_member_latency">Latência</string>
-    <string name="snapcast_member_remove">Remover do grupo</string>
     <string name="snapcast_rename_title">Mudar o nome do cliente</string>
     <string name="snapcast_rename_hint">Nome (vazio: usar o nome do anfitrião)</string>
     <string name="snapcast_latency_title">Latência em milissegundos</string>

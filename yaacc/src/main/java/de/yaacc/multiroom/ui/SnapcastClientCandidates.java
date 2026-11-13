@@ -123,6 +123,14 @@ public final class SnapcastClientCandidates {
                 owners.add(other);
             }
         }
+        return candidatesOf(clients, owners, words);
+    }
+
+    /**
+     * The clients as candidates: ordered by cleaned name (then by id), names made unique within the list, each with the
+     * group it is in now. {@code clients} and {@code owners} are parallel lists.
+     */
+    static List<Candidate> candidatesOf(final List<SnapcastClient> clients, final List<SnapcastGroup> owners, Words words) {
         final List<String> base = new ArrayList<>();
         for (SnapcastClient client : clients) {
             base.add(SnapcastMemberRows.sanitizedName(client.getName(), client.getHostName(), words.unnamedClient()));
@@ -160,7 +168,7 @@ public final class SnapcastClientCandidates {
     }
 
     /** The name of a group: its own, else its first member's, else the label. Cleaned display text. */
-    private static String groupName(SnapcastGroup group, Words words) {
+    static String groupName(SnapcastGroup group, Words words) {
         String name = SnapcastDisplayText.of(group.getName(), SnapcastMemberRows.MAX_NAME).trim();
         if (name.isEmpty() && !group.getClients().isEmpty()) {
             SnapcastClient first = group.getClients().get(0);
@@ -188,6 +196,42 @@ public final class SnapcastClientCandidates {
             }
         }
         return wanted.size() > SnapcastLimits.MAX_CLIENTS_PER_GROUP ? null : new ArrayList<>(wanted);
+    }
+
+    /**
+     * The full member list for {@code Group.SetClients} after one change that adds and removes members at once (the link
+     * sheet): the current members in their order without the removed ones, then the added ones. An id that is no member
+     * (it left meanwhile) is not removed, one that is a member already is not added again, empty ids are skipped. A client
+     * that is both removed and added stays.
+     *
+     * @param group   the group as the server has it <b>now</b>, so that a client another controller added is kept
+     * @return the list, or null when it would be empty (an empty list would dissolve the group) or longer than
+     * {@link SnapcastLimits#MAX_CLIENTS_PER_GROUP}
+     */
+    public static List<String> wantedAfter(SnapcastGroup group, java.util.Collection<String> addedIds,
+                                           java.util.Collection<String> removedIds) {
+        Set<String> wanted = new LinkedHashSet<>();
+        for (SnapcastClient member : group.getClients()) {
+            wanted.add(member.getId());
+        }
+        if (removedIds != null) {
+            for (String id : removedIds) {
+                if (id != null) {
+                    wanted.remove(id);
+                }
+            }
+        }
+        if (addedIds != null) {
+            for (String id : addedIds) {
+                if (id != null && !id.isEmpty()) {
+                    wanted.add(id);
+                }
+            }
+        }
+        if (wanted.isEmpty() || wanted.size() > SnapcastLimits.MAX_CLIENTS_PER_GROUP) {
+            return null;
+        }
+        return new ArrayList<>(wanted);
     }
 
     /**

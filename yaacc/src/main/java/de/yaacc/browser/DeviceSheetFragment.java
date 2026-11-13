@@ -22,6 +22,7 @@ import android.content.res.Configuration;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -246,6 +247,15 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         upnpClient = ((Yaacc) requireContext().getApplicationContext()).getUpnpClient();
+        if (getDialog() != null) {
+            // the sheet is a window of its own: the volume keys do not reach the activity (11.4)
+            getDialog().setOnKeyListener((dialog, keyCode, event) -> {
+                if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                    return VolumeKeyHosts.onKeyDown(keyCode);
+                }
+                return event.getAction() == KeyEvent.ACTION_UP && VolumeKeyHosts.onKeyUp(keyCode);
+            });
+        }
         RecyclerView list = view.findViewById(R.id.deviceSheetList);
         list.setLayoutManager(new LinearLayoutManager(requireContext()));
         list.setItemAnimator(null); // no flashing on live updates, as in the Receiver tab

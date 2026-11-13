@@ -27,7 +27,9 @@ package de.yaacc.player;
  * <p><b>Known limit:</b> a track that reaches {@code READY} and then fails right away resets the count each time, so with repeat
  * (all, or shuffle with repeat) a list of such tracks can cycle, with a toast for every track, until the user stops it. It
  * needs every track to start and then fail (a dead server or an unsupported container fails before {@code READY} and ends
- * after three). A cheap bound, if it is ever wanted: reset only after some playback progress, or a hard cap of skips per run. The methods are synchronized: ExoPlayer's listener (main thread) and the command thread of the player both call them.
+ * after three). A cheap bound, if it is ever wanted: reset only after some playback progress, or a hard cap of skips per run.
+ *
+ * <p>The methods are synchronized: ExoPlayer's listener (main thread) and the command thread of the player both call them.
  */
 final class TrackFailurePolicy {
 

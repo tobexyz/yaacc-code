@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import de.yaacc.multiroom.ui.SnapcastVolumeKeys;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.callback.renderingcontrol.GetMute;
 import de.yaacc.upnp.callback.renderingcontrol.GetVolume;
@@ -63,7 +64,7 @@ import de.yaacc.util.YaaccLogger;
  * dropped. Main thread only, except the {@link SystemVolume} listener, which only posts to the main
  * thread.
  */
-final class ReceiverVolumeLiveUpdater {
+final class ReceiverVolumeLiveUpdater implements VolumeKeyHosts.Host {
     private static final String TAG = ReceiverVolumeLiveUpdater.class.getName();
     private static final int PARALLEL_READS = 3;
 
@@ -118,6 +119,7 @@ final class ReceiverVolumeLiveUpdater {
         });
         SystemVolume.addChangeListener(systemVolumeChanged);
         showLocalRows(rows.visibleRows());
+        VolumeKeyHosts.register(this);
     }
 
     /** Removes the listener, stops the reads and forgets what is pending. Safe to call twice. */
@@ -127,6 +129,8 @@ final class ReceiverVolumeLiveUpdater {
         }
         running = false;
         generation++;
+        VolumeKeyHosts.unregister(this);
+        binder.forgetSnapcastKeyFocus();
         SystemVolume.removeChangeListener(systemVolumeChanged);
         handler.removeCallbacksAndMessages(null);
         if (readers != null) {
@@ -134,6 +138,15 @@ final class ReceiverVolumeLiveUpdater {
             readers = null;
         }
         binder.refreshPlan().reset();
+    }
+
+    /**
+     * A hardware volume key while the rows of this host are on screen: the Snapcast group row that has the focus, or was touched
+     * last, takes it (11.4). Main thread.
+     */
+    @Override
+    public boolean onVolumeKey(SnapcastVolumeKeys.Direction direction) {
+        return running && binder.snapcastVolumeKey(rows.visibleRows(), direction);
     }
 
     /** One poll cycle: the local rows from the stream, and every remote receiver that is due. */

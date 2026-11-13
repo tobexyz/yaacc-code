@@ -331,6 +331,37 @@ public final class SnapcastControls {
     }
 
     /**
+     * The change the link sheet made: some clients join the group, some members leave it, in one {@code Group.SetClients}
+     * call that carries the <b>exact</b> member list. The list is computed from a fresh status (see below), so a client
+     * that another controller added since the sheet was opened stays; nothing is sent when the change leaves the members as
+     * they are; a change that would leave the group without a client is refused ({@code NOT_POSSIBLE}), because an empty list
+     * dissolves the group. Clients that leave get a group of their own on the server, so none is left without one.
+     */
+    public void changeMembers(final SnapcastServerKey key, final String groupId, SnapcastLinkChoices.Change change) {
+        if (change == null || change.isEmpty()) {
+            return;
+        }
+        final List<String> added = new ArrayList<>(change.getAdded());
+        final List<String> removed = new ArrayList<>(change.getRemoved());
+        submit(actions, Action.GROUP_CLIENTS, () -> {
+            Linked linked = linked(key);
+            SnapcastGroup group = freshGroup(linked, groupId);
+            List<String> wanted = SnapcastClientCandidates.wantedAfter(group, added, removed);
+            if (wanted == null) {
+                throw new NotPossible();
+            }
+            List<String> current = new ArrayList<>();
+            for (SnapcastClient member : group.getClients()) {
+                current.add(member.getId());
+            }
+            if (wanted.equals(current)) {
+                return; // the group is as wanted already (somebody else did it)
+            }
+            linked.operations.setGroupClients(groupId, wanted);
+        });
+    }
+
+    /**
      * The group as the server has it now, for a change of its members: {@code Group.SetClients} takes the full list and
      * removes every client that is not in it, so the list is computed from a fresh status (one round trip, within the rate
      * limit of the model; the cached model when the limit refuses or the read fails). A candidate list that a picker

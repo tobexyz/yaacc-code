@@ -37,7 +37,6 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.widget.SwitchCompat;
 import androidx.core.widget.NestedScrollView;
 
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
@@ -56,7 +55,6 @@ import de.yaacc.multiroom.control.SnapcastClient;
 import de.yaacc.multiroom.control.SnapcastDisplayText;
 import de.yaacc.multiroom.control.SnapcastGroup;
 import de.yaacc.multiroom.discovery.SnapcastServerKey;
-import de.yaacc.multiroom.ui.SnapcastClientCandidates;
 import de.yaacc.multiroom.ui.SnapcastControls;
 import de.yaacc.multiroom.ui.SnapcastInputs;
 import de.yaacc.multiroom.ui.SnapcastMemberRows;
@@ -66,8 +64,10 @@ import de.yaacc.multiroom.ui.SnapcastStreamChoices;
 /**
  * The sheet of a Snapcast group, in a bottom sheet like the other receiver sheets: the group's name, the <b>endpoint of its
  * server</b> (so that a hostile server cannot pass for a legitimate group, security review S20), the group volume and
- * mute, the stream, "Add client", and the members, each with its own volume slider and mute box and an overflow menu
- * (Rename, Latency, Remove from group).
+ * mute, the stream, and the members, each with its own volume slider and mute symbol and an overflow menu (Rename, Latency).
+ * The mute is the symbol of the other receiver cards ({@link SnapcastMuteToggle}), never a switch or a check box (11.1). Which
+ * clients belong to the group is not set here but in the link sheet that the link icon of the card opens
+ * ({@link SnapcastLinkSheet}, 11.3).
  *
  * <p>Thin Android glue: the model is {@link SnapcastReceivers#stateOf}, the texts and orders come from the presentation
  * classes of {@code de.yaacc.multiroom.ui}, and every change goes through the shared {@link SnapcastControls} (off the main
@@ -196,6 +196,14 @@ final class SnapcastGroupSheet {
         }
         boolean online = state.isOnline();
         int pad = dp(16);
+        final CheckBox mute = SnapcastMuteToggle.create(context, context.getString(R.string.snapcast_sheet_group_mute));
+        mute.setChecked(group.isMuted());
+        SnapcastMuteToggle.syncState(context, mute);
+        mute.setEnabled(online);
+        mute.setOnClickListener(v -> {
+            SnapcastMuteToggle.syncState(context, mute);
+            controls.setGroupMuted(serverKey, groupId, mute.isChecked());
+        });
         body.addView(sliderRow(context.getString(R.string.snapcast_sheet_group_volume), row.getVolume(), row.isControllable(),
                 new SliderListener() {
                     @Override
@@ -207,22 +215,9 @@ final class SnapcastGroupSheet {
                     public void onChange(int percent) {
                         controls.setGroupVolume(serverKey, groupId, percent);
                     }
-                }, null));
-        SwitchCompat mute = new SwitchCompat(context);
-        mute.setText(R.string.snapcast_sheet_group_mute);
-        mute.setMinHeight(dp(48));
-        mute.setPadding(pad, 0, pad, 0);
-        mute.setChecked(group.isMuted());
-        mute.setEnabled(online);
-        mute.setOnCheckedChangeListener((button, checked) -> {
-            if (button.isPressed()) {
-                controls.setGroupMuted(serverKey, groupId, checked);
-            }
-        });
-        body.addView(mute);
+                }, mute));
         body.addView(valueRow(context.getString(R.string.snapcast_sheet_stream), streamLabel(group, state), online,
                 v -> showStreamPicker()));
-        body.addView(valueRow(context.getString(R.string.snapcast_sheet_add_client), null, online, v -> showAddClients()));
         body.addView(sectionLabel(context.getString(R.string.snapcast_sheet_members)));
         if (members.isEmpty()) {
             TextView none = new TextView(context);
@@ -231,7 +226,7 @@ final class SnapcastGroupSheet {
             body.addView(none);
         }
         for (SnapcastMemberRows.Member member : members) {
-            body.addView(memberRow(member, group, online));
+            body.addView(memberRow(member, online));
         }
     }
 
@@ -358,16 +353,19 @@ final class SnapcastGroupSheet {
         return row;
     }
 
-    private View memberRow(final SnapcastMemberRows.Member member, SnapcastGroup group, boolean online) {
+    private View memberRow(final SnapcastMemberRows.Member member, boolean online) {
         final String clientId = member.getClientId();
         LinearLayout actions = new LinearLayout(context);
         actions.setOrientation(LinearLayout.HORIZONTAL);
         actions.setGravity(Gravity.CENTER_VERTICAL);
-        CheckBox mute = new CheckBox(context);
-        mute.setContentDescription(context.getString(R.string.snapcast_member_mute, member.getName()));
+        final CheckBox mute = SnapcastMuteToggle.create(context, context.getString(R.string.snapcast_member_mute, member.getName()));
         mute.setChecked(member.isMuted());
+        SnapcastMuteToggle.syncState(context, mute);
         mute.setEnabled(online);
-        mute.setOnClickListener(v -> controls.setClientMuted(serverKey, clientId, ((CheckBox) v).isChecked()));
+        mute.setOnClickListener(v -> {
+            SnapcastMuteToggle.syncState(context, mute);
+            controls.setClientMuted(serverKey, clientId, mute.isChecked());
+        });
         actions.addView(mute);
         ImageButton more = new ImageButton(context);
         more.setImageResource(R.drawable.ic_snapcast_more);
@@ -379,7 +377,7 @@ final class SnapcastGroupSheet {
         more.setMinimumWidth(dp(48));
         more.setMinimumHeight(dp(48));
         more.setEnabled(online);
-        more.setOnClickListener(v -> showMemberMenu(v, member, group));
+        more.setOnClickListener(v -> showMemberMenu(v, member));
         actions.addView(more);
         String label = member.isConnected() ? member.getName()
                 : member.getName() + " (" + context.getString(R.string.snapcast_offline) + ")";
@@ -397,12 +395,10 @@ final class SnapcastGroupSheet {
 
     // ---- the member menu and its dialogs
 
-    private void showMemberMenu(View anchor, final SnapcastMemberRows.Member member, SnapcastGroup group) {
+    private void showMemberMenu(View anchor, final SnapcastMemberRows.Member member) {
         PopupMenu menu = new PopupMenu(context, anchor);
         menu.getMenu().add(0, 1, 0, R.string.snapcast_member_rename);
         menu.getMenu().add(0, 2, 1, R.string.snapcast_member_latency);
-        android.view.MenuItem remove = menu.getMenu().add(0, 3, 2, R.string.snapcast_member_remove);
-        remove.setEnabled(SnapcastMemberRows.canRemove(group));
         menu.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
                 case 1:
@@ -410,9 +406,6 @@ final class SnapcastGroupSheet {
                     return true;
                 case 2:
                     showLatency(member);
-                    return true;
-                case 3:
-                    controls.removeClient(serverKey, groupId, member.getClientId());
                     return true;
                 default:
                     return false;
@@ -524,47 +517,6 @@ final class SnapcastGroupSheet {
                     d.dismiss();
                     if (choice.isSelectable()) {
                         controls.setGroupStream(serverKey, groupId, choice.getStreamId());
-                    }
-                })
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
-    }
-
-    private void showAddClients() {
-        SnapcastReceivers.GroupState state = receivers.stateOf(receiverId);
-        if (state == null || state.getStatus() == null) {
-            return;
-        }
-        final List<SnapcastClientCandidates.Candidate> candidates = SnapcastClientCandidates.addable(state.getStatus(), groupId,
-                SnapcastUi.candidateWords(context));
-        if (candidates.isEmpty()) {
-            openDialog = new AlertDialog.Builder(context)
-                    .setTitle(R.string.snapcast_sheet_add_client_title)
-                    .setMessage(R.string.snapcast_sheet_add_client_none)
-                    .setPositiveButton(android.R.string.ok, null)
-                    .show();
-            return;
-        }
-        CharSequence[] labels = new CharSequence[candidates.size()];
-        for (int i = 0; i < labels.length; i++) {
-            SnapcastClientCandidates.Candidate candidate = candidates.get(i);
-            String text = context.getString(candidate.leavesGroupEmpty() ? R.string.snapcast_sheet_candidate_empties
-                    : R.string.snapcast_sheet_candidate_in_group, candidate.getName(), candidate.getFromGroupName());
-            labels[i] = candidate.isConnected() ? text : text + " · " + context.getString(R.string.snapcast_offline);
-        }
-        final boolean[] checked = new boolean[labels.length];
-        openDialog = new AlertDialog.Builder(context)
-                .setTitle(R.string.snapcast_sheet_add_client_title)
-                .setMultiChoiceItems(labels, checked, (d, which, isChecked) -> checked[which] = isChecked)
-                .setPositiveButton(R.string.snapcast_sheet_add_client, (d, which) -> {
-                    List<String> ids = new ArrayList<>();
-                    for (int i = 0; i < checked.length; i++) {
-                        if (checked[i]) {
-                            ids.add(candidates.get(i).getClientId());
-                        }
-                    }
-                    if (!ids.isEmpty()) {
-                        controls.addClients(serverKey, groupId, ids);
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, null)

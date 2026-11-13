@@ -325,6 +325,12 @@
     <string name="snapcast_row_server">Server %1$s</string>
     <string name="snapcast_row_group_gone">Diese Gruppe gibt es auf dem Server nicht mehr</string>
     <string name="snapcast_row_settings">Einstellungen der Snapcast-Gruppe</string>
+    <string name="snapcast_row_link">Clients dieser Snapcast-Gruppe verbinden</string>
+    <string name="snapcast_link_keep_one">Eine Gruppe behält mindestens einen Client.</string>
+    <string name="snapcast_link_none">Kein anderer Client auf diesem Server</string>
+    <string name="snapcast_link_last_member">%1$s (letzter Client dieser Gruppe)</string>
+    <string name="snapcast_mute_state_on">Stumm</string>
+    <string name="snapcast_mute_state_off">Nicht stumm</string>
     <string name="snapcast_sheet_group_volume">Gruppenlautstärke</string>
     <string name="snapcast_sheet_group_mute">Gruppe stummschalten</string>
     <string name="snapcast_sheet_stream">Stream</string>
@@ -333,9 +339,6 @@
     <string name="snapcast_sheet_stream_unavailable">%1$s (nicht verfügbar)</string>
     <string name="snapcast_sheet_stream_current">%1$s (aktuell)</string>
     <string name="snapcast_sheet_no_streams">Der Server meldet keine Streams</string>
-    <string name="snapcast_sheet_add_client">Client hinzufügen</string>
-    <string name="snapcast_sheet_add_client_title">Clients zu dieser Gruppe hinzufügen</string>
-    <string name="snapcast_sheet_add_client_none">Alle Clients dieses Servers sind schon in dieser Gruppe</string>
     <string name="snapcast_sheet_candidate_in_group">%1$s (in Gruppe %2$s)</string>
     <string name="snapcast_sheet_candidate_empties">%1$s (in Gruppe %2$s, die dann endet)</string>
     <string name="snapcast_sheet_members">Clients</string>
@@ -345,7 +348,6 @@
     <string name="snapcast_member_actions">Aktionen für %1$s</string>
     <string name="snapcast_member_rename">Umbenennen</string>
     <string name="snapcast_member_latency">Latenz</string>
-    <string name="snapcast_member_remove">Aus der Gruppe entfernen</string>
     <string name="snapcast_rename_title">Client umbenennen</string>
     <string name="snapcast_rename_hint">Name (leer: Hostname verwenden)</string>
     <string name="snapcast_latency_title">Latenz in Millisekunden</string>

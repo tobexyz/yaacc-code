@@ -321,6 +321,12 @@
     <string name="snapcast_row_server">服务器 %1$s</string>
     <string name="snapcast_row_group_gone">该组已不在服务器上</string>
     <string name="snapcast_row_settings">Snapcast 组设置</string>
+    <string name="snapcast_row_link">链接此 Snapcast 组的客户端</string>
+    <string name="snapcast_link_keep_one">一个组至少保留一个客户端。</string>
+    <string name="snapcast_link_none">此服务器上没有其他客户端</string>
+    <string name="snapcast_link_last_member">%1$s（此组的最后一个客户端）</string>
+    <string name="snapcast_mute_state_on">已静音</string>
+    <string name="snapcast_mute_state_off">未静音</string>
     <string name="snapcast_sheet_group_volume">组音量</string>
     <string name="snapcast_sheet_group_mute">组静音</string>
     <string name="snapcast_sheet_stream">音频流</string>
@@ -329,9 +335,6 @@
     <string name="snapcast_sheet_stream_unavailable">%1$s（不可用）</string>
     <string name="snapcast_sheet_stream_current">%1$s（当前）</string>
     <string name="snapcast_sheet_no_streams">服务器没有列出音频流</string>
-    <string name="snapcast_sheet_add_client">添加客户端</string>
-    <string name="snapcast_sheet_add_client_title">将客户端添加到此组</string>
-    <string name="snapcast_sheet_add_client_none">此服务器的所有客户端都已在该组中</string>
     <string name="snapcast_sheet_candidate_in_group">%1$s（在组 %2$s 中）</string>
     <string name="snapcast_sheet_candidate_empties">%1$s（在组 %2$s 中，该组随后将消失）</string>
     <string name="snapcast_sheet_members">客户端</string>
@@ -341,7 +344,6 @@
     <string name="snapcast_member_actions">%1$s 的操作</string>
     <string name="snapcast_member_rename">重命名</string>
     <string name="snapcast_member_latency">延迟</string>
-    <string name="snapcast_member_remove">从组中移除</string>
     <string name="snapcast_rename_title">重命名客户端</string>
     <string name="snapcast_rename_hint">名称（留空：使用主机名）</string>
     <string name="snapcast_latency_title">延迟（毫秒）</string>

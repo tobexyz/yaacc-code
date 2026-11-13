@@ -319,7 +319,19 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // Let system handle volume keys - shows standard Android volume UI
+        // A Snapcast group on screen that has the focus or was touched last takes the volume keys (11.4); otherwise the system
+        // handles them and shows its standard volume UI
+        if (VolumeKeyHosts.onKeyDown(keyCode)) {
+            return true;
+        }
         return super.onKeyDown(keyCode, event);
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (VolumeKeyHosts.onKeyUp(keyCode)) {
+            return true;
+        }
+        return super.onKeyUp(keyCode, event);
     }
 }

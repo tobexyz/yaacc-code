@@ -108,6 +108,9 @@ public class TrackToastTextTest {
         assertEquals("?", TrackToastText.title("HTTPS://host/x"));
         assertEquals("?", TrackToastText.title("content://media/external/audio/media/42"));
         assertEquals("?", TrackToastText.title("file:///sdcard/Music/a.mp3"));
+        assertEquals("?", TrackToastText.title("content:foo"));
+        assertEquals("?", TrackToastText.title("file:/sdcard/a.mp3"));
+        assertEquals("?", TrackToastText.title("FILE:/x"));
         assertEquals("?", TrackToastText.title("  rtsp://host/stream  "));
     }
 

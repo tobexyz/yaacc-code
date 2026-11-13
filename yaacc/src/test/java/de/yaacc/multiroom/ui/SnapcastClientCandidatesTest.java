@@ -179,6 +179,53 @@ public class SnapcastClientCandidatesTest {
         assertEquals(256, SnapcastClientCandidates.wantedWith(full, Collections.<String>emptyList()).size());
     }
 
+    // ---- 11.3: one change that adds and removes members at once (the link sheet)
+
+    @Test
+    public void aChangeKeepsTheOthersInTheirOrderDropsTheRemovedAndAppendsTheAdded() {
+        List<String> wanted = SnapcastClientCandidates.wantedAfter(LIVING, Arrays.asList("c", "e"), Collections.singletonList("a"));
+
+        assertEquals(Arrays.asList("b", "c", "e"), wanted);
+    }
+
+    @Test
+    public void aChangeThatChangesNothingGivesTheCurrentMembers() {
+        assertEquals(Arrays.asList("a", "b"),
+                SnapcastClientCandidates.wantedAfter(LIVING, Collections.<String>emptyList(), Collections.<String>emptyList()));
+        assertEquals(Arrays.asList("a", "b"), SnapcastClientCandidates.wantedAfter(LIVING, null, null));
+    }
+
+    @Test
+    public void aRemovedClientThatLeftAlreadyAndAnAddedOneThatIsInAlreadyAreSkipped() {
+        assertEquals(Arrays.asList("a", "b"),
+                SnapcastClientCandidates.wantedAfter(LIVING, Collections.singletonList("a"), Collections.singletonList("zzz")));
+    }
+
+    @Test
+    public void aChangeThatEmptiesTheGroupIsRefusedBecauseAnEmptyListWouldDissolveIt() {
+        assertNull(SnapcastClientCandidates.wantedAfter(LIVING, Collections.<String>emptyList(), Arrays.asList("a", "b")));
+        assertNull(SnapcastClientCandidates.wantedAfter(OFFICE, Collections.<String>emptyList(), Collections.singletonList("e")));
+    }
+
+    @Test
+    public void aClientThatIsRemovedAndAddedAtOnceStays() {
+        assertEquals(Arrays.asList("b", "a"),
+                SnapcastClientCandidates.wantedAfter(LIVING, Collections.singletonList("a"), Collections.singletonList("a")));
+    }
+
+    @Test
+    public void aChangeThatMakesTheGroupLargerThanTheLimitIsRefused() {
+        List<SnapcastClient> members = new ArrayList<>();
+        for (int i = 0; i < 256; i++) {
+            members.add(client("m" + i, "M" + i, true, 1, false));
+        }
+        SnapcastGroup full = new SnapcastGroup("big", "Big", false, "Default", members);
+
+        assertNull(SnapcastClientCandidates.wantedAfter(full, Collections.singletonList("c"), Collections.<String>emptyList()));
+        assertEquals("one out and one in is fine", 256,
+                SnapcastClientCandidates.wantedAfter(full, Collections.singletonList("c"), Collections.singletonList("m0")).size());
+    }
+
     private static List<String> names(List<SnapcastClientCandidates.Candidate> candidates) {
         List<String> names = new ArrayList<>();
         for (SnapcastClientCandidates.Candidate candidate : candidates) {

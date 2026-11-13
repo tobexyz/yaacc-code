@@ -405,6 +405,97 @@ public class LocalMediaSessionPlayerFailureTest {
         }
     }
 
+    // ---- security review S30: another thread can edit the list while the listener looks the title up
+
+    /** A list that shrinks between size() and get(), like the list of an OpenHome controller that removes the item. */
+    private static final class ShrinkingList extends ArrayList<PlayableItem> {
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        public PlayableItem get(int index) {
+            throw new IndexOutOfBoundsException("lost the race at " + index);
+        }
+    }
+
+    @Test
+    public void aListThatChangesWhileTheTitleIsLookedUpSkipsWithTheTrackNumber() {
+        TestLocal player = new TestLocal() {
+            @Override
+            public List<PlayableItem> getItems() {
+                ShrinkingList list = new ShrinkingList();
+                list.add(new PlayableItem());
+                list.add(new PlayableItem());
+                return list;
+            }
+        };
+
+        player.trackFailedAt("E", 1, true);
+
+        assertEquals(Arrays.asList("skip"), calls);
+        assertEquals("text" + R.string.player_track_skipped + ":text" + R.string.player_track_number + ":2", toasts.get(0));
+    }
+
+    @Test
+    public void aNullEntryOfTheListSkipsWithTheTrackNumber() {
+        TestLocal player = new TestLocal() {
+            @Override
+            public List<PlayableItem> getItems() {
+                return new ArrayList<>(Arrays.asList(new PlayableItem[]{null, null}));
+            }
+        };
+
+        player.trackFailedAt("E", 0, true);
+
+        assertEquals(Arrays.asList("skip"), calls);
+        assertEquals("text" + R.string.player_track_skipped + ":text" + R.string.player_track_number + ":1", toasts.get(0));
+    }
+
+    @Test
+    public void aListThatIsGoneEntirelyStillSkips() {
+        TestLocal player = new TestLocal() {
+            @Override
+            public List<PlayableItem> getItems() {
+                throw new java.util.ConcurrentModificationException();
+            }
+        };
+
+        player.trackFailedAt("E", 4, true);
+
+        assertEquals(Arrays.asList("skip"), calls);
+        assertEquals("text" + R.string.player_track_skipped + ":text" + R.string.player_track_number + ":5", toasts.get(0));
+    }
+
+    // ---- security review S33/S10: a retry that comes after the player was destroyed says nothing and stops nothing
+
+    @Test
+    public void aRetryOfTheStopAfterTheDestroyIsSilent() {
+        BusyLocal player = new BusyLocal();
+        player.setProcessingCommand(true);
+        player.trackFailed("E", "Last", 1, false);
+        assertEquals(1, delayed.size());
+
+        player.markDestroyed();
+        player.setProcessingCommand(false);
+        delayed.remove(0).run();
+
+        assertTrue("no stop for a destroyed player", calls.isEmpty());
+        assertTrue("and no late toast", toasts.isEmpty());
+        assertTrue("and no new retry", delayed.isEmpty());
+        assertFalse(player.isStopOutstanding());
+    }
+
+    @Test
+    public void aFailureThatArrivesAfterTheDestroyIsIgnored() {
+        TestLocal player = new TestLocal();
+        player.markDestroyed();
+
+        player.trackFailed("E", "A", 1, true);
+        player.trackFailed("E", "B", 2, false);
+
+        assertTrue(calls.isEmpty());
+        assertTrue(toasts.isEmpty());
+    }
+
     // ---- the texts
 
     @Test

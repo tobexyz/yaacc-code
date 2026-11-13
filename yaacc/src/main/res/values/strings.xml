@@ -330,6 +330,12 @@
     <string name="snapcast_row_server">Server %1$s</string>
     <string name="snapcast_row_group_gone">This group is no longer on the server</string>
     <string name="snapcast_row_settings">Snapcast group settings</string>
+    <string name="snapcast_row_link">Link clients of this Snapcast group</string>
+    <string name="snapcast_link_keep_one">A group keeps at least one client.</string>
+    <string name="snapcast_link_none">No other client on this server</string>
+    <string name="snapcast_link_last_member">%1$s (last client of this group)</string>
+    <string name="snapcast_mute_state_on">Muted</string>
+    <string name="snapcast_mute_state_off">Not muted</string>
     <string name="snapcast_sheet_group_volume">Group volume</string>
     <string name="snapcast_sheet_group_mute">Mute group</string>
     <string name="snapcast_sheet_stream">Stream</string>
@@ -338,9 +344,6 @@
     <string name="snapcast_sheet_stream_unavailable">%1$s (unavailable)</string>
     <string name="snapcast_sheet_stream_current">%1$s (current)</string>
     <string name="snapcast_sheet_no_streams">The server lists no streams</string>
-    <string name="snapcast_sheet_add_client">Add client</string>
-    <string name="snapcast_sheet_add_client_title">Add clients to this group</string>
-    <string name="snapcast_sheet_add_client_none">All clients of this server are in this group already</string>
     <string name="snapcast_sheet_candidate_in_group">%1$s (in group %2$s)</string>
     <string name="snapcast_sheet_candidate_empties">%1$s (in group %2$s, which then ends)</string>
     <string name="snapcast_sheet_members">Clients</string>
@@ -350,7 +353,6 @@
     <string name="snapcast_member_actions">Actions for %1$s</string>
     <string name="snapcast_member_rename">Rename</string>
     <string name="snapcast_member_latency">Latency</string>
-    <string name="snapcast_member_remove">Remove from group</string>
     <string name="snapcast_rename_title">Rename client</string>
     <string name="snapcast_rename_hint">Name (empty: use the host name)</string>
     <string name="snapcast_latency_title">Latency in milliseconds</string>

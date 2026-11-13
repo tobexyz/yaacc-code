@@ -457,6 +457,94 @@ public class SnapcastControlsTest {
         assertEquals(SnapcastControls.Failure.Kind.NOT_POSSIBLE, failures.get(0).getKind());
     }
 
+    // ---- 11.3: the link sheet changes the members in one call
+
+    private static SnapcastLinkChoices.Change change(List<String> added, List<String> removed) {
+        return new SnapcastLinkChoices.Change(added, removed);
+    }
+
+    @Test
+    public void aLinkChangeAddsAndRemovesInOneCallWithTheFullList() {
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Arrays.asList("b")));
+        actions.runAll();
+
+        assertEquals(1, caller.count("Group.SetClients"));
+        assertEquals("[\"a\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+        assertEquals(GROUP, caller.last("Group.SetClients").optString("id"));
+    }
+
+    @Test
+    public void aLinkChangeStartsFromTheMembersTheServerHasNow() {
+        caller.serverMembers = new String[]{"a", "b", "c", "e"}; // another controller added "e" behind the model
+
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Arrays.asList("b")));
+        actions.runAll();
+
+        assertEquals(1, caller.count("Server.GetStatus"));
+        assertEquals("the client that the sheet did not know is not dropped", "[\"a\",\"c\",\"e\",\"d\"]",
+                caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    @Test
+    public void aLinkChangeThatLeavesNothingToDoMakesNoCall() {
+        caller.serverMembers = new String[]{"a", "c"}; // "b" left on its own, "c" is in already
+
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("c"), Arrays.asList("b")));
+        actions.runAll();
+
+        assertEquals(0, caller.count("Group.SetClients"));
+        assertTrue(failures.isEmpty());
+    }
+
+    @Test
+    public void anEmptyLinkChangeMakesNoCallAndNoReadEither() {
+        controls.changeMembers(KEY, GROUP, change(Collections.<String>emptyList(), Collections.<String>emptyList()));
+        actions.runAll();
+
+        assertEquals(0, caller.count("Group.SetClients"));
+        assertEquals(0, caller.count("Server.GetStatus"));
+        assertTrue(failures.isEmpty());
+    }
+
+    @Test
+    public void aLinkChangeThatWouldEmptyTheGroupIsRefusedAndTheUserIsTold() {
+        controls.changeMembers(KEY, "g2", change(Collections.<String>emptyList(), Arrays.asList("d")));
+        actions.runAll();
+
+        assertEquals(0, caller.count("Group.SetClients"));
+        assertEquals(SnapcastControls.Failure.Kind.NOT_POSSIBLE, failures.get(0).getKind());
+        assertEquals(SnapcastControls.Action.GROUP_CLIENTS, failedActions.get(0));
+    }
+
+    @Test
+    public void aLinkChangeForAGroupThatIsGoneSaysSo() {
+        controls.changeMembers(KEY, "nope", change(Arrays.asList("d"), Collections.<String>emptyList()));
+        actions.runAll();
+
+        assertEquals(0, caller.count("Group.SetClients"));
+        assertEquals(SnapcastControls.Failure.Kind.GONE, failures.get(0).getKind());
+    }
+
+    @Test
+    public void aLinkChangeIsAlwaysOffTheCallingThread() {
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Collections.<String>emptyList()));
+
+        assertTrue(caller.methods.isEmpty());
+        assertEquals(1, actions.tasks.size());
+    }
+
+    @Test
+    public void aLinkChangeIsACopyThatLaterEditsOfTheListsDoNotReach() {
+        List<String> added = new ArrayList<>(Arrays.asList("d"));
+        SnapcastLinkChoices.Change change = change(added, Collections.<String>emptyList());
+        added.add("zzz");
+
+        controls.changeMembers(KEY, GROUP, change);
+        actions.runAll();
+
+        assertEquals("[\"a\",\"b\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
     // ---- failures
 
     @Test
