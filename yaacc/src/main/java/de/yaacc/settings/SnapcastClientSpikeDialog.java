@@ -69,6 +69,7 @@ final class SnapcastClientSpikeDialog {
     private final EditText host;
     private final EditText latency;
     private final EditText writeAhead;
+    private final android.widget.CheckBox flacGuard;
     private final TextView warning;
     private final Button start;
     private final Button stop;
@@ -166,6 +167,11 @@ final class SnapcastClientSpikeDialog {
         writeAhead.setText(String.valueOf(preferences.getInt(SnapcastClientSpike.KEY_LAST_WRITE_AHEAD,
                 SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS)));
         root.addView(writeAhead, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        flacGuard = new android.widget.CheckBox(context);
+        flacGuard.setText(R.string.snapcast_client_flac_guard);
+        flacGuard.setChecked(preferences.getBoolean(SnapcastClientSpike.KEY_LAST_FLAC_GUARD, true));
+        root.addView(flacGuard, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         LinearLayout buttons = new LinearLayout(context);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
@@ -294,8 +300,9 @@ final class SnapcastClientSpikeDialog {
         writeAhead.setText(String.valueOf(ahead)); // the value that is applied (clamped to 40..350), not what was typed
         preferences.edit().putString(SnapcastClientSpike.KEY_LAST_HOST, host.getText().toString().trim())
                 .putInt(SnapcastClientSpike.KEY_LAST_LATENCY, request.getLatencyMs())
-                .putInt(SnapcastClientSpike.KEY_LAST_WRITE_AHEAD, ahead).apply();
-        SnapcastClientService.start(context, host.getText().toString().trim(), request.getLatencyMs(), ahead);
+                .putInt(SnapcastClientSpike.KEY_LAST_WRITE_AHEAD, ahead)
+                .putBoolean(SnapcastClientSpike.KEY_LAST_FLAC_GUARD, flacGuard.isChecked()).apply();
+        SnapcastClientService.start(context, host.getText().toString().trim(), request.getLatencyMs(), ahead, flacGuard.isChecked());
     }
 
     private void onApplyLatency() {

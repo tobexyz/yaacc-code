@@ -90,6 +90,28 @@ public class RuleGuardTest {
     }
 
     /**
+     * G17: a stream that is late by less than the hard limit (300 ms) is skipped to its place (the amount it is late by), not
+     * placed anew: the breaker only fires when more than maxSkipMs (1 s) was skipped without coming back on time.
+     */
+    @Test
+    public void aStreamLateByLessThanTheHardLimitIsSkippedToItsPlaceAndNotPlacedAnew() {
+        for (long lateMs : new long[]{150, 250}) {
+            DeviceRig rig = new DeviceRig(phone());
+            rig.connect();
+            rig.run(8_000);
+            EngineStatus before = rig.status();
+            rig.offsets.offset += lateMs * 1000L; // the server clock is further ahead: the stream is that late
+            rig.run(4_000);
+            EngineStatus s = rig.status();
+            long skipped = s.stepSkippedFrames - before.stepSkippedFrames;
+            assertEquals("late by " + lateMs + " ms: not placed anew; " + rig.report(), before.timelineResyncs, s.timelineResyncs);
+            assertTrue("late by " + lateMs + " ms: skipped " + skipped + " frames; " + rig.report(),
+                    skipped >= lateMs * 48 * 8 / 10 && skipped <= lateMs * 48 * 13 / 10);
+            assertTrue(rig.report(), s.aligned);
+        }
+    }
+
+    /**
      * E10: pcm chunks whose timestamps go back by seconds never reach the timeline: the scheduler releases chunks in order
      * of their play time and drops a chunk that arrives after later ones were released as late. The stream goes on, nothing
      * is placed twice. (The branch of the engine that re-anchors on an overlap above the gap limit is a safety net behind

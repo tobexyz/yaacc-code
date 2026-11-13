@@ -111,10 +111,26 @@ public final class EngineStatus implements Cloneable {
     public boolean smoothCorrections;
     /** The median of the last drift measurements (what the corrections act on). */
     public long driftSmoothedMicros;
-    /** Restarts of the stream after a pause: how many, the gap of the last one and how long its first audio took. */
     /** A flac stream found shifted against its timestamps (a stall of the source): how often, and the silence inserted. */
     public long flacShiftFills;
     public long flacShiftFilledMs;
+    /** The stall guard: 0 off (switched off), 1 on (positions from frame headers), 2 inactive (no header positions: never fills). */
+    public int flacGuardState;
+    /** The last fill: reason (1 seen at once, 2 over windows), what the guard saw (skew over its base, band, chunks since the anchor). */
+    public int flacLastFillReason;
+    public long flacLastFillSkewUs;
+    public long flacLastFillBandUs;
+    public long flacLastFillChunks;
+    public long flacLastFillMs;
+    /** Where the position of the flac chunks comes from: 0 not known yet, 1 the frame headers, 2 the count of decoded frames. */
+    public int flacPositionSource;
+    /** Chunks of the flac stream whose frame header could not be read, and chunks whose position was read. */
+    public long flacPositionRefusals;
+    public long flacPositionChunks;
+    /** A flac stream found later than its timestamps and placed anew: how often, and by how much the last time (ms). */
+    public long flacReanchors;
+    public long flacReanchoredMs;
+    /** Restarts of the stream after a pause: how many, the gap of the last one and how long its first audio took. */
     public long streamResumes;
     public long lastResumeGapMs;
     public long lastResumeToAudioMs = -1;

@@ -365,7 +365,9 @@ final class DeviceSimSink extends StreamingSink {
                 for (int i = 0; i < frames; i++) {
                     int at = offset + i * fb;
                     int left = (short) ((data[at] & 0xff) | (data[at + 1] << 8));
-                    int right = (short) ((data[at + 2] & 0xff) | (data[at + 3] << 8));
+                    // a mono stream carries the left marker only: its media number wraps (counters of media jumps and the sync
+                    // error mean nothing there; what is counted in frames and silence does)
+                    int right = fb >= 4 ? (short) ((data[at + 2] & 0xff) | (data[at + 3] << 8)) : 1;
                     boolean audible = left != 0;
                     long media = audible ? (long) (right - 1) * 20000L + (left - 1) : 0;
                     analyse(left, audible, media);

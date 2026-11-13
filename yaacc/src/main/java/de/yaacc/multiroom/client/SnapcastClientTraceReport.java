@@ -52,6 +52,11 @@ public final class SnapcastClientTraceReport {
         StringBuilder out = new StringBuilder(8192);
         out.append(summary(status, device)).append("\n\n");
         out.append(SnapcastClientStatusText.of(view, nowMillis)).append("\n");
+        if (status != null && status.trace != null && status.trace.importantSize() > 0) {
+            out.append("important events (the last ").append(EventTrace.IMPORTANT_CAPACITY)
+                    .append(", kept for the whole session, oldest first, ms since the engine started):\n");
+            out.append(status.trace.importantText()).append("\n");
+        }
         out.append("event trace (oldest first, ms since the engine started):\n");
         if (status == null || status.trace == null || status.trace.size() == 0) {
             out.append("(empty)\n");

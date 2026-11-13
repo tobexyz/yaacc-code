@@ -61,13 +61,46 @@ public class DeviceRestartTest {
 
     private static final long[] PAUSES = {1_000, 3_000, 10_000, 60_000};
 
+    /** The stream as the simulated server sends it. */
+    enum Kind {
+        PCM,
+        /** Flac chunks of 20 ms with a raw payload (no frame headers): the engine counts decoded frames. */
+        FLAC_RAW,
+        /** Flac blocks of 1152 with frame headers, stamped by the model of 8j (not the server's rule). */
+        FLAC_COMPLETING,
+        /** Flac blocks of 1152 with frame headers, stamped by Snapcast's running clock. */
+        FLAC_REAL,
+        /** The same and a decoder that holds one chunk back. */
+        FLAC_REAL_LAG1;
+
+        boolean flac() {
+            return this != PCM;
+        }
+
+        DeviceRig rig(DeviceModel model) {
+            DeviceRig rig = new DeviceRig(model);
+            rig.flac = flac();
+            if (this == FLAC_COMPLETING || this == FLAC_REAL || this == FLAC_REAL_LAG1) {
+                rig.flacHeaders = true;
+                rig.flacBlockFrames = 1152;
+                rig.flacStamping = this == FLAC_COMPLETING ? DeviceRig.FlacStamping.COMPLETING_CHUNK : DeviceRig.FlacStamping.SERVER_CLOCK;
+                rig.decoderLag = this == FLAC_REAL_LAG1 ? 1 : 0;
+            }
+            return rig;
+        }
+    }
+
     /** Runs one pause and returns a description of what is wrong, or null. */
     private static String pauseAndResume(boolean flac, long pauseMs, Variant variant) {
-        DeviceRig rig = new DeviceRig(phone());
-        rig.flac = flac;
+        return pauseAndResume(flac ? Kind.FLAC_RAW : Kind.PCM, pauseMs, variant);
+    }
+
+    private static String pauseAndResume(Kind kind, long pauseMs, Variant variant) {
+        boolean flac = kind.flac();
+        DeviceRig rig = kind.rig(phone());
         rig.connect();
         rig.run(8000);
-        String name = (flac ? "flac" : "pcm") + " pause " + pauseMs + " ms " + variant;
+        String name = kind + " pause " + pauseMs + " ms " + variant;
         if (rig.sink.counters().playedAudibleFrames == 0) {
             return name + ": no sound before the pause: " + rig.report();
         }
@@ -106,7 +139,8 @@ public class DeviceRestartTest {
             return name + ": not aligned 6 s after the restart: aligned=" + s.aligned + " drift " + s.driftSmoothedMicros + " us";
         }
         // heard against the other clients: the sound is where it was before the pause (the review of Group 8, W1)
-        if (Math.abs(rig.syncErrorMs() - syncBefore) > 5) {
+        // the model of 8j has stamps that wander by a chunk against the frames: a re-anchor is only as exact as a block
+        if (Math.abs(rig.syncErrorMs() - syncBefore) > (kind == Kind.FLAC_COMPLETING ? 25 : 5)) {
             return name + ": sync error " + syncBefore + " ms before the pause, " + rig.syncErrorMs() + " ms after";
         }
         DeviceSimSink.Counters c = rig.sink.counters();
@@ -122,15 +156,16 @@ public class DeviceRestartTest {
 
     private static void check(Variant variant) {
         List<String> problems = new ArrayList<>();
-        for (boolean flac : new boolean[]{false, true}) {
+        for (Kind kind : Kind.values()) {
             for (long pause : PAUSES) {
-                String problem = pauseAndResume(flac, pause, variant);
+                String problem = pauseAndResume(kind, pause, variant);
                 if (problem != null) {
                     problems.add(problem);
                 }
             }
         }
-        assertTrue(problems.size() + " of 8 failed:\n" + String.join("\n", problems), problems.isEmpty());
+        assertTrue(problems.size() + " of " + Kind.values().length * PAUSES.length + " failed:\n" + String.join("\n", problems),
+                problems.isEmpty());
     }
 
     @Test
@@ -207,7 +242,7 @@ public class DeviceRestartTest {
         assertTrue(text, text.contains("stream restarts after a pause: 1, last gap "));
     }
 
-    private static SnapcastClientRuntime.View viewOf(EngineStatus s) {
+    static SnapcastClientRuntime.View viewOf(EngineStatus s) {
         SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Ending.NONE, 0);
         SnapcastClientRuntime.engine(s);
         return SnapcastClientRuntime.get();
@@ -269,10 +304,9 @@ public class DeviceRestartTest {
 
     // ---- the pause every five minutes for hours
 
-    private static void longRunWithPauses(boolean flac, long hours) {
+    private static void longRunWithPauses(Kind kind, long hours) {
         DeviceModel m = phone();
-        DeviceRig rig = new DeviceRig(m);
-        rig.flac = flac;
+        DeviceRig rig = kind.rig(m);
         rig.stepMs = 10;
         rig.connect();
         rig.run(8000);
@@ -297,11 +331,22 @@ public class DeviceRestartTest {
 
     @Test
     public void threeHoursOfFlacWithAPauseEveryFiveMinutes() {
-        longRunWithPauses(true, 3);
+        longRunWithPauses(Kind.FLAC_RAW, 3);
+    }
+
+    @Test
+    public void threeHoursOfFlacBlocksWithTheServersStampingAndAPauseEveryFiveMinutes() {
+        longRunWithPauses(Kind.FLAC_REAL, 3);
+        longRunWithPauses(Kind.FLAC_REAL_LAG1, 1);
+    }
+
+    @Test
+    public void anHourOfFlacBlocksOfTheOldModelWithAPauseEveryFiveMinutes() {
+        longRunWithPauses(Kind.FLAC_COMPLETING, 1);
     }
 
     @Test
     public void anHourOfPcmWithAPauseEveryFiveMinutes() {
-        longRunWithPauses(false, 1);
+        longRunWithPauses(Kind.PCM, 1);
     }
 }

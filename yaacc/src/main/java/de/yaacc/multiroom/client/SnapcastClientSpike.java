@@ -40,6 +40,8 @@ public final class SnapcastClientSpike {
     public static final String KEY_LAST_ENDING = "snapcast_client_spike_last_ending";
     public static final String KEY_LAST_ENDING_AT = "snapcast_client_spike_last_ending_at";
     public static final String KEY_LAST_WRITE_AHEAD = "snapcast_client_spike_write_ahead_ms";
+    /** The "FLAC stall guard" check box of the test screen (default on). */
+    public static final String KEY_LAST_FLAC_GUARD = "snapcast_client_spike_flac_guard";
     /** How far ahead of the playback position the output is kept filled (the deep-buffer output of a phone needs more than its 128 ms queued: 250 by default). */
     public static final int MIN_WRITE_AHEAD_MS = 40;
     public static final int MAX_WRITE_AHEAD_MS = 350;

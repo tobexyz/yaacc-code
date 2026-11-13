@@ -81,6 +81,7 @@ public final class SnapcastClientService extends Service {
     static final String EXTRA_HOST = "host";
     static final String EXTRA_LATENCY_MS = "latencyMs";
     static final String EXTRA_WRITE_AHEAD_MS = "writeAheadMs";
+    static final String EXTRA_FLAC_GUARD = "flacGuard";
 
     private static final long WATCHDOG_INTERVAL_MS = 2_000L;
     private static final long WATCHDOG_LIMIT_MS = 5_000L;
@@ -103,6 +104,7 @@ public final class SnapcastClientService extends Service {
     private SnapcastClientRuntime.Phase lastPhaseShown;
     private volatile Integer pendingLatencyMs;
     private volatile int writeAheadMs = SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS;
+    private volatile boolean flacGuard = true;
 
     // ---- entry points for the screen
 
@@ -113,9 +115,17 @@ public final class SnapcastClientService extends Service {
 
     /** @param writeAheadMs how far ahead of the playback position the output is kept filled (applied at the start only) */
     public static void start(Context context, String hostText, int latencyMs, int writeAheadMs) {
+        start(context, hostText, latencyMs, writeAheadMs, true);
+    }
+
+    /**
+     * @param flacGuard the stall guard of the flac path (it only acts when the positions of the chunks are read from the
+     *                  FLAC frame headers; with this off nothing is ever filled)
+     */
+    public static void start(Context context, String hostText, int latencyMs, int writeAheadMs, boolean flacGuard) {
         Intent intent = new Intent(context, SnapcastClientService.class).setAction(ACTION_START)
                 .putExtra(EXTRA_HOST, hostText).putExtra(EXTRA_LATENCY_MS, latencyMs)
-                .putExtra(EXTRA_WRITE_AHEAD_MS, writeAheadMs);
+                .putExtra(EXTRA_WRITE_AHEAD_MS, writeAheadMs).putExtra(EXTRA_FLAC_GUARD, flacGuard);
         ContextCompat.startForegroundService(context, intent);
     }
 
@@ -198,6 +208,7 @@ public final class SnapcastClientService extends Service {
             }
             writeAheadMs = SnapcastClientSpike.clampWriteAhead(
                     intent.getIntExtra(EXTRA_WRITE_AHEAD_MS, SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS));
+            flacGuard = intent.getBooleanExtra(EXTRA_FLAC_GUARD, true);
             beginSession(intent.getStringExtra(EXTRA_HOST), intent.getIntExtra(EXTRA_LATENCY_MS, 0));
         } catch (RuntimeException unexpected) {
             endSession(SnapcastClientRuntime.Ending.SERVICE_ERROR);
@@ -250,7 +261,7 @@ public final class SnapcastClientService extends Service {
                     "YAACC", "Android", "unknown", "spike");
             ClientSession session = ClientSession.assemble(new SocketTransport(address, request.getEndpoint().getPort()), hello,
                     request.getLatencyMs(), AudioTrackSink::new, new DefaultDecoderFactory(new AndroidDecoderFactory()),
-                    SystemClock::elapsedRealtimeNanos, new ClientEngineConfig().maxAheadMs(writeAheadMs).smoothCorrections(true),
+                    SystemClock::elapsedRealtimeNanos, new ClientEngineConfig().maxAheadMs(writeAheadMs).smoothCorrections(true).flacTimeGuard(flacGuard),
                     SnapcastClientService::audioThread,
                     new EngineHost.Observer() {
                         @Override

@@ -376,6 +376,7 @@
     <string name="snapcast_client_error_invalid_host">这不是有效的地址</string>
     <string name="snapcast_client_error_invalid_latency">请输入整数毫秒值</string>
     <string name="snapcast_client_write_ahead_hint">写入提前量（毫秒，40 到 350，默认 250）</string>
+    <string name="snapcast_client_flac_guard">FLAC 停顿保护（仅在可读取 FLAC 帧头时生效；启动时应用）</string>
     <string name="snapcast_client_error_invalid_write_ahead">请输入 40 到 350 之间的整数</string>
     <string name="snapcast_client_notification_stopped">已停止：%1$s</string>
     <string name="snapcast_client_move_group">将我的分组移到某个流</string>

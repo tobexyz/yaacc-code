@@ -33,7 +33,7 @@ final class DeviceRig {
     boolean sine;
     /** Each chunk's timestamp is off by up to this many microseconds (either way); the audio is not. */
     long chunkJitterMicros;
-    private final java.util.Random random = new java.util.Random(42);
+    final java.util.Random random = new java.util.Random(42);
 
     final ManualMicroClock clock = new ManualMicroClock(10_000_000L);
     final ClientFixtures.FakeOffsets offsets = new ClientFixtures.FakeOffsets(OFFSET);
@@ -41,7 +41,7 @@ final class DeviceRig {
     final DeviceSimSink sink;
     final SnapcastClientEngine engine;
     final int rate;
-    final int channels = 2;
+    final int channels;
     final int bits = 16;
     final int chunkFrames;
     int bufferMs = 1000;
@@ -60,16 +60,64 @@ final class DeviceRig {
     }
 
     /**
-     * &gt; 0 (flac only): the encoder collects the pcm chunks into blocks of this many frames (the owner's stream decodes to
-     * blocks of 1152) and emits a chunk when a block is complete, stamped with the start of the pcm chunk that completed
-     * it: the chunks are then spaced 20, 20, 20, 20, 40 ms, each up to a block later than its first sample.
+     * &gt; 0 (flac only): the encoder collects the pcm chunks into blocks of this many frames and emits a chunk when at
+     * least one block is complete (see {@link #flacStamping} for the timestamp it gets).
      */
     int flacBlockFrames;
+
+    /** How the simulated server stamps the chunks of a flac stream. */
+    enum FlacStamping {
+        /**
+         * The model of Group 8j, <b>not what the server does</b>: a chunk is stamped with the start of the pcm chunk that
+         * completed its block, so the stamps are 20, 20, 20, 20, 40 ms apart and each is up to a block later than its first
+         * sample. Kept so that the engine is tested on it as well.
+         */
+        COMPLETING_CHUNK,
+        /**
+         * Snapcast's {@code PcmStream::chunkEncoded} (0.35.0): a running clock that starts at the wall time of the first read
+         * and after every stall, and is advanced by the duration of the <i>encoded</i> frames after each chunk. The stamps are
+         * contiguous with the encoder's frames (one block apart), the encoder keeps the frames it had collected over a stall,
+         * and the first chunk after a stall is stamped with the start of the pcm chunk just read.
+         */
+        SERVER_CLOCK
+    }
+
+    FlacStamping flacStamping = FlacStamping.COMPLETING_CHUNK;
+    /**
+     * True: the chunks of a flac stream carry real FLAC frame headers (frame number, CRC-8) in front of the pcm samples that
+     * the test decoder strips, so the engine can read the position of the encoder. False: the payload is raw pcm, as in the
+     * older tests (the engine then counts frames).
+     */
+    boolean flacHeaders;
+    /** The chunks of a flac stream arrive up to this much later than they were emitted (in order); the stamps are not touched. */
+    long arrivalJitterMicros;
+    /** Applied to every flac chunk before the engine gets it (a test corrupts a header here); null: none. */
+    java.util.function.UnaryOperator<WireChunkMessage> chunkFilter;
+    /** Added to every stamp of a flac stream from now on (the clock of the server jumps by this; negative: back). */
+    long stampShiftMicros;
+    /** The decoder holds back a random chunk: this many per thousand of the calls, for 1 to {@link #decoderHoldMaxCalls} calls. */
+    int decoderHoldPermille;
+    int decoderHoldMaxCalls = 2;
+    /** The decoder holds back its next this many calls (a test sets it right before a stall ends); then it is 0 again. */
+    int decoderForcedHoldCalls;
+    /** At this time (ms of the manual clock) {@link #decoderLag} becomes {@link #decoderLagAfter}; negative: never. */
+    long decoderLagStepAtMs = -1;
+    int decoderLagAfter;
     /** 0: the decoder hands back what it was given; 1: it holds one chunk back; 2: it alternates between holding and a burst of two. */
     int decoderLag;
-    private long emittedMedia;
-    private long encoderPending;
     private boolean wasSending = true;
+
+    // the encoder of the simulated server
+    private final java.util.ArrayDeque<long[]> segments = new java.util.ArrayDeque<>(); // {first media frame, frames}
+    private long pendingFrames;
+    private long encoderPosition;
+    private boolean encoderStarted;
+    private long clockResetMicros;
+    private long framesSinceReset;
+    private long lastArrivalMicros;
+    private long lastWireStamp = Long.MIN_VALUE / 2;
+    private final java.util.ArrayDeque<Object[]> inFlight = new java.util.ArrayDeque<>(); // {arrival, chunk}
+    private final java.util.TreeMap<Long, Long> targets = new java.util.TreeMap<>(); // first media frame -> server time of it
 
     /** True: a flac stream (the decoder of the tests passes the 16 bit samples through). Set before connect(). */
     boolean flac;
@@ -83,6 +131,11 @@ final class DeviceRig {
     }
 
     DeviceRig(DeviceModel model, ClientEngineConfig config, int rate, int chunkFrames) {
+        this(model, config, rate, chunkFrames, 2);
+    }
+
+    DeviceRig(DeviceModel model, ClientEngineConfig config, int rate, int chunkFrames, int channels) {
+        this.channels = channels;
         this.rate = rate;
         this.chunkFrames = chunkFrames;
         this.model = model;
@@ -92,7 +145,7 @@ final class DeviceRig {
         DefaultDecoderFactory pcmFactory = new DefaultDecoderFactory(null);
         this.engine = new SnapcastClientEngine(config, sink,
                 (h, m) -> h.getCodec() == de.yaacc.multiroom.protocol.Codec.PCM ? pcmFactory.create(h, m)
-                        : new LaggingDecoder(() -> decoderLag), offsets, clock);
+                        : new LaggingDecoder(), offsets, clock);
     }
 
     /** The server time of the first frame of a chunk, exact (the server computes it from the frame count). */
@@ -102,6 +155,13 @@ final class DeviceRig {
 
     /** The client time at which the media frame (frames since chunk 0) is meant to be heard. */
     long targetOf(long mediaFrame) {
+        if (flacHeaders && flacStamping == FlacStamping.SERVER_CLOCK) {
+            // what the other clients play: the stamps of the server, not the wall clock of the live source
+            java.util.Map.Entry<Long, Long> entry = targets.floorEntry(mediaFrame);
+            if (entry != null) {
+                return entry.getValue() + (mediaFrame - entry.getKey()) * 1_000_000L / rate + bufferMs * 1000L - OFFSET;
+            }
+        }
         return serverStart + mediaFrame * 1_000_000L / rate + bufferMs * 1000L - OFFSET;
     }
 
@@ -155,6 +215,10 @@ final class DeviceRig {
     }
 
     void step() {
+        if (decoderLagStepAtMs >= 0 && clock.nowMicros() / 1000 >= decoderLagStepAtMs) {
+            decoderLag = decoderLagAfter;
+            decoderLagStepAtMs = -1;
+        }
         for (long[] job : jobs) {
             if (clock.nowMicros() / 1000 >= job[2]) {
                 clock.advanceMillis(job[1]);
@@ -167,22 +231,8 @@ final class DeviceRig {
                 nextChunk++;
                 continue;
             }
-            if (flac && flacBlockFrames > 0) {
-                if (!wasSending) { // the source starts anew: the encoder has nothing collected, the content goes on
-                    wasSending = true;
-                    emittedMedia = nextChunk * chunkFrames;
-                    encoderPending = 0;
-                }
-                encoderPending += chunkFrames;
-                if (encoderPending >= flacBlockFrames) {
-                    long stamp = chunkTime(nextChunk);
-                    WireChunkMessage block = sine
-                            ? ClientFixtures.sineChunk(stamp, emittedMedia, flacBlockFrames, channels, rate)
-                            : ClientFixtures.chunk(stamp, emittedMedia, flacBlockFrames, channels, bits);
-                    engine.onChunk(block);
-                    emittedMedia += flacBlockFrames;
-                    encoderPending -= flacBlockFrames;
-                }
+            if (flac && (flacBlockFrames > 0 || flacHeaders)) {
+                feedEncoder(nextChunk);
                 nextChunk++;
                 continue;
             }
@@ -197,6 +247,7 @@ final class DeviceRig {
             engine.onChunk(chunk);
             nextChunk++;
         }
+        deliverArrived();
         if (ticking) {
             engine.tick();
         }
@@ -228,41 +279,178 @@ final class DeviceRig {
                 + "), position " + s.positionSource + ", drift " + s.driftMicros / 1000 + " ms";
     }
 
-    /** A flac decoder of the tests: passes 16 bit samples through, optionally holding chunks back as a platform codec does. */
-    private static final class LaggingDecoder implements FrameDecoder {
-        private final java.util.function.IntSupplier lag;
+    private byte[] pcmOf(long firstMedia, int frames) {
+        return (sine ? ClientFixtures.sineChunk(0, firstMedia, frames, channels, rate)
+                : ClientFixtures.chunk(0, firstMedia, frames, channels, bits)).getPayload();
+    }
+
+    /** One pcm chunk has been read by the simulated server's encoder (the source delivers 20 ms at a time). */
+    private void feedEncoder(long chunkIndex) {
+        int block = flacBlockFrames > 0 ? flacBlockFrames : chunkFrames;
+        if (!wasSending || !encoderStarted) {
+            wasSending = true;
+            if (flacStamping == FlacStamping.COMPLETING_CHUNK) { // the model of 8j: the encoder starts empty after a stall
+                segments.clear();
+                pendingFrames = 0;
+            } else {
+                // PcmStream: the clock restarts at the wall time of the chunk just read; the encoder keeps what it had
+                clockResetMicros = chunkTime(chunkIndex);
+                framesSinceReset = 0;
+            }
+            if (!encoderStarted) {
+                clockResetMicros = chunkTime(chunkIndex);
+                framesSinceReset = 0;
+            }
+            encoderStarted = true;
+        }
+        segments.addLast(new long[]{chunkIndex * chunkFrames, chunkFrames});
+        pendingFrames += chunkFrames;
+        if (pendingFrames < block) {
+            return;
+        }
+        int blocks = (int) (pendingFrames / block);
+        long stamp;
+        if (flacStamping == FlacStamping.COMPLETING_CHUNK) {
+            stamp = chunkTime(chunkIndex);
+        } else {
+            // the server adds the encoded duration in nanoseconds (pcm_stream.cpp: tvEncodedChunk_ += nanoseconds(duration *
+            // 1e6)) and writes microseconds into the chunk, so nothing accumulates
+            stamp = clockResetMicros + framesSinceReset * 1_000_000L / rate;
+        }
+        stamp += stampShiftMicros;
+        framesSinceReset += (long) blocks * block;
+        java.io.ByteArrayOutputStream payload = new java.io.ByteArrayOutputStream();
+        long offsetInChunk = 0;
+        for (int b = 0; b < blocks; b++) {
+            if (flacHeaders) {
+                byte[] header = de.yaacc.multiroom.protocol.FlacFrameBuilder.fixedHeaderAt(encoderPosition, block, rate, channels, bits);
+                payload.write(header, 0, header.length);
+            }
+            encoderPosition += block;
+            int need = block;
+            while (need > 0) {
+                long[] seg = segments.peekFirst();
+                int take = (int) Math.min(need, seg[1]);
+                byte[] pcm = pcmOf(seg[0], take);
+                payload.write(pcm, 0, pcm.length);
+                if (flacStamping == FlacStamping.SERVER_CLOCK) {
+                    targets.put(seg[0], stamp + offsetInChunk * 1_000_000L / rate);
+                }
+                offsetInChunk += take;
+                need -= take;
+                seg[0] += take;
+                seg[1] -= take;
+                if (seg[1] == 0) {
+                    segments.pollFirst();
+                }
+            }
+        }
+        pendingFrames -= (long) blocks * block;
+        if (!targets.isEmpty() && targets.size() > 4000) {
+            targets.headMap(targets.lastKey() - 30L * rate).clear();
+        }
+        long wireStamp = stamp;
+        if (chunkJitterMicros > 0) {
+            // noise on the stamps, but never out of order (the server's chunks come in order of their stamps)
+            wireStamp += random.nextInt((int) (2 * chunkJitterMicros + 1)) - chunkJitterMicros;
+            wireStamp = Math.max(wireStamp, lastWireStamp + 1_000L);
+        }
+        lastWireStamp = wireStamp;
+        WireChunkMessage chunk = ClientFixtures.rawChunk(wireStamp, payload.toByteArray());
+        long arrival = serverNow();
+        if (arrivalJitterMicros > 0) {
+            arrival += random.nextInt((int) arrivalJitterMicros + 1);
+        }
+        arrival = Math.max(arrival, lastArrivalMicros);
+        lastArrivalMicros = arrival;
+        inFlight.addLast(new Object[]{arrival, chunk});
+        deliverArrived();
+    }
+
+    private void deliverArrived() {
+        while (!inFlight.isEmpty() && (Long) inFlight.peekFirst()[0] <= serverNow()) {
+            WireChunkMessage chunk = (WireChunkMessage) inFlight.pollFirst()[1];
+            engine.onChunk(chunkFilter == null ? chunk : chunkFilter.apply(chunk));
+        }
+    }
+
+    /**
+     * A flac decoder of the tests: strips the frame headers of the chunk (when it has them) and passes the 16 bit samples
+     * through, optionally holding chunks back as a platform codec does ({@link #decoderLag}, random holds).
+     */
+    private final class LaggingDecoder implements FrameDecoder {
         private byte[] held = new byte[0];
         private int calls;
-
-        LaggingDecoder(java.util.function.IntSupplier lag) {
-            this.lag = lag;
-        }
+        private int holdRemaining;
 
         @Override
         public byte[] decode(byte[] payload) {
             calls++;
-            int mode = lag.getAsInt();
+            byte[] samples = strip(payload);
+            int mode = decoderLag;
+            if (decoderForcedHoldCalls > 0 && holdRemaining == 0) {
+                holdRemaining = decoderForcedHoldCalls;
+                decoderForcedHoldCalls = 0;
+            }
+            if (decoderHoldPermille > 0 && holdRemaining == 0 && random.nextInt(1000) < decoderHoldPermille) {
+                holdRemaining = 1 + random.nextInt(Math.max(1, decoderHoldMaxCalls));
+            }
+            if (holdRemaining > 0) {
+                holdRemaining--;
+                held = ClientFixtures.concat(held, samples);
+                return new byte[0];
+            }
             if (mode == 0) {
-                return payload.clone();
+                byte[] out = ClientFixtures.concat(held, samples);
+                held = new byte[0];
+                return out;
             }
             if (mode == 1) {
                 byte[] out = held;
-                held = payload.clone();
+                held = samples;
                 return out;
             }
             // alternate: hold on odd calls, on even calls give both
             if (calls % 2 == 1) {
-                held = ClientFixtures.concat(held, payload);
+                held = ClientFixtures.concat(held, samples);
                 return new byte[0];
             }
-            byte[] out = ClientFixtures.concat(held, payload);
+            byte[] out = ClientFixtures.concat(held, samples);
             held = new byte[0];
             return out;
+        }
+
+        /**
+         * The samples of a chunk of frames with headers; a payload that has none is taken as the samples. The length of a
+         * header is worked out from its codes alone (this decoder of the tests does not check the CRC; the engine does).
+         */
+        private byte[] strip(byte[] payload) {
+            if (payload.length < 6 || (payload[0] & 0xff) != 0xff || (payload[1] & 0xfc) != 0xf8) {
+                return payload.clone();
+            }
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            int at = 0;
+            while (at + 6 <= payload.length && (payload[at] & 0xff) == 0xff && (payload[at + 1] & 0xfc) == 0xf8) {
+                int blockCode = (payload[at + 2] & 0xf0) >>> 4;
+                int rateCode = payload[at + 2] & 0x0f;
+                int first = payload[at + 4] & 0xff;
+                int numberBytes = first < 0x80 ? 1 : first < 0xe0 ? 2 : first < 0xf0 ? 3 : first < 0xf8 ? 4 : first < 0xfc ? 5 : first < 0xfe ? 6 : 7;
+                int length = 4 + numberBytes + (blockCode == 6 ? 1 : blockCode == 7 ? 2 : 0)
+                        + (rateCode == 12 ? 1 : rateCode == 13 || rateCode == 14 ? 2 : 0) + 1;
+                int blockSize = blockCode == 1 ? 192 : blockCode <= 5 ? 576 << (blockCode - 2) : blockCode >= 8 ? 256 << (blockCode - 8)
+                        : flacBlockFrames > 0 ? flacBlockFrames : chunkFrames;
+                at += length;
+                int bytes = blockSize * channels * (bits / 8);
+                out.write(payload, at, Math.min(bytes, payload.length - at));
+                at += bytes;
+            }
+            return out.toByteArray();
         }
 
         @Override
         public void reset() {
             held = new byte[0];
+            holdRemaining = 0;
         }
 
         @Override

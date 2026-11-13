@@ -385,6 +385,7 @@
     <string name="snapcast_client_error_invalid_host">This is not a valid address</string>
     <string name="snapcast_client_error_invalid_latency">Enter a whole number of milliseconds</string>
     <string name="snapcast_client_write_ahead_hint">Write-ahead in ms (40 to 350, default 250)</string>
+    <string name="snapcast_client_flac_guard">FLAC stall guard (acts only when the FLAC frame headers can be read; takes effect at Start)</string>
     <string name="snapcast_client_error_invalid_write_ahead">Enter a whole number from 40 to 350</string>
     <string name="snapcast_client_notification_stopped">Stopped: %1$s</string>
     <string name="snapcast_client_move_group">Move my group to a stream</string>

@@ -36,6 +36,7 @@ public class StreamingSinkTest {
         long timeMicros;  // the time of that position on the clock
         boolean available;
         long head;
+        int timestampCalls;
 
         ScriptedTrack(ManualMicroClock clock) {
             this.clock = clock;
@@ -71,6 +72,7 @@ public class StreamingSinkTest {
 
         @Override
         public boolean timestamp(long[] out) {
+            timestampCalls++;
             if (!available) {
                 return false;
             }
@@ -187,5 +189,29 @@ public class StreamingSinkTest {
         track.frames = 4410 + 960;
         track.timeMicros = clock.nowMicros() + 20_000L;
         assertEquals(960, poll(sink).getFrames());
+    }
+
+    /**
+     * S25: when the timestamp has failed often enough the sink uses the head position, and tries the timestamp again only
+     * every 5 s (not at the very next poll, which would leave the fallback for nothing).
+     */
+    @Test
+    public void afterTheFallbackToTheHeadPositionTheTimestampIsTriedAgainOnlyAfterFiveSeconds() throws Exception {
+        StreamingSink sink = opened();
+        track.available = false;
+        track.head = 4800;
+        for (int i = 0; i < StreamingSink.TIMESTAMP_FAILURES_BEFORE_FALLBACK + 2; i++) {
+            poll(sink);
+        }
+        int callsAtFallback = track.timestampCalls;
+        assertEquals("the head position is in use", true, sink.position() != null);
+        for (int i = 0; i < 70; i++) { // 4.2 s of polls
+            poll(sink);
+        }
+        assertEquals("no retry within 5 s of the fallback", callsAtFallback, track.timestampCalls);
+        for (int i = 0; i < 30; i++) { // past 5 s
+            poll(sink);
+        }
+        assertEquals("one retry after 5 s", callsAtFallback + 1, track.timestampCalls);
     }
 }

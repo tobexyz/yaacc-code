@@ -380,6 +380,7 @@
     <string name="snapcast_client_error_invalid_host">Dit is geen geldig adres</string>
     <string name="snapcast_client_error_invalid_latency">Voer een geheel aantal milliseconden in</string>
     <string name="snapcast_client_write_ahead_hint">Schrijfvoorsprong in ms (40 tot 350, standaard 250)</string>
+    <string name="snapcast_client_flac_guard">FLAC-stilstandbewaking (werkt alleen als de FLAC-frameheaders leesbaar zijn; geldt vanaf Start)</string>
     <string name="snapcast_client_error_invalid_write_ahead">Voer een geheel getal van 40 tot 350 in</string>
     <string name="snapcast_client_notification_stopped">Gestopt: %1$s</string>
     <string name="snapcast_client_move_group">Mijn groep naar een stream verplaatsen</string>

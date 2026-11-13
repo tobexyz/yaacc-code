@@ -184,7 +184,11 @@ public final class ClientEngineConfig {
         return this;
     }
 
-    /** Switches the {@code FlacTimeGuard} (shift of a flac stream against its timestamps) off; for tests of what is left. */
+    /**
+     * Switches the {@code FlacTimeGuard} (the shift of a flac stream against its timestamps, found from the position of
+     * each chunk read from its FLAC frame header, or counted from the decoded frames when that fails) off; for tests of what
+     * is left.
+     */
     public ClientEngineConfig flacTimeGuard(boolean on) {
         flacTimeGuard = on;
         return this;

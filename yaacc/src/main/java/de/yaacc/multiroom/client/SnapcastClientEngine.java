@@ -18,6 +18,7 @@
  */
 package de.yaacc.multiroom.client;
 
+import de.yaacc.multiroom.protocol.FlacFrameHeader;
 import de.yaacc.multiroom.protocol.ChunkScheduler;
 import de.yaacc.multiroom.protocol.Codec;
 import de.yaacc.multiroom.protocol.CodecHeaderMessage;
@@ -63,9 +64,15 @@ import java.util.TreeSet;
  * validated rate, channels and bit depth only; a chunk with a trailing partial frame loses it; at most two channels
  * are played; decoding failures drop the chunk and a run of them ends the session.
  *
- * <p><b>Known limits.</b> For flac the engine assumes the first decoded sample is at the timestamp of the first chunk
- * and that decoded frames follow without gaps (no per-chunk continuity check, because the decoded size of a chunk does
- * not follow its duration). Not yet seen on a device.
+ * <p><b>Flac.</b> The decoded frames of a flac stream are placed one after the other by counting them (the output of a
+ * platform decoder does not line up with the chunks), starting at the timestamp of the first chunk. What the count can
+ * not see, the timestamps can: Snapcast stamps the chunks of a flac stream with a running clock that is advanced by the
+ * duration of the encoded frames and restarted after a stall of the source, so the stamp of a chunk minus the position of
+ * its first frame (the <i>skew</i>) is constant until a stall adds the stall to it. The position comes from the FLAC
+ * frame header at the start of the chunk ({@code FlacFrameHeader}: the frame number the server's encoder wrote, whatever
+ * the decoder holds back), or, when the headers can not be read, from the count of decoded frames. {@code FlacTimeGuard}
+ * judges the skew and inserts the silence of a stall, or asks for the stream to be placed anew. Not yet heard on a device
+ * against a real server (the model is Snapcast 0.35.0's source, not a capture).
  */
 public final class SnapcastClientEngine {
 
@@ -219,6 +226,35 @@ public final class SnapcastClientEngine {
     // the restart of a stream after a pause
     private long lastChunkMicros = Long.MIN_VALUE;
     private final FlacTimeGuard flacGuard = new FlacTimeGuard();
+    /** Where the position of a flac chunk comes from: not known yet, the frame headers, or the count of decoded frames. */
+    private static final int POSITIONS_UNKNOWN = 0;
+    private static final int POSITIONS_HEADERS = 1;
+    private static final int POSITIONS_COUNT = 2;
+    /** Consecutive chunks whose frame header could not be read before the engine goes back to counting frames. */
+    private static final int MAX_CONSECUTIVE_REFUSALS = 3;
+    /** The largest frame number the engine multiplies by a million (about 290 years at 1 kHz; a server sending more is refused). */
+    private static final long MAX_FLAC_POSITION = 9_000_000_000_000L;
+    private int flacPositions = POSITIONS_UNKNOWN;
+    private int flacConsecutiveRefusals;
+    private long flacPositionRefusals;
+    private long flacPositionChunks;
+    private long flacReanchors;
+    private long flacChunksSinceAnchor;
+    private long flacLastFillMs;
+    private long flacLastFillChunks;
+    private long flacReanchoredMicros;
+    /** The position (frames) of the chunk being processed, when its header was read. */
+    private long flacChunkPosition;
+    private boolean flacChunkPositionValid;
+    /**
+     * What the decoder holds back: the frames fed to it minus the frames it gave back are known exactly from the positions
+     * in the headers (no chunk lost in between). 0: waiting for the first chunk of this decoder, 1: valid, 2: broken by a
+     * lost or failed chunk (until the decoder is reset).
+     */
+    private int flacMap;
+    private long flacMapBase;
+    private long flacDecodedFrames;
+    private int flacCallFrames;
     private long flacShiftFills;
     private long flacShiftFilledMicros;
     /** Frames thrown away by the skip path since the stream was last inside its tolerance (the livelock breaker). */
@@ -345,6 +381,7 @@ public final class SnapcastClientEngine {
                     connectionLost = false;
                     if (decoder != null) {
                         decoder.reset();
+                        decoderWasReset();
                         trace.add(now, TraceKind.DECODER_RESET, 2);
                     }
                     scheduler.codecHeaderAccepted();
@@ -424,6 +461,7 @@ public final class SnapcastClientEngine {
         scheduler.reset();
         if (decoder != null) {
             decoder.reset();
+            decoderWasReset();
             trace.add(clock.nowMicros(), TraceKind.DECODER_RESET, 1);
         }
         if (sinkOpen) {
@@ -451,9 +489,17 @@ public final class SnapcastClientEngine {
             if (epoch != seenEpoch) {
                 seenEpoch = epoch;
                 epochChanges++;
+                trace.add(clock.nowMicros(), TraceKind.EPOCH_CHANGE, epoch);
                 forgetHoles();
                 lastChunkMicros = Long.MIN_VALUE;
                 dropTimeline(); // the scheduler empties its own queue; the output is neither flushed nor re-created
+                if (decoder != null && header != null && header.getCodec() != Codec.PCM) {
+                    // a block that the decoder holds belongs to the old timeline and would come out in front of the new
+                    // one (review S29); the frames of flac are independent, nothing is lost but that block
+                    decoder.reset();
+                    decoderWasReset();
+                    trace.add(clock.nowMicros(), TraceKind.DECODER_RESET, 3);
+                }
             }
             if (header != null && !connectionLost) {
                 drainDue();
@@ -523,6 +569,9 @@ public final class SnapcastClientEngine {
         closeDecoder();
         forgetHoles();
         lastChunkMicros = Long.MIN_VALUE;
+        flacPositions = POSITIONS_UNKNOWN;
+        flacConsecutiveRefusals = 0;
+        decoderWasReset();
         int newRate = newHeader.getSampleRate(); // validated by the protocol layer: 8000 to 192000
         int maxFrames = (int) Math.min(Integer.MAX_VALUE, (long) newRate * cfg.maxChunkMs / 1000L);
         try {
@@ -684,6 +733,7 @@ public final class SnapcastClientEngine {
         }
         boolean pcmCodec = header.getCodec() == Codec.PCM;
         if (!pcmCodec) {
+            readFlacPosition(chunk);
             noteFlacTimestamp(chunk.timestampMicros());
         }
         if (!holes.isEmpty() || overflowFrom != Long.MAX_VALUE) {
@@ -712,6 +762,7 @@ public final class SnapcastClientEngine {
             pcm = decoder.decode(chunk.getPayload());
             consecutiveDecodeFailures = 0;
         } catch (DecoderException | RuntimeException e) {
+            flacMap = FLAC_MAP_BROKEN; // a chunk went in and nothing came out: the frames held back are not known any more
             boolean oversized = e instanceof DecoderException
                     && ((DecoderException) e).getReason() == DecoderException.Reason.OVERSIZED;
             if (oversized) {
@@ -730,11 +781,15 @@ public final class SnapcastClientEngine {
             return;
         }
         int frames = pcm.length / outFrameBytes;
+        flacCallFrames = frames;
+        if (!pcmCodec) {
+            flacDecodedFrames += frames;
+        }
         if (frames == 0) {
             if (!pcmCodec && !anchorValid && !candidateValid) {
                 // a decoder that is a chunk behind: the stream starts at the first chunk, not at the first output
                 candidateValid = true;
-                candidateServerMicros = chunk.timestampMicros();
+                candidateServerMicros = chunk.timestampMicros() - heldMicros();
             }
             return;
         }
@@ -821,9 +876,25 @@ public final class SnapcastClientEngine {
                 }
             } else {
                 // flac: placed by counting frames; the guard sees a shift against the timestamps (a stall of the source)
-                long skew = difference - nextExpectedFrame * 1_000_000L / rate;
-                long fill = cfg.flacTimeGuard ? flacGuard.onChunk(skew) : 0;
-                if (fill > cfg.maxGapFillMs * 1000L) {
+                // the guard is fed with exact positions only: positions counted from the decoded frames would turn the
+                // hold of a decoder into a "stall" and the silence for it is never taken back (review W1, owner's trace of 8j)
+                long fill = 0;
+                if (flacGuardActive() && flacChunkPositionValid) {
+                    long skew = chunk.timestampMicros() - flacChunkPosition * 1_000_000L / rate;
+                    fill = flacGuard.onChunk(skew);
+                }
+                if (fill == FlacTimeGuard.REANCHOR) {
+                    // the stream turned out later than its stamps (a wrong fill, a clock that went back): place it anew by
+                    // the stamps; nothing is skipped to make up for it
+                    flacReanchors++;
+                    flacReanchoredMicros = flacGuard.lastUndoMicros();
+                    timelineResyncs++;
+                    trace.add(clock.nowMicros(), TraceKind.FLAC_REANCHOR, flacReanchoredMicros / 1000L, flacReanchors);
+                    dropTimeline();
+                    newAnchor(chunk, pcmCodec);
+                    start = 0;
+                    exact = true;
+                } else if (fill > cfg.maxGapFillMs * 1000L) {
                     timelineResyncs++;
                     noteResume(fill / 1000L, 1);
                     dropTimeline();
@@ -836,7 +907,11 @@ public final class SnapcastClientEngine {
                     if (fill >= 300_000L) {
                         noteResume(fill / 1000L, 2);
                     }
-                    trace.add(clock.nowMicros(), TraceKind.FLAC_SHIFT, fill / 1000L, flacShiftFills);
+                    flacLastFillMs = fill / 1000L;
+                    flacLastFillChunks = flacChunksSinceAnchor;
+                    trace.add(clock.nowMicros(), TraceKind.FLAC_SHIFT, fill / 1000L, flacShiftFills, flacGuard.lastReason());
+                    trace.add(clock.nowMicros(), TraceKind.FLAC_FILL_DETAIL, flacGuard.lastExcessMicros(), flacGuard.band(),
+                            flacChunksSinceAnchor);
                     start = nextExpectedFrame + fill * rate / 1_000_000L;
                     exact = true;
                 } else {
@@ -848,6 +923,81 @@ public final class SnapcastClientEngine {
         fifoFrames += frames;
         nextExpectedFrame = start + frames;
         chunksPlayed++;
+    }
+
+    /** The jump of the timestamps (ms) that places a flac stream anew when no guard looks at it (the rule of Group 8h). */
+    private static final long FLAC_GAP_WITHOUT_GUARD_MS = 300;
+    private static final int FLAC_MAP_WAITING = 0;
+    private static final int FLAC_MAP_VALID = 1;
+    private static final int FLAC_MAP_BROKEN = 2;
+
+    /** The decoder starts anew (a header, a reset): what it held back is gone and the mapping of frames to positions starts over. */
+    private void decoderWasReset() {
+        flacMap = FLAC_MAP_WAITING;
+        flacMapBase = 0;
+        flacDecodedFrames = 0;
+    }
+
+    /**
+     * Reads the position of the encoder from the FLAC frame header at the start of the chunk (see {@link FlacFrameHeader}).
+     * A chunk whose header does not read is not used for the guard (counted); three in a row, and the engine goes back to
+     * the count of decoded frames for the session, which can only be as good as the decoder's regularity.
+     */
+    /** The guard acts only on positions read from the frame headers, and only when it is switched on. */
+    private boolean flacGuardActive() {
+        return cfg.flacTimeGuard && flacPositions == POSITIONS_HEADERS;
+    }
+
+    private void readFlacPosition(WireChunkMessage chunk) {
+        flacChunkPositionValid = false;
+        if (flacPositions == POSITIONS_COUNT) {
+            return;
+        }
+        byte[] payload = chunk.getPayload();
+        FlacFrameHeader frame = FlacFrameHeader.parse(payload, 0, payload.length);
+        boolean usable = frame.isValid() && (frame.getSampleRate() == 0 || frame.getSampleRate() == rate)
+                && frame.getFirstSample() <= MAX_FLAC_POSITION;
+        if (!usable) {
+            flacPositionRefusals++;
+            if (++flacConsecutiveRefusals >= MAX_CONSECUTIVE_REFUSALS) {
+                flacPositions = POSITIONS_COUNT;
+                flacGuard.reset();
+                trace.add(clock.nowMicros(), TraceKind.FLAC_POSITIONS, 0, flacPositionRefusals);
+            }
+            return;
+        }
+        flacConsecutiveRefusals = 0;
+        flacChunksSinceAnchor++;
+        if (flacPositions == POSITIONS_UNKNOWN) {
+            flacPositions = POSITIONS_HEADERS;
+            trace.add(clock.nowMicros(), TraceKind.FLAC_POSITIONS, 1, flacPositionRefusals);
+        }
+        flacPositionChunks++;
+        flacChunkPosition = frame.getFirstSample();
+        flacChunkPositionValid = true;
+        if (flacMap == FLAC_MAP_WAITING) {
+            flacMapBase = flacChunkPosition;
+            flacDecodedFrames = 0;
+            flacMap = FLAC_MAP_VALID;
+        }
+    }
+
+    /**
+     * How much audio the decoder holds back when the chunk being processed has been fed to it, in microseconds: the first
+     * frame it gives back now is that much before the start of this chunk. 0 when it is not known (counting frames, or a chunk
+     * was lost since the decoder started). With it a stream that is placed anew starts at the right stamp whatever the
+     * latency of the decoder.
+     */
+    private long heldMicros() {
+        if (flacPositions != POSITIONS_HEADERS || !flacChunkPositionValid || flacMap != FLAC_MAP_VALID) {
+            return 0;
+        }
+        long held = flacChunkPosition - flacMapBase - (flacDecodedFrames - flacCallFrames);
+        if (held < 0 || held > rate) { // more than a second held back is no decoder: the frames fed and given do not match
+            flacMap = FLAC_MAP_BROKEN;
+            return 0;
+        }
+        return held * 1_000_000L / rate;
     }
 
     /**
@@ -865,7 +1015,10 @@ public final class SnapcastClientEngine {
         }
         long delta = timestamp - previous;
         long off = delta - chunkSpacingMicros;
-        if (Math.abs(off) <= cfg.flacGapMs * 1000L) {
+        // stalls shorter than flacGapMs are the guard's; without it (no readable frame headers, or switched off) the engine
+        // does what it did before the guard: a jump of 300 ms or more places the stream anew
+        long limit = flacGuardActive() ? cfg.flacGapMs : Math.min(cfg.flacGapMs, FLAC_GAP_WITHOUT_GUARD_MS);
+        if (Math.abs(off) <= limit * 1000L) {
             if (delta > 0 && delta <= 2_000_000L) {
                 chunkSpacingMicros = delta;
             }
@@ -899,10 +1052,11 @@ public final class SnapcastClientEngine {
 
     private void newAnchor(WireChunkMessage chunk, boolean pcmCodec) {
         anchorValid = true;
-        anchorServerMicros = !pcmCodec && candidateValid ? candidateServerMicros : chunk.timestampMicros();
+        anchorServerMicros = !pcmCodec && candidateValid ? candidateServerMicros : chunk.timestampMicros() - (pcmCodec ? 0 : heldMicros());
         candidateValid = false;
         nextExpectedFrame = 0;
         flacGuard.reset();
+        flacChunksSinceAnchor = 0;
     }
 
     /**
@@ -910,6 +1064,7 @@ public final class SnapcastClientEngine {
      * The timeline is dropped so that the next chunk is placed exactly by its timestamp (the output is left alone).
      */
     private void recoverHole() {
+        flacMap = FLAC_MAP_BROKEN;
         streamHolesRecovered++;
         trace.add(clock.nowMicros(), TraceKind.HOLE_RECOVERED, streamHolesRecovered);
         dropTimeline();
@@ -1572,6 +1727,17 @@ public final class SnapcastClientEngine {
         s.lastChunkAgoMs = lastChunkReceivedMicros < 0 ? -1 : Math.max(0, now - lastChunkReceivedMicros) / 1000L;
         s.flacShiftFills = flacShiftFills;
         s.flacShiftFilledMs = flacShiftFilledMicros / 1000L;
+        s.flacGuardState = !cfg.flacTimeGuard ? 0 : flacPositions == POSITIONS_HEADERS ? 1 : 2;
+        s.flacLastFillReason = flacGuard.lastReason();
+        s.flacLastFillSkewUs = flacGuard.lastExcessMicros();
+        s.flacLastFillBandUs = flacGuard.band();
+        s.flacLastFillMs = flacLastFillMs;
+        s.flacLastFillChunks = flacLastFillChunks;
+        s.flacPositionSource = flacPositions == POSITIONS_UNKNOWN ? 0 : flacPositions == POSITIONS_HEADERS ? 1 : 2;
+        s.flacPositionRefusals = flacPositionRefusals;
+        s.flacPositionChunks = flacPositionChunks;
+        s.flacReanchors = flacReanchors;
+        s.flacReanchoredMs = flacReanchoredMicros / 1000L;
         s.streamResumes = streamResumes;
         s.lastResumeGapMs = lastResumeGapMs;
         s.lastResumeToAudioMs = lastResumeToAudioMs;

@@ -23,6 +23,7 @@ import de.yaacc.multiroom.control.SnapcastException;
 import de.yaacc.multiroom.control.SnapcastOperations;
 import de.yaacc.multiroom.control.SnapcastRpc;
 import de.yaacc.multiroom.control.SnapcastServerStatus;
+import de.yaacc.multiroom.control.SnapcastTransport;
 import de.yaacc.multiroom.control.SocketTransport;
 
 import java.net.InetAddress;
@@ -38,19 +39,21 @@ public final class ServerControl {
     /** The control port of Snapcast. */
     public static final int CONTROL_PORT = SocketTransport.DEFAULT_PORT;
 
+    private static final int CALL_TIMEOUT_MS = 4_000;
+
     private ServerControl() {
     }
 
-    private static SnapcastRpc open(InetAddress address) {
-        SnapcastRpc.Config config = new SnapcastRpc.Config().callTimeoutMs(4_000).connectTimeoutMs(3_000).maxFailures(1);
-        SnapcastRpc rpc = new SnapcastRpc(new SocketTransport(address, CONTROL_PORT), config, null, null, MonotonicClock.SYSTEM);
+    private static SnapcastRpc open(SnapcastTransport transport, int callTimeoutMs) {
+        SnapcastRpc.Config config = new SnapcastRpc.Config().callTimeoutMs(callTimeoutMs).connectTimeoutMs(3_000).maxFailures(1);
+        SnapcastRpc rpc = new SnapcastRpc(transport, config, null, null, MonotonicClock.SYSTEM);
         rpc.start();
         return rpc;
     }
 
     /** {@code Server.GetStatus}, read for this client id; {@link ServerSays#unreachable} when the call fails. */
     public static ServerSays fetch(InetAddress address, String clientId) {
-        SnapcastRpc rpc = open(address);
+        SnapcastRpc rpc = open(new SocketTransport(address, CONTROL_PORT), CALL_TIMEOUT_MS);
         try {
             SnapcastServerStatus status = new SnapcastOperations(rpc).getStatus();
             return ServerSays.of(status, address, clientId);
@@ -81,20 +84,31 @@ public final class ServerControl {
      * @param streamId     the raw id of the chosen stream
      */
     public static MoveResult moveGroup(InetAddress address, String clientId, String shownGroupId, String streamId) {
-        if (address == null || clientId == null || shownGroupId == null || shownGroupId.isEmpty() || streamId == null
+        if (address == null) {
+            return MoveResult.FAILED;
+        }
+        return moveGroup(new SocketTransport(address, CONTROL_PORT), clientId, shownGroupId, streamId, CALL_TIMEOUT_MS);
+    }
+
+    /** The same over any transport (the tests use one that talks to a script). */
+    static MoveResult moveGroup(SnapcastTransport transport, String clientId, String shownGroupId, String streamId,
+                                int callTimeoutMs) {
+        if (transport == null || clientId == null || shownGroupId == null || shownGroupId.isEmpty() || streamId == null
                 || streamId.isEmpty()) {
             return MoveResult.FAILED;
         }
-        SnapcastRpc rpc = open(address);
+        SnapcastRpc rpc = open(transport, callTimeoutMs);
         try {
             SnapcastOperations operations = new SnapcastOperations(rpc);
-            SnapcastServerStatus status = operations.getStatus();
-            de.yaacc.multiroom.control.SnapcastGroup now = status.findGroupOfClient(clientId);
-            if (now == null || !shownGroupId.equals(now.getId())) {
-                return MoveResult.GROUP_CHANGED;
+            switch (MoveDecision.decide(operations.getStatus(), clientId, shownGroupId, streamId)) {
+                case MOVE:
+                    operations.setGroupStream(shownGroupId, streamId);
+                    return MoveResult.MOVED;
+                case GROUP_CHANGED:
+                    return MoveResult.GROUP_CHANGED;
+                default:
+                    return MoveResult.FAILED; // the stream is gone: the server would refuse; nothing is sent
             }
-            operations.setGroupStream(shownGroupId, streamId);
-            return MoveResult.MOVED;
         } catch (SnapcastException | RuntimeException failed) {
             return MoveResult.FAILED;
         } finally {

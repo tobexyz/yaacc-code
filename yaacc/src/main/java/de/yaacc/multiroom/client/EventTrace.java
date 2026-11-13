@@ -28,6 +28,8 @@ import java.util.Locale;
 public final class EventTrace {
 
     public static final int CAPACITY = 600;
+    /** The separate ring of rare, important events (they scroll out of the main ring in minutes when a stream is busy). */
+    public static final int IMPORTANT_CAPACITY = 100;
 
     private final long startMicros;
     private final long[] atMicros = new long[CAPACITY];
@@ -37,6 +39,13 @@ public final class EventTrace {
     private final long[] c = new long[CAPACITY];
     private int next;
     private long total;
+    private final long[] iAt = new long[IMPORTANT_CAPACITY];
+    private final TraceKind[] iKinds = new TraceKind[IMPORTANT_CAPACITY];
+    private final long[] iA = new long[IMPORTANT_CAPACITY];
+    private final long[] iB = new long[IMPORTANT_CAPACITY];
+    private final long[] iC = new long[IMPORTANT_CAPACITY];
+    private int iNext;
+    private long iTotal;
 
     /** @param startMicros the engine clock at the start; the events show the time since then */
     public EventTrace(long startMicros) {
@@ -51,6 +60,64 @@ public final class EventTrace {
         c[next] = third;
         next = (next + 1) % CAPACITY;
         total++;
+        if (isImportant(kind, first, second, third)) {
+            iAt[iNext] = nowMicros;
+            iKinds[iNext] = kind;
+            iA[iNext] = first;
+            iB[iNext] = second;
+            iC[iNext] = third;
+            iNext = (iNext + 1) % IMPORTANT_CAPACITY;
+            iTotal++;
+        }
+    }
+
+    /** What is kept for the whole session: the events after which the sound may have moved, and the session's own turning points. */
+    static boolean isImportant(TraceKind kind, long first, long second, long third) {
+        switch (kind) {
+            case FLAC_SHIFT:
+            case FLAC_FILL_DETAIL:
+            case FLAC_REANCHOR:
+            case FLAC_POSITIONS:
+            case STREAM_RESUMED:
+            case FLUSH:
+            case HARD_LATE:
+            case HOLE_MARKED:
+            case HOLE_RECOVERED:
+            case HEADER_ACCEPTED:
+            case HEADER_IGNORED:
+            case DECODER_RESET:
+            case EPOCH_CHANGE:
+            case TIMESTAMP_ODD:
+            case WRITE_AHEAD_RAISED:
+            case CONNECTION_LOST:
+            case SESSION_END:
+            case HEAD_FALLBACK:
+                return true;
+            case STEP_PLAYING:
+                return Math.abs(third) > 2_000L; // a pad or skip while playing, with the sound more than 2 ms off
+            default:
+                return false;
+        }
+    }
+
+    /** Important events kept (at most {@link #IMPORTANT_CAPACITY}). */
+    public synchronized int importantSize() {
+        return (int) Math.min(iTotal, IMPORTANT_CAPACITY);
+    }
+
+    /** The important events, oldest first, in the format of {@link #text()}. */
+    public synchronized String importantText() {
+        StringBuilder out = new StringBuilder(importantSize() * 64);
+        if (iTotal > IMPORTANT_CAPACITY) {
+            out.append(String.format(Locale.ROOT, "(%d older important events left out)%n", iTotal - IMPORTANT_CAPACITY));
+        }
+        int n = importantSize();
+        int first = iTotal > IMPORTANT_CAPACITY ? iNext : 0;
+        for (int i = 0; i < n; i++) {
+            int s = (first + i) % IMPORTANT_CAPACITY;
+            line(out, iAt[s], iKinds[s], iA[s], iB[s], iC[s]);
+        }
+        return out.toString();
     }
 
     public void add(long nowMicros, TraceKind kind) {
@@ -94,18 +161,21 @@ public final class EventTrace {
         int n = size();
         for (int i = 0; i < n; i++) {
             int s = slot(i);
-            TraceKind kind = kinds[s];
-            out.append(String.format(Locale.ROOT, "%8d ms  %s", Math.floorDiv(atMicros[s] - startMicros, 1000L), kind.label()));
-            long[] values = {a[s], b[s], c[s]};
-            for (int f = 0; f < 3; f++) {
-                String name = kind.field(f);
-                if (!name.isEmpty()) {
-                    out.append(String.format(Locale.ROOT, "  %s=%s", name, value(kind, f, values[f])));
-                }
-            }
-            out.append('\n');
+            line(out, atMicros[s], kinds[s], a[s], b[s], c[s]);
         }
         return out.toString();
+    }
+
+    private void line(StringBuilder out, long at, TraceKind kind, long first, long second, long third) {
+        out.append(String.format(Locale.ROOT, "%8d ms  %s", Math.floorDiv(at - startMicros, 1000L), kind.label()));
+        long[] values = {first, second, third};
+        for (int f = 0; f < 3; f++) {
+            String name = kind.field(f);
+            if (!name.isEmpty()) {
+                out.append(String.format(Locale.ROOT, "  %s=%s", name, value(kind, f, values[f])));
+            }
+        }
+        out.append('\n');
     }
 
     private static String value(TraceKind kind, int field, long v) {

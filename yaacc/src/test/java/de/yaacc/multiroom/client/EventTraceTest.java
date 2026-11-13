@@ -101,4 +101,61 @@ public class EventTraceTest {
         assertTrue(text, text.contains("verdict=thin cushion (position fine): write-ahead raised"));
         assertTrue(text, text.contains("verdict=output dry (position stalled or empty): flush"));
     }
+
+    @Test
+    public void rareImportantEventsAreKeptInTheirOwnRingWhenTheMainRingScrolls() {
+        EventTrace t = new EventTrace(1_000_000L);
+        t.add(1_001_000L, TraceKind.FLAC_SHIFT, 26, 1, 2);
+        t.add(1_002_000L, TraceKind.FLUSH, 0, 1, 2);
+        for (int i = 0; i < 5 * EventTrace.CAPACITY; i++) {
+            t.add(1_003_000L + i * 1000L, TraceKind.DRIFT, i, 1, 2); // busy and unimportant
+        }
+        assertFalse(t.text().contains("flac stream shifted"));
+        assertEquals(2, t.importantSize());
+        String text = t.importantText();
+        assertTrue(text, text.contains("flac stream shifted against its timestamps, silence inserted (ms)  ms=26  fills so far=1"));
+        assertTrue(text, text.contains("reason (1 seen at once, 2 seen over windows)=2"));
+        assertTrue(text, text.indexOf("flac stream shifted") < text.indexOf("flush"));
+        assertFalse(text, text.contains(" ms  drift  "));
+    }
+
+    @Test
+    public void theImportantRingIsBoundedAndDropsTheOldest() {
+        EventTrace t = new EventTrace(0L);
+        for (int i = 0; i < EventTrace.IMPORTANT_CAPACITY + 30; i++) {
+            t.add(i * 1000L, TraceKind.FLAC_SHIFT, i, i, 1);
+        }
+        assertEquals(EventTrace.IMPORTANT_CAPACITY, t.importantSize());
+        String text = t.importantText();
+        assertTrue(text, text.startsWith("(30 older important events left out)"));
+        assertTrue(text, text.contains("ms=30  ") && !text.contains("ms=29  "));
+        assertTrue(text, text.contains("ms=" + (EventTrace.IMPORTANT_CAPACITY + 29) + "  "));
+    }
+
+    @Test
+    public void aPadOrSkipWhilePlayingIsImportantOnlyAbove2Milliseconds() {
+        EventTrace t = new EventTrace(0L);
+        t.add(1000L, TraceKind.STEP_PLAYING, 96, 0, 2_000L);
+        assertEquals(0, t.importantSize());
+        t.add(2000L, TraceKind.STEP_PLAYING, 0, 192, -2_001L);
+        assertEquals(1, t.importantSize());
+        t.add(3000L, TraceKind.STEP_PLAYING, 0, 192, 9_000L);
+        assertEquals(2, t.importantSize());
+    }
+
+    @Test
+    public void everyKindOfTheListIsKept() {
+        for (TraceKind kind : new TraceKind[]{TraceKind.FLAC_SHIFT, TraceKind.FLAC_FILL_DETAIL, TraceKind.FLAC_REANCHOR,
+                TraceKind.STREAM_RESUMED, TraceKind.FLUSH, TraceKind.HARD_LATE, TraceKind.HOLE_MARKED, TraceKind.HOLE_RECOVERED,
+                TraceKind.HEADER_ACCEPTED, TraceKind.DECODER_RESET, TraceKind.EPOCH_CHANGE, TraceKind.WRITE_AHEAD_RAISED,
+                TraceKind.CONNECTION_LOST, TraceKind.SESSION_END}) {
+            EventTrace t = new EventTrace(0L);
+            t.add(1000L, kind, 1, 2, 3);
+            assertEquals(kind.name(), 1, t.importantSize());
+        }
+        EventTrace t = new EventTrace(0L);
+        t.add(1000L, TraceKind.POSITION, 1, 2, 3);
+        t.add(1000L, TraceKind.DRIFT, 1, 2, 3);
+        assertEquals(0, t.importantSize());
+    }
 }
