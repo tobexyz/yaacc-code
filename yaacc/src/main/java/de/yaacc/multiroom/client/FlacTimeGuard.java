@@ -28,7 +28,8 @@ package de.yaacc.multiroom.client;
  * Every later chunk is then due as much earlier as the stall lasted: up to about 200 ms the stream plays shifted against
  * every other client for the rest of the session, above that the engine used to skip every chunk (the review's C1).
  *
- * <p><b>What it looks at.</b> The <i>skew</i> of a chunk is its timestamp minus the position of its first frame. The
+ * <p><b>What it looks at.</b> The <i>skew</i> of a chunk is its timestamp minus the position of its first frame. (The
+ * model of the server's stamps below is read from the source of Snapcast 0.35.0, not captured from a real server.) The
  * server stamps the chunks of a flac stream with a running clock that is advanced by the duration of the encoded frames
  * (one block of the encoder, 24 ms for 1152 frames at 48 kHz, apart), so in a steady stream the skew is <b>constant</b>, and
  * a stall adds its length to it. The position must be <b>exact</b>: the engine reads the frame number from the FLAC frame

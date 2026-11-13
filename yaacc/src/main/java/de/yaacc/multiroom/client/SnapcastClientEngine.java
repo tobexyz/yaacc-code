@@ -70,9 +70,12 @@ import java.util.TreeSet;
  * duration of the encoded frames and restarted after a stall of the source, so the stamp of a chunk minus the position of
  * its first frame (the <i>skew</i>) is constant until a stall adds the stall to it. The position comes from the FLAC
  * frame header at the start of the chunk ({@code FlacFrameHeader}: the frame number the server's encoder wrote, whatever
- * the decoder holds back), or, when the headers can not be read, from the count of decoded frames. {@code FlacTimeGuard}
- * judges the skew and inserts the silence of a stall, or asks for the stream to be placed anew. Not yet heard on a device
- * against a real server (the model is Snapcast 0.35.0's source, not a capture).
+ * the decoder holds back). {@code FlacTimeGuard} judges the skew of such positions and inserts the silence of a stall,
+ * or asks for the stream to be placed anew. When the headers can not be read (three chunks in a row) the guard does
+ * nothing, for the rest of the stream: the frames are placed by counting as before and a jump of the timestamps of 300 ms or
+ * more places the stream anew; nothing is ever filled from a count of decoded frames (a decoder that holds a block back
+ * would look like a stall). Not yet heard on a device against a real server (the model is Snapcast 0.35.0's source, not a
+ * capture).
  */
 public final class SnapcastClientEngine {
 
@@ -939,15 +942,17 @@ public final class SnapcastClientEngine {
     }
 
     /**
-     * Reads the position of the encoder from the FLAC frame header at the start of the chunk (see {@link FlacFrameHeader}).
-     * A chunk whose header does not read is not used for the guard (counted); three in a row, and the engine goes back to
-     * the count of decoded frames for the session, which can only be as good as the decoder's regularity.
+     * The guard acts only on positions read from the frame headers, and only when it is switched on.
      */
-    /** The guard acts only on positions read from the frame headers, and only when it is switched on. */
     private boolean flacGuardActive() {
         return cfg.flacTimeGuard && flacPositions == POSITIONS_HEADERS;
     }
 
+    /**
+     * Reads the position of the encoder from the FLAC frame header at the start of the chunk (see {@link FlacFrameHeader}).
+     * A chunk whose header does not read is not used for the guard (counted); three in a row, and the engine goes back to
+     * counting decoded frames until the next codec header, and the guard is off meanwhile.
+     */
     private void readFlacPosition(WireChunkMessage chunk) {
         flacChunkPositionValid = false;
         if (flacPositions == POSITIONS_COUNT) {

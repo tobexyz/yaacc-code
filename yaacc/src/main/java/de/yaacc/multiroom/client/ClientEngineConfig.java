@@ -186,8 +186,9 @@ public final class ClientEngineConfig {
 
     /**
      * Switches the {@code FlacTimeGuard} (the shift of a flac stream against its timestamps, found from the position of
-     * each chunk read from its FLAC frame header, or counted from the decoded frames when that fails) off; for tests of what
-     * is left.
+     * each chunk read from its FLAC frame header) off; for tests of what is left. The guard acts <b>only</b> on positions
+     * read from frame headers: when they can not be read the guard does nothing (it never works from a count of decoded
+     * frames), whatever this says; without the guard a jump of the timestamps of 300 ms or more places the stream anew.
      */
     public ClientEngineConfig flacTimeGuard(boolean on) {
         flacTimeGuard = on;

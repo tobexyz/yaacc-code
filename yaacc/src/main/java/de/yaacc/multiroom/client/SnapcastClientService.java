@@ -261,7 +261,7 @@ public final class SnapcastClientService extends Service {
                     "YAACC", "Android", "unknown", "spike");
             ClientSession session = ClientSession.assemble(new SocketTransport(address, request.getEndpoint().getPort()), hello,
                     request.getLatencyMs(), AudioTrackSink::new, new DefaultDecoderFactory(new AndroidDecoderFactory()),
-                    SystemClock::elapsedRealtimeNanos, new ClientEngineConfig().maxAheadMs(writeAheadMs).smoothCorrections(true).flacTimeGuard(flacGuard),
+                    SystemClock::elapsedRealtimeNanos, SnapcastClientSpike.engineConfig(writeAheadMs, flacGuard),
                     SnapcastClientService::audioThread,
                     new EngineHost.Observer() {
                         @Override

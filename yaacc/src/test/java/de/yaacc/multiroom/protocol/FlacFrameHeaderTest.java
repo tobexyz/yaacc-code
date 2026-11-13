@@ -356,4 +356,70 @@ public class FlacFrameHeaderTest {
         // a random header passes the CRC with a chance of 1 in 256 once the rest is plausible: a few, never most
         assertTrue("valid by chance: " + valid, valid < 300_000 / 50);
     }
+
+    // ---- the longest headers: 4 fixed bytes + the coded number (up to 6 bytes fixed, 7 variable) + 2 + 2 + CRC = 15 and 16
+
+    @Test
+    public void aFixedBlockSizeHeaderOf15BytesReads() {
+        // 6 byte frame number (31 bits), both uncommon fields: 4 + 6 + 2 + 2 + 1 = 15
+        byte[] h = FlacFrameBuilder.rawHeader(false, 0x7fffffffL, 7, 13, 1, 4, new byte[]{0x04, 0x7f}, new byte[]{(byte) 0xac, 0x44});
+        assertEquals(15, h.length);
+        FlacFrameHeader parsed = parse(h);
+        assertTrue(parsed.getRefusal() + "", parsed.isValid());
+        assertEquals(15, parsed.getLength());
+        assertEquals(1152, parsed.getBlockSize());
+        assertEquals(44100, parsed.getSampleRate());
+        assertEquals(0x7fffffffL, parsed.getCodedNumber());
+        assertEquals(0x7fffffffL * 1152, parsed.getFirstSample());
+    }
+
+    @Test
+    public void aVariableBlockSizeHeaderOf16BytesReads() {
+        // 7 byte sample number (36 bits), both uncommon fields: 4 + 7 + 2 + 2 + 1 = 16, the longest there is
+        byte[] h = FlacFrameBuilder.rawHeader(true, 0xfffffffffL, 7, 14, 1, 4, new byte[]{0x03, (byte) 0xe7}, new byte[]{0x01, (byte) 0xb9});
+        assertEquals(16, h.length);
+        FlacFrameHeader parsed = parse(h);
+        assertTrue(parsed.getRefusal() + "", parsed.isValid());
+        assertEquals(16, parsed.getLength());
+        assertEquals(1000, parsed.getBlockSize());
+        assertEquals(4410, parsed.getSampleRate());
+        assertEquals(0xfffffffffL, parsed.getFirstSample());
+        assertTrue(parsed.isVariableBlockSize());
+    }
+
+    @Test
+    public void theLongestHeadersAreReadAtAnOffsetAndWithMoreBytesBehind() {
+        byte[] h = FlacFrameBuilder.rawHeader(true, 0xfffffffffL, 7, 14, 1, 4, new byte[]{0x03, (byte) 0xe7}, new byte[]{0x01, (byte) 0xb9});
+        byte[] data = new byte[5 + h.length + 40];
+        Arrays.fill(data, (byte) 0x55);
+        System.arraycopy(h, 0, data, 5, h.length);
+        FlacFrameHeader parsed = FlacFrameHeader.parse(data, 5, data.length - 5);
+        assertTrue(parsed.getRefusal() + "", parsed.isValid());
+        assertEquals(16, parsed.getLength());
+    }
+
+    @Test
+    public void everyTruncationOfTheLongestHeaderIsTooShortAndNothingIsReadBeyondTheBytes() {
+        byte[] h = FlacFrameBuilder.rawHeader(true, 0xfffffffffL, 7, 14, 1, 4, new byte[]{0x03, (byte) 0xe7}, new byte[]{0x01, (byte) 0xb9});
+        for (int cut = 0; cut < h.length; cut++) {
+            // the bytes behind the cut are junk that would be read if the parser looked beyond `length`
+            byte[] data = new byte[h.length + 8];
+            Arrays.fill(data, (byte) 0xff);
+            System.arraycopy(h, 0, data, 0, cut);
+            FlacFrameHeader parsed = FlacFrameHeader.parse(data, 0, cut);
+            assertFalse("cut at " + cut, parsed.isValid());
+            assertEquals("cut at " + cut, FlacFrameHeader.Refusal.TOO_SHORT, parsed.getRefusal());
+        }
+    }
+
+    @Test
+    public void aHeaderThatWouldNeedMoreThan16BytesDoesNotExist() {
+        // a fixed block size stream with a 7 byte number is refused (at most 6), a variable one has 7 at most: no way to 17 bytes
+        byte[] fixed7 = FlacFrameBuilder.rawHeader(false, 0xfffffffffL, 7, 14, 1, 4, new byte[]{0x03, (byte) 0xe7}, new byte[]{0x01, (byte) 0xb9});
+        assertEquals(FlacFrameHeader.Refusal.BAD_NUMBER, parse(fixed7).getRefusal());
+        // and an 8 byte start (0xff) is no number
+        byte[] body = {(byte) 0xff, (byte) 0xf9, 0x7e, 0x18, (byte) 0xff, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80, (byte) 0x80,
+                (byte) 0x80, (byte) 0x80, 0x03, (byte) 0xe7, 0x01, (byte) 0xb9, 0};
+        assertEquals(FlacFrameHeader.Refusal.BAD_NUMBER, FlacFrameHeader.parse(body, 0, body.length).getRefusal());
+    }
 }

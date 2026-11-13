@@ -136,6 +136,11 @@ public final class SnapcastClientSpike {
         return clampWriteAhead((int) Math.min(value, Integer.MAX_VALUE));
     }
 
+    /** The configuration of the engine for a session of the test screen (the write-ahead is clamped, the guard as chosen). */
+    public static ClientEngineConfig engineConfig(int writeAheadMs, boolean flacGuard) {
+        return new ClientEngineConfig().maxAheadMs(clampWriteAhead(writeAheadMs)).smoothCorrections(true).flacTimeGuard(flacGuard);
+    }
+
     public static int clampWriteAhead(int value) {
         return Math.max(MIN_WRITE_AHEAD_MS, Math.min(MAX_WRITE_AHEAD_MS, value));
     }

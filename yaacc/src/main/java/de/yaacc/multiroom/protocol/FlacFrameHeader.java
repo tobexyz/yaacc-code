@@ -23,6 +23,8 @@ package de.yaacc.multiroom.protocol;
  * channel) the chunk starts. The server's encoder (libFLAC, see {@code flac_encoder.cpp} of Snapcast) cuts its output at frame
  * boundaries: every chunk starts with a frame header, and the number coded in it is the position of the audio that the
  * server's encoder was given, whatever the client's decoder does with it later (a platform codec may hold a block back).
+ * That every chunk of a real server starts this way is read from the source of Snapcast 0.35.0, not captured from a real
+ * server; a chunk that does not is refused here and the engine counts frames instead (the guard is then off).
  *
  * <p>Layout (FLAC format specification, "frame header"; RFC 9639 section 9.1; checked here against frames made by a
  * conforming encoder, see {@code FlacFrameHeaderTest}):
@@ -48,8 +50,12 @@ public final class FlacFrameHeader {
         TOO_SHORT, BAD_SYNC, RESERVED_BIT, BAD_BLOCK_SIZE, BAD_SAMPLE_RATE, BAD_CHANNELS, BAD_SAMPLE_SIZE, BAD_NUMBER, BAD_CRC
     }
 
-    /** Largest header: 2 + 7 (number) + 2 + 2 + 1. */
-    private static final int MAX_HEADER = 14;
+    /**
+     * Largest header: 4 fixed bytes (sync and flags, block size and sample rate codes, channel and sample size codes) + 7
+     * (the coded number of a variable block size stream) + 2 (uncommon block size) + 2 (uncommon sample rate) + 1 (CRC-8) = 16.
+     * No valid header is longer, so no read goes beyond 16 bytes however many bytes follow.
+     */
+    private static final int MAX_HEADER = 16;
 
     private final Refusal refusal;
     private final boolean variableBlockSize;

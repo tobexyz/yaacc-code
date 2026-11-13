@@ -343,4 +343,93 @@ public class FlacTimeGuardTest {
         assertEquals(2, small.guard.lastReason());
         assertEquals(6_000L, small.guard.lastExcessMicros());
     }
+
+    // ---- the values, by literal numbers (not by the constants they pin; review cycle 6, W2)
+
+    private static FlacTimeGuard learned(long band) {
+        FlacTimeGuard guard = new FlacTimeGuard();
+        guard.reset();
+        for (int i = 0; i < 48; i++) {
+            assertEquals(0, guard.onChunk(i % 2 == 0 ? 0 : band));
+        }
+        return guard;
+    }
+
+    /** Feeds {@code count} chunks of this skew; returns the first answer that is not 0 (or 0). */
+    private static long feed(FlacTimeGuard guard, long skew, int count) {
+        for (int i = 0; i < count; i++) {
+            long answer = guard.onChunk(skew);
+            if (answer != 0) {
+                return answer;
+            }
+        }
+        return 0;
+    }
+
+    @Test
+    public void aShiftOf3999MicrosecondsIsLeftAloneAndOneOf4001IsFilled() {
+        FlacTimeGuard below = learned(0);
+        assertEquals(0, feed(below, 3_999, 5_000));
+        FlacTimeGuard above = learned(0);
+        assertEquals("filled after two windows of 12", 4_001, feed(above, 4_001, 24));
+        FlacTimeGuard one = learned(0);
+        assertEquals("not after one window", 0, feed(one, 4_001, 23));
+    }
+
+    @Test
+    public void aDropOfFourChunksIsNothingAndOneOfFiveIsAReanchor() {
+        for (int low = 1; low <= 5; low++) {
+            FlacTimeGuard guard = learned(0);
+            long answer = 0;
+            for (int i = 0; i < low; i++) {
+                answer = guard.onChunk(-40_000);
+            }
+            if (low < 5) {
+                assertEquals("after " + low + " low chunks", 0, answer);
+            } else {
+                assertEquals(FlacTimeGuard.REANCHOR, answer);
+            }
+        }
+        // four low chunks and then one on time: the run is broken, and a later run of four decides nothing either
+        FlacTimeGuard guard = learned(0);
+        for (int round = 0; round < 20; round++) {
+            for (int i = 0; i < 4; i++) {
+                assertEquals(0, guard.onChunk(-40_000));
+            }
+            assertEquals(0, guard.onChunk(0));
+        }
+    }
+
+    @Test
+    public void theFifthChunkOfAFiveChunkDropIsTheOnlyOneThatIsLow() {
+        // chunks 1 to 4 on time but below the base by a little, the fifth far below: five below the base, the median is the
+        // small one: the base is lowered, nothing is re-anchored (a minimum of the five would re-anchor)
+        FlacTimeGuard guard = learned(0);
+        for (long skew : new long[]{-2_000, -2_000, -2_000, -2_000}) {
+            assertEquals(0, guard.onChunk(skew));
+        }
+        assertEquals(0, guard.onChunk(-50_000));
+        // and a maximum of the five would miss the drop of three low chunks out of five
+        FlacTimeGuard other = learned(0);
+        long[] values = {-2_000, -50_000, -50_000, -2_000, -50_000};
+        long answer = 0;
+        for (long v : values) {
+            answer = other.onChunk(v);
+        }
+        assertEquals("median -50 ms: a re-anchor", FlacTimeGuard.REANCHOR, answer);
+    }
+
+    @Test
+    public void theUndoLimitIsTwelveMillisecondsPlusTheBand() {
+        // a band of 20 ms learned: the drop must be 12 ms + 20 ms = 32 ms below the base
+        FlacTimeGuard under = learned(20_000);
+        assertEquals(0, feed(under, -31_999, 5));
+        FlacTimeGuard exactly = learned(20_000);
+        assertEquals(FlacTimeGuard.REANCHOR, feed(exactly, -32_000, 5));
+        // without a band: 12 ms
+        FlacTimeGuard noBandUnder = learned(0);
+        assertEquals(0, feed(noBandUnder, -11_999, 5));
+        FlacTimeGuard noBand = learned(0);
+        assertEquals(FlacTimeGuard.REANCHOR, feed(noBand, -12_000, 5));
+    }
 }

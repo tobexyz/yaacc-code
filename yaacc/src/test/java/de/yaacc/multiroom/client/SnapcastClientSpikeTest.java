@@ -150,4 +150,26 @@ public class SnapcastClientSpikeTest {
         assertEquals(40, SnapcastClientSpike.clampWriteAhead(-3));
         assertEquals(350, SnapcastClientSpike.clampWriteAhead(Integer.MAX_VALUE));
     }
+
+    /** The check box "FLAC stall guard" reaches the configuration of the engine (the service builds it with this). */
+    @Test
+    public void theFlacGuardChoiceReachesTheEngineConfiguration() {
+        assertEquals(true, SnapcastClientSpike.engineConfig(250, true).flacTimeGuard);
+        assertEquals(false, SnapcastClientSpike.engineConfig(250, false).flacTimeGuard);
+        assertEquals("the write-ahead is clamped on the way", 350, SnapcastClientSpike.engineConfig(9_999, true).maxAheadMs);
+        assertEquals(true, SnapcastClientSpike.engineConfig(250, true).smoothCorrections);
+    }
+
+    @Test
+    public void thePcmStatusHasNoFlacLines() {
+        EngineStatus pcm = new EngineStatus();
+        pcm.codec = "pcm";
+        String text = SnapcastClientStatusText.of(DeviceRestartTest.viewOf(pcm), 0);
+        assertEquals(text, false, text.contains("flac positions") || text.contains("flac stall guard") || text.contains("flac stream shifted"));
+        EngineStatus flac = new EngineStatus();
+        flac.codec = "flac";
+        flac.flacGuardState = 2;
+        String flacText = SnapcastClientStatusText.of(DeviceRestartTest.viewOf(flac), 0);
+        assertEquals(flacText, true, flacText.contains("flac stall guard: inactive"));
+    }
 }

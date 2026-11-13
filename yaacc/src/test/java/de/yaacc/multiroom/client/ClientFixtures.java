@@ -60,6 +60,10 @@ final class ClientFixtures {
         return b.array();
     }
 
+    static CodecHeaderMessage flacHeaderMessage(int rate, int channels, int bits, int minBlock, int maxBlock) {
+        return CodecHeaderMessage.of(Codec.FLAC, flacHeader(rate, channels, bits, minBlock, maxBlock));
+    }
+
     static CodecHeaderMessage flacHeaderMessage(int rate, int channels, int bits) {
         return CodecHeaderMessage.of(Codec.FLAC, flacHeader(rate, channels, bits, 4608, 4608));
     }

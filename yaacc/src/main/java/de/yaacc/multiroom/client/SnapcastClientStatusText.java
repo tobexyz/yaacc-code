@@ -74,19 +74,21 @@ public final class SnapcastClientStatusText {
                 text.append("HINT: ").append(hint).append('\n');
             }
         }
-        text.append(String.format(Locale.ROOT, "flac positions: %s; %d chunks read, %d refused%n",
-                s.flacPositionSource == 1 ? "from frame headers" : s.flacPositionSource == 2 ? "from frame count" : "not known yet",
-                s.flacPositionChunks, s.flacPositionRefusals));
-        text.append(String.format(Locale.ROOT, "flac stall guard: %s%n",
-                s.flacGuardState == 1 ? "on (positions from frame headers)" : s.flacGuardState == 2
-                        ? "inactive (no frame header positions: nothing is ever filled from the frame count)" : "off (switched off)"));
-        if (s.flacShiftFills > 0) {
-            text.append(String.format(Locale.ROOT, "last fill: %d ms, seen %s, skew %d us over its base (band %d us), %d chunks after the anchor%n",
-                    s.flacLastFillMs, s.flacLastFillReason == 1 ? "at once" : "over windows", s.flacLastFillSkewUs,
-                    s.flacLastFillBandUs, s.flacLastFillChunks));
+        if ("flac".equals(s.codec)) { // nothing of this means anything for pcm
+            text.append(String.format(Locale.ROOT, "flac positions: %s; %d chunks read, %d refused%n",
+                    s.flacPositionSource == 1 ? "from frame headers" : s.flacPositionSource == 2 ? "from frame count" : "not known yet",
+                    s.flacPositionChunks, s.flacPositionRefusals));
+            text.append(String.format(Locale.ROOT, "flac stall guard: %s%n",
+                    s.flacGuardState == 1 ? "on (positions from frame headers)" : s.flacGuardState == 2
+                            ? "inactive (no frame header positions: nothing is ever filled from the frame count)" : "off (switched off)"));
+            if (s.flacShiftFills > 0) {
+                text.append(String.format(Locale.ROOT, "last fill: %d ms, seen %s, skew %d us over its base (band %d us), %d chunks after the anchor%n",
+                        s.flacLastFillMs, s.flacLastFillReason == 1 ? "at once" : "over windows", s.flacLastFillSkewUs,
+                        s.flacLastFillBandUs, s.flacLastFillChunks));
+            }
+            text.append(String.format(Locale.ROOT, "flac stream shifted against its timestamps (a stall of the source): %d times, %d ms of silence inserted; placed anew because it was late: %d times%n",
+                    s.flacShiftFills, s.flacShiftFilledMs, s.flacReanchors));
         }
-        text.append(String.format(Locale.ROOT, "flac stream shifted against its timestamps (a stall of the source): %d times, %d ms of silence inserted; placed anew because it was late: %d times%n",
-                s.flacShiftFills, s.flacShiftFilledMs, s.flacReanchors));
         text.append(String.format(Locale.ROOT, "stream restarts after a pause: %d, last gap %d ms, its first audio written after %s%n",
                 s.streamResumes, s.lastResumeGapMs, s.lastResumeToAudioMs < 0 ? "-" : s.lastResumeToAudioMs + " ms"));
         text.append(String.format(Locale.ROOT, "writes: %d, short %d (frames missing %d, worst %d), longest write %d us, write-ahead %d ms, longest gap between engine ticks %d ms; longest tick %d us, chunk %d us, position poll %d us%n",

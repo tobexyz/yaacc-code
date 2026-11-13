@@ -149,9 +149,14 @@ public class FlacPositionsTest {
             DeviceRig rig = blocks();
             rig.connect();
             rig.run(10_000);
+            long resyncsBefore = rig.status().timelineResyncs;
             rig.stampShiftMicros = -back;
             rig.run(8_000);
             EngineStatus s = rig.status();
+            // placed anew once, at the chunk that showed it: a re-anchor that left the chunk without an anchor would be
+            // followed by a second one at the next chunk
+            assertEquals("back by " + back + ": one re-anchor, one resync; " + rig.report(), 1, s.flacReanchors);
+            assertEquals("back by " + back + ": " + rig.report(), resyncsBefore + 1, s.timelineResyncs);
             assertTrue("back by " + back + ": re-anchors " + s.flacReanchors + "; " + rig.report(), s.flacReanchors >= 1);
             assertTrue("back by " + back + ": " + rig.report(), s.aligned && Math.abs(rig.syncErrorMs()) < 5);
             DeviceSimSink.Counters c = rig.sink.counters();
@@ -267,5 +272,28 @@ public class FlacPositionsTest {
             assertTrue("stall " + stall + ": silence inserted " + s.flacShiftFilledMs + " ms; " + rig.report(), s.flacShiftFilledMs <= 3_000);
             assertTrue("stall " + stall + ": " + rig.report(), Math.abs(rig.syncErrorMs()) < 3 && s.aligned);
         }
+    }
+
+    /**
+     * After the engine went back to counting frames (headers that could not be read) a new codec header starts the stream
+     * anew: the position source is looked at again, and with readable headers the guard works again.
+     */
+    @Test
+    public void aNewCodecHeaderBringsTheFrameHeaderPositionsBackAfterAFallback() {
+        DeviceRig rig = blocks();
+        rig.flacHeaders = false; // raw samples first: three refused chunks, the session counts frames, the guard is off
+        rig.connect();
+        rig.run(8_000);
+        assertEquals(2, rig.status().flacPositionSource);
+        assertEquals(2, rig.status().flacGuardState);
+        rig.flacHeaders = true; // the server restarted its encoder: frame headers, and a new codec header (another block size)
+        rig.engine.onCodecHeader(ClientFixtures.flacHeaderMessage(rig.rate, rig.channels, rig.bits, 1152, 1152));
+        rig.run(8_000);
+        EngineStatus s = rig.status();
+        assertEquals(rig.report(), 1, s.flacPositionSource);
+        assertEquals("the guard is on again", 1, s.flacGuardState);
+        rig.stallSource(240);
+        rig.run(4_000);
+        assertTrue("the guard fills the stall again: " + rig.report(), rig.status().flacShiftFills >= 1);
     }
 }
