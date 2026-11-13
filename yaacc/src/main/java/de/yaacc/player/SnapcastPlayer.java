@@ -19,12 +19,8 @@
 package de.yaacc.player;
 
 import android.content.Context;
-import android.os.Handler;
-import android.os.Looper;
-import android.widget.Toast;
 
 import androidx.media3.common.C;
-import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.audio.AudioProcessor;
 import androidx.media3.common.util.UnstableApi;
@@ -169,14 +165,18 @@ public class SnapcastPlayer extends LocalMediaSessionPlayer {
                 }
             }
         });
-        player.addListener(new Player.Listener() {
-            @Override
-            public void onPlayerError(PlaybackException error) {
-                // only the name of the code: the message of a source error can hold a url
-                playerFailed(error.getErrorCodeName());
-            }
-        });
+        // an error of ExoPlayer (a track that can not be read) is handled by the local player's listener: skip the track, stop
+        // after three in a row or at the last item, which comes back here as stopAfterFailures
         return player;
+    }
+
+    /**
+     * Three tracks in a row could not be read, or the last one: the same end as every other failure of the feed. The feed
+     * is closed by the stop; a single unreadable track never comes here, it is skipped and the feed stays open.
+     */
+    @Override
+    void stopAfterFailures(String errorCodeName) {
+        playerFailed(errorCodeName);
     }
 
     /** ExoPlayer failed (a source that can not be read, a track the tap refuses): close the feed, tell the user, stop. */
@@ -355,21 +355,6 @@ public class SnapcastPlayer extends LocalMediaSessionPlayer {
 
     private void toast(final String text) {
         postToMain(() -> showToast(text));
-    }
-
-    /** A long toast; a test records the text instead. */
-    void showToast(String text) {
-        Toast.makeText(getContext(), text, Toast.LENGTH_LONG).show();
-    }
-
-    /** Runs on the main thread (a toast and ExoPlayer need it); a test runs the work at once. */
-    void postToMain(Runnable work) {
-        new Handler(Looper.getMainLooper()).post(work);
-    }
-
-    /** As {@link #postToMain}, after a delay; a test runs the work at once or collects it. */
-    void postToMainDelayed(Runnable work, long delayMillis) {
-        new Handler(Looper.getMainLooper()).postDelayed(work, delayMillis);
     }
 
     /** The sink that the audio tap of ExoPlayer writes to (a test writes to it directly). */

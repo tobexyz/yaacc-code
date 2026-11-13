@@ -36,4 +36,12 @@ public interface PickedAction {
 
     /** The picker was dismissed, abandoned, or the action was refused because another one is in flight. */
     void onCancelled();
+
+    /**
+     * What the action is about to play, as far as it is known before the pick: the picker leaves out the receivers that can
+     * not play it (a Snapcast group for images and videos). The default knows nothing and offers every receiver.
+     */
+    default PickContent content() {
+        return PickContent.UNKNOWN;
+    }
 }

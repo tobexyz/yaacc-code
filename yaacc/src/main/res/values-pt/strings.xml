@@ -303,6 +303,9 @@
     <string name="snapcast_offline">offline</string>
     <string name="snapcast_play_not_available">A reprodução em grupos do Snapcast ainda não está disponível</string>
     <string name="snapcast_play_audio_only">Em grupos do Snapcast só é possível reproduzir música</string>
+    <string name="player_track_skipped">Não foi possível reproduzir \"%1$s\", faixa ignorada</string>
+    <string name="player_stopped_after_errors">Reprodução interrompida: várias faixas seguidas não puderam ser reproduzidas</string>
+    <string name="player_nothing_playable">Nada para reproduzir: arquivos de lista de reprodução (.m3u, .pls, .asx) não são suportados</string>
     <string name="snapcast_play_delay_note">O Snapcast toca cerca de um segundo depois do que é mostrado (buffer do servidor)</string>
     <string name="snapcast_feed_error_unreachable">Não foi possível contactar o servidor Snapcast</string>
     <string name="snapcast_feed_error_refused">O servidor Snapcast não aceitou um fluxo do YAACC</string>

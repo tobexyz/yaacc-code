@@ -50,6 +50,7 @@ import java.util.Set;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.share.PickSheetResult;
+import de.yaacc.share.PickContent;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
 import de.yaacc.util.YaaccLogger;
@@ -93,6 +94,8 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
     private static final String ARG_FOR_SHARE = "forShare";
     private static final String ARG_SHARE_NAME = "shareName";
     private static final String ARG_INITIAL_IDS = "initialIds";
+    // false: the content is not music, a receiver that plays music only is not listed (11.2)
+    private static final String ARG_OFFER_AUDIO_ONLY = "offerAudioOnly";
     private static final long PICK_REFRESH_DELAY_MS = 300;
     private static final float HALF_EXPANDED_RATIO = 0.5f;
 
@@ -166,6 +169,18 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
      */
     public static boolean showPicker(FragmentManager fragmentManager, String requestKey, String pickId,
                                      boolean forShare, String shareName, Collection<String> initialIds) {
+        return showPicker(fragmentManager, requestKey, pickId, forShare, shareName, initialIds, PickContent.UNKNOWN);
+    }
+
+    /**
+     * As {@link #showPicker(FragmentManager, String, String, boolean, String, Collection)}, for content that is known: the
+     * receivers that can not play it are not listed.
+     *
+     * @param content what is about to be played, null for unknown
+     */
+    public static boolean showPicker(FragmentManager fragmentManager, String requestKey, String pickId,
+                                     boolean forShare, String shareName, Collection<String> initialIds,
+                                     PickContent content) {
         if (fragmentManager.isStateSaved() || fragmentManager.findFragmentByTag(TAG_PICK) != null) {
             return false;
         }
@@ -177,6 +192,7 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
         args.putBoolean(ARG_FOR_SHARE, forShare);
         args.putString(ARG_SHARE_NAME, shareName);
         args.putStringArrayList(ARG_INITIAL_IDS, initialIds == null ? new ArrayList<>() : new ArrayList<>(initialIds));
+        args.putBoolean(ARG_OFFER_AUDIO_ONLY, content == null || content.offersAudioOnlyReceivers());
         sheet.setArguments(args);
         sheet.show(fragmentManager, TAG_PICK);
         return true;
@@ -235,8 +251,9 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
         list.setItemAnimator(null); // no flashing on live updates, as in the Receiver tab
         Bundle args = getArguments();
         adapter = isPickMode()
-                ? new DeviceSheetAdapter(requireContext(), upnpClient, true,
-                args == null ? null : args.getStringArrayList(ARG_INITIAL_IDS))
+                ? new DeviceSheetAdapter(requireContext(), upnpClient,
+                args == null ? null : args.getStringArrayList(ARG_INITIAL_IDS),
+                PickContent.offering(args == null || args.getBoolean(ARG_OFFER_AUDIO_ONLY, true)))
                 : new DeviceSheetAdapter(requireContext(), upnpClient);
         if (!isTouchInput()) {
             adapter.requestInitialFocus();

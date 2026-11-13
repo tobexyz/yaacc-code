@@ -27,6 +27,7 @@ import android.support.v4.media.session.MediaSessionCompat;
 
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
+import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.Timeline;
@@ -64,6 +65,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     private volatile int nextItemIndex = PlayOrder.NONE;
     // True while applyPlayMode sets the modes of ExoPlayer: their callbacks are our own echo (main thread only)
     private boolean applyingPlayMode;
+    // Skip or stop when ExoPlayer can not read a track (synchronized: ExoPlayer's listener and the command thread use it)
+    private final TrackFailurePolicy failurePolicy = new TrackFailurePolicy();
 
     public LocalMediaSessionPlayer(UpnpClient upnpClient, String name, String shortName) {
         this(upnpClient);
@@ -133,6 +136,83 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         }
     }
 
+    // ---- a track that can not be read (11.12)
+
+    /**
+     * ExoPlayer could not read the current track: the track is skipped with a toast that names it and the next one starts;
+     * after three failures in a row, or when the last item fails, the player stops ({@link TrackFailurePolicy}). Main thread.
+     * Only the name of the error code is logged: a source error can carry an address.
+     *
+     * @param title the title of the track, as the server gave it (cleaned for the toast here)
+     */
+    void trackFailed(String errorCodeName, String title, boolean hasNext) {
+        YaaccLogger.d(getClass().getName(), "ExoPlayer error: " + errorCodeName);
+        if (failurePolicy.onFailure(hasNext) == TrackFailurePolicy.Decision.SKIP) {
+            toast(getContext().getString(R.string.player_track_skipped, TrackToastText.title(title)));
+            skipOnExoPlayer();
+        } else {
+            stopAfterFailures(errorCodeName);
+        }
+    }
+
+    /** A track plays: the count of failures in a row starts over. */
+    void trackStarted() {
+        failurePolicy.onTrackStarted();
+    }
+
+    /**
+     * Too many failures, or the last item failed: tells the user and stops. The Snapcast player overrides it, its stop also
+     * closes the feed.
+     */
+    void stopAfterFailures(String errorCodeName) {
+        toast(getContext().getString(R.string.player_stopped_after_errors));
+        stop();
+    }
+
+    /**
+     * Moves ExoPlayer to the next item after an error and prepares it again; it plays on by itself when it was playing
+     * (the play-when-ready flag is not touched). Main thread; a test replaces it.
+     */
+    void skipOnExoPlayer() {
+        ExoPlayer player = exoPlayer;
+        if (player != null) {
+            player.seekToNextMediaItem();
+            player.prepare();
+        }
+    }
+
+    /** The list without its playlist files (11.11); says so when everything was filtered out of a non-empty list. */
+    private List<PlayableItem> playable(List<PlayableItem> items) {
+        List<PlayableItem> kept = PlayableCheck.withoutPlaylistFiles(items);
+        int dropped = items == null ? 0 : items.size() - kept.size();
+        if (dropped > 0) {
+            YaaccLogger.d(getClass().getName(), "Left out " + dropped + " playlist file(s) of the queue");
+            if (kept.isEmpty()) {
+                toast(getContext().getString(R.string.player_nothing_playable));
+            }
+        }
+        return kept;
+    }
+
+    private void toast(final String text) {
+        postToMain(() -> showToast(text));
+    }
+
+    /** A long toast; a test records the text instead. */
+    void showToast(String text) {
+        android.widget.Toast.makeText(getContext(), text, android.widget.Toast.LENGTH_LONG).show();
+    }
+
+    /** Runs on the main thread (a toast and ExoPlayer need it); a test runs the work at once. */
+    void postToMain(Runnable work) {
+        new Handler(Looper.getMainLooper()).post(work);
+    }
+
+    /** As {@link #postToMain}, after a delay; a test runs the work at once or collects it. */
+    void postToMainDelayed(Runnable work, long delayMillis) {
+        new Handler(Looper.getMainLooper()).postDelayed(work, delayMillis);
+    }
+
     /**
      * Builds the ExoPlayer of this player. A plain one here; a subclass that needs its own renderers (the Snapcast player
      * taps the decoded audio) overrides this and returns a player built for it. Called once, on the thread that
@@ -167,12 +247,26 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         player.addListener(new Player.Listener() {
             @Override
             public void onPlaybackStateChanged(int playbackState) {
+                if (playbackState == Player.STATE_READY) {
+                    trackStarted();
+                }
                 if (playbackState == Player.STATE_ENDED && RepeatPolicy.stopsAtEnd(getPlayMode())) {
                     // The end of the playlist without repeat: report STOPPED (the transport state of the media
                     // renderer), otherwise a controller waits for ever for the end of the song.
                     YaaccLogger.d(getClass().getName(), "End of the playlist reached, repeat is off: stopping");
                     new Handler(Looper.getMainLooper()).post(() -> LocalMediaSessionPlayer.this.stop());
                 }
+            }
+
+            @Override
+            public void onPlayerError(PlaybackException error) {
+                // only the name of the code is used: the message of a source error can hold an address
+                ExoPlayer current = exoPlayer;
+                boolean hasNext = current != null && current.hasNextMediaItem();
+                int index = current == null ? -1 : current.getCurrentMediaItemIndex();
+                List<PlayableItem> items = getItems();
+                String title = index >= 0 && index < items.size() ? items.get(index).getTitle() : null;
+                trackFailed(error.getErrorCodeName(), title, hasNext);
             }
 
             @Override
@@ -353,7 +447,9 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     }
 
     @Override
-    public void setItems(PlayableItem... playableItems) {
+    public void setItems(PlayableItem... incoming) {
+        // playlist files can not be played as audio (11.11): they never enter the list
+        final PlayableItem[] playableItems = playable(java.util.Arrays.asList(incoming)).toArray(new PlayableItem[0]);
         super.setItems(playableItems);
         if (exoPlayer == null) {
             new Handler(Looper.getMainLooper()).post(this::initializeExoPlayer);
@@ -456,7 +552,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
      * our play order, which places the new items at random behind the current one, is installed again.
      */
     @Override
-    public void addItems(List<PlayableItem> playableItems) {
+    public void addItems(List<PlayableItem> incoming) {
+        final List<PlayableItem> playableItems = playable(incoming);
         int sizeBefore = getItems().size();
         super.addItems(playableItems);
         if (playableItems == null || playableItems.isEmpty()) {
@@ -480,6 +577,11 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
      * Items put into the middle of the list reach ExoPlayer at their place; the item that plays keeps playing. With shuffle our play
      * order, which places the new items behind the current one, is installed again.
      */
+    @Override
+    public void insertItems(int index, List<PlayableItem> playableItems) {
+        super.insertItems(index, playable(playableItems));
+    }
+
     @Override
     protected void onItemsInserted(int index, List<PlayableItem> inserted) {
         int[] order = getPlayMode().isShuffle() ? getPlayOrder() : null;
@@ -591,6 +693,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
 
     @Override
     protected void stopItem(PlayableItem playableItem) {
+        failurePolicy.reset(); // the next start counts from zero (the command thread, hence the synchronized policy)
         new Handler(Looper.getMainLooper()).post(() -> {
             if (exoPlayer != null) {
                 exoPlayer.stop();

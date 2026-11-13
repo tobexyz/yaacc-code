@@ -407,11 +407,21 @@ public class PlayerService extends MediaSessionService {
             // a Snapcast group plays music only: it is left out, and the user is told once
             devices = withoutSnapcastGroups(upnpClient, devices, true);
         }
+        boolean toldNothingPlayable = false;
         for (Device<?, ?, ?> device : devices) {
+            // a player that reads and decodes on this phone can not play playlist files (an .m3u listed as audio)
+            List<PlayableItem> playable = readsOnThisPhone(device) ? PlayableCheck.withoutPlaylistFiles(items) : items;
+            if (playable.isEmpty()) {
+                if (!toldNothingPlayable) {
+                    toldNothingPlayable = true;
+                    notifyNothingPlayable(upnpClient);
+                }
+                continue;
+            }
             Player result = createPlayer(upnpClient, device, video, image, music);
             if (result != null) {
                 addPlayer(result);
-                result.setItems(items.toArray(new PlayableItem[0]));
+                result.setItems(playable.toArray(new PlayableItem[0]));
                 resultList.add(result);
             }
         }
@@ -449,6 +459,7 @@ public class PlayerService extends MediaSessionService {
         // images of another receiver have no end of their own: they stay as long as the "default duration" setting (milliseconds, -1 never)
         // says, as browsed images do; audio and video end by the transport state of the receiver
         long imageMillis = upnpClient.getDefaultDuration();
+        boolean[] toldNothingPlayable = {false}; // once per batch, not once per receiver
         for (Device<?, ?, ?> device : devices) {
             String deviceId = device.getIdentity().getUdn().getIdentifierString();
             boolean local = UpnpClient.LOCAL_UID.equals(deviceId);
@@ -457,7 +468,19 @@ public class PlayerService extends MediaSessionService {
             // this phone reads its own audio and images with the grant of the app, no share needed
             boolean direct = (local || snapcast) && !video;
             QueueItems.Built built = direct ? QueueItems.direct(entries) : QueueItems.placeholders(entries, imageMillis);
-            if (built.items().isEmpty()) {
+            List<PlayableItem> queueItems = built.items();
+            if (direct && !queueItems.isEmpty()) {
+                // this phone reads and decodes itself: playlist files can not be played, the other files can
+                queueItems = PlayableCheck.withoutPlaylistFiles(queueItems);
+                if (queueItems.isEmpty()) {
+                    if (!toldNothingPlayable[0]) {
+                        toldNothingPlayable[0] = true;
+                        notifyNothingPlayable(upnpClient);
+                    }
+                    continue;
+                }
+            }
+            if (queueItems.isEmpty()) {
                 continue;
             }
             if (!local && !snapcast && OpenHomeReceivers.isOpenHomeOnly(device) && !(music && !video && !image)) {
@@ -482,7 +505,7 @@ public class PlayerService extends MediaSessionService {
                 ((AbstractPlayer) player).setShareLease(window.newLease());
             }
             addPlayer(player);
-            player.setItems(built.items().toArray(new PlayableItem[0]));
+            player.setItems(queueItems.toArray(new PlayableItem[0]));
             resultList.add(player);
         }
     }
@@ -542,10 +565,15 @@ public class PlayerService extends MediaSessionService {
         
         Device<?, ?, ?> localDevice = upnpClient.getDevice(UpnpClient.LOCAL_UID);
         if (localDevice != null) {
+            List<PlayableItem> playable = PlayableCheck.withoutPlaylistFiles(items);
+            if (playable.isEmpty()) {
+                notifyNothingPlayable(upnpClient);
+                return resultList;
+            }
             Player result = createPlayer(upnpClient, localDevice, video, image, music);
             if (result != null) {
                 addPlayer(result);
-                result.setItems(items.toArray(new PlayableItem[0]));
+                result.setItems(playable.toArray(new PlayableItem[0]));
                 resultList.add(result);
             }
         }
@@ -615,6 +643,25 @@ public class PlayerService extends MediaSessionService {
         final android.content.Context context = upnpClient.getContext();
         new android.os.Handler(Looper.getMainLooper()).post(() ->
                 Toast.makeText(context, R.string.snapcast_play_not_available, Toast.LENGTH_LONG).show());
+    }
+
+    /** "Nothing playable: playlist files can not be played" (once per call of a batch method). */
+    void notifyNothingPlayable(UpnpClient upnpClient) {
+        final android.content.Context context = upnpClient.getContext();
+        new android.os.Handler(Looper.getMainLooper()).post(() ->
+                Toast.makeText(context, R.string.player_nothing_playable, Toast.LENGTH_LONG).show());
+    }
+
+    /**
+     * True for a receiver whose player reads and decodes the files on this phone: this phone itself and a Snapcast group
+     * (which the phone feeds). Playlist files are left out of the queue of these; a remote renderer decides for itself.
+     */
+    static boolean readsOnThisPhone(Device<?, ?, ?> device) {
+        if (device instanceof SnapcastGroupDevice) {
+            return true;
+        }
+        return device != null && device.getIdentity() != null && device.getIdentity().getUdn() != null
+                && UpnpClient.LOCAL_UID.equals(device.getIdentity().getUdn().getIdentifierString());
     }
 
     /** "Only music can be played to Snapcast groups" (once per call of a batch method). */

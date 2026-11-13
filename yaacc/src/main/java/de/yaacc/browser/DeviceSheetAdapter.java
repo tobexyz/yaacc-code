@@ -49,6 +49,7 @@ import de.yaacc.browser.DeviceSessionGrouper.PlayerRef;
 import de.yaacc.browser.DeviceSessionGrouper.Row;
 import de.yaacc.multiroom.SnapcastGroupDevice;
 import de.yaacc.multiroom.ui.SnapcastRowText;
+import de.yaacc.share.PickContent;
 import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.ThemeHelper;
@@ -106,6 +107,8 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     // Stable ids keep D-pad focus on the same row across refreshes.
     private final Map<String, Long> stableIds = new HashMap<>();
     private final boolean pickMode;
+    // Pick mode: what is about to be played; the receivers that can not play it are not listed (11.2)
+    private final PickContent content;
     // false: the receivers only, the player sessions are listed elsewhere (the page's Players section)
     private final boolean showSessions;
     // Pick mode: the ticked receiver ids. Only this adapter writes it; it is never UpnpClient's stored set.
@@ -135,11 +138,25 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
      * @param initiallyPicked the receiver ids that start ticked (pick mode only), may be null
      */
     DeviceSheetAdapter(Context context, UpnpClient upnpClient, boolean pickMode, Collection<String> initiallyPicked) {
-        this(context, upnpClient, pickMode, initiallyPicked, true);
+        this(context, upnpClient, pickMode, initiallyPicked, true, PickContent.UNKNOWN);
+    }
+
+    /**
+     * The receiver picker for content that is known (11.2): a receiver that can not play it (a Snapcast group for images and
+     * videos) is not listed.
+     */
+    DeviceSheetAdapter(Context context, UpnpClient upnpClient, Collection<String> initiallyPicked, PickContent content) {
+        this(context, upnpClient, true, initiallyPicked, true, content);
     }
 
     private DeviceSheetAdapter(Context context, UpnpClient upnpClient, boolean pickMode, Collection<String> initiallyPicked,
                                boolean showSessions) {
+        this(context, upnpClient, pickMode, initiallyPicked, showSessions, PickContent.UNKNOWN);
+    }
+
+    private DeviceSheetAdapter(Context context, UpnpClient upnpClient, boolean pickMode, Collection<String> initiallyPicked,
+                               boolean showSessions, PickContent content) {
+        this.content = content == null ? PickContent.UNKNOWN : content;
         this.showSessions = showSessions;
         this.context = context;
         this.upnpClient = upnpClient;
@@ -222,6 +239,14 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
      * Whether a row of the grouper is listed: the receivers always; the player sessions below them in the sheet only (not in the
      * picker, and not on the page, which has a Players section).
      */
+    /**
+     * Whether the picker lists a receiver for this content: a Snapcast group plays music only, so it is not offered for images
+     * and videos. Every other receiver is always offered.
+     */
+    static boolean offersReceiver(Device<?, ?, ?> device, PickContent content) {
+        return !(device instanceof SnapcastGroupDevice) || content == null || content.offersAudioOnlyReceivers();
+    }
+
     static boolean listsRow(Row.Kind kind, boolean pickMode, boolean showSessions) {
         return kind == Row.Kind.RECEIVER || (!pickMode && showSessions);
     }
@@ -253,6 +278,9 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         Map<String, Device<?, ?, ?>> receiversById = new LinkedHashMap<>();
         for (Device<?, ?, ?> listed : ReceiverLiveUpdates.watched(upnpClient.getDevicesProvidingAvTransportService())) {
             String id = listed.getIdentity().getUdn().getIdentifierString();
+            if (pickMode && !offersReceiver(listed, content)) {
+                continue;
+            }
             if (!receiversById.containsKey(id)) {
                 Device<?, ?, ?> device = upnpClient.getDevice(id);
                 if (device != null) {

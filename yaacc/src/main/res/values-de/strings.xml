@@ -299,6 +299,9 @@
     <string name="snapcast_offline">offline</string>
     <string name="snapcast_play_not_available">Die Wiedergabe auf Snapcast-Gruppen ist noch nicht verfügbar</string>
     <string name="snapcast_play_audio_only">Auf Snapcast-Gruppen kann nur Musik abgespielt werden</string>
+    <string name="player_track_skipped">\"%1$s\" kann nicht abgespielt werden und wird übersprungen</string>
+    <string name="player_stopped_after_errors">Wiedergabe beendet: mehrere Titel nacheinander konnten nicht abgespielt werden</string>
+    <string name="player_nothing_playable">Nichts abspielbar: Playlist-Dateien (.m3u, .pls, .asx) werden nicht unterstützt</string>
     <string name="snapcast_play_delay_note">Snapcast spielt etwa eine Sekunde nach der Anzeige (Puffer des Servers)</string>
     <string name="snapcast_feed_error_unreachable">Der Snapcast-Server ist nicht erreichbar</string>
     <string name="snapcast_feed_error_refused">Der Snapcast-Server hat keinen Stream von YAACC akzeptiert</string>

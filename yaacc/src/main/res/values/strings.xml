@@ -304,6 +304,9 @@
     <string name="snapcast_offline">offline</string>
     <string name="snapcast_play_not_available">Playing to Snapcast groups is not available yet</string>
     <string name="snapcast_play_audio_only">Only music can be played to Snapcast groups</string>
+    <string name="player_track_skipped">Could not play \"%1$s\", skipped</string>
+    <string name="player_stopped_after_errors">Playback stopped: several tracks in a row could not be played</string>
+    <string name="player_nothing_playable">Nothing to play: playlist files (.m3u, .pls, .asx) are not supported</string>
     <string name="snapcast_play_delay_note">Snapcast plays about a second behind the display (the buffer of the server)</string>
     <string name="snapcast_feed_error_unreachable">The Snapcast server cannot be reached</string>
     <string name="snapcast_feed_error_refused">The Snapcast server did not accept a stream from YAACC</string>

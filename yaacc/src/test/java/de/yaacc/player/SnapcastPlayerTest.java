@@ -108,6 +108,8 @@ public class SnapcastPlayerTest {
     public void setUp() {
         context = mock(Context.class);
         when(context.getString(anyInt())).thenAnswer(call -> "text" + call.getArgument(0));
+        when(context.getString(anyInt(), org.mockito.ArgumentMatchers.<Object>any()))
+                .thenAnswer(call -> "text" + call.getArgument(0) + ":" + call.getArgument(1));
         when(context.getSystemService(Context.NOTIFICATION_SERVICE)).thenReturn(mock(android.app.NotificationManager.class));
         when(context.getApplicationContext()).thenReturn(mock(de.yaacc.Yaacc.class));
         upnpClient = mock(UpnpClient.class);
@@ -496,6 +498,86 @@ public class SnapcastPlayerTest {
 
         assertEquals(Collections.singletonList("text" + R.string.snapcast_feed_error_player), toasts);
         assertTrue("stop() was taken", player.isProcessingCommand());
+    }
+
+    // ---- 11.12: a track that can not be read is skipped, the feed stays open
+
+    @Test
+    public void anUnreadableTrackIsSkippedAndTheFeedIsLeftAlone() {
+        TestPlayer player = new TestPlayer(l -> controller);
+
+        player.trackFailed("ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED", "By The Way", true);
+
+        assertEquals(Collections.singletonList("text" + R.string.player_track_skipped + ":By The Way"), toasts);
+        assertFalse("no stop was taken: the player goes on", player.isProcessingCommand());
+        verify(controller, never()).stop();
+        verify(controller, never()).pause();
+        verify(controller, never()).release();
+    }
+
+    @Test
+    public void afterASkipTheNextItemStartsOnTheSameFeed() {
+        TestPlayer player = new TestPlayer(l -> controller);
+        when(controller.isFeeding()).thenReturn(true);
+        player.trackFailed("E", "Bad", true);
+
+        player.startItem(item(), null, 1);
+
+        ArgumentCaptor<SnapcastFeedController.StartCallback> callback =
+                ArgumentCaptor.forClass(SnapcastFeedController.StartCallback.class);
+        verify(controller).start(callback.capture());
+        callback.getValue().onReady();
+        assertEquals(Collections.singletonList("start 1"), exoCalls);
+        verify(controller, never()).stop();
+    }
+
+    @Test
+    public void theThirdUnreadableTrackInARowStopsThePlayerWithTheUsualMessage() {
+        TestPlayer player = new TestPlayer(l -> controller);
+
+        player.trackFailed("E", "A", true);
+        player.trackFailed("E", "B", true);
+        assertFalse(player.isProcessingCommand());
+        player.trackFailed("E", "C", true);
+
+        assertEquals("text" + R.string.snapcast_feed_error_player, toasts.get(toasts.size() - 1));
+        assertEquals("two skips and the stop", 3, toasts.size());
+        assertTrue("stop() was taken", player.isProcessingCommand());
+    }
+
+    @Test
+    public void anUnreadableLastItemStopsThePlayer() {
+        TestPlayer player = new TestPlayer(l -> controller);
+
+        player.trackFailed("E", "Last", false);
+
+        assertEquals(Collections.singletonList("text" + R.string.snapcast_feed_error_player), toasts);
+        assertTrue(player.isProcessingCommand());
+    }
+
+    @Test
+    public void aTrackThatStartsMakesTheCountStartOver() {
+        TestPlayer player = new TestPlayer(l -> controller);
+        player.trackFailed("E", "A", true);
+        player.trackFailed("E", "B", true);
+
+        player.trackStarted();
+        player.trackFailed("E", "C", true);
+        player.trackFailed("E", "D", true);
+
+        assertFalse(player.isProcessingCommand());
+        assertEquals(4, toasts.size());
+    }
+
+    @Test
+    public void thePlayerNoLongerStopsOnTheFirstExoPlayerErrorByItself() throws Exception {
+        String snapcast = new String(java.nio.file.Files.readAllBytes(
+                new java.io.File("src/main/java/de/yaacc/player/SnapcastPlayer.java").toPath()), java.nio.charset.StandardCharsets.UTF_8);
+        String local = new String(java.nio.file.Files.readAllBytes(
+                new java.io.File("src/main/java/de/yaacc/player/LocalMediaSessionPlayer.java").toPath()), java.nio.charset.StandardCharsets.UTF_8);
+
+        assertFalse("the one listener is the local player's", snapcast.contains("onPlayerError"));
+        assertEquals(1, local.split("public void onPlayerError\\(", -1).length - 1);
     }
 
     // ---- S39: the last retry of the stop leaves a flag and a log line

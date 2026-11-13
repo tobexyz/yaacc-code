@@ -321,6 +321,31 @@ public class ShareIntentHandlerFileTest {
     }
 
     @Test
+    public void thePickerCanAskWhatTheWaitingShareIs() throws Exception {
+        providerType = "video/mp4";
+        RecordingHost host = new RecordingHost();
+
+        handler.handle(streamIntent(SEND, "video/*", 1, URI, false, 1), null, host);
+
+        assertTrue(host.awaitAnnouncement());
+        assertFalse("a video is not offered to a receiver that plays music only",
+                handler.pendingContent(host.tokens.get(0)).offersAudioOnlyReceivers());
+        assertTrue("an unknown token says nothing", handler.pendingContent("nope").offersAudioOnlyReceivers());
+        assertTrue(handler.pendingContent(null).offersAudioOnlyReceivers());
+    }
+
+    @Test
+    public void aSharedSongOffersEveryReceiver() throws Exception {
+        providerType = "audio/mpeg";
+        RecordingHost host = new RecordingHost();
+
+        handler.handle(goodIntent(), null, host);
+
+        assertTrue(host.awaitAnnouncement());
+        assertTrue(handler.pendingContent(host.tokens.get(0)).offersAudioOnlyReceivers());
+    }
+
+    @Test
     public void aTypeThatIsNotMediaIsIgnoredEvenIfTheIntentSaidAudio() throws Exception {
         providerType = "text/html";
         RecordingHost host = new RecordingHost();

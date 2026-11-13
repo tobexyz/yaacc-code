@@ -295,6 +295,9 @@
     <string name="snapcast_offline">离线</string>
     <string name="snapcast_play_not_available">尚不支持向 Snapcast 组播放</string>
     <string name="snapcast_play_audio_only">Snapcast 组只能播放音乐</string>
+    <string name="player_track_skipped">无法播放“%1$s”，已跳过</string>
+    <string name="player_stopped_after_errors">播放已停止：连续多首曲目无法播放</string>
+    <string name="player_nothing_playable">没有可播放的内容：不支持播放列表文件（.m3u、.pls、.asx）</string>
     <string name="snapcast_play_delay_note">Snapcast 的播放会比显示延迟约一秒（服务器缓冲）</string>
     <string name="snapcast_feed_error_unreachable">无法连接到 Snapcast 服务器</string>
     <string name="snapcast_feed_error_refused">Snapcast 服务器不接受来自 YAACC 的音频流</string>

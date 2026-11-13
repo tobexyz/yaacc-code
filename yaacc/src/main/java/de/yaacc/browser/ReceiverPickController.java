@@ -36,6 +36,7 @@ import de.yaacc.share.ActionFlight;
 import de.yaacc.share.AfterStartSelection;
 import de.yaacc.share.GuardedPickedAction;
 import de.yaacc.share.PendingPick;
+import de.yaacc.share.PickContent;
 import de.yaacc.share.PickedAction;
 import de.yaacc.share.ShareLimits;
 import de.yaacc.upnp.UpnpClient;
@@ -116,7 +117,7 @@ final class ReceiverPickController {
             // a normal sheet that is open must not stay behind the picker
             DeviceSheetFragment.dismissNormal(fragmentManager);
             shown = DeviceSheetFragment.showPicker(fragmentManager, REQUEST_KEY, pickId, shareName != null,
-                    shareName, initialIds);
+                    shareName, initialIds, action.content());
         } catch (RuntimeException e) {
             YaaccLogger.w(TAG, "The receiver picker could not be shown (" + e.getClass().getSimpleName() + ")");
         }
@@ -147,6 +148,8 @@ final class ReceiverPickController {
      */
     void offerShare(ShareIntentHandler shareHandler, String token, String displayName, UpnpClient upnpClient,
                     boolean newLayout, Collection<String> initialIds) {
+        // what the share is, read now: the picker leaves out the receivers that can not play it
+        final PickContent content = shareHandler.pendingContent(token);
         PickedAction action = new PickedAction() {
             @Override
             public void onConfirmed(Set<String> receiverIds, Runnable done) {
@@ -157,6 +160,11 @@ final class ReceiverPickController {
             @Override
             public void onCancelled() {
                 shareHandler.cancel(token);
+            }
+
+            @Override
+            public PickContent content() {
+                return content;
             }
         };
         if (!start(action, displayName == null ? "" : displayName, initialIds)) {
