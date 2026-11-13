@@ -67,6 +67,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     private boolean applyingPlayMode;
     // Skip or stop when ExoPlayer can not read a track (synchronized: ExoPlayer's listener and the command thread use it)
     private final TrackFailurePolicy failurePolicy = new TrackFailurePolicy();
+    // a stop after failures that could not be carried out (a command was still running); the next user action clears it
+    private volatile boolean stopOutstanding;
 
     public LocalMediaSessionPlayer(UpnpClient upnpClient, String name, String shortName) {
         this(upnpClient);
@@ -139,16 +141,31 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     // ---- a track that can not be read (11.12)
 
     /**
+     * ExoPlayer could not read the track at {@code index} of the list (ExoPlayer's list is ours, same indexes): see
+     * {@link #trackFailed}. An index outside the list gives a track without a title.
+     */
+    void trackFailedAt(String errorCodeName, int index, boolean hasNext) {
+        List<PlayableItem> items = getItems();
+        String title = index >= 0 && index < items.size() ? items.get(index).getTitle() : null;
+        trackFailed(errorCodeName, title, index + 1, hasNext);
+    }
+
+    /**
      * ExoPlayer could not read the current track: the track is skipped with a toast that names it and the next one starts;
      * after three failures in a row, or when the last item fails, the player stops ({@link TrackFailurePolicy}). Main thread.
      * Only the name of the error code is logged: a source error can carry an address.
      *
-     * @param title the title of the track, as the server gave it (cleaned for the toast here)
+     * @param title  the title of the track, as the server gave it (cleaned for the toast here; an address is never shown)
+     * @param number the position of the track in the list, counted from one, 0 if not known: shown when the title is no use
      */
-    void trackFailed(String errorCodeName, String title, boolean hasNext) {
+    void trackFailed(String errorCodeName, String title, int number, boolean hasNext) {
         YaaccLogger.d(getClass().getName(), "ExoPlayer error: " + errorCodeName);
         if (failurePolicy.onFailure(hasNext) == TrackFailurePolicy.Decision.SKIP) {
-            toast(getContext().getString(R.string.player_track_skipped, TrackToastText.title(title)));
+            String shown = TrackToastText.title(title);
+            if ("?".equals(shown) && number > 0) {
+                shown = getContext().getString(R.string.player_track_number, number);
+            }
+            toast(getContext().getString(R.string.player_track_skipped, shown));
             skipOnExoPlayer();
         } else {
             stopAfterFailures(errorCodeName);
@@ -161,12 +178,63 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     }
 
     /**
-     * Too many failures, or the last item failed: tells the user and stops. The Snapcast player overrides it, its stop also
-     * closes the feed.
+     * Too many failures, or the last item failed: stops the player, and tells the user once it has stopped. The stop is retried
+     * while another command of the player runs ({@link #stopWhenFree}). The Snapcast player overrides it, its stop also closes
+     * the feed.
      */
     void stopAfterFailures(String errorCodeName) {
-        toast(getContext().getString(R.string.player_stopped_after_errors));
-        stop();
+        postToMain(() -> stopWhenFree(0, () -> toast(getContext().getString(R.string.player_stopped_after_errors))));
+    }
+
+    /**
+     * {@code stop()} is ignored while another command of the player runs; a stop after a failure would then be lost and
+     * the player would show "playing" with a player that is idle. So it is tried again a little later, a second at most.
+     */
+    void stopWhenFree(int attempt) {
+        stopWhenFree(attempt, null);
+    }
+
+    /** As {@link #stopWhenFree(int)}; {@code whenStopped} runs when a stop was accepted (not when it was ignored the last time). */
+    void stopWhenFree(int attempt, Runnable whenStopped) {
+        if (isProcessingCommand() && attempt < STOP_RETRIES) {
+            postToMainDelayed(() -> stopWhenFree(attempt + 1, whenStopped), STOP_RETRY_MILLIS);
+            return;
+        }
+        boolean busy = isProcessingCommand();
+        stop(); // clears the flag like every user action
+        if (busy) {
+            // the last try was ignored as well. Say so, and remember it until the user does something
+            YaaccLogger.d(getClass().getName(), "stop after a failure was not possible, a command was still running");
+            stopOutstanding = true;
+        } else if (whenStopped != null) {
+            whenStopped.run();
+        }
+    }
+
+    /** True when a stop after a failure could not be carried out; the next user action clears it. */
+    boolean isStopOutstanding() {
+        return stopOutstanding;
+    }
+
+    private static final int STOP_RETRIES = 20;
+    private static final long STOP_RETRY_MILLIS = 50L;
+
+    @Override
+    public void play() {
+        stopOutstanding = false;
+        super.play();
+    }
+
+    @Override
+    public void pause() {
+        stopOutstanding = false;
+        super.pause();
+    }
+
+    @Override
+    public void stop() {
+        stopOutstanding = false;
+        super.stop();
     }
 
     /**
@@ -262,11 +330,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
             public void onPlayerError(PlaybackException error) {
                 // only the name of the code is used: the message of a source error can hold an address
                 ExoPlayer current = exoPlayer;
-                boolean hasNext = current != null && current.hasNextMediaItem();
-                int index = current == null ? -1 : current.getCurrentMediaItemIndex();
-                List<PlayableItem> items = getItems();
-                String title = index >= 0 && index < items.size() ? items.get(index).getTitle() : null;
-                trackFailed(error.getErrorCodeName(), title, hasNext);
+                trackFailedAt(error.getErrorCodeName(), current == null ? -1 : current.getCurrentMediaItemIndex(),
+                        current != null && current.hasNextMediaItem());
             }
 
             @Override
@@ -447,9 +512,9 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     }
 
     @Override
-    public void setItems(PlayableItem... incoming) {
-        // playlist files can not be played as audio (11.11): they never enter the list
-        final PlayableItem[] playableItems = playable(java.util.Arrays.asList(incoming)).toArray(new PlayableItem[0]);
+    public void setItems(PlayableItem... playableItems) {
+        // not filtered here: a caller may index this list (the OpenHome renderer keeps one id per entry); the queue builders of
+        // PlayerService leave playlist files out before, and an entry that can not be read is skipped by the failure policy
         super.setItems(playableItems);
         if (exoPlayer == null) {
             new Handler(Looper.getMainLooper()).post(this::initializeExoPlayer);
@@ -578,11 +643,6 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
      * order, which places the new items behind the current one, is installed again.
      */
     @Override
-    public void insertItems(int index, List<PlayableItem> playableItems) {
-        super.insertItems(index, playable(playableItems));
-    }
-
-    @Override
     protected void onItemsInserted(int index, List<PlayableItem> inserted) {
         int[] order = getPlayMode().isShuffle() ? getPlayOrder() : null;
         int sizeBefore = getItems().size() - inserted.size();
@@ -625,6 +685,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
 
     @Override
     public void next() {
+        stopOutstanding = false;
+        failurePolicy.reset(); // the user's own choice of a track starts the count again
         // Let ExoPlayer handle next track
         if (exoPlayer != null) {
             new Handler(Looper.getMainLooper()).post(() -> {
@@ -639,6 +701,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
 
     @Override
     public void previous() {
+        stopOutstanding = false;
+        failurePolicy.reset();
         // Let ExoPlayer handle previous track
         if (exoPlayer != null) {
             new Handler(Looper.getMainLooper()).post(() -> {

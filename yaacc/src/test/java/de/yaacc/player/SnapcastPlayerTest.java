@@ -506,7 +506,7 @@ public class SnapcastPlayerTest {
     public void anUnreadableTrackIsSkippedAndTheFeedIsLeftAlone() {
         TestPlayer player = new TestPlayer(l -> controller);
 
-        player.trackFailed("ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED", "By The Way", true);
+        player.trackFailed("ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED", "By The Way", 1, true);
 
         assertEquals(Collections.singletonList("text" + R.string.player_track_skipped + ":By The Way"), toasts);
         assertFalse("no stop was taken: the player goes on", player.isProcessingCommand());
@@ -519,7 +519,7 @@ public class SnapcastPlayerTest {
     public void afterASkipTheNextItemStartsOnTheSameFeed() {
         TestPlayer player = new TestPlayer(l -> controller);
         when(controller.isFeeding()).thenReturn(true);
-        player.trackFailed("E", "Bad", true);
+        player.trackFailed("E", "Bad", 1, true);
 
         player.startItem(item(), null, 1);
 
@@ -535,10 +535,10 @@ public class SnapcastPlayerTest {
     public void theThirdUnreadableTrackInARowStopsThePlayerWithTheUsualMessage() {
         TestPlayer player = new TestPlayer(l -> controller);
 
-        player.trackFailed("E", "A", true);
-        player.trackFailed("E", "B", true);
+        player.trackFailed("E", "A", 1, true);
+        player.trackFailed("E", "B", 1, true);
         assertFalse(player.isProcessingCommand());
-        player.trackFailed("E", "C", true);
+        player.trackFailed("E", "C", 1, true);
 
         assertEquals("text" + R.string.snapcast_feed_error_player, toasts.get(toasts.size() - 1));
         assertEquals("two skips and the stop", 3, toasts.size());
@@ -549,7 +549,7 @@ public class SnapcastPlayerTest {
     public void anUnreadableLastItemStopsThePlayer() {
         TestPlayer player = new TestPlayer(l -> controller);
 
-        player.trackFailed("E", "Last", false);
+        player.trackFailed("E", "Last", 1, false);
 
         assertEquals(Collections.singletonList("text" + R.string.snapcast_feed_error_player), toasts);
         assertTrue(player.isProcessingCommand());
@@ -558,12 +558,12 @@ public class SnapcastPlayerTest {
     @Test
     public void aTrackThatStartsMakesTheCountStartOver() {
         TestPlayer player = new TestPlayer(l -> controller);
-        player.trackFailed("E", "A", true);
-        player.trackFailed("E", "B", true);
+        player.trackFailed("E", "A", 1, true);
+        player.trackFailed("E", "B", 1, true);
 
         player.trackStarted();
-        player.trackFailed("E", "C", true);
-        player.trackFailed("E", "D", true);
+        player.trackFailed("E", "C", 1, true);
+        player.trackFailed("E", "D", 1, true);
 
         assertFalse(player.isProcessingCommand());
         assertEquals(4, toasts.size());

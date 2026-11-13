@@ -539,9 +539,23 @@ public class PlayerService extends MediaSessionService {
     }
 
     /**
-     * Creates a player for the local device only (used by renderer service)
+     * Creates a player for the local device only (used by renderer service). Playlist files are left out (an .m3u can not be
+     * played as audio); when nothing is left no player is made and the user is told.
      */
     public List<Player> createPlayerForLocalDevice(UpnpClient upnpClient, List<PlayableItem> items) {
+        return createLocalPlayer(upnpClient, items, true);
+    }
+
+    /**
+     * Creates a player for the local device for a queue that its caller indexes: the OpenHome renderer keeps one id per entry
+     * and plays an entry with {@code playItemAt(index)}. The list is therefore kept exactly as given, playlist files
+     * included (an entry that can not be read is skipped by the player, which keeps the indexes).
+     */
+    public List<Player> createPlayerForLocalQueue(UpnpClient upnpClient, List<PlayableItem> items) {
+        return createLocalPlayer(upnpClient, items, false);
+    }
+
+    private List<Player> createLocalPlayer(UpnpClient upnpClient, List<PlayableItem> items, boolean leaveOutPlaylistFiles) {
         YaaccLogger.d(getClass().getName(), "create player for local device...");
         List<Player> resultList = new ArrayList<>();
         if (items.isEmpty()) {
@@ -565,7 +579,7 @@ public class PlayerService extends MediaSessionService {
         
         Device<?, ?, ?> localDevice = upnpClient.getDevice(UpnpClient.LOCAL_UID);
         if (localDevice != null) {
-            List<PlayableItem> playable = PlayableCheck.withoutPlaylistFiles(items);
+            List<PlayableItem> playable = leaveOutPlaylistFiles ? PlayableCheck.withoutPlaylistFiles(items) : items;
             if (playable.isEmpty()) {
                 notifyNothingPlayable(upnpClient);
                 return resultList;
@@ -764,7 +778,7 @@ public class PlayerService extends MediaSessionService {
      * @return the player or null if no device is present
      */
     @OptIn(markerClass = UnstableApi.class)
-    private Player createPlayer(UpnpClient upnpClient, Device receiverDevice,
+    Player createPlayer(UpnpClient upnpClient, Device receiverDevice,
                                 boolean video, boolean image, boolean music) {
         if (receiverDevice == null) {
             Toast toast = Toast.makeText(upnpClient.getContext(), upnpClient.getContext().getString(R.string.error_no_receiver_device_found), Toast.LENGTH_SHORT);

@@ -132,6 +132,48 @@ public class PlayableCheckTest {
         assertFalse(PlayableCheck.isPlaylistFile("application/x-mpegURL", "http://h/live/index", "Radio.m3u"));
     }
 
+    // ---- the address first, the title only when the address has no extension (review S3)
+
+    @Test
+    public void aTitleThatLooksLikeAPlaylistDoesNotDropATrackWhoseAddressHasAnotherExtension() {
+        assertFalse(PlayableCheck.isPlaylistFile("audio/flac", "http://h/p/a.flac", "Dance. M3U"));
+        assertFalse(PlayableCheck.isPlaylistFile("audio/mpeg", "http://h/p/a.mp3", "list.pls"));
+        assertFalse(PlayableCheck.isPlaylistFile(null, "http://h/p/a.ogg?x=1#y", "Mix.asx"));
+        assertFalse(PlayableCheck.isPlaylistFile("audio/mpeg", "http://h/p/stream.php?id=3", "list.m3u"));
+    }
+
+    @Test
+    public void theTitleDecidesOnlyWhenTheAddressHasNoExtension() {
+        assertTrue(PlayableCheck.isPlaylistFile("audio/mpeg", "http://h/p/42", "By The Way.m3u"));
+        assertTrue(PlayableCheck.isPlaylistFile("audio/mpeg", "http://h/p/42/", "By The Way.pls"));
+        assertTrue(PlayableCheck.isPlaylistFile("audio/mpeg", "http://h/p/42?x=a.mp3", "By The Way.asx"));
+        assertTrue(PlayableCheck.isPlaylistFile("audio/mpeg", null, "By The Way.m3u"));
+        assertTrue(PlayableCheck.isPlaylistFile("audio/mpeg", "", "By The Way.m3u"));
+    }
+
+    @Test
+    public void theAddressStillDecidesWhenTheTitleHasAnotherExtension() {
+        assertTrue(PlayableCheck.isPlaylistFile("audio/mpeg", "http://h/p/list.m3u", "Song.mp3"));
+    }
+
+    @Test
+    public void aTypeThatSaysPlaylistStaysAPlaylistWhateverTheAddressSays() {
+        assertTrue(PlayableCheck.isPlaylistFile("audio/x-mpegurl", "http://h/p/a.mp3", "Song"));
+    }
+
+    @Test
+    public void anM3u8TitleKeepsHlsPlayableWhenTheAddressHasNoExtension() {
+        assertFalse(PlayableCheck.isPlaylistFile("audio/mpegurl", "http://h/live/index", "index.m3u8"));
+        assertFalse(PlayableCheck.isPlaylistFile("audio/x-mpegurl", null, "Radio.M3U8"));
+        assertFalse(PlayableCheck.isPlaylistFile(null, null, "Radio.m3u8"));
+    }
+
+    @Test
+    public void hlsWinsWhenEitherTheAddressOrTheTitleSaysM3u8() {
+        assertFalse(PlayableCheck.isPlaylistFile("audio/mpeg", "http://h/p/list.m3u", "Radio.m3u8"));
+        assertFalse(PlayableCheck.isPlaylistFile("audio/mpegurl", "http://h/p/index.m3u8", "list.m3u"));
+    }
+
     // ---- unknown input
 
     @Test

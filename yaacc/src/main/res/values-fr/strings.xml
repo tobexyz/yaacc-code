@@ -306,6 +306,7 @@
     <string name="player_track_skipped">Impossible de lire \"%1$s\", piste ignorée</string>
     <string name="player_stopped_after_errors">Lecture arrêtée : plusieurs pistes de suite n\'ont pas pu être lues</string>
     <string name="player_nothing_playable">Rien à lire : les fichiers de liste de lecture (.m3u, .pls, .asx) ne sont pas pris en charge</string>
+    <string name="player_track_number">Piste %1$d</string>
     <string name="snapcast_play_delay_note">Snapcast joue environ une seconde après l\'affichage (tampon du serveur)</string>
     <string name="snapcast_feed_error_unreachable">Le serveur Snapcast est injoignable</string>
     <string name="snapcast_feed_error_refused">Le serveur Snapcast n\'a pas accepté de flux de YAACC</string>

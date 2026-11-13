@@ -72,7 +72,6 @@ public class SnapcastPlayer extends LocalMediaSessionPlayer {
     private final int playerId = SnapcastPlayerLogic.playerIdFrom(UUID.randomUUID().hashCode());
     private volatile SnapcastFeedController controller;
     private volatile boolean delayNoted;
-    private volatile boolean stopOutstanding;
     /** The item whose start was held back because the user paused while the feed was opening. */
     private volatile Deferred deferred;
 
@@ -296,62 +295,6 @@ public class SnapcastPlayer extends LocalMediaSessionPlayer {
         toast(SnapcastPlayerLogic.errorMessage(error, context::getString));
         postToMain(() -> stopWhenFree(0));
     }
-
-    /**
-     * {@code stop()} is ignored while another command of the player runs; the failure would then leave a player that
-     * shows "playing" with a closed feed. So it is tried again a little later, a second at most.
-     */
-    void stopWhenFree(int attempt) {
-        if (isProcessingCommand() && attempt < STOP_RETRIES) {
-            postToMainDelayed(() -> stopWhenFree(attempt + 1), STOP_RETRY_MILLIS);
-            return;
-        }
-        boolean busy = isProcessingCommand();
-        stop(); // clears the flag like every user action
-        if (busy) {
-            // the last try was ignored as well. Say so, and remember it until the user does something
-            YaaccLogger.d(getClass().getName(), "stop after a failure was not possible, a command was still running");
-            stopOutstanding = true;
-        }
-    }
-
-    /** True when a stop after a failure could not be carried out; the next user action clears it. */
-    boolean isStopOutstanding() {
-        return stopOutstanding;
-    }
-
-    @Override
-    public void play() {
-        stopOutstanding = false;
-        super.play();
-    }
-
-    @Override
-    public void pause() {
-        stopOutstanding = false;
-        super.pause();
-    }
-
-    @Override
-    public void stop() {
-        stopOutstanding = false;
-        super.stop();
-    }
-
-    @Override
-    public void next() {
-        stopOutstanding = false;
-        super.next();
-    }
-
-    @Override
-    public void previous() {
-        stopOutstanding = false;
-        super.previous();
-    }
-
-    private static final int STOP_RETRIES = 20;
-    private static final long STOP_RETRY_MILLIS = 50L;
 
     private void toast(final String text) {
         postToMain(() -> showToast(text));

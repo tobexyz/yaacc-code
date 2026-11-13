@@ -306,6 +306,7 @@
     <string name="player_track_skipped">No se pudo reproducir \"%1$s\", se omite</string>
     <string name="player_stopped_after_errors">Reproducción detenida: varias pistas seguidas no se pudieron reproducir</string>
     <string name="player_nothing_playable">Nada que reproducir: los archivos de lista de reproducción (.m3u, .pls, .asx) no son compatibles</string>
+    <string name="player_track_number">Pista %1$d</string>
     <string name="snapcast_play_delay_note">Snapcast reproduce con un segundo de retraso respecto a la pantalla (búfer del servidor)</string>
     <string name="snapcast_feed_error_unreachable">No se puede acceder al servidor de Snapcast</string>
     <string name="snapcast_feed_error_refused">El servidor de Snapcast no aceptó un flujo de YAACC</string>

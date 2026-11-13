@@ -210,4 +210,53 @@ public class PlayerServicePlaylistFilterTest {
         assertFalse(PlayerService.readsOnThisPhone(mock(Device.class)));
         assertFalse(PlayerService.readsOnThisPhone(null));
     }
+    // ---- review W1: the OpenHome renderer indexes the list of its player, so its queue is not filtered
+
+    private Player localPlayer;
+
+    private void localDevice() {
+        Device<?, ?, ?> local = mock(Device.class);
+        when(client.getDevice(UpnpClient.LOCAL_UID)).thenReturn((Device) local);
+        localPlayer = mock(Player.class);
+        doReturn(localPlayer).when(service).createPlayer(any(), any(), org.mockito.ArgumentMatchers.anyBoolean(),
+                org.mockito.ArgumentMatchers.anyBoolean(), org.mockito.ArgumentMatchers.anyBoolean());
+    }
+
+    @Test
+    public void aLocalQueueKeepsEveryEntryBecauseItsCallerKeepsOneIdPerEntry() {
+        localDevice();
+        PlayableItem a = item("audio/mpeg", "http://h/a.mp3");
+        PlayableItem list = item("audio/x-mpegurl", "http://h/x.m3u");
+        PlayableItem b = item("audio/mpeg", "http://h/b.mp3");
+
+        List<Player> players = service.createPlayerForLocalQueue(client, Arrays.asList(a, list, b));
+
+        assertEquals(Collections.singletonList(localPlayer), players);
+        verify(localPlayer).setItems(a, list, b);
+        verify(service, never()).notifyNothingPlayable(any());
+    }
+
+    @Test
+    public void aLocalQueueOfPlaylistFilesStillGetsItsPlayer() {
+        localDevice();
+        PlayableItem list = item("audio/x-mpegurl", "http://h/x.m3u");
+
+        List<Player> players = service.createPlayerForLocalQueue(client, Collections.singletonList(list));
+
+        assertEquals(1, players.size());
+        verify(localPlayer).setItems(list);
+    }
+
+    @Test
+    public void theSingleTrackOfTheTransportRendererIsStillFiltered() {
+        localDevice();
+        PlayableItem a = item("audio/mpeg", "a");
+        PlayableItem list = item("audio/x-mpegurl", "x");
+
+        assertEquals(1, service.createPlayerForLocalDevice(client, Arrays.asList(list, a)).size());
+        verify(localPlayer).setItems(a);
+
+        assertTrue(service.createPlayerForLocalDevice(client, Collections.singletonList(list)).isEmpty());
+        verify(service, times(1)).notifyNothingPlayable(client);
+    }
 }

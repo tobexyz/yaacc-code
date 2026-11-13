@@ -302,6 +302,7 @@
     <string name="player_track_skipped">\"%1$s\" kan niet worden afgespeeld en wordt overgeslagen</string>
     <string name="player_stopped_after_errors">Afspelen gestopt: meerdere nummers achter elkaar konden niet worden afgespeeld</string>
     <string name="player_nothing_playable">Niets om af te spelen: afspeellijstbestanden (.m3u, .pls, .asx) worden niet ondersteund</string>
+    <string name="player_track_number">Nummer %1$d</string>
     <string name="snapcast_play_delay_note">Snapcast speelt ongeveer een seconde na de weergave af (buffer van de server)</string>
     <string name="snapcast_feed_error_unreachable">De Snapcast-server is niet bereikbaar</string>
     <string name="snapcast_feed_error_refused">De Snapcast-server accepteerde geen stream van YAACC</string>

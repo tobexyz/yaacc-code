@@ -100,4 +100,30 @@ public class TrackToastTextTest {
     public void theLimitIsShortEnoughForAToast() {
         assertTrue(TrackToastText.MAX_CODE_POINTS <= 80);
     }
+    // ---- review S6: an address is never shown
+
+    @Test
+    public void anAddressAsTheTitleIsNotShown() {
+        assertEquals("?", TrackToastText.title("http://192.168.1.5:8080/media/a.mp3?token=secret"));
+        assertEquals("?", TrackToastText.title("HTTPS://host/x"));
+        assertEquals("?", TrackToastText.title("content://media/external/audio/media/42"));
+        assertEquals("?", TrackToastText.title("file:///sdcard/Music/a.mp3"));
+        assertEquals("?", TrackToastText.title("  rtsp://host/stream  "));
+    }
+
+    @Test
+    public void aTitleThatOnlyMentionsAnAddressWordIsKept() {
+        assertEquals("Live at http", TrackToastText.title("Live at http"));
+        assertEquals("Re: Mix", TrackToastText.title("Re: Mix"));
+        assertEquals("C:\\Music", TrackToastText.title("C:\\Music"));
+    }
+
+    @Test
+    public void looksLikeAnAddressIsFalseForNormalTitles() {
+        assertFalse(TrackToastText.looksLikeAddress(null));
+        assertFalse(TrackToastText.looksLikeAddress(""));
+        assertFalse(TrackToastText.looksLikeAddress("By The Way"));
+        assertTrue(TrackToastText.looksLikeAddress("http://x"));
+        assertTrue(TrackToastText.looksLikeAddress("a title with://inside"));
+    }
 }

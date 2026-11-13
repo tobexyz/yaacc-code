@@ -31,8 +31,10 @@ import java.util.Locale;
  * fails on them with {@code ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED}. They are matched by type (compared without case, a
  * {@code ;} parameter is ignored) and by the extension of the resource address or of the title. <b>HLS stays playable</b>:
  * the types {@code application/vnd.apple.mpegurl} and {@code application/x-mpegURL} and an address that ends in
- * {@code .m3u8} (query and fragment ignored) are never playlist files, even when a server announces such a stream with the
- * generic playlist type.
+ * {@code .m3u8} (query and fragment ignored), or a title that ends in {@code .m3u8}, are never playlist files, even when a
+ * server announces such a stream with the generic playlist type. The extension of the address decides; the title is only
+ * looked at when the address has no extension (a title such as "Dance. M3U" does not drop a track whose address ends in
+ * {@code .flac}).
  */
 public final class PlayableCheck {
 
@@ -54,12 +56,13 @@ public final class PlayableCheck {
     public static boolean isPlaylistFile(String mimeType, String resourceUrl, String title) {
         String type = normalizedType(mimeType);
         String urlExtension = extensionOfUrl(resourceUrl);
-        if (matches(type, HLS_TYPES) || HLS_EXTENSION.equals(urlExtension)) {
+        String titleExtension = extensionOfName(title);
+        if (matches(type, HLS_TYPES) || HLS_EXTENSION.equals(urlExtension) || HLS_EXTENSION.equals(titleExtension)) {
             return false;
         }
-        return matches(type, PLAYLIST_TYPES)
-                || matches(urlExtension, PLAYLIST_EXTENSIONS)
-                || matches(extensionOfName(title), PLAYLIST_EXTENSIONS);
+        // the address is the better witness; the title (a name a person chose) only decides when the address has no extension
+        String extension = urlExtension.isEmpty() ? titleExtension : urlExtension;
+        return matches(type, PLAYLIST_TYPES) || matches(extension, PLAYLIST_EXTENSIONS);
     }
 
     /** As {@link #isPlaylistFile(String, String, String)} for an item of a queue. */

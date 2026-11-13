@@ -22,7 +22,12 @@ package de.yaacc.player;
  * What a player does when ExoPlayer can not read a track (11.12): skip it, or stop. Pure; the player code only applies the
  * answer. A track that can not be read is skipped, the next item starts; a failing last item stops the player; the third
  * failure in a row stops it too (a dead server or a whole album of unreadable files must not turn into a loop of toasts); a
- * track that starts successfully resets the count. The methods are synchronized: ExoPlayer's listener (main thread) and the command thread of the player both call them.
+ * track that starts successfully resets the count.
+ *
+ * <p><b>Known limit:</b> a track that reaches {@code READY} and then fails right away resets the count each time, so with repeat
+ * (all, or shuffle with repeat) a list of such tracks can cycle, with a toast for every track, until the user stops it. It
+ * needs every track to start and then fail (a dead server or an unsupported container fails before {@code READY} and ends
+ * after three). A cheap bound, if it is ever wanted: reset only after some playback progress, or a hard cap of skips per run. The methods are synchronized: ExoPlayer's listener (main thread) and the command thread of the player both call them.
  */
 final class TrackFailurePolicy {
 

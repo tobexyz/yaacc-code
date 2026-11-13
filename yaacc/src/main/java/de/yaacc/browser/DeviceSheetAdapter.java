@@ -236,10 +236,6 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
     }
 
     /**
-     * Whether a row of the grouper is listed: the receivers always; the player sessions below them in the sheet only (not in the
-     * picker, and not on the page, which has a Players section).
-     */
-    /**
      * Whether the picker lists a receiver for this content: a Snapcast group plays music only, so it is not offered for images
      * and videos. Every other receiver is always offered.
      */
@@ -247,6 +243,10 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
         return !(device instanceof SnapcastGroupDevice) || content == null || content.offersAudioOnlyReceivers();
     }
 
+    /**
+     * Whether a row of the grouper is listed: the receivers always; the player sessions below them in the sheet only (not in the
+     * picker, and not on the page, which has a Players section).
+     */
     static boolean listsRow(Row.Kind kind, boolean pickMode, boolean showSessions) {
         return kind == Row.Kind.RECEIVER || (!pickMode && showSessions);
     }

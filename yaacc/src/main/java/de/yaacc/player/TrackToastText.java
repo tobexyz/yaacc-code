@@ -24,7 +24,8 @@ import de.yaacc.share.DisplayName;
  * The title of a track as a toast shows it. The title is text supplied by a server: it is cleaned with the one cleaner of the
  * app ({@link DisplayName#clean}: line breaks and tabs become a space, control, bidi and invisible characters are dropped) and
  * cut at {@link #MAX_CODE_POINTS} code points (a surrogate pair is never split) with an ellipsis. Never empty: a title with
- * nothing visible shows as a question mark. Pure.
+ * nothing visible, or one that is an address (the app uses the address as the title when a controller sent no metadata), shows as
+ * a question mark; the caller may put the position of the track in its place. Pure.
  */
 final class TrackToastText {
 
@@ -37,9 +38,15 @@ final class TrackToastText {
     private TrackToastText() {
     }
 
+    /** True for text that is an address (a scheme, {@code ://}, or {@code content:} / {@code file:}), which a toast must never show. */
+    static boolean looksLikeAddress(String raw) {
+        String cleaned = DisplayName.clean(raw).toLowerCase(java.util.Locale.ROOT);
+        return cleaned.contains("://") || cleaned.startsWith("content:") || cleaned.startsWith("file:");
+    }
+
     static String title(String raw) {
         String cleaned = DisplayName.clean(raw);
-        if (cleaned.isEmpty()) {
+        if (cleaned.isEmpty() || looksLikeAddress(cleaned)) {
             return UNKNOWN;
         }
         if (cleaned.codePointCount(0, cleaned.length()) <= MAX_CODE_POINTS) {
