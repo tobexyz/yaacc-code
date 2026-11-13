@@ -262,31 +262,4 @@ public class SnapcastLinkChoicesTest {
         assertEquals(Arrays.asList("b", "a"), change.getRemoved());
         assertTrue(change.getAdded().isEmpty());
     }
-
-    @Test
-    public void aSelectionKeepsAMemberOnlyWhenSomeoneStaysChecked() {
-        List<SnapcastLinkChoices.Choice> list = choices("g1");
-
-        assertTrue(SnapcastLinkChoices.keepsAMember(list, Arrays.asList("a")));
-        assertTrue("another group's client moved in counts", SnapcastLinkChoices.keepsAMember(list, Arrays.asList("c")));
-        assertFalse(SnapcastLinkChoices.keepsAMember(list, Collections.<String>emptyList()));
-        assertFalse(SnapcastLinkChoices.keepsAMember(list, null));
-        assertFalse("an id that was not listed does not count", SnapcastLinkChoices.keepsAMember(list, Arrays.asList("zzz")));
-    }
-
-    @Test
-    public void aDisabledMemberCountsAsKeptEvenWhenNotInTheSelection() {
-        assertTrue(SnapcastLinkChoices.keepsAMember(choices("g3"), Collections.<String>emptyList()));
-    }
-
-    @Test
-    public void thereIsNothingToLinkWhenTheGroupIsTheOnlyOneWithTheOnlyClient() {
-        SnapcastServerStatus single = status(Collections.singletonList(OFFICE));
-
-        List<SnapcastLinkChoices.Choice> list = SnapcastLinkChoices.of(single, "g3", WORDS);
-
-        assertFalse(SnapcastLinkChoices.hasAnythingToChange(list));
-        assertTrue(SnapcastLinkChoices.hasAnythingToChange(choices("g1")));
-        assertFalse(SnapcastLinkChoices.hasAnythingToChange(Collections.<SnapcastLinkChoices.Choice>emptyList()));
-    }
 }

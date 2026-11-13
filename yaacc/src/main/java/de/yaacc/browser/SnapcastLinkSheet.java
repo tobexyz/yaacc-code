@@ -48,6 +48,8 @@ final class SnapcastLinkSheet {
 
     /** A group keeps at least one client: OK needs one check. */
     private static final int MINIMUM_CHECKED = 1;
+    // the server's endpoint and the group's name, each up to 64 characters and each may wrap once: both are read in full
+    private static final int SUBTITLE_LINES = 4;
 
     private SnapcastLinkSheet() {
     }
@@ -80,6 +82,6 @@ final class SnapcastLinkSheet {
             SnapcastLinkChoices.Change change = SnapcastLinkChoices.changeOf(choices, selection);
             controls.changeMembers(serverKey, groupId, change);
         }, new YxcLinkSheet.Options(R.string.yxc_action_edit_group, R.string.snapcast_link_keep_one,
-                R.string.snapcast_link_none, MINIMUM_CHECKED));
+                R.string.snapcast_link_none, MINIMUM_CHECKED, SUBTITLE_LINES));
     }
 }

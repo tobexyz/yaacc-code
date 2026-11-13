@@ -59,11 +59,25 @@ public class SnapcastKeyFocusTest {
     }
 
     @Test
-    public void aFocusOnARowThatIsNotASnapcastRowFallsBackToTheTouchedOne() {
+    public void aFocusOnAnotherKindOfRowTakesTheKeysAwayFromTheTouchedGroup() {
+        // review S2: the user moved the D-pad to a MusicCast row; the Snapcast row touched earlier is not the target any more
         SnapcastKeyFocus focus = new SnapcastKeyFocus();
         focus.touched("snapcast:a");
 
-        assertEquals("snapcast:a", focus.target(Collections.singletonList("snapcast:a"), "uuid:some-renderer"));
+        assertNull(focus.target(Collections.singletonList("snapcast:a"), "uuid:some-renderer"));
+        assertNull("and it stays forgotten when the focus goes away again",
+                focus.target(Collections.singletonList("snapcast:a"), null));
+    }
+
+    @Test
+    public void touchingTheGroupAgainMakesItTheTargetAgain() {
+        SnapcastKeyFocus focus = new SnapcastKeyFocus();
+        focus.touched("snapcast:a");
+        focus.target(Collections.singletonList("snapcast:a"), "uuid:some-renderer");
+
+        focus.touched("snapcast:a");
+
+        assertEquals("snapcast:a", focus.target(Collections.singletonList("snapcast:a"), null));
     }
 
     @Test

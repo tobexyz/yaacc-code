@@ -50,12 +50,17 @@ public final class SnapcastKeyFocus {
 
     /**
      * @param visibleIds the receiver ids of the Snapcast rows that are on screen
-     * @param focusedId  the receiver id of the row that has the input focus, or null
+     * @param focusedId  the receiver id of the row that has the input focus (a row of any kind), or null. The focus on a row that
+     *                   is no Snapcast group takes the keys away from the group touched earlier: the user moved on
      * @return the receiver id the keys go to, or null
      */
     public String target(Collection<String> visibleIds, String focusedId) {
-        if (focusedId != null && visibleIds.contains(focusedId)) {
-            return focusedId;
+        if (focusedId != null) {
+            if (visibleIds.contains(focusedId)) {
+                return focusedId;
+            }
+            forget();
+            return null;
         }
         synchronized (lock) {
             return touchedId != null && visibleIds.contains(touchedId) ? touchedId : null;

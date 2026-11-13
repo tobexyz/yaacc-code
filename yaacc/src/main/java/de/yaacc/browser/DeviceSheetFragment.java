@@ -248,10 +248,15 @@ public class DeviceSheetFragment extends BottomSheetDialogFragment {
         super.onViewCreated(view, savedInstanceState);
         upnpClient = ((Yaacc) requireContext().getApplicationContext()).getUpnpClient();
         if (getDialog() != null) {
-            // the sheet is a window of its own: the volume keys do not reach the activity (11.4)
+            // the sheet is a window of its own: the volume keys do not reach the activity (11.4). It lies above the page, so
+            // only its own host is asked, never the page behind it; the receiver picker is modal and has no controls: the
+            // keys are the system's there
             getDialog().setOnKeyListener((dialog, keyCode, event) -> {
+                if (isPickMode()) {
+                    return false;
+                }
                 if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                    return VolumeKeyHosts.onKeyDown(keyCode);
+                    return VolumeKeyHosts.onKeyDown(keyCode, true);
                 }
                 return event.getAction() == KeyEvent.ACTION_UP && VolumeKeyHosts.onKeyUp(keyCode);
             });

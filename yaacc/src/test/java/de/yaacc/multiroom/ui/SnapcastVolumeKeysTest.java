@@ -347,6 +347,73 @@ public class SnapcastVolumeKeysTest {
         assertEquals(java.util.Arrays.asList("mute:g1:false", "volume:g1:45"), calls);
     }
 
+    // ---- review S9: a change made with the slider or the mute symbol is where the next key starts
+
+    @Test
+    public void aKeyAfterASliderChangeStartsFromTheSlidersValueNotFromTheLastKey() {
+        givenGroup(40, false);
+        keys.press(ID, SnapcastVolumeKeys.Direction.UP); // asks for 45
+        now.addAndGet(300);
+        keys.volumeChanged(ID, 80); // the user dragged the slider; the model has not caught up
+
+        keys.press(ID, SnapcastVolumeKeys.Direction.UP);
+
+        assertEquals("volume:g1:85", calls.get(1));
+    }
+
+    @Test
+    public void theSlidersValueIsTheStartEvenWhenNoKeyWasPressedBefore() {
+        givenGroup(40, false);
+
+        keys.volumeChanged(ID, 10);
+        keys.press(ID, SnapcastVolumeKeys.Direction.DOWN);
+
+        assertEquals(java.util.Arrays.asList("volume:g1:5"), calls);
+    }
+
+    @Test
+    public void aSliderChangeKeepsTheMuteStateOfTheGroup() {
+        givenGroup(40, true);
+
+        keys.volumeChanged(ID, 10);
+        SnapcastVolumeKeys.Result down = keys.press(ID, SnapcastVolumeKeys.Direction.DOWN);
+
+        assertTrue(down.isHandled());
+        assertTrue("still muted: down changes nothing", calls.isEmpty());
+    }
+
+    @Test
+    public void aMuteChangeIsWhereTheNextKeyStartsAndKeepsTheVolume() {
+        givenGroup(40, false);
+        keys.press(ID, SnapcastVolumeKeys.Direction.UP); // 45
+        now.addAndGet(100);
+
+        keys.muteChanged(ID, true); // the user muted with the symbol; the model has not caught up
+        SnapcastVolumeKeys.Result up = keys.press(ID, SnapcastVolumeKeys.Direction.UP);
+
+        assertTrue("the key unmutes what the user just muted", up.isUnmuted());
+        assertEquals(java.util.Arrays.asList("volume:g1:45", "mute:g1:false", "volume:g1:50"), calls);
+    }
+
+    @Test
+    public void aMuteChangeBeforeAnyKeyStartsFromTheModelsVolume() {
+        givenGroup(40, false);
+
+        keys.muteChanged(ID, true);
+        keys.press(ID, SnapcastVolumeKeys.Direction.UP);
+
+        assertEquals(java.util.Arrays.asList("mute:g1:false", "volume:g1:45"), calls);
+    }
+
+    @Test
+    public void aChangeOfAnUnknownGroupIsIgnored() {
+        keys.volumeChanged(ID, 10);
+        keys.muteChanged(ID, true);
+        keys.volumeChanged(null, 10);
+
+        assertTrue(calls.isEmpty());
+    }
+
     @Test
     public void aHeldKeyAtTheTopStaysAtTheTopWithoutFurtherCalls() {
         givenGroup(95, false);

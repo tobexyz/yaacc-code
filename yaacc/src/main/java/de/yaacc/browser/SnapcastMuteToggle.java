@@ -21,6 +21,7 @@ package de.yaacc.browser;
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.widget.CheckBox;
+import android.widget.LinearLayout;
 
 import androidx.core.view.ViewCompat;
 
@@ -39,7 +40,9 @@ final class SnapcastMuteToggle {
 
     /** A new toggle; {@code description} names what it mutes (cleaned display text). */
     static CheckBox create(Context context, String description) {
-        CheckBox box = (CheckBox) LayoutInflater.from(context).inflate(R.layout.snapcast_mute_toggle, null, false);
+        // a parent of the kind the toggle is added to (a LinearLayout) gives it the right layout parameters; it is not attached
+        LinearLayout parent = new LinearLayout(context);
+        CheckBox box = (CheckBox) LayoutInflater.from(context).inflate(R.layout.snapcast_mute_toggle, parent, false);
         describe(context, box, description);
         return box;
     }

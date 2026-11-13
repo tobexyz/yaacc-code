@@ -61,6 +61,10 @@ final class VolumeKeyHosts {
         synchronized (HOSTS) {
             HOSTS.remove(host);
         }
+        // a key that this host took may never get its up (window lost, host stopped): do not let it swallow a later one
+        synchronized (TAKEN_DOWN) {
+            TAKEN_DOWN.clear();
+        }
     }
 
     private static SnapcastVolumeKeys.Direction directionOf(int keyCode) {
@@ -75,15 +79,28 @@ final class VolumeKeyHosts {
 
     /** @return true when a Snapcast group took the key; false leaves it to the system */
     static boolean onKeyDown(int keyCode) {
+        return onKeyDown(keyCode, false);
+    }
+
+    /**
+     * @param topHostOnly true for a window that lies above the page (the device sheet): only the host that started last is
+     *                    asked, the page behind the sheet does not get the key
+     * @return true when a Snapcast group took the key; false leaves it to the system
+     */
+    static boolean onKeyDown(int keyCode, boolean topHostOnly) {
         SnapcastVolumeKeys.Direction direction = directionOf(keyCode);
         if (direction == null) {
             return false;
+        }
+        synchronized (TAKEN_DOWN) {
+            TAKEN_DOWN.remove(keyCode); // an earlier down of this key that was taken and never got its up is forgotten
         }
         List<Host> asked;
         synchronized (HOSTS) {
             asked = new ArrayList<>(HOSTS);
         }
-        for (int i = asked.size() - 1; i >= 0; i--) {
+        int last = topHostOnly ? Math.max(0, asked.size() - 1) : 0;
+        for (int i = asked.size() - 1; i >= last; i--) {
             try {
                 if (asked.get(i).onVolumeKey(direction)) {
                     synchronized (TAKEN_DOWN) {

@@ -30,19 +30,17 @@ import de.yaacc.multiroom.control.SnapcastClient;
 import de.yaacc.multiroom.control.SnapcastDisplayText;
 import de.yaacc.multiroom.control.SnapcastGroup;
 import de.yaacc.multiroom.control.SnapcastLimits;
-import de.yaacc.multiroom.control.SnapcastServerStatus;
 
 /**
- * The clients that can be added to a group, and the member lists that the calls need. Pure.
+ * The clients of a server as rows with the group they are in, and the member list that the link sheet's change needs. Pure.
  *
  * <p><b>The rule of {@code Group.SetClients}.</b> The call takes the <i>full</i> list of members the group should have.
  * Clients of the group that are not in the list leave it, and each of them gets a group of its own; clients in the list
- * are moved in from their groups (a group that loses its last client disappears). So "add client" is the current members
- * plus the chosen ones ({@link #wantedWith}), "remove from group" is the current members minus one
- * ({@link #wantedWithout}), and the last member can not be removed (an empty list would dissolve the group; the library
- * refuses it).
+ * are moved in from their groups (a group that loses its last client disappears). So a change is the current members minus the
+ * removed ones plus the added ones ({@link #wantedAfter}), and the last member can not be removed (an empty list would dissolve
+ * the group; the library refuses it).
  *
- * <p>Only clients of the <b>same server</b> are candidates: a status is one server's.
+ * <p>Only clients of the <b>same server</b> are listed: a status is one server's.
  */
 public final class SnapcastClientCandidates {
 
@@ -103,30 +101,6 @@ public final class SnapcastClientCandidates {
     }
 
     /**
-     * @param status  the server's status; null gives an empty list
-     * @param groupId the group that gets the clients
-     * @return the clients of the other groups, by name and then id; empty when the group is not in the status
-     */
-    public static List<Candidate> addable(SnapcastServerStatus status, String groupId, Words words) {
-        List<Candidate> none = Collections.emptyList();
-        if (status == null || status.findGroup(groupId) == null) {
-            return none;
-        }
-        final List<SnapcastClient> clients = new ArrayList<>();
-        final List<SnapcastGroup> owners = new ArrayList<>();
-        for (SnapcastGroup other : status.getGroups()) {
-            if (other.getId().equals(groupId)) {
-                continue;
-            }
-            for (SnapcastClient client : other.getClients()) {
-                clients.add(client);
-                owners.add(other);
-            }
-        }
-        return candidatesOf(clients, owners, words);
-    }
-
-    /**
      * The clients as candidates: ordered by cleaned name (then by id), names made unique within the list, each with the
      * group it is in now. {@code clients} and {@code owners} are parallel lists.
      */
@@ -178,27 +152,6 @@ public final class SnapcastClientCandidates {
     }
 
     /**
-     * The full member list for {@code Group.SetClients} when {@code addedIds} join the group: the current members in
-     * their order, then the new ones. Empty and duplicate ids are skipped.
-     *
-     * @return the list, or null when it would be longer than {@link SnapcastLimits#MAX_CLIENTS_PER_GROUP}
-     */
-    public static List<String> wantedWith(SnapcastGroup group, java.util.Collection<String> addedIds) {
-        Set<String> wanted = new LinkedHashSet<>();
-        for (SnapcastClient member : group.getClients()) {
-            wanted.add(member.getId());
-        }
-        if (addedIds != null) {
-            for (String id : addedIds) {
-                if (id != null && !id.isEmpty()) {
-                    wanted.add(id);
-                }
-            }
-        }
-        return wanted.size() > SnapcastLimits.MAX_CLIENTS_PER_GROUP ? null : new ArrayList<>(wanted);
-    }
-
-    /**
      * The full member list for {@code Group.SetClients} after one change that adds and removes members at once (the link
      * sheet): the current members in their order without the removed ones, then the added ones. An id that is no member
      * (it left meanwhile) is not removed, one that is a member already is not added again, empty ids are skipped. A client
@@ -232,23 +185,5 @@ public final class SnapcastClientCandidates {
             return null;
         }
         return new ArrayList<>(wanted);
-    }
-
-    /**
-     * The full member list for {@code Group.SetClients} when one member leaves: the other members in their order.
-     *
-     * @return the list, or null when {@code clientId} is no member, or is the last one
-     */
-    public static List<String> wantedWithout(SnapcastGroup group, String clientId) {
-        if (clientId == null || clientId.isEmpty() || group.findClient(clientId) == null || group.getClients().size() < 2) {
-            return null;
-        }
-        List<String> wanted = new ArrayList<>();
-        for (SnapcastClient member : group.getClients()) {
-            if (!member.getId().equals(clientId)) {
-                wanted.add(member.getId());
-            }
-        }
-        return wanted;
     }
 }

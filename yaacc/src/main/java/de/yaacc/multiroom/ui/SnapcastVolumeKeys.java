@@ -163,6 +163,46 @@ public final class SnapcastVolumeKeys {
     }
 
     /**
+     * The user set the group volume with the slider (card or sheet): the next key starts from that value, not from the value
+     * of an earlier key press or from a model that has not caught up. The mute state is the group's as the model shows it.
+     */
+    public void volumeChanged(String receiverId, int percent) {
+        SnapcastRowText.Row row = rowFor(receiverId);
+        if (row == null) {
+            return;
+        }
+        synchronized (lock) {
+            pendingId = receiverId;
+            pendingVolume = Math.max(0, Math.min(100, percent));
+            pendingMuted = row.isMuted();
+            pendingAt = clock.nowMillis();
+        }
+    }
+
+    /**
+     * The user muted or unmuted the group with the symbol: the next key starts from that state; the volume is the one a key
+     * press asked for a moment ago, else the model's.
+     */
+    public void muteChanged(String receiverId, boolean muted) {
+        SnapcastRowText.Row row = rowFor(receiverId);
+        if (row == null) {
+            return;
+        }
+        synchronized (lock) {
+            long now = clock.nowMillis();
+            boolean pending = receiverId.equals(pendingId) && now - pendingAt <= PENDING_MILLIS && now >= pendingAt;
+            pendingVolume = pending ? pendingVolume : row.getVolume();
+            pendingId = receiverId;
+            pendingMuted = muted;
+            pendingAt = now;
+        }
+    }
+
+    private SnapcastRowText.Row rowFor(String receiverId) {
+        return receiverId == null || SnapcastGroupDevice.parseId(receiverId) == null ? null : model.rowOf(receiverId);
+    }
+
+    /**
      * A key press on the group of {@code receiverId} (the id of its receiver row).
      *
      * @return what happened; not handled when the group can not be controlled

@@ -203,25 +203,4 @@ public final class SnapcastLinkChoices {
         }
         return new Change(added, removed);
     }
-
-    /** True when somebody is left in the group after the selection (a group without clients can not exist). */
-    public static boolean keepsAMember(List<Choice> shown, Collection<String> checked) {
-        Set<String> checkedIds = checked == null ? Collections.<String>emptySet() : new HashSet<>(checked);
-        for (Choice choice : shown) {
-            if (checkedIds.contains(choice.getClientId()) || (choice.isMember() && !choice.isEnabled())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** True when at least one row can be changed; otherwise the sheet says there is nothing to link. */
-    public static boolean hasAnythingToChange(List<Choice> shown) {
-        for (Choice choice : shown) {
-            if (choice.isEnabled()) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

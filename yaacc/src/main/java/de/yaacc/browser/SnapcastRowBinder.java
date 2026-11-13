@@ -142,6 +142,7 @@ final class SnapcastRowBinder {
                 if (!fromUser) {
                     return;
                 }
+                SnapcastUi.volumeKeys(context).volumeChanged(id, progress); // the next key starts here
                 rows.refreshPlan().userChanged(id, SystemClock.elapsedRealtime());
                 views.volumeText.setText(progress + "%");
                 SnapcastGroupDevice.Id parsed = SnapcastGroupDevice.parseId(id);
@@ -161,6 +162,7 @@ final class SnapcastRowBinder {
         views.mute.setOnClickListener(v -> {
             keyFocus.touched(id);
             SnapcastMuteToggle.syncState(context, views.mute);
+            SnapcastUi.volumeKeys(context).muteChanged(id, views.mute.isChecked());
             rows.refreshPlan().userChanged(id, SystemClock.elapsedRealtime());
             SnapcastGroupDevice.Id parsed = SnapcastGroupDevice.parseId(id);
             if (parsed != null) {
@@ -198,12 +200,13 @@ final class SnapcastRowBinder {
         Map<String, ReceiverRowBinder.RowViews> groups = new LinkedHashMap<>();
         String focused = null;
         for (Map.Entry<Device<?, ?, ?>, ReceiverRowBinder.RowViews> row : visible.entrySet()) {
+            String id = row.getKey().getIdentity().getUdn().getIdentifierString();
             if (row.getKey() instanceof SnapcastGroupDevice) {
-                String id = idOf((SnapcastGroupDevice) row.getKey());
                 groups.put(id, row.getValue());
-                if (row.getValue().root != null && row.getValue().root.hasFocus()) {
-                    focused = id;
-                }
+            }
+            // the focus on a row of another kind (a MusicCast row) is reported too: the keys are not the touched group's then
+            if (row.getValue().root != null && row.getValue().root.hasFocus()) {
+                focused = id;
             }
         }
         String target = keyFocus.target(new ArrayList<>(groups.keySet()), focused);

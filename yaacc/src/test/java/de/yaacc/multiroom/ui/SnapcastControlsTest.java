@@ -420,43 +420,6 @@ public class SnapcastControlsTest {
         assertEquals("", caller.last("Client.SetName").optString("name", "missing"));
     }
 
-    // ---- members of a group
-
-    @Test
-    public void addingAClientSendsTheFullWantedList() {
-        controls.addClients(KEY, GROUP, Arrays.asList("d"));
-        actions.runAll();
-
-        assertEquals("[\"a\",\"b\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
-        assertEquals(GROUP, caller.last("Group.SetClients").optString("id"));
-    }
-
-    @Test
-    public void removingAClientSendsTheOtherMembers() {
-        controls.removeClient(KEY, GROUP, "b");
-        actions.runAll();
-
-        assertEquals("[\"a\",\"c\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
-    }
-
-    @Test
-    public void theLastMemberIsNotRemovedAndTheUserIsTold() {
-        controls.removeClient(KEY, "g2", "d");
-        actions.runAll();
-
-        assertEquals(0, caller.count("Group.SetClients"));
-        assertEquals(SnapcastControls.Failure.Kind.NOT_POSSIBLE, failures.get(0).getKind());
-    }
-
-    @Test
-    public void anUnknownMemberIsNotRemoved() {
-        controls.removeClient(KEY, GROUP, "zzz");
-        actions.runAll();
-
-        assertEquals(0, caller.count("Group.SetClients"));
-        assertEquals(SnapcastControls.Failure.Kind.NOT_POSSIBLE, failures.get(0).getKind());
-    }
-
     // ---- 11.3: the link sheet changes the members in one call
 
     private static SnapcastLinkChoices.Change change(List<String> added, List<String> removed) {
@@ -703,10 +666,10 @@ public class SnapcastControlsTest {
     // ---- a fresh status before a change of the members (security review S42)
 
     @Test
-    public void addingAClientUsesTheMembersTheServerHasNowNotTheCachedOnes() {
+    public void linkingAClientUsesTheMembersTheServerHasNowNotTheCachedOnes() {
         caller.serverMembers = new String[]{"a", "b", "c", "e"}; // another controller added "e" behind the model
 
-        controls.addClients(KEY, GROUP, Arrays.asList("d"));
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Collections.<String>emptyList()));
         actions.runAll();
 
         assertEquals(1, caller.count("Server.GetStatus"));
@@ -714,20 +677,20 @@ public class SnapcastControlsTest {
     }
 
     @Test
-    public void removingAClientUsesTheMembersTheServerHasNow() {
+    public void unlinkingAClientUsesTheMembersTheServerHasNow() {
         caller.serverMembers = new String[]{"a", "b", "c", "e"};
 
-        controls.removeClient(KEY, GROUP, "b");
+        controls.changeMembers(KEY, GROUP, change(Collections.<String>emptyList(), Arrays.asList("b")));
         actions.runAll();
 
         assertEquals("[\"a\",\"c\",\"e\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
     }
 
     @Test
-    public void aStaleRemovalOfSomeoneWhoLeftIsStillRefused() {
+    public void aRemovalOfEveryoneWhoIsLeftIsStillRefused() {
         caller.serverMembers = new String[]{"a", "c"}; // "b" left the group meanwhile
 
-        controls.removeClient(KEY, GROUP, "b");
+        controls.changeMembers(KEY, GROUP, change(Collections.<String>emptyList(), Arrays.asList("a", "b", "c")));
         actions.runAll();
 
         assertEquals(0, caller.count("Group.SetClients"));
@@ -737,7 +700,7 @@ public class SnapcastControlsTest {
     @Test
     public void whenTheRateLimitRefusesTheReadTheCachedModelIsUsed() {
         caller.serverMembers = new String[]{"a", "b", "c", "e"};
-        controls.addClients(KEY, GROUP, Arrays.asList("d")); // takes the one read that the limit allows in this second
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Collections.<String>emptyList())); // takes the one read that the limit allows in this second
         actions.runAll();
         caller.methods.clear();
         caller.params.clear();
@@ -745,7 +708,7 @@ public class SnapcastControlsTest {
                 group(GROUP, "Living", "Default", client("a", "Kitchen", true, 40, false), client("b", "Hall", true, 60, true)),
                 group("g2", "Other", "Default", client("d", "Desk", true, 10, false))), stream("Default", "idle")));
 
-        controls.addClients(KEY, GROUP, Arrays.asList("d"));
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Collections.<String>emptyList()));
         actions.runAll();
 
         assertEquals("no second read inside the limit", 0, caller.count("Server.GetStatus"));
@@ -757,7 +720,7 @@ public class SnapcastControlsTest {
         caller.failure = new SnapcastException(SnapcastException.Kind.TIMEOUT, 0, "slow", null, null);
         caller.failOnly = "Server.GetStatus";
 
-        controls.removeClient(KEY, GROUP, "b");
+        controls.changeMembers(KEY, GROUP, change(Collections.<String>emptyList(), Arrays.asList("b")));
         actions.runAll();
 
         assertEquals(1, caller.count("Server.GetStatus"));
@@ -768,7 +731,7 @@ public class SnapcastControlsTest {
     @Test
     public void anAnswerThatIsNoStatusFallsBackToTheCachedModel() {
         // the recording caller answers an empty object when no members are set: the library reports it as malformed
-        controls.addClients(KEY, GROUP, Arrays.asList("d"));
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Collections.<String>emptyList()));
         actions.runAll();
 
         assertEquals("[\"a\",\"b\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());

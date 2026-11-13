@@ -194,6 +194,10 @@ Source: the owner's test of the Phase B spike (the tone is continuous with the d
 - [x] 11B.3 hardware volume keys to the focused Snapcast group (11.4)
 - [x] 11B.4 cleanup of Group 11A: S30 (`trackFailedAt` safe against a list that changes), S33/S10 (destroyed guard of the stop retry), S7 (three more address cases in `TrackToastTextTest`), S9 (Javadoc paragraph of `TrackFailurePolicy`)
 
+## Fix Group 11Bb: general review cycle 1 of Group 11B (W1, S1 to S9), done 2026-11-13
+- [x] F11B.1 (W1) volume keys in `BrowserActivity` (default layout) and `VolumeKeyRoutingGuardTest`
+- [x] F11B.2 suggestions S1 to S4, S6 to S9 taken; S5 left for the owner's device (`decisions.md` 2026-11-13 Fix Group 11Bb)
+
 ## Fix Group 11Ab: general review cycle 1 of Group 11A (W1, W2, S1 to S6), started 2026-11-13
 - [x] F11.1 (W1) the OpenHome renderer's queue is not filtered (`createPlayerForLocalQueue`, guards of `setItems`/`insertItems` removed); `OpenHomeRendererPlaylistFileTest`
 - [x] F11.2 (W2) `stopWhenFree` and `stopOutstanding` shared in `LocalMediaSessionPlayer`; the toast only when the stop went through

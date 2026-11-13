@@ -19,7 +19,6 @@
 package de.yaacc.multiroom.ui;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -299,36 +298,6 @@ public final class SnapcastControls {
     }
 
     // ---- members of a group
-
-    /** Adds clients of the same server to a group; they leave their groups. The call carries the full wanted list. */
-    public void addClients(final SnapcastServerKey key, final String groupId, final Collection<String> clientIds) {
-        final List<String> added = clientIds == null ? new ArrayList<String>() : new ArrayList<>(clientIds);
-        submit(actions, Action.GROUP_CLIENTS, () -> {
-            Linked linked = linked(key);
-            SnapcastGroup group = freshGroup(linked, groupId);
-            List<String> wanted = SnapcastClientCandidates.wantedWith(group, added);
-            if (wanted == null) {
-                throw new NotPossible();
-            }
-            linked.operations.setGroupClients(groupId, wanted);
-        });
-    }
-
-    /**
-     * Takes a client out of a group; it gets a group of its own. The last member can not leave (an empty list would
-     * dissolve the group): the user is told.
-     */
-    public void removeClient(final SnapcastServerKey key, final String groupId, final String clientId) {
-        submit(actions, Action.GROUP_CLIENTS, () -> {
-            Linked linked = linked(key);
-            SnapcastGroup group = freshGroup(linked, groupId);
-            List<String> wanted = SnapcastClientCandidates.wantedWithout(group, clientId);
-            if (wanted == null) {
-                throw new NotPossible();
-            }
-            linked.operations.setGroupClients(groupId, wanted);
-        });
-    }
 
     /**
      * The change the link sheet made: some clients join the group, some members leave it, in one {@code Group.SetClients}

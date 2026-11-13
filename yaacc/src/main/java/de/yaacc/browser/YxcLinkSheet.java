@@ -75,16 +75,19 @@ final class YxcLinkSheet {
         final int hintRes;
         final int noneHintRes;
         final int minimumChecked;
+        final int subtitleMaxLines;
 
         /**
          * @param hintRes        shown under the title while something can be changed; 0 for none
          * @param minimumChecked OK is enabled only while at least this many rows are checked (disabled rows count)
+         * @param subtitleMaxLines how many lines the subtitle may take (the layout allows two)
          */
-        Options(int titleRes, int hintRes, int noneHintRes, int minimumChecked) {
+        Options(int titleRes, int hintRes, int noneHintRes, int minimumChecked, int subtitleMaxLines) {
             this.titleRes = titleRes;
             this.hintRes = hintRes;
             this.noneHintRes = noneHintRes;
             this.minimumChecked = minimumChecked;
+            this.subtitleMaxLines = subtitleMaxLines;
         }
     }
 
@@ -103,6 +106,9 @@ final class YxcLinkSheet {
         if (serverName != null) {
             subtitle.setText(serverName);
             subtitle.setVisibility(View.VISIBLE);
+            if (options != null) {
+                subtitle.setMaxLines(options.subtitleMaxLines);
+            }
         }
         List<Boolean> checked = new ArrayList<>();
         boolean anyEnabled = false;

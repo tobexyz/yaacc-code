@@ -59,6 +59,22 @@ public class SnapcastCardResourcesTest {
     }
 
     @Test
+    public void theToggleIsInflatedWithAParentSoLintStaysAtItsBaseline() throws Exception {
+        String toggle = read("src/main/java/de/yaacc/browser/SnapcastMuteToggle.java");
+
+        assertFalse("review S4: no null root for inflate", toggle.contains(", null, false)"));
+        assertTrue(toggle.contains("inflate(R.layout.snapcast_mute_toggle, parent, false)"));
+    }
+
+    @Test
+    public void theLinkSheetShowsTheServerAndTheGroupNameInFull() throws Exception {
+        String sheet = read("src/main/java/de/yaacc/browser/YxcLinkSheet.java");
+
+        assertTrue("review S6: the subtitle of a Snapcast sheet has room for two long lines of two",
+                sheet.contains("subtitle.setMaxLines(options.subtitleMaxLines)"));
+    }
+
+    @Test
     public void theSheetHasNoSwitchAndNoPlainCheckBoxForTheMute() throws Exception {
         String sheet = read("src/main/java/de/yaacc/browser/SnapcastGroupSheet.java");
 

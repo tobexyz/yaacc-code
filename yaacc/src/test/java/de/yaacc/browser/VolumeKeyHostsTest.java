@@ -137,6 +137,66 @@ public class VolumeKeyHostsTest {
         assertTrue(log.isEmpty());
     }
 
+    // ---- review S1: a stale entry must not swallow the up of a key the system had
+
+    @Test
+    public void anEntryThatNeverGotItsUpDoesNotSwallowTheUpOfALaterKeyTheSystemHad() {
+        VolumeKeyHosts.Host tab = host("tab", true);
+        assertTrue(VolumeKeyHosts.onKeyDown(KeyEvent.KEYCODE_VOLUME_UP)); // its up never comes (window lost)
+        VolumeKeyHosts.unregister(tab);
+        registered.clear();
+        host("tab", false);
+
+        assertFalse("the next down is the system's", VolumeKeyHosts.onKeyDown(KeyEvent.KEYCODE_VOLUME_UP));
+
+        assertFalse("and so is its up", VolumeKeyHosts.onKeyUp(KeyEvent.KEYCODE_VOLUME_UP));
+    }
+
+    @Test
+    public void aDownThatIsNotTakenForgetsAnEarlierTakenDownOfTheSameKey() {
+        final boolean[] take = {true};
+        VolumeKeyHosts.Host host = direction -> take[0];
+        registered.add(host);
+        VolumeKeyHosts.register(host);
+        assertTrue(VolumeKeyHosts.onKeyDown(KeyEvent.KEYCODE_VOLUME_DOWN));
+        take[0] = false;
+
+        assertFalse(VolumeKeyHosts.onKeyDown(KeyEvent.KEYCODE_VOLUME_DOWN));
+
+        assertFalse(VolumeKeyHosts.onKeyUp(KeyEvent.KEYCODE_VOLUME_DOWN));
+    }
+
+    @Test
+    public void stoppingAHostClearsTheKeysItTook() {
+        VolumeKeyHosts.Host tab = host("tab", true);
+        assertTrue(VolumeKeyHosts.onKeyDown(KeyEvent.KEYCODE_VOLUME_UP));
+
+        VolumeKeyHosts.unregister(tab);
+
+        assertFalse(VolumeKeyHosts.onKeyUp(KeyEvent.KEYCODE_VOLUME_UP));
+    }
+
+    // ---- review S3: a sheet on top asks only its own host, not the page behind it
+
+    @Test
+    public void aSheetThatAsksOnlyTheTopHostLeavesTheKeyToTheSystemWhenItDoesNotTakeIt() {
+        host("page", true);
+        host("sheet", false);
+
+        assertFalse(VolumeKeyHosts.onKeyDown(KeyEvent.KEYCODE_VOLUME_UP, true));
+
+        assertEquals("[sheet:" + SnapcastVolumeKeys.Direction.UP + "]", log.toString());
+    }
+
+    @Test
+    public void theTopHostOnlyModeTakesTheKeyWhenTheTopHostDoes() {
+        host("page", false);
+        host("sheet", true);
+
+        assertTrue(VolumeKeyHosts.onKeyDown(KeyEvent.KEYCODE_VOLUME_DOWN, true));
+        assertTrue(VolumeKeyHosts.onKeyUp(KeyEvent.KEYCODE_VOLUME_DOWN));
+    }
+
     @Test
     public void aHostThatFailsLeavesTheKeyToTheNextOneAndTheSystem() {
         VolumeKeyHosts.Host broken = direction -> {

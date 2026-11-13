@@ -202,6 +202,7 @@ final class SnapcastGroupSheet {
         mute.setEnabled(online);
         mute.setOnClickListener(v -> {
             SnapcastMuteToggle.syncState(context, mute);
+            SnapcastUi.volumeKeys(context).muteChanged(receiverId, mute.isChecked());
             controls.setGroupMuted(serverKey, groupId, mute.isChecked());
         });
         body.addView(sliderRow(context.getString(R.string.snapcast_sheet_group_volume), row.getVolume(), row.isControllable(),
@@ -213,6 +214,7 @@ final class SnapcastGroupSheet {
 
                     @Override
                     public void onChange(int percent) {
+                        SnapcastUi.volumeKeys(context).volumeChanged(receiverId, percent); // the next key starts here
                         controls.setGroupVolume(serverKey, groupId, percent);
                     }
                 }, mute));
