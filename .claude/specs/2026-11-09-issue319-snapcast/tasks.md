@@ -173,6 +173,19 @@ Carried over from the security review of Group 3 (`security-review.md` S17 to S2
 - [ ] A.2 The receiver picker ("Play on…") must not offer a Snapcast group for images and videos; validate before the pick instead of a toast afterwards.
 - [ ] A.3 Task 6.3 (hint) and the remaining open checks of `docs/tech.md` "Open checks for the owner".
 
+## Group 11: Owner's findings from the device test (2026-11-13), UI parity and follow-ups (not started)
+Source: the owner's test of the Phase B spike (the tone is continuous with the default write-ahead of 250 ms) and of the Phase A UI.
+- [ ] 11.1 Mute is shown as a checkbox; the Snapcast group card must show the mute symbol like the other renderer cards (this is A.1).
+- [ ] 11.2 The receiver picker ("Play on...") must not offer a Snapcast group for images and videos (validate before the pick, not a toast afterwards; this is A.2).
+- [ ] 11.3 Link and unlink of clients to a group: use the link icon and the sheet of the MusicCast renderer (`YxcLinkSheet` pattern) instead of the current member controls.
+- [ ] 11.4 The hardware volume buttons must be routed to the focused Snapcast group (like for the other receivers).
+- [ ] 11.5 While a Snapcast client service (the listen test, later the renderer client) or a feed is active the app must not close itself (shutdown timer / auto close), like for the UPnP services; the UPnP servers' rule is the model.
+- [ ] 11.6 Auto discovery of servers does not find a server; the owner always adds it manually. Known fact: the Docker rig has mDNS compiled out (`BUILD_WITH_AVAHI=OFF`), so it can never be found; check with a server that publishes mDNS (Avahi) and add diagnostics (what the app browses, what `NsdManager` reports, multicast lock, permissions, the discovery switch state) so a failure can be told from "the server does not announce itself".
+- [ ] 11.7 The Snapcast client settings (listen test, later the renderer client) should let the user switch the server: choose from the known servers (discovered, typed-in, remembered) as well as type one.
+- [ ] 11.8 Task 6.3 (the static-source hint): replace the hint by a true sentence ("The server must allow adding a TCP stream source at run time"), option (d); the owner has not decided yet.
+- [ ] 11.9 Question of the owner, codecs: the Phase A feed is codec independent (the server encodes); the Phase B client plays `pcm` and `flac`; `ogg` (Vorbis) and `opus` are refused with a typed reason. Decide whether Opus and Vorbis are needed (the platform has MediaCodec decoders; the header layouts need work and tests).
+- [ ] 11.10 Question of the owner, live device audio to Snapcast: the UPnP server can serve the device's audio as a live stream (`SystemAudioCaptureService`, MediaProjection, AAC). A Snapcast source could take the same capture as PCM through the existing feeder (`SnapcastFeedController`) so the live device audio plays on a Snapcast group. Needs a design note (capture format, pacing, permission flow, UI entry, privacy) before work.
+
 ## Group 7 (Phase B): Binary protocol and time sync (P1, pure Java, tests first)
 - [x] 7.1 (done 2026-11-11: `SnapcastMessageCodec`, `FrameReader`, message classes, `PcmFormat`, `FlacStreamInfo`; tests `SnapcastMessageCodecTest`, `FrameReaderTest`, `HelloMessageTest`, `ServerSettingsMessageTest`, `PcmFormatTest`, `FlacStreamInfoTest`; see `decisions.md`) Message codec: Base, Hello, ServerSettings, CodecHeader, WireChunk, Time, ClientInfo, Error (little endian) | `de.yaacc.multiroom.protocol`, tests with byte fixtures
   - **Accept**: round trip of every message; truncated/oversized messages give a typed error; payload size caps (e.g. 8 MiB) hold; unknown types are skipped by size.
