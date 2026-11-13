@@ -338,4 +338,22 @@ public class ClockOffsetFilterTest {
 
         assertEquals(1_000_000L + 777_000L, filter.serverNowMicros(1_000_000L));
     }
+
+    /** The engine aligns only on a settled estimate: synchronised after 3 samples, settled after half the window (F1). */
+    @Test
+    public void theEstimateIsSettledOnlyAfterHalfTheWindowAndNotAfterAReset() {
+        ClockOffsetFilter filter = new ClockOffsetFilter();
+        assertFalse(filter.isSettled());
+        for (int i = 1; i < ClockOffsetFilter.WINDOW / 2; i++) {
+            assertTrue(feed(filter, OFFSET, 5 * MS, 5 * MS));
+            assertEquals("after " + i + " samples", i >= ClockOffsetFilter.MIN_SAMPLES, filter.isSynchronized());
+            assertFalse("after " + i + " samples", filter.isSettled());
+        }
+        assertTrue(feed(filter, OFFSET, 5 * MS, 5 * MS));
+        assertTrue(filter.isSynchronized());
+        assertTrue("after " + ClockOffsetFilter.WINDOW / 2 + " samples", filter.isSettled());
+        filter.reset();
+        assertFalse(filter.isSynchronized());
+        assertFalse(filter.isSettled());
+    }
 }

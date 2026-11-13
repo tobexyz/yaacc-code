@@ -37,6 +37,8 @@ import java.util.Collection;
 import java.util.List;
 
 import de.yaacc.R;
+import de.yaacc.multiroom.client.SnapcastClientRuntime;
+import de.yaacc.multiroom.client.SnapcastClientService;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NetworkInterfaceManager;
 import de.yaacc.util.YaaccLogger;
@@ -88,11 +90,38 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
+        setUpSnapcastClientSpike();
+
         // Populate renderer settings dynamically
         populateRendererSettings();
 
         // Populate network interface list
         populateNetworkInterfaceList();
+    }
+
+    /**
+     * The experimental client spike: the entry that opens the test screen is visible only while the switch is on, and
+     * switching it off ends a running session.
+     */
+    private void setUpSnapcastClientSpike() {
+        androidx.preference.CheckBoxPreference spike = findPreference(getString(R.string.settings_snapcast_client_spike));
+        androidx.preference.Preference open = findPreference(getString(R.string.settings_snapcast_client_spike_open));
+        if (spike == null || open == null) {
+            return;
+        }
+        open.setVisible(spike.isChecked());
+        spike.setOnPreferenceChangeListener((preference, newValue) -> {
+            boolean on = Boolean.TRUE.equals(newValue);
+            open.setVisible(on);
+            if (!on && SnapcastClientRuntime.isActive()) {
+                SnapcastClientService.stop(requireContext());
+            }
+            return true;
+        });
+        open.setOnPreferenceClickListener(preference -> {
+            SnapcastClientSpikeDialog.show(requireContext());
+            return true;
+        });
     }
 
     private void populateNetworkInterfaceList() {

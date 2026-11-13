@@ -138,6 +138,15 @@
             android:key="@string/settings_snapcast_servers"
             android:summary="@string/settings_snapcast_servers_summary"
             android:title="@string/settings_snapcast_servers_title" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="@string/settings_snapcast_client_spike"
+            android:summary="@string/settings_snapcast_client_spike_summary"
+            android:title="@string/settings_snapcast_client_spike_title" />
+        <Preference
+            android:key="@string/settings_snapcast_client_spike_open"
+            android:summary="@string/settings_snapcast_client_spike_open_summary"
+            android:title="@string/settings_snapcast_client_spike_open_title" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/settings_upnp_server_title">
         <CheckBoxPreference

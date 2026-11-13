@@ -32,4 +32,13 @@ public interface OffsetSource {
      * belong to the old clock and must be dropped.
      */
     int epoch();
+
+    /**
+     * True when the estimate has had time to settle: with only a few samples it can still move by tens of
+     * milliseconds as the window fills (the median of three round trips on Wi-Fi), and audio that is aligned to it is
+     * then aligned wrongly. A source that does not know says what {@link #isSynchronized()} says.
+     */
+    default boolean isSettled() {
+        return isSynchronized();
+    }
 }

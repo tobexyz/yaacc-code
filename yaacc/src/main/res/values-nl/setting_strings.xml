@@ -130,4 +130,8 @@
     <string name="settings_snapcast_servers_summary">Servers op adres toevoegen of verwijderen</string>
     <string name="settings_snapcast_about_title">Wat Snapcast nodig heeft</string>
     <string name="settings_snapcast_about_summary">YAACC speelt af naar een bestaande Snapcast-server; er moet er een bereikbaar zijn in uw netwerk.</string>
+    <string name="settings_snapcast_client_spike_title">Snapcast-clienttest (luistest)</string>
+    <string name="settings_snapcast_client_spike_summary">Experimenteel: toont een testscherm waar deze telefoon als Snapcast-client speelt, om de synchronisatie op het gehoor te controleren. Standaard uit. Audio en besturing worden onversleuteld verzonden. Nog niet op een apparaat getest.</string>
+    <string name="settings_snapcast_client_spike_open_title">Luistest Snapcast-client</string>
+    <string name="settings_snapcast_client_spike_open_summary">Deze telefoon met een Snapcast-server verbinden en de synchronisatiewaarden bekijken</string>
 </resources>

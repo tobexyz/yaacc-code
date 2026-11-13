@@ -216,6 +216,12 @@ public final class ClockOffsetFilter implements OffsetSource {
         return count >= MIN_SAMPLES;
     }
 
+    /** Half of the window: the median is then made of samples that all came after the first few. */
+    @Override
+    public synchronized boolean isSettled() {
+        return count >= WINDOW / 2;
+    }
+
     @Override
     public synchronized long offsetMicros() {
         return estimate;
