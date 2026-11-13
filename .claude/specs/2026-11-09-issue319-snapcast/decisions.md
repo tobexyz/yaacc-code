@@ -346,3 +346,8 @@
 **Context**: the owner's test of the Phase B spike on the Nothing A142 (API 36): with the default write-ahead of 250 ms the tone is continuous ("looks good now"). Findings: UI parity items, volume keys, keep-alive, discovery, server choice, and two questions (codecs, live device audio). Whether the sync against another client holds within the tolerance was not stated.
 **Decision**: the findings are tracked as Group 11 in `tasks.md`. The engine and sink changes of the fix rounds 8f to 8i have not been reviewed yet: they get the general and the security review first. Then the UI batch (11.1 to 11.8), then Group 9. Codecs (11.9) and live audio (11.10) need a decision of the owner and a design note.
 **Rationale**: the review gates apply to the new position and write-ahead code; the UI items are small and clear.
+
+## 2026-11-13 - Phase B continues, codecs deferred (owner)
+**Context**: the owner tests the stability of the listen test a while longer and will report back. No kill criterion of Phase B was raised in his tests so far.
+**Decision**: work continues on the plan while he tests (review of the Group 8 fix rounds, the UI batch of Group 11, then Group 9). Opus and Vorbis support is a future enhancement (11.9): the first version of the client plays `pcm` and `flac` (FLAC is the Snapcast default); the documentation of Group 10 must state that other codecs are refused with a message. The stability result and the sync against another client are still to come from the owner; a problem found there reopens the kill criterion.
+**Rationale**: owner's decision; FLAC is the default and covers the common setups.
