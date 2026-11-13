@@ -72,6 +72,7 @@ public class DeviceRestartTest {
             return name + ": no sound before the pause: " + rig.report();
         }
         long skippedBefore = rig.status().stepSkippedFrames + 960 * rig.status().droppedLate;
+        double syncBefore = rig.syncErrorMs();
         rig.sending = false;
         rig.run(pauseMs / 2);
         if (variant == Variant.RECONNECT) {
@@ -103,6 +104,10 @@ public class DeviceRestartTest {
         }
         if (!s.aligned || Math.abs(s.driftSmoothedMicros) > 3000) {
             return name + ": not aligned 6 s after the restart: aligned=" + s.aligned + " drift " + s.driftSmoothedMicros + " us";
+        }
+        // heard against the other clients: the sound is where it was before the pause (the review of Group 8, W1)
+        if (Math.abs(rig.syncErrorMs() - syncBefore) > 5) {
+            return name + ": sync error " + syncBefore + " ms before the pause, " + rig.syncErrorMs() + " ms after";
         }
         DeviceSimSink.Counters c = rig.sink.counters();
         long silence = c.playedSilentFramesAfterAudio;

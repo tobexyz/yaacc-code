@@ -20,6 +20,7 @@ package de.yaacc.multiroom.client;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import de.yaacc.multiroom.control.SnapcastServerStatus;
@@ -39,7 +40,7 @@ import org.junit.Test;
  */
 public class ServerSaysTest {
 
-    private static final String PHONE = "yaacc-a08f862c38933977";
+    private static final String PHONE = "yaacc-0123456789abcdef";
 
     @After
     public void reset() {
@@ -128,5 +129,60 @@ public class ServerSaysTest {
         EventTrace trace = new EventTrace(0);
         trace.add(1_000_000L, TraceKind.SESSION_END, SnapcastClientRuntime.Ending.NO_AUDIO.ordinal());
         assertTrue(trace.text(), trace.text().contains("session ended  reason=no_audio"));
+    }
+
+    // ---- the review's W3, S28: what the server names is shown cleaned, the raw id only goes back to the server
+
+    private static SnapcastServerStatus withStreams(int count, String hostileOwnStream) throws Exception {
+        String text = new String(Files.readAllBytes(Paths.get("src/test/resources/snapcast/status_phone_alone_on_idle_stream.json")),
+                StandardCharsets.UTF_8);
+        JSONObject result = new JSONObject(text).getJSONObject("result");
+        org.json.JSONArray streams = result.getJSONObject("server").getJSONArray("streams");
+        for (int i = 0; i < count; i++) {
+            JSONObject stream = new JSONObject(streams.getJSONObject(0).toString());
+            stream.put("id", "extra-" + i);
+            stream.put("status", "idle");
+            streams.put(stream);
+        }
+        if (hostileOwnStream != null) {
+            JSONObject hostile = new JSONObject(streams.getJSONObject(0).toString());
+            hostile.put("id", hostileOwnStream);
+            hostile.put("status", "playing");
+            streams.put(hostile);
+            result.getJSONObject("server").getJSONArray("groups").getJSONObject(0).put("stream_id", hostileOwnStream);
+        }
+        return SnapcastServerStatus.fromResult(result);
+    }
+
+    @Test
+    public void aHostileStreamNameIsShownCleanedAndCutButSentBackAsItIs() throws Exception {
+        String hostile = "evil\u202Ename\u0007\u200Bwith\ncontrols" + new String(new char[500]).replace('\0', 'x');
+        ServerSays says = ServerSays.of(withStreams(0, hostile), InetAddress.getByName("192.0.2.1"), PHONE);
+        ServerSays.Stream own = null;
+        for (ServerSays.Stream stream : says.getStreams()) {
+            if (stream.getId().startsWith("evil")) {
+                own = stream;
+            }
+        }
+        assertNotNull("the stream of the client's group is kept", own);
+        String shown = own.getDisplayName();
+        assertTrue(shown, shown.length() <= 40);
+        for (char c : shown.toCharArray()) {
+            assertFalse("no control, bidi or invisible character: U+" + Integer.toHexString(c),
+                    Character.isISOControl(c) || c == '\u202E' || c == '\u200B');
+        }
+        assertEquals("the raw id is what the server named", hostile.length() > 0 ? says.getStreamId() : "", own.getId());
+        assertTrue(own.getId().indexOf('\u202E') >= 0 || own.getId().indexOf('\u0007') >= 0 || own.getId().length() > 40);
+        assertFalse(says.text(), says.text().indexOf('\u202E') >= 0 || says.text().indexOf('\u0007') >= 0);
+    }
+
+    @Test
+    public void moreStreamsThanTheLimitAreCountedAndTheOwnStreamIsStillThere() throws Exception {
+        ServerSays says = ServerSays.of(withStreams(15, "playing-own"), InetAddress.getByName("192.0.2.1"), PHONE);
+        assertEquals(12 + 1, says.getStreams().size()); // the limit and the stream of the client's group
+        assertTrue(says.getStreamsOmitted() >= 4);
+        assertTrue(says.text(), says.text().contains(" and " + says.getStreamsOmitted() + " more"));
+        assertTrue(says.text(), says.text().contains("is on stream 'playing-own' (playing)"));
+        assertTrue(says.isOwnStreamPlaying());
     }
 }

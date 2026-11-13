@@ -61,22 +61,42 @@ public final class ServerControl {
         }
     }
 
+    /** What became of a request to move the group of this client. */
+    public enum MoveResult {
+        /** The server accepted it. */
+        MOVED,
+        /** The group of this client is not the one that was shown (it was dissolved or formed anew): nothing was changed. */
+        GROUP_CHANGED,
+        /** The server did not answer or refused. */
+        FAILED
+    }
+
     /**
-     * {@code Group.SetStream}: the group plays this stream. Changes the server: only on the owner's tap, with a
-     * confirmation.
+     * {@code Group.SetStream}: the group of this client plays this stream. Changes the server: only on the owner's tap, with
+     * a confirmation. The status is read again first and the move is made only when this client is still in the group that
+     * was shown (the answer on the screen can be 30 s old, and a group that was dissolved or formed anew meanwhile would
+     * move whoever is in it now). One connection, two calls.
      *
-     * @return true when the server accepted it
+     * @param shownGroupId the group id of the {@link ServerSays} on the screen (raw)
+     * @param streamId     the raw id of the chosen stream
      */
-    public static boolean moveGroup(InetAddress address, String groupId, String streamId) {
-        if (address == null || groupId == null || groupId.isEmpty() || streamId == null || streamId.isEmpty()) {
-            return false;
+    public static MoveResult moveGroup(InetAddress address, String clientId, String shownGroupId, String streamId) {
+        if (address == null || clientId == null || shownGroupId == null || shownGroupId.isEmpty() || streamId == null
+                || streamId.isEmpty()) {
+            return MoveResult.FAILED;
         }
         SnapcastRpc rpc = open(address);
         try {
-            new SnapcastOperations(rpc).setGroupStream(groupId, streamId);
-            return true;
+            SnapcastOperations operations = new SnapcastOperations(rpc);
+            SnapcastServerStatus status = operations.getStatus();
+            de.yaacc.multiroom.control.SnapcastGroup now = status.findGroupOfClient(clientId);
+            if (now == null || !shownGroupId.equals(now.getId())) {
+                return MoveResult.GROUP_CHANGED;
+            }
+            operations.setGroupStream(shownGroupId, streamId);
+            return MoveResult.MOVED;
         } catch (SnapcastException | RuntimeException failed) {
-            return false;
+            return MoveResult.FAILED;
         } finally {
             rpc.close();
         }

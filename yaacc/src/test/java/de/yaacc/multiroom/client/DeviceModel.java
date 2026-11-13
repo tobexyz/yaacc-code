@@ -50,6 +50,8 @@ final class DeviceModel {
     /** Every this many refreshes one report is odd: its frame count lags by {@code glitchLagMicros} but it carries the poll time. */
     int glitchEveryRefreshes;
     long glitchLagMicros = 400_000;
+    /** Only the refresh with this number (counted from 1) is odd (lags by {@code glitchLagMicros}); 0: none. */
+    int glitchAtRefresh;
     /** From this long after the first play() the reported times are late by {@code timestampBiasMicros} (a latency the HAL adds). */
     long biasAfterMicros;
     long timestampBiasMicros;

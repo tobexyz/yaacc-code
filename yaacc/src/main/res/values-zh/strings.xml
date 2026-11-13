@@ -380,10 +380,11 @@
     <string name="snapcast_client_notification_stopped">已停止：%1$s</string>
     <string name="snapcast_client_move_group">将我的分组移到某个流</string>
     <string name="snapcast_client_move_group_title">播放哪个流？</string>
-    <string name="snapcast_client_move_group_confirm">这会更改服务器：本手机所在的整个分组（包括其中的其他客户端）将播放流“%1$s”。</string>
+    <string name="snapcast_client_move_group_confirm">这会更改服务器：本手机所在的整个分组（包括本手机；分组中的客户端数：%2$d）将播放流“%1$s”。</string>
     <string name="snapcast_client_move_group_do">移动</string>
     <string name="snapcast_client_move_group_done">分组已移动</string>
     <string name="snapcast_client_move_group_failed">服务器未接受</string>
+    <string name="snapcast_client_move_group_changed">本手机的分组在服务器上已发生变化：未移动任何内容</string>
     <string name="snapcast_client_move_group_none">服务器尚未回应</string>
     <string name="snapcast_client_notification_title">Snapcast 客户端（测试）</string>
     <string name="snapcast_client_notification_connecting">正在连接…</string>

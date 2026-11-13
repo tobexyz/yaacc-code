@@ -59,6 +59,18 @@ final class DeviceRig {
         jobs.add(new long[]{periodMs, costMs, clock.nowMicros() / 1000 + periodMs});
     }
 
+    /**
+     * &gt; 0 (flac only): the encoder collects the pcm chunks into blocks of this many frames (the owner's stream decodes to
+     * blocks of 1152) and emits a chunk when a block is complete, stamped with the start of the pcm chunk that completed
+     * it: the chunks are then spaced 20, 20, 20, 20, 40 ms, each up to a block later than its first sample.
+     */
+    int flacBlockFrames;
+    /** 0: the decoder hands back what it was given; 1: it holds one chunk back; 2: it alternates between holding and a burst of two. */
+    int decoderLag;
+    private long emittedMedia;
+    private long encoderPending;
+    private boolean wasSending = true;
+
     /** True: a flac stream (the decoder of the tests passes the 16 bit samples through). Set before connect(). */
     boolean flac;
 
@@ -80,7 +92,7 @@ final class DeviceRig {
         DefaultDecoderFactory pcmFactory = new DefaultDecoderFactory(null);
         this.engine = new SnapcastClientEngine(config, sink,
                 (h, m) -> h.getCodec() == de.yaacc.multiroom.protocol.Codec.PCM ? pcmFactory.create(h, m)
-                        : new SnapcastClientEngineTest.PassThroughDecoder(), offsets, clock);
+                        : new LaggingDecoder(() -> decoderLag), offsets, clock);
     }
 
     /** The server time of the first frame of a chunk, exact (the server computes it from the frame count). */
@@ -114,6 +126,18 @@ final class DeviceRig {
         return -1;
     }
 
+    /** The source delivers nothing for this long (the timestamps go on); the chunks come back after it. */
+    void stallSource(long millis) {
+        sending = false;
+        run(millis);
+        sending = true;
+    }
+
+    /** The last played frame against its media target, in milliseconds (positive: late). */
+    double syncErrorMs() {
+        return sink.counters().lastSyncErrorMicros / 1000.0;
+    }
+
     /** The stream is a 440 Hz sine; the sink then checks the steps between neighbouring samples. */
     void useSine() {
         sine = true;
@@ -139,9 +163,30 @@ final class DeviceRig {
         }
         while (chunkTime(nextChunk + 1) <= serverNow()) {
             if (!sending) {
+                wasSending = false;
                 nextChunk++;
                 continue;
             }
+            if (flac && flacBlockFrames > 0) {
+                if (!wasSending) { // the source starts anew: the encoder has nothing collected, the content goes on
+                    wasSending = true;
+                    emittedMedia = nextChunk * chunkFrames;
+                    encoderPending = 0;
+                }
+                encoderPending += chunkFrames;
+                if (encoderPending >= flacBlockFrames) {
+                    long stamp = chunkTime(nextChunk);
+                    WireChunkMessage block = sine
+                            ? ClientFixtures.sineChunk(stamp, emittedMedia, flacBlockFrames, channels, rate)
+                            : ClientFixtures.chunk(stamp, emittedMedia, flacBlockFrames, channels, bits);
+                    engine.onChunk(block);
+                    emittedMedia += flacBlockFrames;
+                    encoderPending -= flacBlockFrames;
+                }
+                nextChunk++;
+                continue;
+            }
+            wasSending = true;
             long stamp = chunkTime(nextChunk);
             if (chunkJitterMicros > 0) {
                 stamp += random.nextInt((int) (2 * chunkJitterMicros + 1)) - chunkJitterMicros;
@@ -181,5 +226,52 @@ final class DeviceRig {
         return sink.outcome() + " | engine: state " + s.state + ", flushes " + s.flushes + " (hard resync "
                 + s.flushesHardResync + ", underrun " + s.flushesUnderrun + ", writer behind " + s.flushesWriterBehind
                 + "), position " + s.positionSource + ", drift " + s.driftMicros / 1000 + " ms";
+    }
+
+    /** A flac decoder of the tests: passes 16 bit samples through, optionally holding chunks back as a platform codec does. */
+    private static final class LaggingDecoder implements FrameDecoder {
+        private final java.util.function.IntSupplier lag;
+        private byte[] held = new byte[0];
+        private int calls;
+
+        LaggingDecoder(java.util.function.IntSupplier lag) {
+            this.lag = lag;
+        }
+
+        @Override
+        public byte[] decode(byte[] payload) {
+            calls++;
+            int mode = lag.getAsInt();
+            if (mode == 0) {
+                return payload.clone();
+            }
+            if (mode == 1) {
+                byte[] out = held;
+                held = payload.clone();
+                return out;
+            }
+            // alternate: hold on odd calls, on even calls give both
+            if (calls % 2 == 1) {
+                held = ClientFixtures.concat(held, payload);
+                return new byte[0];
+            }
+            byte[] out = ClientFixtures.concat(held, payload);
+            held = new byte[0];
+            return out;
+        }
+
+        @Override
+        public void reset() {
+            held = new byte[0];
+        }
+
+        @Override
+        public long droppedPartialBytes() {
+            return 0;
+        }
+
+        @Override
+        public void close() {
+        }
     }
 }

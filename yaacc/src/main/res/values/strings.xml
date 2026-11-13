@@ -389,10 +389,11 @@
     <string name="snapcast_client_notification_stopped">Stopped: %1$s</string>
     <string name="snapcast_client_move_group">Move my group to a stream</string>
     <string name="snapcast_client_move_group_title">Play which stream?</string>
-    <string name="snapcast_client_move_group_confirm">This changes the server: the whole group of this phone, with every other client in it, will play the stream \"%1$s\".</string>
+    <string name="snapcast_client_move_group_confirm">This changes the server: the whole group of this phone (this phone included; clients in the group: %2$d) will play the stream \"%1$s\".</string>
     <string name="snapcast_client_move_group_do">Move</string>
     <string name="snapcast_client_move_group_done">Group moved</string>
     <string name="snapcast_client_move_group_failed">The server did not accept it</string>
+    <string name="snapcast_client_move_group_changed">The group of this phone changed on the server meanwhile: nothing was moved</string>
     <string name="snapcast_client_move_group_none">No server answer yet</string>
     <string name="snapcast_client_notification_title">Snapcast client (test)</string>
     <string name="snapcast_client_notification_connecting">Connecting…</string>

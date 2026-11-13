@@ -388,10 +388,11 @@
     <string name="snapcast_client_notification_stopped">Arrêté : %1$s</string>
     <string name="snapcast_client_move_group">Déplacer mon groupe vers un flux</string>
     <string name="snapcast_client_move_group_title">Quel flux lire ?</string>
-    <string name="snapcast_client_move_group_confirm">Cela modifie le serveur : tout le groupe de ce téléphone, avec tous les autres clients, lira le flux « %1$s ».</string>
+    <string name="snapcast_client_move_group_confirm">Cela modifie le serveur : tout le groupe de ce téléphone (ce téléphone inclus ; clients dans le groupe : %2$d) lira le flux « %1$s ».</string>
     <string name="snapcast_client_move_group_do">Déplacer</string>
     <string name="snapcast_client_move_group_done">Groupe déplacé</string>
     <string name="snapcast_client_move_group_failed">Le serveur ne l\'a pas accepté</string>
+    <string name="snapcast_client_move_group_changed">Le groupe de ce téléphone a changé entre-temps sur le serveur : rien n\'a été déplacé</string>
     <string name="snapcast_client_move_group_none">Pas encore de réponse du serveur</string>
     <string name="snapcast_client_notification_title">Client Snapcast (test)</string>
     <string name="snapcast_client_notification_connecting">Connexion…</string>

@@ -19,12 +19,12 @@
               "connected": true,
               "host": {
                 "arch": "unknown",
-                "ip": "192.168.0.240",
+                "ip": "192.0.2.10",
                 "mac": "00:00:00:00:00:00",
                 "name": "Yaacc",
                 "os": "Android"
               },
-              "id": "yaacc-a08f862c38933977",
+              "id": "yaacc-0123456789abcdef",
               "lastSeen": {
                 "sec": 1762000000,
                 "usec": 1
@@ -56,7 +56,7 @@
               "connected": true,
               "host": {
                 "arch": "unknown",
-                "ip": "192.168.0.240",
+                "ip": "192.0.2.10",
                 "mac": "00:00:00:00:00:00",
                 "name": "Pi0",
                 "os": "Android"
@@ -93,7 +93,7 @@
               "connected": true,
               "host": {
                 "arch": "unknown",
-                "ip": "192.168.0.240",
+                "ip": "192.0.2.10",
                 "mac": "00:00:00:00:00:00",
                 "name": "Pi1",
                 "os": "Android"
@@ -130,7 +130,7 @@
               "connected": true,
               "host": {
                 "arch": "unknown",
-                "ip": "192.168.0.240",
+                "ip": "192.0.2.10",
                 "mac": "00:00:00:00:00:00",
                 "name": "Pi2",
                 "os": "Android"

@@ -22,7 +22,9 @@ import java.util.Locale;
 
 /**
  * The live status of the spike as text: the numbers the owner reports after a listen test. English and technical on
- * purpose (it is a diagnostic dump, not a user message). Contains nothing from the server except numbers and fixed words.
+ * purpose (it is a diagnostic dump, not a user message). Contains numbers and fixed words, and, from the control port, what
+ * the server says about this client ({@link ServerSays#text()}: the first 8 characters of the group id and the stream
+ * names and states, cleaned of control and invisible characters and cut).
  */
 public final class SnapcastClientStatusText {
 
@@ -72,6 +74,8 @@ public final class SnapcastClientStatusText {
                 text.append("HINT: ").append(hint).append('\n');
             }
         }
+        text.append(String.format(Locale.ROOT, "flac stream shifted against its timestamps (a stall of the source): %d times, %d ms of silence inserted%n",
+                s.flacShiftFills, s.flacShiftFilledMs));
         text.append(String.format(Locale.ROOT, "stream restarts after a pause: %d, last gap %d ms, its first audio written after %s%n",
                 s.streamResumes, s.lastResumeGapMs, s.lastResumeToAudioMs < 0 ? "-" : s.lastResumeToAudioMs + " ms"));
         text.append(String.format(Locale.ROOT, "writes: %d, short %d (frames missing %d, worst %d), longest write %d us, write-ahead %d ms, longest gap between engine ticks %d ms; longest tick %d us, chunk %d us, position poll %d us%n",

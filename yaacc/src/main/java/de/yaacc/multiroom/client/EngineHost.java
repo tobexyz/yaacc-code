@@ -54,7 +54,7 @@ public final class EngineHost implements SnapcastConnection.Listener {
     static final long MAX_QUEUED_BYTES = 16L * 1024 * 1024;
     /**
      * The longest the thread handles events in one round before it runs the engine (writes to the output) and looks at stop
-     * again: 50 ms, below the 120 ms the engine writes ahead and far below the 5 s the watchdog allows for one event.
+     * again: 50 ms, below the 250 ms the engine writes ahead (at least 40) and far below the 5 s the watchdog allows for one event.
      */
     private static final long ROUND_BUDGET_NANOS = 50_000_000L;
     /** One queued event and the payload bytes it holds in the count of {@code queuedBytes} (taken off when it is polled). */

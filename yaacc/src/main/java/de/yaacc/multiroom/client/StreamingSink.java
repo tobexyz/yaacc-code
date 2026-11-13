@@ -79,6 +79,7 @@ public class StreamingSink implements AudioSink {
         port = opener.open(wanted);
         format = wanted;
         resetPositionState();
+        baseline = 0; // a new output counts from 0 (a baseline of the old one must not be subtracted from it)
         failures = 0;
         headNoted = false;
         usingHead = false; // a property of the device: kept across flushes, tried again only for a new output
@@ -209,6 +210,7 @@ public class StreamingSink implements AudioSink {
                 timestampPollFailures++;
                 if (++failures >= TIMESTAMP_FAILURES_BEFORE_FALLBACK) {
                     usingHead = true;
+                    lastRetryNanos = nowNanos; // the next try of the timestamp is in 5 s, not at once
                     if (!headNoted) {
                         headNoted = true;
                         note(TraceKind.HEAD_FALLBACK, timestampPollFailures, implausibleTimestamps);

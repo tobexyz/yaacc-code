@@ -28,6 +28,9 @@ import de.yaacc.multiroom.protocol.SnapcastProtocolLimits;
 import de.yaacc.multiroom.protocol.WireChunkMessage;
 
 import java.util.ArrayDeque;
+import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * The core of the Snapcast client: turns what the connection reports (settings, codec headers, chunks, offset updates,
@@ -66,11 +69,11 @@ import java.util.ArrayDeque;
  */
 public final class SnapcastClientEngine {
 
-    /** The most microseconds {@code framesFor} multiplies by the rate (about 3 hours; more is clamped, not wrapped). */
     /** Holes remembered one by one (about 1.3 seconds of a stream that loses every second chunk, per 64). */
     private static final int MAX_HOLES = 64;
     /** The scheduler drops chunks stamped more than this after the corrected clock; no hole can be later. */
     private static final long HOLE_FUTURE_LIMIT_MICROS = 5_000_000L;
+    /** The most microseconds {@code framesFor} multiplies by the rate (about 3 hours; more is clamped, not wrapped). */
     private static final long MAX_FRAMES_FOR_MICROS = 10_000_000_000L;
     private static final long RESTART_WINDOW_MICROS = 60_000_000L;
 
@@ -128,7 +131,7 @@ public final class SnapcastClientEngine {
     private boolean candidateValid;
     private long candidateServerMicros;
     /** Every hole not yet acted on, as the timestamp of the chunk before it (sorted; at most {@link #MAX_HOLES}). */
-    private final java.util.TreeSet<Long> holes = new java.util.TreeSet<>();
+    private final TreeSet<Long> holes = new TreeSet<>();
     /** More holes than fit: from this timestamp on every chunk is placed by its own timestamp until {@code overflowUntil}. */
     private long overflowFrom = Long.MAX_VALUE;
     private long overflowUntil = Long.MIN_VALUE;
@@ -215,6 +218,11 @@ public final class SnapcastClientEngine {
     private long maxPollMicrosSecond;
     // the restart of a stream after a pause
     private long lastChunkMicros = Long.MIN_VALUE;
+    private final FlacTimeGuard flacGuard = new FlacTimeGuard();
+    private long flacShiftFills;
+    private long flacShiftFilledMicros;
+    /** Frames thrown away by the skip path since the stream was last inside its tolerance (the livelock breaker). */
+    private long skippedSinceInTolerance;
     private long chunkSpacingMicros = 20_000L;
     private long streamResumes;
     private long lastResumeGapMs;
@@ -658,7 +666,7 @@ public final class SnapcastClientEngine {
 
     private void drainDue() {
         long dropsBefore = schedulerDrops();
-        java.util.List<ChunkScheduler.ScheduledChunk> dueChunks = scheduler.releaseDue();
+        List<ChunkScheduler.ScheduledChunk> dueChunks = scheduler.releaseDue();
         if (schedulerDrops() != dropsBefore) {
             markHoleAfter(Long.MIN_VALUE); // chunks that waited became late: they were older than every chunk now due
         }
@@ -683,7 +691,7 @@ public final class SnapcastClientEngine {
             // Every hole below this chunk is dealt with by one re-anchoring here; holes above it stay for their own chunk.
             long timestamp = chunk.timestampMicros();
             boolean after = false;
-            java.util.SortedSet<Long> below = holes.headSet(timestamp);
+            SortedSet<Long> below = holes.headSet(timestamp);
             if (!below.isEmpty()) {
                 below.clear();
                 after = true;
@@ -812,7 +820,28 @@ public final class SnapcastClientEngine {
                     start = nextExpectedFrame;
                 }
             } else {
-                start = nextExpectedFrame;
+                // flac: placed by counting frames; the guard sees a shift against the timestamps (a stall of the source)
+                long skew = difference - nextExpectedFrame * 1_000_000L / rate;
+                long fill = cfg.flacTimeGuard ? flacGuard.onChunk(skew) : 0;
+                if (fill > cfg.maxGapFillMs * 1000L) {
+                    timelineResyncs++;
+                    noteResume(fill / 1000L, 1);
+                    dropTimeline();
+                    newAnchor(chunk, pcmCodec);
+                    start = 0;
+                    exact = true;
+                } else if (fill > 0) {
+                    flacShiftFills++;
+                    flacShiftFilledMicros += fill;
+                    if (fill >= 300_000L) {
+                        noteResume(fill / 1000L, 2);
+                    }
+                    trace.add(clock.nowMicros(), TraceKind.FLAC_SHIFT, fill / 1000L, flacShiftFills);
+                    start = nextExpectedFrame + fill * rate / 1_000_000L;
+                    exact = true;
+                } else {
+                    start = nextExpectedFrame;
+                }
             }
         }
         fifo.addLast(new Block(pcm, frames, start, exact));
@@ -873,6 +902,7 @@ public final class SnapcastClientEngine {
         anchorServerMicros = !pcmCodec && candidateValid ? candidateServerMicros : chunk.timestampMicros();
         candidateValid = false;
         nextExpectedFrame = 0;
+        flacGuard.reset();
     }
 
     /**
@@ -911,6 +941,8 @@ public final class SnapcastClientEngine {
         anchorValid = false;
         candidateValid = false;
         nextExpectedFrame = 0;
+        flacGuard.reset();
+        skippedSinceInTolerance = 0;
         aligned = false;
         alignStartTraced = false;
         stepTraced = false;
@@ -1270,6 +1302,16 @@ public final class SnapcastClientEngine {
                     hardLateReports = 0;
                 }
                 int skip = Math.min(framesFor(raw), head.remaining());
+                skippedSinceInTolerance += skip;
+                if (skippedSinceInTolerance > (long) cfg.maxSkipMs * rate / 1000L) {
+                    // More than maxSkipMs thrown away since the stream was last on its time and it is still late: the
+                    // anchor is wrong (the review's C1: one chunk skipped per chunk that arrives, for ever). Place the
+                    // next chunk by its own timestamp.
+                    timelineResyncs++;
+                    noteResume(raw / 1000L, 3);
+                    dropTimeline();
+                    return false;
+                }
                 if (aligned) {
                     stepsWhilePlaying++;
                     stepsWhilePlayingFrames += skip;
@@ -1291,6 +1333,7 @@ public final class SnapcastClientEngine {
             }
             head.exact = false;
             stepping = false;
+            skippedSinceInTolerance = 0;
             hardLateReports = 0;
             if (!aligned) {
                 trace.add(now, TraceKind.ALIGNED, raw, stepPadded, stepSkipped);
@@ -1527,6 +1570,8 @@ public final class SnapcastClientEngine {
         s.lastHardResyncDriftMicros = lastHardResyncDriftMicros;
         s.connection = connectionStats;
         s.lastChunkAgoMs = lastChunkReceivedMicros < 0 ? -1 : Math.max(0, now - lastChunkReceivedMicros) / 1000L;
+        s.flacShiftFills = flacShiftFills;
+        s.flacShiftFilledMs = flacShiftFilledMicros / 1000L;
         s.streamResumes = streamResumes;
         s.lastResumeGapMs = lastResumeGapMs;
         s.lastResumeToAudioMs = lastResumeToAudioMs;

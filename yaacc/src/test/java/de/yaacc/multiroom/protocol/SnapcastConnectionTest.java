@@ -329,8 +329,8 @@ public class SnapcastConnectionTest {
         java.util.concurrent.BlockingQueue<Long> stamps = new java.util.concurrent.LinkedBlockingQueue<>();
         FakeServer server = timeServer(clock, stamps, 0);
         Recorder recorder = new Recorder();
-        SnapcastConnection.Config config = quick().timeSyncBurstCount(1).timeSyncIntervalMs(1000).idleTimeoutMs(10_000)
-                .maxNoChunkProbes(0); // the probe for a missing first chunk is a limit of its own (tested below)
+        // the default config probes nothing: an idle stream is legal (the probe of a missing first chunk is off unless asked)
+        SnapcastConnection.Config config = quick().timeSyncBurstCount(1).timeSyncIntervalMs(1000).idleTimeoutMs(10_000);
         SnapcastConnection connection = connect(new SnapcastTransportHolder(server, 0), config, clock, new ManualScheduler(), recorder);
 
         connection.start();

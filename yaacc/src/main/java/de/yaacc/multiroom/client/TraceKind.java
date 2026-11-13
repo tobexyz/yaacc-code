@@ -48,6 +48,7 @@ public enum TraceKind {
     HEAD_FALLBACK("position from head position now", "failed polls", "implausible", ""),
     CONNECTION_LOST("connection lost", "why", "own limit", ""),
     STREAM_RESUMED("stream resumed", "gap ms", "action (1 re-anchor, 2 gap filled, 3 too late to skip)", ""),
+    FLAC_SHIFT("flac stream shifted against its timestamps, silence inserted (ms)", "ms", "fills so far", ""),
     FIRST_AUDIO("first audio written after the resume", "after ms", "", ""),
     ATTEMPT("connect attempt", "number", "", ""),
     CONNECTED("connected, Hello sent", "id hash", "", ""),

@@ -112,6 +112,9 @@ public final class EngineStatus implements Cloneable {
     /** The median of the last drift measurements (what the corrections act on). */
     public long driftSmoothedMicros;
     /** Restarts of the stream after a pause: how many, the gap of the last one and how long its first audio took. */
+    /** A flac stream found shifted against its timestamps (a stall of the source): how often, and the silence inserted. */
+    public long flacShiftFills;
+    public long flacShiftFilledMs;
     public long streamResumes;
     public long lastResumeGapMs;
     public long lastResumeToAudioMs = -1;

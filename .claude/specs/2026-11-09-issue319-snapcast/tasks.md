@@ -264,7 +264,7 @@ Notes are kept current as items are done (interruption safe). Tests first (red, 
 
 ## Fix Group 8g: The owner's phone trace (Nothing A142, Android 16): the underrun counter rises without starvation, started 2026-11-12
 - [x] G8.1 Device model: counter rising every 2048 frames while less than a full buffer is queued, frozen output, idle stream, stalled engine thread | `DeviceModel`, `DeviceSimSink`, `DeviceRig`, `DeviceContinuityTest`
-- [x] G8.2 The counter is a hint: a rise flushes only when the position confirms it (stalled, or <= 10 ms queued) within 250 ms; spurious rises counted; unreliable after 5 in a row; status line and trace
+- [x] G8.2 (**superseded by Fix Group 8i**: the counter is real evidence of a thin cushion; "spurious" and "unreliable after 5" no longer exist) The counter is a hint: a rise flushes only when the position confirms it (stalled, or <= 10 ms queued) within 250 ms; spurious rises counted; unreliable after 5 in a row; status line and trace
 - [x] G8.3 Position stall path (new flush reason `position_stall`), tested with a frozen output; real dry-outs found with and without a counter
 - [x] G8.4 Flush keeps the decoded audio and the anchor (`keepTimeline`); gap bound tested
 - [x] G8.5 Connection loss reason (and our own limit) in the trace; idle stream test; findings in docs/tech.md guess 16
@@ -284,6 +284,14 @@ Notes are kept current as items are done (interruption safe). Tests first (red, 
 - [x] I8.3 Restart without chunks: connection diagnostics (frames by type, bytes, last chunk, settings, first chunk), `server says` from Server.GetStatus with a hint, the button "Move my group to a stream" (Group.SetStream, confirmation, 7 locales); the no-chunk probe was NOT built
 - [x] I8.4 The session never ends silently: reason and time kept, `Stopped: <reason>` notification, `session ended` in the trace, YAACC's own shutdown timer recorded as `app_exit`; foreground service timeouts checked (mediaPlayback exempt)
 - [ ] I8.5 (owner) next trace with write-ahead 250: `underrun counter of the platform` should say 0 rises; `server says` after a restart
+
+## Fix Group 8j: general review cycle 4 of Group 8 (C1, W1 to W3, S19 to S28), started 2026-11-13
+- [x] J8.1 C1 flac stream survives a short source stall: `FlacTimeGuard` (timestamp-derived skew, learned band, immediate and refined fill), `flacGapMs` 3 s, livelock breaker in the skip path; `DeviceStallTest` sweep (20 ms to 3 s, pcm and flac, plain / header again / reconnect), sync-error assertion in `DeviceRestartTest`, steady 3 h flac (blocks, bursty decoder) and 1 h 20 ms chunks without a fill
+- [x] J8.2 W1 mutation survivors each get a test that fails under the mutant (`RuleGuardTest`, `ClockOffsetFilterTest`, `SnapcastConnectionTest`): E5, E6, E8, E21, F1, C1m killed; E10 unreachable through the scheduler (late chunk dropped instead; the test pins that), E20 equivalent (`checkUnderruns` resets the suspect when not aligned)
+- [x] J8.3 W2 stale statements (docs/tech.md 120 -> 250, 30 -> 50 ms limit, 600 events, server-says privacy sentence, javadoc defaults), G8.2 and the 8g decision marked superseded by 8i
+- [x] J8.4 W3 move-group dialog and confirmation show the display name (`SnapcastDisplayText.of(id, 40)`), the raw id only in Group.SetStream; `ServerSays` class comment
+- [x] J8.5 Suggestions: S19 baseline 0 at open, S20 poll in flight at session end ignored + slow poll after 300 s without chunk, S21 stale move-group id (fresh status check, `MoveResult`), S22 stale "Stopped:" notification cancelled at session start, S23 clamped write-ahead shown in the field, S24 applySmooth limits comment, S26 dangling javadoc, S27 neutral client id, S28 "and N more" at the 12-stream cut; S25 partly (retry timer when falling back to the head)
+- [ ] J8.6 (owner) listening test with the guard: `flac stream shifted` in the status should stay 0 on a quiet network
 
 ## Group 9 (Phase B): Renderer integration (P2)
 - **Notes carried from Group 8 (security review, known limits of the spike):** audio focus (pause on a call or another app) and `ACTION_AUDIO_BECOMING_NOISY` (pause when the headphones are pulled) are not handled by the client; a gain ramp or fade-in on volume changes and at the start of a stream is not built (it has to be done on the samples, `AudioTrack.setVolume` acts on audio already queued); the renderer integration must add focus handling, the noisy-headphones pause and the ramp, and must re-check the "Snapcast client" option on every start path (`SnapcastClientSpike.isEnabled`).

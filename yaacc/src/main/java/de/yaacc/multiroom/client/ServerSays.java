@@ -34,8 +34,11 @@ import java.util.Locale;
  * What the server says about this phone's client, read from {@code Server.GetStatus} (read-only): the group the client
  * is in, the stream of that group and its state, the other streams. The owner's failing restart (no chunk for 20 s with a
  * working connection) was exactly this: the server had put the phone in a group of its own on the idle stream "Default"
- * while the playing stream had the other groups. Immutable; the texts are cleaned by the control library
- * ({@link SnapcastDisplayText}) and cut here, nothing of the server is executed or logged.
+ * while the playing stream had the other groups. Immutable. What the server names (stream ids, the group id, the state of a
+ * stream) is shown only through {@link SnapcastDisplayText} (control and invisible characters removed, cut to 40, the group
+ * id to 8 characters): {@link #text()}, {@link Stream#getDisplayName()} and the hint. The raw ids stay in this object only
+ * to be sent back to the server ({@code Group.SetStream}), never to be shown or logged. At most {@value #MAX_STREAMS}
+ * streams are kept; the text says how many more there are.
  */
 public final class ServerSays {
 
@@ -52,8 +55,14 @@ public final class ServerSays {
             this.status = status;
         }
 
+        /** The server's id of the stream, for {@code Group.SetStream} only: never show it, show {@link #getDisplayName()}. */
         public String getId() {
             return id;
+        }
+
+        /** The id as it may be shown: cleaned of control and invisible characters and cut to 40 characters. */
+        public String getDisplayName() {
+            return SnapcastDisplayText.of(id, MAX_TEXT);
         }
 
         public String getStatus() {
@@ -79,10 +88,11 @@ public final class ServerSays {
     private final int clientsInGroup;
     private final int groups;
     private final List<Stream> streams;
+    private final int streamsOmitted;
 
     private ServerSays(InetAddress address, String clientId, boolean reached, boolean clientFound, boolean clientConnected,
                        int volume, boolean clientMuted, String groupId, boolean groupMuted, String streamId,
-                       String streamStatus, int clientsInGroup, int groups, List<Stream> streams) {
+                       String streamStatus, int clientsInGroup, int groups, List<Stream> streams, int streamsOmitted) {
         this.address = address;
         this.clientId = clientId;
         this.reached = reached;
@@ -97,27 +107,34 @@ public final class ServerSays {
         this.clientsInGroup = clientsInGroup;
         this.groups = groups;
         this.streams = streams;
+        this.streamsOmitted = streamsOmitted;
     }
 
     /** The control port could not be asked (not open, refused, timed out). */
     public static ServerSays unreachable(InetAddress address, String clientId) {
         return new ServerSays(address, clientId, false, false, false, 0, false, "", false, "", "", 0, 0,
-                Collections.<Stream>emptyList());
+                Collections.<Stream>emptyList(), 0);
     }
 
     /** Reads the status for this client id. */
     public static ServerSays of(SnapcastServerStatus status, InetAddress address, String clientId) {
         List<Stream> streams = new ArrayList<>();
-        for (SnapcastStream stream : status.getStreams()) {
-            if (streams.size() < MAX_STREAMS) {
-                streams.add(new Stream(stream.getId(), SnapcastDisplayText.of(stream.getStatus(), MAX_TEXT)));
-            }
-        }
+        int omitted = 0;
         SnapcastGroup group = status.findGroupOfClient(clientId);
         SnapcastClient client = status.findClient(clientId);
+        // the stream of the client's group is always kept, the others up to the limit
+        String ownStreamId = group == null ? null : group.getStreamId();
+        for (SnapcastStream stream : status.getStreams()) {
+            boolean own = stream.getId().equals(ownStreamId);
+            if (streams.size() < MAX_STREAMS || own) {
+                streams.add(new Stream(stream.getId(), SnapcastDisplayText.of(stream.getStatus(), MAX_TEXT)));
+            } else {
+                omitted++;
+            }
+        }
         if (group == null || client == null) {
             return new ServerSays(address, clientId, true, false, false, 0, false, "", false, "", "", 0,
-                    status.getGroups().size(), Collections.unmodifiableList(streams));
+                    status.getGroups().size(), Collections.unmodifiableList(streams), omitted);
         }
         String streamStatus = "";
         for (Stream stream : streams) {
@@ -127,7 +144,7 @@ public final class ServerSays {
         }
         return new ServerSays(address, clientId, true, true, client.isConnected(), client.getVolume().getPercent(),
                 client.getVolume().isMuted(), group.getId(), group.isMuted(), group.getStreamId(), streamStatus,
-                group.getClients().size(), status.getGroups().size(), Collections.unmodifiableList(streams));
+                group.getClients().size(), status.getGroups().size(), Collections.unmodifiableList(streams), omitted);
     }
 
     public InetAddress getAddress() {
@@ -158,6 +175,16 @@ public final class ServerSays {
         return streams;
     }
 
+    /** How many streams the server has beyond the ones kept. */
+    public int getStreamsOmitted() {
+        return streamsOmitted;
+    }
+
+    /** The number of clients in the group of this client (0 when it is not listed). */
+    public int getClientsInGroup() {
+        return clientsInGroup;
+    }
+
     /** True when the stream of the client's group is playing. */
     public boolean isOwnStreamPlaying() {
         return clientFound && "playing".equals(streamStatus);
@@ -181,10 +208,14 @@ public final class ServerSays {
         }
         out.append("server streams: ");
         for (int i = 0; i < streams.size(); i++) {
-            out.append(i == 0 ? "" : ", ").append(SnapcastDisplayText.of(streams.get(i).getId(), MAX_TEXT)).append(' ')
+            out.append(i == 0 ? "" : ", ").append(streams.get(i).getDisplayName()).append(' ')
                     .append(streams.get(i).getStatus());
         }
-        out.append(streams.isEmpty() ? "none" : "").append('\n');
+        out.append(streams.isEmpty() ? "none" : "");
+        if (streamsOmitted > 0) {
+            out.append(" and ").append(streamsOmitted).append(" more");
+        }
+        out.append('\n');
         return out.toString();
     }
 

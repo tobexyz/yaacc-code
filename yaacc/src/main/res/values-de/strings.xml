@@ -384,10 +384,11 @@
     <string name="snapcast_client_notification_stopped">Beendet: %1$s</string>
     <string name="snapcast_client_move_group">Meine Gruppe auf einen Stream</string>
     <string name="snapcast_client_move_group_title">Welcher Stream soll spielen?</string>
-    <string name="snapcast_client_move_group_confirm">Das ändert den Server: die ganze Gruppe dieses Telefons, mit allen anderen Clients darin, spielt dann den Stream \"%1$s\".</string>
+    <string name="snapcast_client_move_group_confirm">Das ändert den Server: die ganze Gruppe dieses Telefons (dieses Telefon eingeschlossen; Clients in der Gruppe: %2$d) spielt dann den Stream \"%1$s\".</string>
     <string name="snapcast_client_move_group_do">Verschieben</string>
     <string name="snapcast_client_move_group_done">Gruppe verschoben</string>
     <string name="snapcast_client_move_group_failed">Der Server hat es nicht angenommen</string>
+    <string name="snapcast_client_move_group_changed">Die Gruppe dieses Telefons hat sich inzwischen am Server geändert: nichts wurde verschoben</string>
     <string name="snapcast_client_move_group_none">Noch keine Antwort des Servers</string>
     <string name="snapcast_client_notification_title">Snapcast-Client (Test)</string>
     <string name="snapcast_client_notification_connecting">Verbinde …</string>

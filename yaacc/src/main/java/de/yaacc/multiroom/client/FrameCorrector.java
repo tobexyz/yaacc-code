@@ -80,6 +80,10 @@ public final class FrameCorrector {
      * of the signal, where cutting one sample doubles it (a click in a pure tone). Used for at most two corrections in a
      * block that is long enough; anything else is done as {@link #apply} does it.
      *
+     * <p>Limits: a tail block shorter than {@code 34 n} frames (the rest of a chunk) falls back to cutting a sample; the
+     * interpolation lowers a very high frequency a little (about 2 dB at 10 kHz at 48 kHz over the 0.7 ms of a window), at
+     * most 120 corrections a second while a drift is being caught up.
+     *
      * @param channels samples per frame
      */
     public static byte[] applySmooth(byte[] data, int offset, int frames, int channels, int correction) {

@@ -446,7 +446,7 @@ final class DeviceSimSink extends StreamingSink {
                 reportNoise = m.timestampNoiseMicros > 0 ? random.nextInt((int) m.timestampNoiseMicros + 1) : 0;
                 reportedFrames = (long) Math.floor(played);
                 reportedAt = t;
-                if (m.glitchEveryRefreshes > 0 && refreshes % m.glitchEveryRefreshes == 0) {
+                if ((m.glitchEveryRefreshes > 0 && refreshes % m.glitchEveryRefreshes == 0) || refreshes == m.glitchAtRefresh) {
                     reportedFrames = Math.max(0, reportedFrames - (long) (m.glitchLagMicros * format.getSampleRate() / 1e6));
                 }
                 refreshedAt = t;

@@ -22,7 +22,8 @@ import java.util.Locale;
 
 /**
  * The text the "Copy trace" button puts on the clipboard: a one-line summary (device, stream, output), the status text and
- * the event trace. Numbers and fixed words only; nothing of the server's text goes in. Pure.
+ * the event trace. The event trace has numbers and fixed words only; the status text also has the cleaned `server says`
+ * lines (the start of the group id, the stream names and states). Pure.
  */
 public final class SnapcastClientTraceReport {
 

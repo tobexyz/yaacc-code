@@ -211,6 +211,14 @@ public final class SnapcastClientService extends Service {
 
     private void beginSession(String hostText, int latencyMs) {
         startedAtMillis = System.currentTimeMillis();
+        try {
+            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager != null) {
+                manager.cancel(NotificationId.SNAPCAST_CLIENT_ENDED.getId()); // the "Stopped: ..." of the last session is old news
+            }
+        } catch (RuntimeException ignored) {
+            // a courtesy
+        }
         final SnapcastClientSpike.Request request = SnapcastClientSpike.check(hostText, String.valueOf(latencyMs));
         if (request.getOutcome() != SnapcastClientSpike.Outcome.OK) {
             endSession(SnapcastClientRuntime.Ending.BAD_ADDRESS);
@@ -307,15 +315,19 @@ public final class SnapcastClientService extends Service {
         });
         serverPoll = poll;
         final long[] signature = {Long.MIN_VALUE};
+        final long startedAt = SystemClock.elapsedRealtime();
         Runnable ask = new Runnable() {
             @Override
             public void run() {
-                if (ended.get()) {
+                if (ended.get() || serverPoll != poll) {
                     return;
                 }
                 long delay = 30_000L;
                 try {
                     ServerSays says = ServerControl.fetch(address, clientId);
+                    if (ended.get() || serverPoll != poll) {
+                        return; // the session ended while the question was on its way: the answer is not for the next one
+                    }
                     SnapcastClientRuntime.server(says);
                     long found = says.isClientFound() ? 1 : 0;
                     long playing = says.isOwnStreamPlaying() ? 1 : 0;
@@ -326,7 +338,10 @@ public final class SnapcastClientService extends Service {
                         h.traceServerSays(found, playing, says.getStreams().size());
                     }
                     SnapcastClientRuntime.View view = SnapcastClientRuntime.get();
-                    if (view.engine == null || view.engine.chunksReceived == 0) {
+                    // every 5 s while nothing has come, but not for ever: a stream that is idle on purpose is asked every 30 s
+                    // after five minutes
+                    if ((view.engine == null || view.engine.chunksReceived == 0)
+                            && SystemClock.elapsedRealtime() - startedAt < 300_000L) {
                         delay = 5_000L;
                     }
                 } catch (RuntimeException ignored) {

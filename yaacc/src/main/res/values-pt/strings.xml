@@ -388,10 +388,11 @@
     <string name="snapcast_client_notification_stopped">Parado: %1$s</string>
     <string name="snapcast_client_move_group">Mover o meu grupo para um stream</string>
     <string name="snapcast_client_move_group_title">Qual stream reproduzir?</string>
-    <string name="snapcast_client_move_group_confirm">Isto altera o servidor: todo o grupo deste telefone, com todos os outros clientes, reproduzirá o stream \"%1$s\".</string>
+    <string name="snapcast_client_move_group_confirm">Isto altera o servidor: todo o grupo deste telefone (incluindo este telefone; clientes no grupo: %2$d) reproduzirá o stream \"%1$s\".</string>
     <string name="snapcast_client_move_group_do">Mover</string>
     <string name="snapcast_client_move_group_done">Grupo movido</string>
     <string name="snapcast_client_move_group_failed">O servidor não aceitou</string>
+    <string name="snapcast_client_move_group_changed">O grupo deste telefone mudou entretanto no servidor: nada foi movido</string>
     <string name="snapcast_client_move_group_none">Ainda sem resposta do servidor</string>
     <string name="snapcast_client_notification_title">Cliente Snapcast (teste)</string>
     <string name="snapcast_client_notification_connecting">A ligar…</string>

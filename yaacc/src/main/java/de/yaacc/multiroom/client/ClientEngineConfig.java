@@ -42,7 +42,8 @@ public final class ClientEngineConfig {
     int positionOutlierMs = 150;
     int primeAfterMs = 200;
     boolean smoothCorrections;
-    int flacGapMs = 300;
+    int flacGapMs = 3_000;
+    boolean flacTimeGuard = true;
     int maxSkipMs = 1_000;
     int underrunConfirmMs = 250;
     int underrunAheadMs = 10;
@@ -143,7 +144,7 @@ public final class ClientEngineConfig {
         return this;
     }
 
-    /** Drift up to this is corrected frame by frame, more is a step of silence or a skip (default 30 ms). */
+    /** Drift up to this is corrected frame by frame, more is a step of silence or a skip (default 50 ms). */
     public ClientEngineConfig gradualLimitMs(int value) {
         gradualLimitMs = positive("gradualLimitMs", value);
         return this;
@@ -172,12 +173,20 @@ public final class ClientEngineConfig {
     }
 
     /**
-     * A flac chunk whose timestamp is more than this far from where the chunk before it ended (the source paused, many
-     * chunks were lost, the server clock jumped) starts the timeline anew: flac chunks are placed by counting frames, which
-     * cannot see a pause (default 300 ms).
+     * A flac chunk whose timestamp is more than this far from where the chunk before it ended (the source paused for
+     * seconds, many chunks were lost, the server clock jumped) starts the timeline anew: flac chunks are placed by counting
+     * frames, which cannot see a pause. Shorter pauses are found by {@code FlacTimeGuard} (the skew of the timestamps
+     * against the frame count) and filled with silence like the gap of a pcm stream (default 3000 ms, the gap a pcm stream
+     * fills).
      */
     public ClientEngineConfig flacGapMs(int value) {
         flacGapMs = positive("flacGapMs", value);
+        return this;
+    }
+
+    /** Switches the {@code FlacTimeGuard} (shift of a flac stream against its timestamps) off; for tests of what is left. */
+    public ClientEngineConfig flacTimeGuard(boolean on) {
+        flacTimeGuard = on;
         return this;
     }
 

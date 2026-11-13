@@ -291,6 +291,7 @@ final class SnapcastClientSpikeDialog {
             writeAhead.setError(context.getString(R.string.snapcast_client_error_invalid_write_ahead));
             return;
         }
+        writeAhead.setText(String.valueOf(ahead)); // the value that is applied (clamped to 40..350), not what was typed
         preferences.edit().putString(SnapcastClientSpike.KEY_LAST_HOST, host.getText().toString().trim())
                 .putInt(SnapcastClientSpike.KEY_LAST_LATENCY, request.getLatencyMs())
                 .putInt(SnapcastClientSpike.KEY_LAST_WRITE_AHEAD, ahead).apply();
@@ -338,7 +339,7 @@ final class SnapcastClientSpikeDialog {
         final List<de.yaacc.multiroom.client.ServerSays.Stream> streams = says.getStreams();
         String[] names = new String[streams.size()];
         for (int i = 0; i < names.length; i++) {
-            names[i] = streams.get(i).getId() + " (" + streams.get(i).getStatus() + ")";
+            names[i] = streams.get(i).getDisplayName() + " (" + streams.get(i).getStatus() + ")"; // cleaned for display
         }
         new AlertDialog.Builder(context)
                 .setTitle(R.string.snapcast_client_move_group_title)
@@ -348,16 +349,21 @@ final class SnapcastClientSpikeDialog {
     }
 
     private void confirmMove(de.yaacc.multiroom.client.ServerSays says, de.yaacc.multiroom.client.ServerSays.Stream stream) {
+        // what the server names is shown cleaned; the raw id goes back to the server and nowhere else
         new AlertDialog.Builder(context)
                 .setTitle(R.string.snapcast_client_move_group)
-                .setMessage(context.getString(R.string.snapcast_client_move_group_confirm, stream.getId()))
+                .setMessage(context.getString(R.string.snapcast_client_move_group_confirm, stream.getDisplayName(),
+                        says.getClientsInGroup()))
                 .setPositiveButton(R.string.snapcast_client_move_group_do, (d, w) -> {
                     try {
                         worker.execute(() -> {
-                            boolean ok = de.yaacc.multiroom.client.ServerControl.moveGroup(says.getAddress(), says.getGroupId(),
-                                    stream.getId());
-                            main.post(() -> Toast.makeText(context, ok ? R.string.snapcast_client_move_group_done
-                                    : R.string.snapcast_client_move_group_failed, Toast.LENGTH_SHORT).show());
+                            de.yaacc.multiroom.client.ServerControl.MoveResult result = de.yaacc.multiroom.client.ServerControl
+                                    .moveGroup(says.getAddress(), says.getClientId(), says.getGroupId(), stream.getId());
+                            int message = result == de.yaacc.multiroom.client.ServerControl.MoveResult.MOVED
+                                    ? R.string.snapcast_client_move_group_done
+                                    : result == de.yaacc.multiroom.client.ServerControl.MoveResult.GROUP_CHANGED
+                                    ? R.string.snapcast_client_move_group_changed : R.string.snapcast_client_move_group_failed;
+                            main.post(() -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show());
                         });
                     } catch (RejectedExecutionException closed) {
                         // the dialog was dismissed meanwhile
