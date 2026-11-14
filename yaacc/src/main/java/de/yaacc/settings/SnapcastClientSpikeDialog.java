@@ -18,7 +18,6 @@
  */
 package de.yaacc.settings;
 
-import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -248,18 +247,20 @@ final class SnapcastClientSpikeDialog {
         opened.prefillFromServers();
     }
 
-    /** With nothing remembered, offers the first of the known servers (the port is the default 1704 then). */
+    /**
+     * With nothing in the field, fills in the server used last, or the first typed-in or remembered one (the port is the
+     * default 1704 then); a server that was only found on the network is not filled in, the user chooses it (S67).
+     */
     private void prefillFromServers() {
         if (host.getText().length() > 0) {
             return;
         }
         try {
             worker.execute(() -> {
-                List<SnapcastServerChoices.Choice> choices = knownChoices();
-                if (choices.isEmpty()) {
-                    return;
+                final String text = SnapcastServerChoices.prefill(knownChoices());
+                if (text == null) {
+                    return; // nothing the user made known: the user chooses (a found server is never filled in)
                 }
-                final String text = choices.get(0).hostText();
                 main.post(() -> {
                     if (shown && host.getText().length() == 0) {
                         host.setText(text);
@@ -395,7 +396,7 @@ final class SnapcastClientSpikeDialog {
             return;
         }
         String report = SnapcastClientTraceReport.of(view, deviceDescription(), System.currentTimeMillis());
-        clipboard.setPrimaryClip(ClipData.newPlainText("snapcast trace", report));
+        clipboard.setPrimaryClip(SensitiveClip.plainText("snapcast trace", report));
         Toast.makeText(context, R.string.snapcast_client_trace_copied, Toast.LENGTH_SHORT).show();
     }
 

@@ -40,7 +40,10 @@ import de.yaacc.multiroom.protocol.SnapcastConnection;
  *   client's default; the last used text keeps the port the user typed.</li>
  *   <li><b>Once.</b> Two rows with the same host (two control ports) lead to the same stream port, so they are one choice.</li>
  *   <li><b>Names are display text.</b> Cleaned and cut again, as in the server list; a name that looks like an address
- *   changes nothing.</li>
+ *   changes nothing, and the label starts with the host ({@code 10.0.0.9 (Living room)}), so a name such as
+ *   {@code 192.168.1.5} can not stand in front of the real address.</li>
+ *   <li><b>No prefill from the network.</b> {@link #prefill} fills an empty field only with a server the user made known
+ *   (last used, typed in, remembered), never with one that was only found.</li>
  *   <li><b>Link-local IPv6.</b> A found or remembered server at an {@code fe80::} address is not offered: the text of a choice has
  *   no scope id, so the client could not connect to it (a dual-stack phone may resolve such an address first). One the user
  *   typed in stays a choice. A found or remembered server is offered with the default stream port 1704 whatever stream port
@@ -78,7 +81,7 @@ public final class SnapcastServerChoices {
             return hostText;
         }
 
-        /** The name (cleaned) and the address, or the address alone. */
+        /** The address first, then the name (cleaned) in brackets, or the address alone. */
         public String label() {
             return label;
         }
@@ -147,6 +150,22 @@ public final class SnapcastServerChoices {
         return result.size() > MAX_CHOICES ? new ArrayList<>(result.subList(0, MAX_CHOICES)) : result;
     }
 
+    /**
+     * What the address field of the client settings may be filled with when it is empty (S67): the first choice, but only
+     * when the user made it: the server used last, a typed-in server or a remembered one. A server that was only
+     * <i>found</i> on the network is never prefilled (announcements are not authenticated): the user has to choose it.
+     * The order of {@link #of} puts the user's own servers first, so a found server can only be first when there is none.
+     *
+     * @return the text for the field, or null for nothing
+     */
+    public static String prefill(List<Choice> choices) {
+        if (choices == null || choices.isEmpty()) {
+            return null;
+        }
+        Choice first = choices.get(0);
+        return first.isLastUsed() || first.source != Source.FOUND ? first.hostText : null;
+    }
+
     private static boolean isLinkLocalIpv6(SnapcastEndpoint endpoint) {
         java.net.InetAddress address = endpoint.getAddress();
         return address instanceof java.net.Inet6Address && address.isLinkLocalAddress();
@@ -164,8 +183,9 @@ public final class SnapcastServerChoices {
         return endpoint.getPort() == SnapcastConnection.DEFAULT_PORT ? text : text + ":" + endpoint.getPort();
     }
 
+    /** The host first, then the name in brackets: a name from the network can not pose as the address in front of it. */
     private static String label(String name, String host) {
-        return name.isEmpty() ? host : name + " (" + host + ")";
+        return name.isEmpty() ? host : host + " (" + name + ")";
     }
 
     private static Source sourceOf(SnapcastServerListModel.Kind kind) {

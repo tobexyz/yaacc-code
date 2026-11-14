@@ -51,7 +51,7 @@ import de.yaacc.multiroom.ui.SnapcastServerListModel;
  * The app-wide Snapcast part, the counterpart of {@code YxcMonitor.getShared()}: the directory of servers, the manual
  * server list, the mDNS discovery, and the receivers that join them. It holds the application context only, and it
  * does nothing until a page tells it to: {@link #pageStarted()} (the receivers page is visible) opens the connections to
- * the listed servers and, <b>only when the setting {@link SnapcastSettings#KEY_DISCOVERY} is on</b> (default off), starts
+ * the listed servers and, <b>only when the setting {@link SnapcastSettings#KEY_DISCOVERY} is on</b> (default on), starts
  * the discovery (and with it the multicast lock); {@link #pageStopped()} stops the discovery at once and closes the
  * connections after a grace period. The setting is read live ({@link SnapcastDiscoveryGate}): switching it off stops the
  * scan and drops the servers that only the scan knew, so with it off only the typed-in and the remembered servers are

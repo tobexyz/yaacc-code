@@ -22,17 +22,22 @@ package de.yaacc.multiroom;
  * The keys and defaults of the Snapcast settings (the keys are the names of the string resources of the preference
  * screen, {@code settings_snapcast_discovery}, so a test pins them against the resource files). Pure.
  *
- * <p><b>Discovery is off by default.</b> mDNS discovery, the multicast lock it needs and the control connections to every
- * server that announces itself start only when the user switches it on (security review S19: otherwise every user who
- * opens the receivers tab would contact whatever announces a Snapcast service on a shared network). With it off, only the
- * servers the user typed in and the servers that hold a selected group (remembered across a restart) are used.
+ * <p><b>Discovery is on by default</b> (the owner's decision of 2026-11-14; it reverses the default of security review S19).
+ * With it on, the app sends mDNS queries on the Wi-Fi while a page that shows Snapcast (or the server list window) is open,
+ * holds the multicast lock it needs for that, and the receivers page connects to every server that announces itself;
+ * announcements are not authenticated. An install that never set the key gets the default (the key and the default are
+ * declared once here, and the checkbox in {@code preference.xml} has the same default, pinned by a test); a stored choice of
+ * the user is kept. A value that can not be read at all (another type stored, no preferences) counts as off: when the
+ * user's choice is unknown nothing is scanned.
  */
 public final class SnapcastSettings {
 
     /** The key of the discovery switch in the default preferences. */
     public static final String KEY_DISCOVERY = "settings_snapcast_discovery";
-    /** The default of the discovery switch: off. */
-    public static final boolean DISCOVERY_DEFAULT = false;
+    /** The default of the discovery switch: on. */
+    public static final boolean DISCOVERY_DEFAULT = true;
+    /** What a value that can not be read counts as: off (fail safe, nothing is scanned when the choice is unknown). */
+    private static final boolean DISCOVERY_UNREADABLE = false;
 
     /** Reads a boolean preference; {@code SharedPreferences} in the app. */
     public interface BooleanSource {
@@ -42,15 +47,15 @@ public final class SnapcastSettings {
     private SnapcastSettings() {
     }
 
-    /** @return whether discovery is switched on; false for no source or a value that can not be read */
+    /** @return whether discovery is switched on: the stored choice, {@link #DISCOVERY_DEFAULT} if none; false for no source or a value that can not be read */
     public static boolean isDiscoveryEnabled(BooleanSource source) {
         if (source == null) {
-            return DISCOVERY_DEFAULT;
+            return DISCOVERY_UNREADABLE;
         }
         try {
             return source.getBoolean(KEY_DISCOVERY, DISCOVERY_DEFAULT);
         } catch (RuntimeException damaged) {
-            return DISCOVERY_DEFAULT;
+            return DISCOVERY_UNREADABLE;
         }
     }
 

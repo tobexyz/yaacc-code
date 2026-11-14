@@ -172,7 +172,7 @@
     <string name="settings_snapcast_play_experimental_summary">Experimental: music from the player is sent to a Snapcast server so that a group plays it. The audio is sent unencrypted to the server. Not tested on a device yet.</string>
     <string name="settings_snapcast_play_experimental" translatable="false">settings_snapcast_play_experimental</string>
     <string name="settings_snapcast_discovery_title">Find Snapcast servers</string>
-    <string name="settings_snapcast_discovery_summary">Searches the local network for Snapcast servers. This contacts every server that announces itself there, so leave it off on networks you do not trust. Off: only the servers listed below are used.</string>
+    <string name="settings_snapcast_discovery_summary">Searches the local network for Snapcast servers; on by default. It sends mDNS queries on the Wi-Fi and contacts every server that announces itself there. Announcements are not authenticated: any device on the network can announce a server. Clear the checkbox on networks you do not trust. Off: only the servers listed below are used.</string>
     <string name="settings_snapcast_servers_title">Snapcast servers</string>
     <string name="settings_snapcast_servers_summary">Add servers by address, or remove them</string>
     <string name="settings_snapcast_about_title">What Snapcast needs</string>

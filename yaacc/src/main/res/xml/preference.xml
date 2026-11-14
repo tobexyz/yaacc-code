@@ -130,7 +130,7 @@
             android:summary="@string/settings_snapcast_play_experimental_summary"
             android:title="@string/settings_snapcast_play_experimental_title" />
         <CheckBoxPreference
-            android:defaultValue="false"
+            android:defaultValue="true"
             android:key="@string/settings_snapcast_discovery"
             android:summary="@string/settings_snapcast_discovery_summary"
             android:title="@string/settings_snapcast_discovery_title" />

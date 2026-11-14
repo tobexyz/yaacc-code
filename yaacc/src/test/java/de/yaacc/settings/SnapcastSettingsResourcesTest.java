@@ -42,7 +42,7 @@ import de.yaacc.multiroom.ui.SnapcastServerListModel;
 
 /**
  * The resources of the Snapcast rows, sheet and settings (task 5.1 and 5.2): every new text exists in the seven locales
- * with the same format arguments as the English one, the discovery switch is declared off by default under the key the
+ * with the same format arguments as the English one, the discovery switch is declared on by default under the key the
  * code reads, no new resource has a color of its own, and every outcome of the server list has its own message. Plain
  * JVM: the resource files are read from the module directory Gradle runs unit tests in.
  */
@@ -160,14 +160,14 @@ public class SnapcastSettingsResourcesTest {
     }
 
     @Test
-    public void theDiscoverySwitchIsOffByDefaultUnderTheKeyTheCodeReads() throws Exception {
+    public void theDiscoverySwitchIsOnByDefaultUnderTheKeyTheCodeReads() throws Exception {
         assertEquals(SnapcastSettings.KEY_DISCOVERY, strings("values", "setting_strings.xml").get("settings_snapcast_discovery"));
         String xml = read("src/main/res/xml/preference.xml");
         Matcher m = Pattern.compile("<CheckBoxPreference[^>]*?android:defaultValue=\"(\\w+)\"[^>]*?android:key=\"@string/settings_snapcast_discovery\"",
                 Pattern.DOTALL).matcher(xml);
         assertTrue("the preference is declared", m.find());
-        assertEquals("false", m.group(1));
-        assertFalse(SnapcastSettings.DISCOVERY_DEFAULT);
+        assertEquals("true", m.group(1));
+        assertTrue(SnapcastSettings.DISCOVERY_DEFAULT);
     }
 
     @Test
@@ -190,6 +190,26 @@ public class SnapcastSettingsResourcesTest {
         assertTrue(english.get("settings_snapcast_about_summary").contains("existing Snapcast server"));
         assertTrue(english.get("settings_snapcast_about_summary").contains("reachable on your network"));
         assertTrue(english.get("settings_snapcast_discovery_summary").contains("contacts every server"));
+    }
+
+    @Test
+    public void theSummaryOfTheDiscoverySwitchSaysHonestlyWhatItDoesWhenItIsOnInEveryLocale() throws Exception {
+        // on by default (2026-11-14): the summary says that it is on, that it asks on the Wi-Fi, that it contacts every
+        // server and that an announcement is not authenticated; it no longer talks of "leaving it off" as the normal state
+        String[][] words = {
+                {"values", "on by default", "Wi-Fi", "contacts every server", "not authenticated"},
+                {"values-de", "standardmäßig an", "WLAN", "jeder Server kontaktiert", "nicht authentifiziert"},
+                {"values-es", "activada de forma predeterminada", "Wi-Fi", "se contacta con todos los servidores", "no están autenticados"},
+                {"values-fr", "activée par défaut", "Wi-Fi", "contacte tous les serveurs", "ne sont pas authentifiées"},
+                {"values-nl", "standaard aan", "wifi", "contact gemaakt met elke server", "niet geauthenticeerd"},
+                {"values-pt", "ativada por predefinição", "Wi-Fi", "contacta todos os servidores", "não são autenticados"},
+                {"values-zh", "默认开启", "Wi-Fi", "连接", "未经身份验证"}};
+        for (String[] row : words) {
+            String text = strings(row[0], "setting_strings.xml").get("settings_snapcast_discovery_summary");
+            for (int i = 1; i < row.length; i++) {
+                assertTrue(row[0] + " summary lacks \"" + row[i] + "\": " + text, text.contains(row[i]));
+            }
+        }
     }
 
     @Test

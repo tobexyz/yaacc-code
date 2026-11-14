@@ -125,7 +125,7 @@
     <string name="settings_snapcast_play_experimental_title">Afspelen op Snapcast-groepen</string>
     <string name="settings_snapcast_play_experimental_summary">Experimenteel: de muziek van de speler wordt naar een Snapcast-server gestuurd zodat een groep deze afspeelt. De audio wordt onversleuteld naar de server gestuurd. Nog niet op een apparaat getest.</string>
     <string name="settings_snapcast_discovery_title">Snapcast-servers zoeken</string>
-    <string name="settings_snapcast_discovery_summary">Zoekt in het lokale netwerk naar Snapcast-servers. Daarbij wordt contact gemaakt met elke server die zich daar meldt; laat dit uit op netwerken die u niet vertrouwt. Uit: alleen de hieronder genoemde servers worden gebruikt.</string>
+    <string name="settings_snapcast_discovery_summary">Zoekt in het lokale netwerk naar Snapcast-servers; standaard aan. Er worden mDNS-verzoeken over wifi verstuurd en er wordt contact gemaakt met elke server die zich daar meldt. De meldingen zijn niet geauthenticeerd: elk apparaat in het netwerk kan een server melden. Schakel het uit op netwerken die u niet vertrouwt. Uit: alleen de hieronder genoemde servers worden gebruikt.</string>
     <string name="settings_snapcast_servers_title">Snapcast-servers</string>
     <string name="settings_snapcast_servers_summary">Servers op adres toevoegen of verwijderen</string>
     <string name="settings_snapcast_about_title">Wat Snapcast nodig heeft</string>

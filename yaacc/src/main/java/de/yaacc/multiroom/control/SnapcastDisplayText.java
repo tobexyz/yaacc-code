@@ -22,7 +22,8 @@ package de.yaacc.multiroom.control;
  * Makes text that came from the network safe to show. Names of servers, groups, clients and streams, and service
  * names from mDNS are written by whoever runs the machine (or by someone who pretends to): control characters, line
  * and paragraph separators, bidi controls, the C1 range, invisible format characters (zero width, soft hyphen, word
- * joiner), tag characters and unpaired surrogates become {@code ?}, and the text is cut. The result is
+ * joiner, the deprecated U+2065 to U+206F), the letters that draw nothing (Hangul fillers, Braille blank, Khmer inherent
+ * vowels, combining grapheme joiner), tag characters and unpaired surrogates become {@code ?}, and the text is cut. The result is
  * <b>display text only</b>: never an identity, never a log line.
  */
 public final class SnapcastDisplayText {
@@ -70,6 +71,7 @@ public final class SnapcastDisplayText {
 
     /** The invisible characters that must go even where a platform's character table does not class them as format. */
     private static boolean isInvisibleFormat(int c) {
-        return (c >= 0x200B && c <= 0x200D) || (c >= 0x2060 && c <= 0x2064) || c == 0x00AD || c == 0xFEFF;
+        return (c >= 0x200B && c <= 0x200D) || (c >= 0x2060 && c <= 0x206F) || c == 0x00AD || c == 0xFEFF
+                || SnapcastJson.isBlankLooking(c);
     }
 }

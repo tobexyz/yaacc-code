@@ -64,7 +64,7 @@ public class SnapcastServerChoicesTest {
         assertEquals(1, choices.size());
         // the client connects to the stream port; the control port of the list is not its port
         assertEquals("192.168.1.5", choices.get(0).hostText());
-        assertEquals("Living room (192.168.1.5)", choices.get(0).label());
+        assertEquals("192.168.1.5 (Living room)", choices.get(0).label());
         assertEquals(SnapcastServerChoices.Source.FOUND, choices.get(0).source());
     }
 
@@ -109,7 +109,7 @@ public class SnapcastServerChoicesTest {
         assertEquals(2, choices.size());
         assertEquals("192.168.1.5", choices.get(0).hostText());
         assertTrue(choices.get(0).isLastUsed());
-        assertEquals("Living room (192.168.1.5)", choices.get(0).label());
+        assertEquals("192.168.1.5 (Living room)", choices.get(0).label());
         assertFalse(choices.get(1).isLastUsed());
     }
 
@@ -170,8 +170,9 @@ public class SnapcastServerChoicesTest {
         assertFalse(label.contains("\n"));
         assertFalse(label.contains("‮"));
         assertFalse(label.contains("\u0007"));
-        assertTrue(label, label.length() <= SnapcastServerListModel.MAX_NAME + " (192.168.1.5)".length());
-        assertTrue(label.endsWith(" (192.168.1.5)"));
+        assertTrue(label, label.length() <= SnapcastServerListModel.MAX_NAME + "192.168.1.5 ()".length());
+        assertTrue(label.startsWith("192.168.1.5 ("));
+        assertTrue(label.endsWith(")"));
     }
 
     @Test
@@ -236,5 +237,62 @@ public class SnapcastServerChoicesTest {
                 rows(row("[fd00::5]:1705", "", SnapcastServerListModel.Kind.DISCOVERED)), "");
 
         assertEquals(1, choices.size());
+    }
+
+    // ---- Group 11D, S67: the host comes first, a name can not imitate an address; S12: 169.254 is still offered
+
+    @Test
+    public void theHostComesFirstInTheLabelSoANameCanNotImitateAnAddress() {
+        // the server at 10.0.0.9 calls itself like another address: the label must start with the real host
+        List<SnapcastServerChoices.Choice> choices = SnapcastServerChoices.of(
+                rows(row("10.0.0.9:1705", "Living room (192.168.1.5)", SnapcastServerListModel.Kind.DISCOVERED)), "");
+
+        String label = choices.get(0).label();
+        assertTrue(label, label.startsWith("10.0.0.9 ("));
+        assertEquals("10.0.0.9 (Living room (192.168.1.5))", label);
+    }
+
+    @Test
+    public void aServerWithoutANameShowsTheHostAlone() {
+        assertEquals("10.0.0.9", SnapcastServerChoices.of(
+                rows(row("10.0.0.9:1705", "", SnapcastServerListModel.Kind.MANUAL)), "").get(0).label());
+    }
+
+    @Test
+    public void aFoundIpv4LinkLocalServerIsStillOffered() {
+        // only a link-local IPv6 address loses its scope id; 169.254.x.x has none and must stay a choice
+        List<SnapcastServerChoices.Choice> choices = SnapcastServerChoices.of(
+                rows(row("169.254.1.5:1705", "Garage", SnapcastServerListModel.Kind.DISCOVERED)), "");
+
+        assertEquals(Arrays.asList("169.254.1.5"), hosts(choices));
+    }
+
+    @Test
+    public void nothingTypedOrUsedBeforeMeansNoPrefillFromAFoundServer() {
+        List<SnapcastServerChoices.Choice> found = SnapcastServerChoices.of(rows(
+                row("192.168.1.5:1705", "Living room", SnapcastServerListModel.Kind.DISCOVERED)), "");
+
+        assertNull(SnapcastServerChoices.prefill(found));
+        assertNull(SnapcastServerChoices.prefill(new ArrayList<SnapcastServerChoices.Choice>()));
+        assertNull(SnapcastServerChoices.prefill(null));
+    }
+
+    @Test
+    public void theLastUsedTypedAndRememberedServersMayBePrefilled() {
+        assertEquals("10.9.9.9:1800", SnapcastServerChoices.prefill(SnapcastServerChoices.of(rows(
+                row("192.168.1.5:1705", "", SnapcastServerListModel.Kind.DISCOVERED)), "10.9.9.9:1800")));
+        assertEquals("192.168.1.8", SnapcastServerChoices.prefill(SnapcastServerChoices.of(rows(
+                row("192.168.1.5:1705", "", SnapcastServerListModel.Kind.DISCOVERED),
+                row("192.168.1.8:1705", "", SnapcastServerListModel.Kind.MANUAL)), "")));
+        assertEquals("192.168.1.2", SnapcastServerChoices.prefill(SnapcastServerChoices.of(rows(
+                row("192.168.1.2:1705", "", SnapcastServerListModel.Kind.REMEMBERED),
+                row("192.168.1.5:1705", "", SnapcastServerListModel.Kind.DISCOVERED)), "")));
+    }
+
+    @Test
+    public void aFoundServerThatTheUserUsedBeforeMayBePrefilled() {
+        // used last: the user chose it once, so it is not the network's choice
+        assertEquals("192.168.1.5", SnapcastServerChoices.prefill(SnapcastServerChoices.of(rows(
+                row("192.168.1.5:1705", "Living room", SnapcastServerListModel.Kind.DISCOVERED)), "192.168.1.5")));
     }
 }

@@ -18,7 +18,6 @@
  */
 package de.yaacc.settings;
 
-import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.graphics.Typeface;
@@ -216,13 +215,16 @@ final class SnapcastServersDialog {
         opened.reportLoop.run();
     }
 
-    /** Puts the report on the clipboard. It names the servers found and their addresses; the note beside the button says so. */
+    /**
+     * Puts the report on the clipboard, flagged as sensitive (the system keeps such a clip out of the paste preview). It names
+     * the servers found and their addresses and the phone model; the note beside the button says so.
+     */
     private void copyReport() {
         ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboard == null || reportText.isEmpty()) {
             return;
         }
-        clipboard.setPrimaryClip(ClipData.newPlainText("snapcast discovery", reportText));
+        clipboard.setPrimaryClip(SensitiveClip.plainText("snapcast discovery", reportText));
         Toast.makeText(context, R.string.snapcast_servers_discovery_copied, Toast.LENGTH_SHORT).show();
     }
 

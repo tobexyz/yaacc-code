@@ -125,7 +125,7 @@
     <string name="settings_snapcast_play_experimental_title">Reproducir en grupos de Snapcast</string>
     <string name="settings_snapcast_play_experimental_summary">Experimental: la música del reproductor se envía a un servidor de Snapcast para que la reproduzca un grupo. El audio se envía sin cifrar al servidor. Aún no se ha probado en un dispositivo.</string>
     <string name="settings_snapcast_discovery_title">Buscar servidores Snapcast</string>
-    <string name="settings_snapcast_discovery_summary">Busca servidores Snapcast en la red local. Se contacta con todos los servidores que se anuncian allí, así que déjelo desactivado en redes en las que no confíe. Desactivado: solo se usan los servidores de la lista de abajo.</string>
+    <string name="settings_snapcast_discovery_summary">Busca servidores Snapcast en la red local; activada de forma predeterminada. Envía consultas mDNS por la Wi-Fi y se contacta con todos los servidores que se anuncian allí. Los anuncios no están autenticados: cualquier dispositivo de la red puede anunciar un servidor. Desmarque la casilla en redes en las que no confíe. Desactivada: solo se usan los servidores de la lista de abajo.</string>
     <string name="settings_snapcast_servers_title">Servidores Snapcast</string>
     <string name="settings_snapcast_servers_summary">Añadir servidores por dirección o quitarlos</string>
     <string name="settings_snapcast_about_title">Qué necesita Snapcast</string>

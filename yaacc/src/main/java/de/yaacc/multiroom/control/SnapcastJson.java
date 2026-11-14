@@ -191,8 +191,9 @@ public final class SnapcastJson {
     /**
      * Server text made safe to show: control characters, line and paragraph separators, bidi controls, the C1 range,
      * the invisible format characters (zero width space and joiners U+200B to U+200D, word joiner and invisible
-     * operators U+2060 to U+2064, soft hyphen U+00AD, U+180E, the byte order mark, the interlinear annotation marks,
-     * the non-characters U+FFFE and U+FFFF), tag characters (U+E0000 to U+E007F) and unpaired surrogates become
+     * operators U+2060 to U+2064, the deprecated U+2065 to U+206F, soft hyphen U+00AD, U+180E, the byte order mark, the
+     * interlinear annotation marks, the non-characters U+FFFE and U+FFFF), the letters that draw nothing ({@link
+     * #isBlankLooking}), tag characters (U+E0000 to U+E007F) and unpaired surrogates become
      * {@code ?}; the text is cut at {@code max} characters (never inside a surrogate pair). So two names that look the
      * same on the screen are the same text, or show a {@code ?} where they differ. It is still the server's text (display
      * only, never an identity, never a log line). The result is never longer than {@code max}.
@@ -234,7 +235,19 @@ public final class SnapcastJson {
                 || c == 0x061c || c == 0xfeff
                 || (c >= 0x200b && c <= 0x200d) || (c >= 0x2060 && c <= 0x2064) || c == 0x00ad || c == 0x180e
                 || (c >= 0xfff9 && c <= 0xfffb) || c == 0xfffe || c == 0xffff
+                || (c >= 0x2065 && c <= 0x206f) || isBlankLooking(c)
                 || Character.isLowSurrogate(c);
+    }
+
+    /**
+     * Letters and marks that draw nothing but a blank (security review S66): the Hangul fillers (as
+     * {@code DisplayName.clean} drops them), the Braille blank, the Khmer inherent vowels and the combining grapheme joiner.
+     * A name made of them looks empty or pads a line. (U+2065 to U+206F, the unassigned and deprecated format characters,
+     * are listed in {@link #isUnsafeForDisplay}.)
+     */
+    static boolean isBlankLooking(int c) {
+        return c == 0x115f || c == 0x1160 || c == 0x3164 || c == 0xffa0 || c == 0x2800 || c == 0x17b4 || c == 0x17b5
+                || c == 0x034f;
     }
 
     /** The title of a server error: printable ASCII only and at most 64 characters (the titles are fixed texts). */

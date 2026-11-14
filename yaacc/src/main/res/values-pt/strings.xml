@@ -315,7 +315,7 @@
     <string name="snapcast_feed_error_connect">Não foi possível ligar ao fluxo do servidor Snapcast</string>
     <string name="snapcast_feed_error_busy">Este telefone já está a reproduzir noutro grupo deste servidor Snapcast</string>
     <string name="snapcast_feed_error_lost">Perdeu-se a ligação ao servidor Snapcast</string>
-    <string name="snapcast_feed_static_source_hint">Em alternativa, adicione uma fonte de fluxo TCP à configuração do servidor (consulte a documentação do YAACC).</string>
+    <string name="snapcast_feed_static_source_hint">O servidor tem de permitir a adição de uma fonte de fluxo TCP durante a execução.</string>
     <string name="snapcast_feed_authorization_hint">Desative o início de sessão na ligação de controlo do servidor ou use um servidor sem ele.</string>
     <string name="snapcast_feed_error_player">A reprodução no grupo Snapcast parou devido a um erro</string>
     <string name="snapcast_row_stream">Fluxo: %1$s</string>

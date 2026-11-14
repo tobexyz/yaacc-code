@@ -125,7 +125,7 @@
     <string name="settings_snapcast_play_experimental_title">向 Snapcast 组播放</string>
     <string name="settings_snapcast_play_experimental_summary">实验性功能：播放器的音乐会发送到 Snapcast 服务器，由某个组播放。音频以未加密方式发送到服务器。尚未在设备上测试。</string>
     <string name="settings_snapcast_discovery_title">查找 Snapcast 服务器</string>
-    <string name="settings_snapcast_discovery_summary">在本地网络中搜索 Snapcast 服务器。这会连接网络中所有主动声明自己的服务器，因此在你不信任的网络上请保持关闭。关闭时：只使用下方列出的服务器。</string>
+    <string name="settings_snapcast_discovery_summary">在本地网络中搜索 Snapcast 服务器，默认开启。它会通过 Wi-Fi 发送 mDNS 查询，并连接网络中所有主动声明自己的服务器。这些声明未经身份验证：网络中的任何设备都可以声明一个服务器。在你不信任的网络上请取消勾选。关闭时：只使用下方列出的服务器。</string>
     <string name="settings_snapcast_servers_title">Snapcast 服务器</string>
     <string name="settings_snapcast_servers_summary">按地址添加服务器，或移除服务器</string>
     <string name="settings_snapcast_about_title">Snapcast 的要求</string>
