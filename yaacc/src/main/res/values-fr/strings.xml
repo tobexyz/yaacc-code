@@ -378,7 +378,7 @@
     <string name="snapcast_servers_discovery_title">Rapport de recherche</string>
     <string name="snapcast_servers_discovery_copy">Copier le rapport</string>
     <string name="snapcast_servers_discovery_copied">Rapport copié dans le presse-papiers</string>
-    <string name="snapcast_servers_discovery_note">Le rapport indique les serveurs trouvés avec leurs adresses sur votre réseau, ainsi que l\'état du Wi-Fi et de la recherche. Relisez-le avant de le coller quelque part. Tant que cette fenêtre est ouverte et que Rechercher des serveurs Snapcast est activé, le réseau est exploré.</string>
+    <string name="snapcast_servers_discovery_note">Le rapport indique les serveurs trouvés avec leurs adresses sur votre réseau, le modèle du téléphone, ainsi que l\'état du Wi-Fi et de la recherche. Relisez-le avant de le coller quelque part. Tant que cette fenêtre est ouverte et que Rechercher des serveurs Snapcast est activé, le réseau est exploré.</string>
     <string name="snapcast_client_title">Client Snapcast (test d\'écoute)</string>
     <string name="snapcast_client_note">Expérimental. Ce téléphone joue comme client Snapcast pour que vous puissiez vérifier la synchronisation à l\'oreille. L\'audio et le contrôle ne sont pas chiffrés. Le serveur et ses contrôleurs voient le nom de ce téléphone et un identifiant généré.</string>
     <string name="snapcast_client_host_hint">Adresse du serveur, :port facultatif (1704 par défaut)</string>

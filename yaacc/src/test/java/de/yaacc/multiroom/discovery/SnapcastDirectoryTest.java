@@ -698,4 +698,31 @@ public class SnapcastDirectoryTest {
         assertFalse(directory.serviceFound("id", null, ip(192, 168, 1, 5), 1705));
         assertEquals(0, directory.servers().size());
     }
+
+    @Test
+    public void theSameServiceIdAtANewAddressMovesTheServiceAndLeavesTheOldServerLost() throws Exception {
+        // the id is the key of the service, not the display name: "Snapcast" under two ids must not be confused
+        String id = SnapcastServiceTypes.serviceId("_snapcast-ctrl._tcp", "Snapcast");
+        String otherId = SnapcastServiceTypes.serviceId("_snapcast-tcp._tcp", "Snapcast");
+        directory.serviceFound(id, "Snapcast", ip(192, 168, 1, 5), 1705);
+        directory.serviceFound(otherId, "Snapcast", ip(192, 168, 1, 5), 1705);
+
+        directory.serviceFound(id, "Snapcast", ip(192, 168, 1, 6), 1705); // the server got a new address
+
+        SnapcastDirectory.Entry old = directory.find(key("192.168.1.5:1705"));
+        assertTrue("the old address still has the other type", old.isDiscovered());
+        directory.serviceLost(otherId);
+        assertTrue("now nothing announces the old address", directory.find(key("192.168.1.5:1705")).isLost());
+        assertTrue(directory.find(key("192.168.1.6:1705")).isDiscovered());
+    }
+
+    @Test
+    public void aNameThatOnlyMatchesTheDisplayNameDoesNotMoveAService() throws Exception {
+        directory.serviceFound("id-1", "Snapcast", ip(192, 168, 1, 5), 1705);
+        directory.serviceFound("id-2", "id-1", ip(192, 168, 1, 6), 1705); // a display name that equals another service's id
+
+        assertTrue(directory.find(key("192.168.1.5:1705")).isDiscovered());
+        assertTrue(directory.find(key("192.168.1.6:1705")).isDiscovered());
+        assertEquals(2, directory.servers().size());
+    }
 }

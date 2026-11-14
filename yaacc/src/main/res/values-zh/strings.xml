@@ -370,7 +370,7 @@
     <string name="snapcast_servers_discovery_title">搜索报告</string>
     <string name="snapcast_servers_discovery_copy">复制报告</string>
     <string name="snapcast_servers_discovery_copied">报告已复制到剪贴板</string>
-    <string name="snapcast_servers_discovery_note">报告列出在你的网络中找到的服务器及其地址，以及 Wi-Fi 和搜索的状态。粘贴到别处之前请先查看。在此窗口打开且“查找 Snapcast 服务器”开启期间，会搜索网络。</string>
+    <string name="snapcast_servers_discovery_note">报告列出在你的网络中找到的服务器及其地址、手机型号，以及 Wi-Fi 和搜索的状态。粘贴到别处之前请先查看。在此窗口打开且“查找 Snapcast 服务器”开启期间，会搜索网络。</string>
     <string name="snapcast_client_title">Snapcast 客户端（试听测试）</string>
     <string name="snapcast_client_note">实验性功能。本手机作为 Snapcast 客户端播放，以便你用耳朵检查同步。音频和控制均未加密。服务器及其控制端会看到本手机的名称和一个生成的标识。</string>
     <string name="snapcast_client_host_hint">服务器地址，可选 :端口（默认 1704）</string>

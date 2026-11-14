@@ -86,6 +86,7 @@ public final class SnapcastNsd {
     private final List<Browse> browses = new ArrayList<>();
     private boolean started;
     private int generation;
+    private int scanId;
 
     public SnapcastNsd(Context context, SnapcastDirectory directory, SnapcastDiscoveryLog log) {
         this.context = context.getApplicationContext();
@@ -118,6 +119,7 @@ public final class SnapcastNsd {
         // first: even without a discovery service, a remembered server must get its grace period (nothing confirms it)
         directory.discoveryRestarted();
         log.scanStarted();
+        scanId = log.scanId();
         retry.clear();
         nsdManager = (NsdManager) context.getSystemService(Context.NSD_SERVICE);
         if (nsdManager == null) {
@@ -129,7 +131,7 @@ public final class SnapcastNsd {
         browses.clear();
         for (String type : SnapcastServiceTypes.browsed()) {
             Browse browse = new Browse(type);
-            browse.listener = newListener(browse, myGeneration);
+            browse.listener = newListener(browse, myGeneration, scanId);
             browses.add(browse);
             log.record(SnapcastDiscoveryLog.Kind.BROWSE_REQUESTED, type, "", 0, "");
             try {
@@ -159,25 +161,25 @@ public final class SnapcastNsd {
         return true;
     }
 
-    private NsdManager.DiscoveryListener newListener(final Browse browse, final int myGeneration) {
+    private NsdManager.DiscoveryListener newListener(final Browse browse, final int myGeneration, final int myScan) {
         return new NsdManager.DiscoveryListener() {
             @Override
             public void onStartDiscoveryFailed(String serviceType, int errorCode) {
                 browse.handle.onStartFailed();
-                log.record(SnapcastDiscoveryLog.Kind.BROWSE_START_FAILED, browse.type, "", errorCode, "");
+                log.record(myScan, SnapcastDiscoveryLog.Kind.BROWSE_START_FAILED, browse.type, "", errorCode, "");
                 YaaccLogger.w(SnapcastNsd.class.getName(), "Snapcast discovery did not start, code " + errorCode);
                 browseFailed(browse, myGeneration);
             }
 
             @Override
             public void onStopDiscoveryFailed(String serviceType, int errorCode) {
-                log.record(SnapcastDiscoveryLog.Kind.BROWSE_STOP_FAILED, browse.type, "", errorCode, "");
+                log.record(myScan, SnapcastDiscoveryLog.Kind.BROWSE_STOP_FAILED, browse.type, "", errorCode, "");
                 YaaccLogger.d(SnapcastNsd.class.getName(), "Snapcast discovery did not stop cleanly, code " + errorCode);
             }
 
             @Override
             public void onDiscoveryStarted(String serviceType) {
-                log.record(SnapcastDiscoveryLog.Kind.BROWSE_STARTED, browse.type, "", 0, "");
+                log.record(myScan, SnapcastDiscoveryLog.Kind.BROWSE_STARTED, browse.type, "", 0, "");
                 // the services arrive through onServiceFound; a stop that came before this is made now
                 if (browse.handle.onStarted()) {
                     stopBrowse(browse.listener);
@@ -186,7 +188,7 @@ public final class SnapcastNsd {
 
             @Override
             public void onDiscoveryStopped(String serviceType) {
-                log.record(SnapcastDiscoveryLog.Kind.BROWSE_STOPPED, browse.type, "", 0, "");
+                log.record(myScan, SnapcastDiscoveryLog.Kind.BROWSE_STOPPED, browse.type, "", 0, "");
             }
 
             @Override
@@ -196,24 +198,25 @@ public final class SnapcastNsd {
                 }
                 SnapcastServiceTypes.Role role = SnapcastServiceTypes.roleOf(info.getServiceType());
                 if (role == null) {
-                    log.record(SnapcastDiscoveryLog.Kind.FOUND_IGNORED, String.valueOf(info.getServiceType()), info.getServiceName(), 0, "");
+                    log.record(myScan, SnapcastDiscoveryLog.Kind.FOUND_IGNORED, String.valueOf(info.getServiceType()), info.getServiceName(), 0, "");
                     return; // another type
                 }
-                log.record(SnapcastDiscoveryLog.Kind.FOUND, info.getServiceType(), info.getServiceName(), 0, "");
+                log.record(myScan, SnapcastDiscoveryLog.Kind.FOUND, info.getServiceType(), info.getServiceName(), 0, "");
                 if (!SnapcastServiceTypes.isListed(role)) {
                     return; // the stream service: counted for the report, never resolved
                 }
                 if (queue.offer(serviceId(info), info)) {
                     pump();
                 } else {
-                    log.record(SnapcastDiscoveryLog.Kind.QUEUE_FULL, info.getServiceType(), info.getServiceName(), 0, "");
+                    log.record(myScan, SnapcastDiscoveryLog.Kind.QUEUE_FULL, info.getServiceType(), info.getServiceName(), 0, "");
                 }
             }
 
             @Override
             public void onServiceLost(NsdServiceInfo info) {
                 if (info != null && isCurrent(myGeneration)) {
-                    log.record(SnapcastDiscoveryLog.Kind.LOST, String.valueOf(info.getServiceType()), info.getServiceName(), 0, "");
+                    log.record(myScan, SnapcastDiscoveryLog.Kind.LOST, String.valueOf(info.getServiceType()), info.getServiceName(), 0, "");
+                    retry.lost(serviceId(info));
                     directory.serviceLost(serviceId(info));
                 }
             }
@@ -280,12 +283,14 @@ public final class SnapcastNsd {
     private void pump() {
         final NsdManager manager;
         final int myGeneration;
+        final int myScan;
         synchronized (this) {
             if (!started) {
                 return;
             }
             manager = nsdManager;
             myGeneration = generation;
+            myScan = scanId;
         }
         SnapcastResolveQueue.Pending<NsdServiceInfo> next = queue.next();
         if (next == null) {
@@ -297,12 +302,12 @@ public final class SnapcastNsd {
             manager.resolveService(asked, new NsdManager.ResolveListener() {
                 @Override
                 public void onResolveFailed(NsdServiceInfo info, int errorCode) {
-                    log.record(SnapcastDiscoveryLog.Kind.RESOLVE_FAILED, asked.getServiceType(), asked.getServiceName(), errorCode, "");
+                    log.record(myScan, SnapcastDiscoveryLog.Kind.RESOLVE_FAILED, asked.getServiceType(), asked.getServiceName(), errorCode, "");
                     queue.done(queued);
                     if (retry.shouldRetry(queued.getName(), errorCode)) {
                         // a busy platform or a failure that passes: the same service again after a short wait
                         handler.postDelayed(() -> {
-                            if (isCurrent(myGeneration) && queue.offer(queued.getName(), asked)) {
+                            if (retry.takePending(queued.getName()) && isCurrent(myGeneration) && queue.offer(queued.getName(), asked)) {
                                 pump();
                             }
                         }, SnapcastResolveRetry.DELAY_MILLIS);
@@ -317,7 +322,7 @@ public final class SnapcastNsd {
                     if (info != null && isCurrent(myGeneration)) {
                         InetAddress host = info.getHost(); // a number: no lookup
                         boolean listed = directory.serviceFound(queued.getName(), info.getServiceName(), host, info.getPort());
-                        recordResolved(asked, host, info.getPort(), listed);
+                        recordResolved(myScan, asked, host, info.getPort(), listed);
                     }
                     pump();
                 }
@@ -330,12 +335,12 @@ public final class SnapcastNsd {
         }
     }
 
-    private void recordResolved(NsdServiceInfo asked, InetAddress host, int port, boolean listed) {
+    private void recordResolved(int forScan, NsdServiceInfo asked, InetAddress host, int port, boolean listed) {
         SnapcastEndpoint endpoint = host == null ? null : SnapcastEndpoint.fromAddress(host, port);
         String where = endpoint != null ? endpoint.toString() : host != null ? host.getHostAddress() + ":" + port : "";
         SnapcastDiscoveryLog.Kind kind = host == null ? SnapcastDiscoveryLog.Kind.RESOLVED_EMPTY
                 : listed ? SnapcastDiscoveryLog.Kind.RESOLVED : SnapcastDiscoveryLog.Kind.RESOLVED_REFUSED;
-        log.record(kind, asked.getServiceType(), asked.getServiceName(), 0, where);
+        log.record(forScan, kind, asked.getServiceType(), asked.getServiceName(), 0, where);
     }
 
     private synchronized boolean isCurrent(int expectedGeneration) {

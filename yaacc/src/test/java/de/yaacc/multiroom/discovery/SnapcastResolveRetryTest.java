@@ -97,4 +97,55 @@ public class SnapcastResolveRetryTest {
     public void theDelayIsShortAndFixed() {
         assertTrue(SnapcastResolveRetry.DELAY_MILLIS >= 1_000L && SnapcastResolveRetry.DELAY_MILLIS <= 5_000L);
     }
+
+    // ---- Group 11Cb
+
+    @Test
+    public void aServiceThatKeepsFailingIsNotRetriedAgainAfterTheLimit() {
+        SnapcastResolveRetry retry = new SnapcastResolveRetry();
+        assertTrue(retry.shouldRetry("a", INTERNAL_ERROR));
+        assertTrue(retry.shouldRetry("a", INTERNAL_ERROR));
+        assertFalse(retry.shouldRetry("a", INTERNAL_ERROR));
+        assertFalse("a fourth failure does not start the count again", retry.shouldRetry("a", INTERNAL_ERROR));
+        assertFalse(retry.shouldRetry("a", INTERNAL_ERROR));
+    }
+
+    @Test
+    public void aRetryThatIsWaitingIsTakenOnce() {
+        SnapcastResolveRetry retry = new SnapcastResolveRetry();
+        retry.shouldRetry("a", INTERNAL_ERROR);
+
+        assertTrue(retry.takePending("a"));
+        assertFalse("only once", retry.takePending("a"));
+        assertFalse("never asked", retry.takePending("b"));
+    }
+
+    @Test
+    public void aServiceThatWasLostWhileTheRetryWaitedIsNotResolvedAgain() {
+        SnapcastResolveRetry retry = new SnapcastResolveRetry();
+        retry.shouldRetry("a", INTERNAL_ERROR);
+
+        retry.lost("a");
+
+        assertFalse(retry.takePending("a"));
+    }
+
+    @Test
+    public void aServiceThatWasLostStartsItsCountOverWhenItComesBack() {
+        SnapcastResolveRetry retry = new SnapcastResolveRetry();
+        retry.shouldRetry("a", INTERNAL_ERROR);
+        retry.shouldRetry("a", INTERNAL_ERROR);
+        retry.lost("a");
+
+        assertTrue(retry.shouldRetry("a", INTERNAL_ERROR));
+    }
+
+    @Test
+    public void thePendingRetriesAreBoundedToo() {
+        SnapcastResolveRetry retry = new SnapcastResolveRetry();
+        for (int i = 0; i < 10_000; i++) {
+            retry.shouldRetry("name" + i, INTERNAL_ERROR);
+        }
+        assertTrue(retry.pendingSize() <= SnapcastResolveRetry.MAX_TRACKED);
+    }
 }

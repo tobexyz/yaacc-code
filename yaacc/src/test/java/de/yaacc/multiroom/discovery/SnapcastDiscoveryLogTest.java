@@ -164,4 +164,35 @@ public class SnapcastDiscoveryLogTest {
         assertEquals(1, before.events().size());
         assertEquals(1, before.stats(CTRL).found());
     }
+
+    // ---- Group 11Cb S6: a late callback of an earlier scan does not touch the new one
+
+    @Test
+    public void aLateStopOfAnEarlierScanIsIgnored() {
+        log.scanStarted();
+        int first = log.scanId();
+        log.record(first, SnapcastDiscoveryLog.Kind.BROWSE_REQUESTED, CTRL, "", 0, "");
+        log.record(first, SnapcastDiscoveryLog.Kind.BROWSE_STARTED, CTRL, "", 0, "");
+        log.scanStarted(); // the page was hidden and shown again
+        int second = log.scanId();
+        log.record(second, SnapcastDiscoveryLog.Kind.BROWSE_REQUESTED, CTRL, "", 0, "");
+        log.record(second, SnapcastDiscoveryLog.Kind.BROWSE_STARTED, CTRL, "", 0, "");
+
+        log.record(first, SnapcastDiscoveryLog.Kind.BROWSE_STOPPED, CTRL, "", 0, ""); // the confirmation of the first stop
+
+        assertTrue(log.snapshot().stats(CTRL).started());
+        assertTrue(log.snapshot().stats(CTRL).requested());
+        assertEquals(2, log.snapshot().events().size());
+    }
+
+    @Test
+    public void theStopOfTheCurrentScanIsRecorded() {
+        log.scanStarted();
+        int id = log.scanId();
+        log.record(id, SnapcastDiscoveryLog.Kind.BROWSE_STARTED, CTRL, "", 0, "");
+        log.record(id, SnapcastDiscoveryLog.Kind.BROWSE_STOPPED, CTRL, "", 0, "");
+
+        assertFalse(log.snapshot().stats(CTRL).started());
+        assertEquals(2, log.snapshot().events().size());
+    }
 }

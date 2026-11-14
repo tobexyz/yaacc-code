@@ -196,14 +196,11 @@ public final class SnapcastHub implements SnapcastGroupSource {
 
     /**
      * The Snapcast server settings are open (task 11.6): with the switch on the scan runs while they are, so that the report
-     * shows a live scan. Only the scan, not the connections of a receivers page. Pair with {@link #diagnosticsClosed()}.
+     * shows a live scan. Only the scan, not the connections of a receivers page. The caller closes the lease when its window
+     * goes away, on every path (dismiss, stop, destroy); closing it twice is harmless.
      */
-    public void diagnosticsOpened() {
-        gate.pageStarted();
-    }
-
-    public void diagnosticsClosed() {
-        gate.pageStopped();
+    public SnapcastDiscoveryGate.Lease diagnosticsOpened() {
+        return gate.pageLease();
     }
 
     /**
@@ -240,7 +237,7 @@ public final class SnapcastHub implements SnapcastGroupSource {
         }
     }
 
-    /** Whether the default network is Wi-Fi (or Ethernet, which also carries mDNS); needs ACCESS_NETWORK_STATE, which the app has. */
+    /** The Wi-Fi fact from the transports of the default network (the rule is {@link SnapcastDiscoveryReport#wifiOf}). */
     private SnapcastDiscoveryReport.Tri wifiState() {
         try {
             android.net.ConnectivityManager manager = (android.net.ConnectivityManager) context
@@ -251,15 +248,12 @@ public final class SnapcastHub implements SnapcastGroupSource {
             android.net.Network network = manager.getActiveNetwork();
             android.net.NetworkCapabilities capabilities = network == null ? null : manager.getNetworkCapabilities(network);
             if (capabilities == null) {
-                return SnapcastDiscoveryReport.Tri.NO;
+                return SnapcastDiscoveryReport.wifiOf(false, false, false, false);
             }
-            if (capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)
-                    || capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)) {
-                return SnapcastDiscoveryReport.Tri.YES;
-            }
-            // a VPN hides what carries it: not a reason to say "no Wi-Fi"
-            return capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)
-                    ? SnapcastDiscoveryReport.Tri.UNKNOWN : SnapcastDiscoveryReport.Tri.NO;
+            return SnapcastDiscoveryReport.wifiOf(true,
+                    capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI),
+                    capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET),
+                    capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN));
         } catch (RuntimeException unreadable) {
             return SnapcastDiscoveryReport.Tri.UNKNOWN;
         }

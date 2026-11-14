@@ -78,6 +78,7 @@ public final class SnapcastDiscoveryReport {
                 + " (router, access point isolation, another network)."),
         STREAM_ONLY("A server announces its stream service but not its control port, so it can not be listed. Its control"
                 + " service is off (publish = false or the control port is disabled): add the server by address."),
+        RESOLVING("Services were found and are being resolved to an address. If this stays, see the codes below."),
         RESOLVE_FAILED("Services were found but none could be resolved to an address (see the codes below)."),
         REFUSED("Services were resolved, but the address or port is not accepted: only addresses of the local network and"
                 + " ports from 1024 are taken from an announcement. Add the server by address."),
@@ -177,27 +178,48 @@ public final class SnapcastDiscoveryReport {
         int controlFound = 0;
         int controlResolved = 0;
         int controlRefused = 0;
+        int controlResolveFailed = 0;
         int streamFound = 0;
+        boolean startFailed = false;
         for (String type : SnapcastServiceTypes.browsed()) {
             SnapcastDiscoveryLog.TypeStats stats = log.stats(type);
-            if (stats.startFailed()) {
-                return Reading.START_FAILED;
-            }
+            startFailed |= stats.startFailed();
             if (SnapcastServiceTypes.isListed(SnapcastServiceTypes.roleOf(type))) {
                 controlFound += stats.found();
                 controlResolved += stats.resolved();
                 controlRefused += stats.refused();
+                controlResolveFailed += stats.resolveFailed();
             } else {
                 streamFound += stats.found();
             }
         }
+        if (controlResolved > 0) {
+            return Reading.FOUND; // a server that is listed wins over a browse that was refused (the lines of the types still show it)
+        }
+        if (startFailed) {
+            return Reading.START_FAILED;
+        }
         if (controlFound == 0) {
             return streamFound > 0 ? Reading.STREAM_ONLY : Reading.NOTHING_HEARD;
         }
-        if (controlResolved > 0) {
-            return Reading.FOUND;
+        if (controlRefused > 0) {
+            return Reading.REFUSED;
         }
-        return controlRefused > 0 ? Reading.REFUSED : Reading.RESOLVE_FAILED;
+        return controlResolveFailed > 0 ? Reading.RESOLVE_FAILED : Reading.RESOLVING;
+    }
+
+    /**
+     * The Wi-Fi fact from the transports of the default network. Wi-Fi or Ethernet is yes (also under a VPN); a VPN alone
+     * hides what carries it and is <b>unknown</b>, never "no Wi-Fi"; no network, or mobile data only, is no.
+     */
+    public static Tri wifiOf(boolean hasNetwork, boolean wifi, boolean ethernet, boolean vpn) {
+        if (!hasNetwork) {
+            return Tri.NO;
+        }
+        if (wifi || ethernet) {
+            return Tri.YES;
+        }
+        return vpn ? Tri.UNKNOWN : Tri.NO;
     }
 
     /** The report. */

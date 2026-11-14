@@ -37,14 +37,19 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.content.ContextWrapper;
 
 import androidx.appcompat.app.AlertDialog;
+import androidx.lifecycle.Lifecycle;
+import androidx.lifecycle.LifecycleEventObserver;
+import androidx.lifecycle.LifecycleOwner;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import de.yaacc.R;
+import de.yaacc.multiroom.SnapcastDiscoveryGate;
 import de.yaacc.multiroom.SnapcastHub;
 import de.yaacc.multiroom.SnapcastServerAdmin;
 import de.yaacc.multiroom.ui.SnapcastServerListModel;
@@ -78,13 +83,23 @@ final class SnapcastServersDialog {
     private final TextView report;
     private AlertDialog dialog;
     private boolean shown;
+    private int ticks;
     private String drawnRows;
     private String reportText = "";
+    /** The scan of the discovery, leased while the dialog shows; given back once, on every path that ends the dialog. */
+    private SnapcastDiscoveryGate.Lease lease;
+    private Lifecycle observedLifecycle;
+    private LifecycleEventObserver lifecycleObserver;
 
     private final Runnable reportLoop = new Runnable() {
         @Override
         public void run() {
             if (!shown) {
+                return;
+            }
+            // the window is gone without a dismiss (the activity was destroyed): end the scan and the loop here too
+            if (ticks++ > 0 && !dialog.getWindow().getDecorView().isAttachedToWindow()) {
+                closeScan();
                 return;
             }
             refresh();
@@ -145,12 +160,50 @@ final class SnapcastServersDialog {
                 .setView(root)
                 .setPositiveButton(android.R.string.ok, null)
                 .create();
-        dialog.setOnDismissListener(d -> {
-            shown = false;
-            main.removeCallbacks(reportLoop);
-            SnapcastHub.getShared(this.context).diagnosticsClosed();
-            worker.shutdown();
-        });
+        dialog.setOnDismissListener(d -> closeScan());
+    }
+
+    /**
+     * Ends everything the open dialog holds: the refresh loop, the lease of the scan (with it the multicast lock) and the
+     * worker. Idempotent, and called on every path that ends the dialog: its dismissal, the stop or the destruction of the
+     * screen (a rotation destroys the activity without a dismiss; Home leaves the dialog open but the screen stopped).
+     */
+    private void closeScan() {
+        shown = false;
+        main.removeCallbacks(reportLoop);
+        if (lease != null) {
+            lease.close();
+            lease = null;
+        }
+        if (observedLifecycle != null && lifecycleObserver != null) {
+            observedLifecycle.removeObserver(lifecycleObserver);
+        }
+        observedLifecycle = null;
+        lifecycleObserver = null;
+        worker.shutdown();
+    }
+
+    /** Ties the dialog to the lifecycle of the screen it was opened from: when that stops, the dialog goes. */
+    private void observeScreen() {
+        Context walk = context;
+        while (walk instanceof ContextWrapper && !(walk instanceof LifecycleOwner)) {
+            walk = ((ContextWrapper) walk).getBaseContext();
+        }
+        if (!(walk instanceof LifecycleOwner)) {
+            return;
+        }
+        observedLifecycle = ((LifecycleOwner) walk).getLifecycle();
+        lifecycleObserver = (owner, event) -> {
+            if (event == Lifecycle.Event.ON_STOP || event == Lifecycle.Event.ON_DESTROY) {
+                closeScan();
+                try {
+                    dialog.dismiss();
+                } catch (RuntimeException alreadyGone) {
+                    // the window is gone with its activity
+                }
+            }
+        };
+        observedLifecycle.addObserver(lifecycleObserver);
     }
 
     /** Opens the dialog. */
@@ -158,7 +211,8 @@ final class SnapcastServersDialog {
         SnapcastServersDialog opened = new SnapcastServersDialog(context);
         opened.dialog.show();
         opened.shown = true;
-        SnapcastHub.getShared(context).diagnosticsOpened();
+        opened.lease = SnapcastHub.getShared(context).diagnosticsOpened();
+        opened.observeScreen();
         opened.reportLoop.run();
     }
 
@@ -221,8 +275,9 @@ final class SnapcastServersDialog {
     }
 
     private void showReport(String text) {
-        reportText = text;
-        if (!text.contentEquals(report.getText())) {
+        reportText = text; // the copy button always has the newest
+        boolean selecting = report.hasSelection();
+        if (!selecting && !text.contentEquals(report.getText())) { // a selection in progress is not dropped by a refresh
             report.setText(text); // plain text, cleaned by the report: nothing of the network is a link or markup
         }
     }

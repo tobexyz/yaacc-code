@@ -18,7 +18,9 @@
 package de.yaacc.multiroom.discovery;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Which failed resolutions are tried again (task 11.6). {@code NsdManager} answers a resolution with
@@ -41,6 +43,7 @@ public final class SnapcastResolveRetry {
     private static final int FAILURE_ALREADY_ACTIVE = 3;
 
     private final Map<String, Integer> attempts = new LinkedHashMap<>();
+    private final Set<String> pending = new LinkedHashSet<>();
 
     /** @return true if the service should be resolved again (and counts this failure) */
     public synchronized boolean shouldRetry(String serviceId, int errorCode) {
@@ -54,8 +57,23 @@ public final class SnapcastResolveRetry {
             return false;
         }
         attempts.put(serviceId, done + 1);
+        pending.add(serviceId);
         evict();
         return true;
+    }
+
+    /**
+     * The wait of a retry is over: @return true if the service is still wanted (it was not lost meanwhile) and is to be
+     * resolved again. Once per retry.
+     */
+    public synchronized boolean takePending(String serviceId) {
+        return pending.remove(serviceId);
+    }
+
+    /** The service is gone: a retry that waits for it is dropped and its count starts over. */
+    public synchronized void lost(String serviceId) {
+        pending.remove(serviceId);
+        attempts.remove(serviceId);
     }
 
     /** The service was resolved: its next failure starts the count again. */
@@ -66,16 +84,24 @@ public final class SnapcastResolveRetry {
     /** Forgets everything (the discovery stopped). */
     public synchronized void clear() {
         attempts.clear();
+        pending.clear();
     }
 
     synchronized int size() {
         return attempts.size();
     }
 
+    synchronized int pendingSize() {
+        return pending.size();
+    }
+
     private void evict() {
         while (attempts.size() > MAX_TRACKED) {
             String oldest = attempts.keySet().iterator().next();
             attempts.remove(oldest);
+        }
+        while (pending.size() > MAX_TRACKED) {
+            pending.remove(pending.iterator().next());
         }
     }
 }

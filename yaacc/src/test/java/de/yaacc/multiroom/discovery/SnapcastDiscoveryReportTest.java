@@ -259,4 +259,63 @@ public class SnapcastDiscoveryReportTest {
         assertTrue(report.endsWith("\n"));
         assertTrue(report.startsWith("YAACC Snapcast discovery report"));
     }
+
+    // ---- Group 11Cb
+
+    @Test
+    public void aWifiThatIsUnknownIsNeverReadAsNoWifi() {
+        scanWithThreeTypesStarted();
+        assertEquals(SnapcastDiscoveryReport.Reading.NOTHING_HEARD,
+                SnapcastDiscoveryReport.reading(healthy().wifi(SnapcastDiscoveryReport.Tri.UNKNOWN), log.snapshot()));
+        log.record(SnapcastDiscoveryLog.Kind.FOUND, CTRL, "Snapcast", 0, "");
+        log.record(SnapcastDiscoveryLog.Kind.RESOLVED, CTRL, "Snapcast", 0, "192.168.1.5:1705");
+        assertEquals(SnapcastDiscoveryReport.Reading.FOUND,
+                SnapcastDiscoveryReport.reading(healthy().wifi(SnapcastDiscoveryReport.Tri.UNKNOWN), log.snapshot()));
+    }
+
+    @Test
+    public void aMulticastPermissionThatIsUnknownIsNeverReadAsMissing() {
+        scanWithThreeTypesStarted();
+        assertEquals(SnapcastDiscoveryReport.Reading.NOTHING_HEARD,
+                SnapcastDiscoveryReport.reading(healthy().multicastPermission(SnapcastDiscoveryReport.Tri.UNKNOWN), log.snapshot()));
+    }
+
+    @Test
+    public void theTransportsOfTheDefaultNetworkGiveTheWifiFact() {
+        // (network, wifi, ethernet, vpn)
+        assertEquals(SnapcastDiscoveryReport.Tri.NO, SnapcastDiscoveryReport.wifiOf(false, false, false, false));
+        assertEquals(SnapcastDiscoveryReport.Tri.YES, SnapcastDiscoveryReport.wifiOf(true, true, false, false));
+        assertEquals(SnapcastDiscoveryReport.Tri.YES, SnapcastDiscoveryReport.wifiOf(true, false, true, false));
+        assertEquals("Wi-Fi under a VPN", SnapcastDiscoveryReport.Tri.YES, SnapcastDiscoveryReport.wifiOf(true, true, false, true));
+        assertEquals("a VPN hides what carries it", SnapcastDiscoveryReport.Tri.UNKNOWN,
+                SnapcastDiscoveryReport.wifiOf(true, false, false, true));
+        assertEquals("mobile data only", SnapcastDiscoveryReport.Tri.NO, SnapcastDiscoveryReport.wifiOf(true, false, false, false));
+        assertEquals("no network with a stale VPN flag", SnapcastDiscoveryReport.Tri.NO,
+                SnapcastDiscoveryReport.wifiOf(false, false, false, true));
+    }
+
+    @Test
+    public void aResolutionThatIsStillRunningIsNotAFailure() {
+        scanWithThreeTypesStarted();
+        log.record(SnapcastDiscoveryLog.Kind.FOUND, CTRL, "Snapcast", 0, "");
+
+        assertEquals(SnapcastDiscoveryReport.Reading.RESOLVING, SnapcastDiscoveryReport.reading(healthy(), log.snapshot()));
+    }
+
+    @Test
+    public void aServerThatWasFoundWinsOverABrowseThatWasRefused() {
+        scanWithThreeTypesStarted();
+        log.record(SnapcastDiscoveryLog.Kind.BROWSE_START_FAILED, STREAM, "", 4, ""); // the probe, not the control service
+        log.record(SnapcastDiscoveryLog.Kind.FOUND, CTRL, "Snapcast", 0, "");
+        log.record(SnapcastDiscoveryLog.Kind.RESOLVED, CTRL, "Snapcast", 0, "192.168.1.5:1705");
+
+        assertEquals(SnapcastDiscoveryReport.Reading.FOUND, SnapcastDiscoveryReport.reading(healthy(), log.snapshot()));
+        assertTrue(SnapcastDiscoveryReport.of(healthy(), log.snapshot()).contains("FAILURE_MAX_LIMIT (4)"));
+    }
+
+    @Test
+    public void theNoteNamesWhatTheReportCarriesAboutThePhone() {
+        // the report has the phone model: the screen text near the copy button says so (see the resource test)
+        assertTrue(SnapcastDiscoveryReport.of(healthy(), log.snapshot()).contains("device: Pixel / API 34"));
+    }
 }

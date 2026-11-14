@@ -209,4 +209,32 @@ public class SnapcastServerChoicesTest {
         }
         return hosts;
     }
+
+    // ---- Group 11Cb S4: a link-local IPv6 address loses its scope in the text, so a found server there is not offered
+
+    @Test
+    public void aFoundOrRememberedServerAtALinkLocalIpv6AddressIsNotOffered() {
+        List<SnapcastServerChoices.Choice> choices = SnapcastServerChoices.of(rows(
+                row("[fe80::1]:1705", "Living", SnapcastServerListModel.Kind.DISCOVERED),
+                row("[fe80::2]:1705", "Attic", SnapcastServerListModel.Kind.REMEMBERED),
+                row("192.168.1.5:1705", "Kitchen", SnapcastServerListModel.Kind.DISCOVERED)), "");
+
+        assertEquals(Arrays.asList("192.168.1.5"), hosts(choices));
+    }
+
+    @Test
+    public void aTypedInLinkLocalAddressStaysTheUsersChoice() {
+        List<SnapcastServerChoices.Choice> choices = SnapcastServerChoices.of(
+                rows(row("[fe80::1]:1705", "", SnapcastServerListModel.Kind.MANUAL)), "");
+
+        assertEquals(1, choices.size());
+    }
+
+    @Test
+    public void aUniqueLocalIpv6AddressOfAFoundServerIsOffered() {
+        List<SnapcastServerChoices.Choice> choices = SnapcastServerChoices.of(
+                rows(row("[fd00::5]:1705", "", SnapcastServerListModel.Kind.DISCOVERED)), "");
+
+        assertEquals(1, choices.size());
+    }
 }

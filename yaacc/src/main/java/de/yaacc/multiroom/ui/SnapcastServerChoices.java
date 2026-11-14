@@ -41,6 +41,11 @@ import de.yaacc.multiroom.protocol.SnapcastConnection;
  *   <li><b>Once.</b> Two rows with the same host (two control ports) lead to the same stream port, so they are one choice.</li>
  *   <li><b>Names are display text.</b> Cleaned and cut again, as in the server list; a name that looks like an address
  *   changes nothing.</li>
+ *   <li><b>Link-local IPv6.</b> A found or remembered server at an {@code fe80::} address is not offered: the text of a choice has
+ *   no scope id, so the client could not connect to it (a dual-stack phone may resolve such an address first). One the user
+ *   typed in stays a choice. A found or remembered server is offered with the default stream port 1704 whatever stream port
+ *   it announced (the announced stream port of {@code _snapcast._tcp} is browsed for the report only); another stream port
+ *   has to be typed.</li>
  *   <li><b>Order.</b> The last used first, then the typed-in servers, the remembered ones, the found ones, each by address.</li>
  * </ul>
  */
@@ -105,6 +110,9 @@ public final class SnapcastServerChoices {
         List<Choice> others = new ArrayList<>();
         if (rows != null) {
             for (SnapcastServerListModel.Row row : rows) {
+                if (row.getKind() != SnapcastServerListModel.Kind.MANUAL && isLinkLocalIpv6(row.getKey().getEndpoint())) {
+                    continue; // its text has lost the scope id, so the client could not connect to it; the user can type it with one
+                }
                 String host = hostOnly(row.getKey().getEndpoint()); // the control port of the row is not the stream port
                 SnapcastEndpoint target = SnapcastEndpoint.parse(host, SnapcastConnection.DEFAULT_PORT);
                 if (target == null || byTarget.containsKey(target.toKey().asString())) {
@@ -137,6 +145,11 @@ public final class SnapcastServerChoices {
         }
         result.addAll(others);
         return result.size() > MAX_CHOICES ? new ArrayList<>(result.subList(0, MAX_CHOICES)) : result;
+    }
+
+    private static boolean isLinkLocalIpv6(SnapcastEndpoint endpoint) {
+        java.net.InetAddress address = endpoint.getAddress();
+        return address instanceof java.net.Inet6Address && address.isLinkLocalAddress();
     }
 
     private static String hostOnly(SnapcastEndpoint endpoint) {

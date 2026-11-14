@@ -224,4 +224,21 @@ public class SnapcastSettingsResourcesTest {
             }
         }
     }
+
+    @Test
+    public void theNoteBesideTheReportButtonSaysTheReportCarriesThePhoneModel() throws Exception {
+        // Group 11Cb S8: the report has the device model and the API level, the note says so in every language
+        java.util.Map<String, String> word = new java.util.LinkedHashMap<>();
+        word.put("values", "phone model");
+        word.put("values-de", "Telefonmodell");
+        word.put("values-es", "modelo del teléfono");
+        word.put("values-fr", "modèle du téléphone");
+        word.put("values-nl", "telefoonmodel");
+        word.put("values-pt", "modelo do telemóvel");
+        word.put("values-zh", "手机型号");
+        for (java.util.Map.Entry<String, String> entry : word.entrySet()) {
+            String note = strings(entry.getKey(), "strings.xml").get("snapcast_servers_discovery_note");
+            assertTrue(entry.getKey() + ": " + note, note != null && note.contains(entry.getValue()));
+        }
+    }
 }

@@ -83,7 +83,9 @@ public class SnapcastClientServiceOrderGuardTest {
         String timer = code("de/yaacc/browser/BackgroundIdleTimer.java");
         assertTrue(timer.contains("AutoCloseRule.reasonToStay("));
         assertTrue(timer.contains("SnapcastClientRuntime.isActive()"));
-        assertTrue(timer.contains("SnapcastPlayer"));
+        assertTrue(timer.contains("instanceof SnapcastPlayer"));
+        assertTrue(timer.contains("snapcastFeedActive("));
+        assertTrue(timer.contains("snapcastClientSessionActive("));
     }
 
     @Test

@@ -263,6 +263,7 @@ public final class SnapcastDiscoveryLog {
     private long startedAt = -1;
     private int dropped;
     private int ignoredTypes;
+    private int scanId;
 
     public SnapcastDiscoveryLog(MonotonicClock clock) {
         this.clock = clock;
@@ -275,7 +276,24 @@ public final class SnapcastDiscoveryLog {
         dropped = 0;
         ignoredTypes = 0;
         scanned = true;
+        scanId++;
         startedAt = clock.nowMillis();
+    }
+
+    /** The number of the scan that runs now; a callback records with the number it was started with. */
+    public synchronized int scanId() {
+        return scanId;
+    }
+
+    /**
+     * As {@link #record(Kind, String, String, int, String)}, for a callback of the scan with this number: when a newer scan
+     * has started meanwhile (the page was hidden and shown again), a late callback of the earlier one, such as the
+     * confirmation of its stop, is dropped and does not change the new scan's lines.
+     */
+    public synchronized void record(int forScan, Kind kind, String type, String name, int code, String detail) {
+        if (forScan == scanId) {
+            record(kind, type, name, code, detail);
+        }
     }
 
     /**

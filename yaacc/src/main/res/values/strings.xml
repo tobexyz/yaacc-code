@@ -379,7 +379,7 @@
     <string name="snapcast_servers_discovery_title">Discovery report</string>
     <string name="snapcast_servers_discovery_copy">Copy report</string>
     <string name="snapcast_servers_discovery_copied">Report copied to the clipboard</string>
-    <string name="snapcast_servers_discovery_note">The report lists the servers found with their addresses on your network, and the state of the Wi-Fi and of the search. Look at it before you paste it somewhere. While this window is open and Find Snapcast servers is on, the network is searched.</string>
+    <string name="snapcast_servers_discovery_note">The report lists the servers found with their addresses on your network, your phone model, and the state of the Wi-Fi and of the search. Look at it before you paste it somewhere. While this window is open and Find Snapcast servers is on, the network is searched.</string>
     <string name="snapcast_client_title">Snapcast client (listen test)</string>
     <string name="snapcast_client_note">Experimental. This phone plays as a Snapcast client so that you can check the sync by ear. Audio and control are not encrypted. The server and its controllers see the name of this phone and a generated id.</string>
     <string name="snapcast_client_host_hint">Server address, optional :port (default 1704)</string>

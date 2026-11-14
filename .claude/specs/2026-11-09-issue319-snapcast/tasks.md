@@ -195,6 +195,10 @@ Source: the owner's test of the Phase B spike (the tone is continuous with the d
 - [x] 11C.4 S35 (`changeMembers` keeps an added id only if the fresh status has it) and S36 (docs: "normally")
 - [ ] 11.8 stays open: the owner has not decided; the hint text was not changed
 
+## Fix Group 11Cb: general review cycle 1 of Group 11C (W1, W2, S1 to S10), done 2026-11-13
+- [x] F11C.1 (W1) lease of the scan bound to the screen (`SnapcastDiscoveryGate.Lease`, lifecycle observer, loop ends with the window); (W2) `SnapcastDiscoveryReport.wifiOf`
+- [x] F11C.2 suggestions S2 to S10 taken, S1 recorded as a known limit (`decisions.md` 2026-11-13 Fix Group 11Cb)
+
 ## Group 11B: UI parity and volume keys (11.1, 11.3, 11.4) and the cleanup of Group 11A, done 2026-11-13
 - [x] 11B.1 mute symbol in the group sheet (group and clients) and description on the card (11.1)
 - [x] 11B.2 link icon and link sheet (11.3)
