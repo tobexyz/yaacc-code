@@ -52,6 +52,7 @@ import java.util.stream.Collectors;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.player.Player;
+import de.yaacc.share.PickContent;
 import de.yaacc.share.PickedAction;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
@@ -623,6 +624,11 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             @Override
             public void onCancelled() {
                 // nothing was changed
+            }
+
+            @Override
+            public PickContent content() {
+                return PickContents.of(object);
             }
         }, null, null)) {
             // a pick is open or an action is still starting, or the screen is not ready: say so

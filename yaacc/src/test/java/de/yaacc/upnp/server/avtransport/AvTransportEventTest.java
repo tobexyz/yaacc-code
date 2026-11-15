@@ -450,6 +450,11 @@ public class AvTransportEventTest {
 
     @Test
     public void theStateMachineStatesEventTooSoTheTransportStateReachesTheControlPoint() throws Exception {
+        // a play that makes no player ends STOPPED (task 9.1): this one has its player
+        java.util.List<de.yaacc.player.Player> made = java.util.Collections.singletonList(mock(de.yaacc.player.Player.class));
+        org.mockito.Mockito.when(client.initializePlayers(org.mockito.ArgumentMatchers.any(AvTransport.class))).thenReturn(made);
+        // the player is active, too: without it the transport would see its player gone and queue a stop that races with the assertion
+        org.mockito.Mockito.when(client.getCurrentPlayers()).thenReturn(made);
         service().setAVTransportURI(ID, "http://192.0.2.1/a.mp3", "");
         manager.fireLastChange();
 

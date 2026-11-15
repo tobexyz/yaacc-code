@@ -125,7 +125,7 @@
     <string name="settings_snapcast_play_experimental_title">Lire sur des groupes Snapcast</string>
     <string name="settings_snapcast_play_experimental_summary">Expérimental : la musique du lecteur est envoyée à un serveur Snapcast pour qu\'un groupe la joue. L\'audio est envoyé non chiffré au serveur. Pas encore testé sur un appareil.</string>
     <string name="settings_snapcast_discovery_title">Rechercher des serveurs Snapcast</string>
-    <string name="settings_snapcast_discovery_summary">Recherche des serveurs Snapcast sur le réseau local. Cela contacte tous les serveurs qui s\'y annoncent ; laissez cette option désactivée sur les réseaux auxquels vous ne faites pas confiance. Désactivée : seuls les serveurs listés ci-dessous sont utilisés.</string>
+    <string name="settings_snapcast_discovery_summary">Recherche des serveurs Snapcast sur le réseau local ; activée par défaut. Elle envoie des requêtes mDNS sur le réseau et contacte tous les serveurs qui s\'y annoncent. Les annonces ne sont pas authentifiées : n\'importe quel appareil du réseau peut annoncer un serveur. Décochez la case sur les réseaux auxquels vous ne faites pas confiance. Désactivée : seuls les serveurs listés ci-dessous sont utilisés.</string>
     <string name="settings_snapcast_servers_title">Serveurs Snapcast</string>
     <string name="settings_snapcast_servers_summary">Ajouter des serveurs par adresse, ou les retirer</string>
     <string name="settings_snapcast_about_title">Ce dont Snapcast a besoin</string>
@@ -134,4 +134,13 @@
     <string name="settings_snapcast_client_spike_summary">Expérimental : affiche un écran de test où ce téléphone joue comme client Snapcast, pour vérifier la synchronisation à l\'oreille. Désactivé par défaut. L\'audio et le contrôle sont envoyés sans chiffrement. Pas encore testé sur un appareil.</string>
     <string name="settings_snapcast_client_spike_open_title">Test d\'écoute du client Snapcast</string>
     <string name="settings_snapcast_client_spike_open_summary">Connecter ce téléphone à un serveur Snapcast et voir les valeurs de synchronisation</string>
+    <string name="settings_renderer_output_title">Sortie</string>
+    <string name="settings_renderer_output_summary">Expérimental : l\'audio est envoyé non chiffré au serveur. Pas encore testé sur un appareil. Tout appareil qui peut joindre le récepteur peut modifier le volume et la sourdine de tout le groupe. Groupe Snapcast : seul le groupe joue, ce téléphone se tait ; volume et sourdine sont ceux du groupe.</string>
+    <string name="settings_renderer_output_device">Cet appareil</string>
+    <string name="settings_renderer_output_group_option">Groupe Snapcast</string>
+    <string name="settings_renderer_output_group_title">Groupe Snapcast</string>
+    <string name="settings_renderer_output_group_none">Aucun groupe choisi. Touchez pour choisir un serveur et un groupe.</string>
+    <string name="settings_renderer_output_group_server">Groupe sur le serveur %1$s. Touchez pour changer.</string>
+    <string name="settings_renderer_output_group_named">%1$s sur le serveur %2$s. Touchez pour changer.</string>
+    <string name="settings_renderer_output_group_damaged">Le groupe enregistré est endommagé ; le récepteur joue sur cet appareil. Touchez pour choisir de nouveau le groupe.</string>
 </resources>

@@ -92,13 +92,19 @@ public class AvTransportMediaRendererPlaying extends Playing<AvTransport> implem
             }
             // The play mode a control point set (or the one of the players) is in place before the first note
             getTransport().attachPlayers(players);
+            if (players == null || players.isEmpty()) {
+                getTransport().noPlayerStarted();
+            }
         } finally {
             getTransport().playersStarted();
+        }
+        if (players == null) {
+            return;
         }
         for (Player player : players) {
             player.play();
         }
-        if (players != null && players.size() > 0) {
+        if (players.size() > 0) {
             trackInfoUpdater().start(players);
         }
 

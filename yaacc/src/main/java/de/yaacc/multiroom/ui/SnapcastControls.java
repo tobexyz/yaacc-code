@@ -19,7 +19,6 @@
 package de.yaacc.multiroom.ui;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -157,6 +156,8 @@ public final class SnapcastControls {
     // the latest wanted value of each group and client slider, and which of them have a task queued (guarded by lock)
     private final Map<String, Integer> wantedGroupVolume = new HashMap<>();
     private final Set<String> queuedGroupVolume = new HashSet<>();
+    private final Map<String, Boolean> wantedGroupMute = new HashMap<>();
+    private final Set<String> queuedGroupMute = new HashSet<>();
     private final Map<String, Integer> wantedClientVolume = new HashMap<>();
     private final Set<String> queuedClientVolume = new HashSet<>();
     private final Map<String, Gesture> gestures = new HashMap<>();
@@ -235,6 +236,13 @@ public final class SnapcastControls {
         }
     }
 
+    /** For tests: the mute waiting to be sent for a group, or null. */
+    Boolean pendingMuteFor(SnapcastServerKey key, String groupId) {
+        synchronized (lock) {
+            return wantedGroupMute.get(idOf(key, groupId));
+        }
+    }
+
     /** For tests: the value waiting to be sent for a group, or null. */
     Integer pendingVolumeFor(SnapcastServerKey key, String groupId) {
         synchronized (lock) {
@@ -242,9 +250,30 @@ public final class SnapcastControls {
         }
     }
 
-    /** Mutes or unmutes a group. */
+    /**
+     * Mutes or unmutes a group. Coalesced like the volume: one wanted value per group and one queued task, the latest value
+     * wins. The app's own card of the group and the renderer's mute (a controller can send thousands of them) go through here,
+     * so a flood is one call to the server, can not grow the queue of the actions, and the two can not fight.
+     */
     public void setGroupMuted(final SnapcastServerKey key, final String groupId, final boolean muted) {
-        submit(actions, Action.GROUP_MUTE, () -> linked(key).operations.setGroupMute(groupId, muted));
+        final String id = idOf(key, groupId);
+        boolean schedule;
+        synchronized (lock) {
+            wantedGroupMute.put(id, muted);
+            schedule = queuedGroupMute.add(id);
+        }
+        if (schedule) {
+            submit(actions, Action.GROUP_MUTE, () -> {
+                Boolean wanted;
+                synchronized (lock) {
+                    wanted = wantedGroupMute.remove(id);
+                    queuedGroupMute.remove(id);
+                }
+                if (wanted != null) {
+                    linked(key).operations.setGroupMute(groupId, wanted);
+                }
+            });
+        }
     }
 
     /** The group plays this stream. {@code streamId} is the server's own id (from the stream picker), used for the call only. */
@@ -300,50 +329,64 @@ public final class SnapcastControls {
 
     // ---- members of a group
 
-    /** Adds clients of the same server to a group; they leave their groups. The call carries the full wanted list. */
-    public void addClients(final SnapcastServerKey key, final String groupId, final Collection<String> clientIds) {
-        final List<String> added = clientIds == null ? new ArrayList<String>() : new ArrayList<>(clientIds);
-        submit(actions, Action.GROUP_CLIENTS, () -> {
-            Linked linked = linked(key);
-            SnapcastGroup group = freshGroup(linked, groupId);
-            List<String> wanted = SnapcastClientCandidates.wantedWith(group, added);
-            if (wanted == null) {
-                throw new NotPossible();
-            }
-            linked.operations.setGroupClients(groupId, wanted);
-        });
-    }
-
     /**
-     * Takes a client out of a group; it gets a group of its own. The last member can not leave (an empty list would
-     * dissolve the group): the user is told.
+     * The change the link sheet made: some clients join the group, some members leave it, in one {@code Group.SetClients}
+     * call that carries the <b>exact</b> member list. The list is computed from a fresh status (see below), so a client
+     * that another controller added since the sheet was opened normally stays (when the read is refused by the rate limit or
+     * fails, the cached model decides and such a client can be dropped), and an id to add that the status does not know
+     * (the client was deleted meanwhile) is left out; nothing is sent when the change leaves the members as
+     * they are; a change that would leave the group without a client is refused ({@code NOT_POSSIBLE}), because an empty list
+     * dissolves the group. Clients that leave get a group of their own on the server, so none is left without one.
      */
-    public void removeClient(final SnapcastServerKey key, final String groupId, final String clientId) {
+    public void changeMembers(final SnapcastServerKey key, final String groupId, SnapcastLinkChoices.Change change) {
+        if (change == null || change.isEmpty()) {
+            return;
+        }
+        final List<String> added = new ArrayList<>(change.getAdded());
+        final List<String> removed = new ArrayList<>(change.getRemoved());
         submit(actions, Action.GROUP_CLIENTS, () -> {
             Linked linked = linked(key);
-            SnapcastGroup group = freshGroup(linked, groupId);
-            List<String> wanted = SnapcastClientCandidates.wantedWithout(group, clientId);
+            SnapcastServerStatus fresh = freshStatus(linked);
+            SnapcastGroup group = fresh.findGroup(groupId);
+            if (group == null) {
+                throw new Gone();
+            }
+            // S35: an id to add is kept only if the fresh status still has that client (it may have been deleted since the sheet
+            // was opened; the server would refuse the whole list for an id it does not know)
+            List<String> known = new ArrayList<>();
+            for (String id : added) {
+                if (id != null && fresh.findClient(id) != null) {
+                    known.add(id);
+                }
+            }
+            List<String> wanted = SnapcastClientCandidates.wantedAfter(group, known, removed);
             if (wanted == null) {
                 throw new NotPossible();
+            }
+            List<String> current = new ArrayList<>();
+            for (SnapcastClient member : group.getClients()) {
+                current.add(member.getId());
+            }
+            if (wanted.equals(current)) {
+                return; // the group is as wanted already (somebody else did it)
             }
             linked.operations.setGroupClients(groupId, wanted);
         });
     }
 
     /**
-     * The group as the server has it now, for a change of its members: {@code Group.SetClients} takes the full list and
+     * The status as the server has it now, for a change of its members: {@code Group.SetClients} takes the full list and
      * removes every client that is not in it, so the list is computed from a fresh status (one round trip, within the rate
-     * limit of the model; the cached model when the limit refuses or the read fails). A candidate list that a picker
-     * showed is only a snapshot of the moment it was opened; this is what keeps a client that another controller added
-     * meanwhile from being dropped.
+     * limit of the model; the cached model when the limit refuses or the read fails, so then a client that another controller
+     * added or deleted meanwhile is only as known as the model). A candidate list that a picker showed is only a snapshot of
+     * the moment it was opened; this is what keeps a client that another controller added meanwhile from being dropped.
      */
-    private static SnapcastGroup freshGroup(Linked linked, String groupId) throws Gone {
+    private static SnapcastServerStatus freshStatus(Linked linked) throws Gone {
         SnapcastServerStatus fresh = linked.operations.freshStatusOrModel();
-        SnapcastGroup group = fresh == null ? null : fresh.findGroup(groupId);
-        if (group == null) {
+        if (fresh == null) {
             throw new Gone();
         }
-        return group;
+        return fresh;
     }
 
     // ---- plumbing

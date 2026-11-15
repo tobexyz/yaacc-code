@@ -71,12 +71,18 @@ public class SnapcastControlsTest {
         SnapcastException failure;
         /** Fails only this method (the others work). */
         String failOnly;
+        /** Called at the start of every call, before it is answered or fails (a call from inside a send). */
+        java.util.function.Consumer<String> onCall;
         /** The members (ids) that a fresh {@code Server.GetStatus} reports for group g1; null: no such answer. */
         String[] serverMembers;
 
         @Override
         public synchronized JSONObject call(String method, JSONObject callParams) throws SnapcastException {
             methods.add(method);
+            if (onCall != null) {
+                java.util.function.Consumer<String> hook = onCall;
+                hook.accept(method);
+            }
             try {
                 params.add(callParams == null ? null : new JSONObject(callParams.toString()));
                 if (failure != null && (failOnly == null || failOnly.equals(method))) {
@@ -420,41 +426,126 @@ public class SnapcastControlsTest {
         assertEquals("", caller.last("Client.SetName").optString("name", "missing"));
     }
 
-    // ---- members of a group
+    // ---- 11.3: the link sheet changes the members in one call
+
+    private static SnapcastLinkChoices.Change change(List<String> added, List<String> removed) {
+        return new SnapcastLinkChoices.Change(added, removed);
+    }
 
     @Test
-    public void addingAClientSendsTheFullWantedList() {
-        controls.addClients(KEY, GROUP, Arrays.asList("d"));
+    public void aLinkChangeAddsAndRemovesInOneCallWithTheFullList() {
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Arrays.asList("b")));
         actions.runAll();
 
-        assertEquals("[\"a\",\"b\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+        assertEquals(1, caller.count("Group.SetClients"));
+        assertEquals("[\"a\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
         assertEquals(GROUP, caller.last("Group.SetClients").optString("id"));
     }
 
     @Test
-    public void removingAClientSendsTheOtherMembers() {
-        controls.removeClient(KEY, GROUP, "b");
+    public void aLinkChangeStartsFromTheMembersTheServerHasNow() {
+        caller.serverMembers = new String[]{"a", "b", "c", "e"}; // another controller added "e" behind the model
+
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Arrays.asList("b")));
         actions.runAll();
 
-        assertEquals("[\"a\",\"c\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+        assertEquals(1, caller.count("Server.GetStatus"));
+        assertEquals("the client that the sheet did not know is not dropped", "[\"a\",\"c\",\"e\",\"d\"]",
+                caller.last("Group.SetClients").optJSONArray("clients").toString());
     }
 
     @Test
-    public void theLastMemberIsNotRemovedAndTheUserIsTold() {
-        controls.removeClient(KEY, "g2", "d");
+    public void aClientThatTheFreshStatusDoesNotKnowIsNotAdded() {
+        caller.serverMembers = new String[]{"a", "b", "c"}; // "ghost" left the server (deleted) after the sheet was opened
+
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d", "ghost"), Arrays.asList("b")));
+        actions.runAll();
+
+        assertEquals(1, caller.count("Group.SetClients"));
+        assertEquals("[\"a\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    @Test
+    public void aChangeThatOnlyAddsAnUnknownClientMakesNoCall() {
+        caller.serverMembers = new String[]{"a", "b", "c"};
+
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("ghost"), Collections.<String>emptyList()));
+        actions.runAll();
+
+        assertEquals(0, caller.count("Group.SetClients"));
+        assertTrue(failures.isEmpty());
+    }
+
+    @Test
+    public void anUnknownClientIsDroppedAlsoWhenTheCachedModelIsUsed() {
+        // no fresh read (the rate limit refused or it failed): the cached model decides, and it does not know "ghost" either
+        caller.failure = new SnapcastException(SnapcastException.Kind.TIMEOUT, 0, "slow", null, null);
+        caller.failOnly = "Server.GetStatus";
+
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d", "ghost"), Arrays.asList("b")));
+        actions.runAll();
+
+        assertEquals("[\"a\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    @Test
+    public void aLinkChangeThatLeavesNothingToDoMakesNoCall() {
+        caller.serverMembers = new String[]{"a", "c"}; // "b" left on its own, "c" is in already
+
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("c"), Arrays.asList("b")));
+        actions.runAll();
+
+        assertEquals(0, caller.count("Group.SetClients"));
+        assertTrue(failures.isEmpty());
+    }
+
+    @Test
+    public void anEmptyLinkChangeMakesNoCallAndNoReadEither() {
+        controls.changeMembers(KEY, GROUP, change(Collections.<String>emptyList(), Collections.<String>emptyList()));
+        actions.runAll();
+
+        assertEquals(0, caller.count("Group.SetClients"));
+        assertEquals(0, caller.count("Server.GetStatus"));
+        assertTrue(failures.isEmpty());
+    }
+
+    @Test
+    public void aLinkChangeThatWouldEmptyTheGroupIsRefusedAndTheUserIsTold() {
+        controls.changeMembers(KEY, "g2", change(Collections.<String>emptyList(), Arrays.asList("d")));
         actions.runAll();
 
         assertEquals(0, caller.count("Group.SetClients"));
         assertEquals(SnapcastControls.Failure.Kind.NOT_POSSIBLE, failures.get(0).getKind());
+        assertEquals(SnapcastControls.Action.GROUP_CLIENTS, failedActions.get(0));
     }
 
     @Test
-    public void anUnknownMemberIsNotRemoved() {
-        controls.removeClient(KEY, GROUP, "zzz");
+    public void aLinkChangeForAGroupThatIsGoneSaysSo() {
+        controls.changeMembers(KEY, "nope", change(Arrays.asList("d"), Collections.<String>emptyList()));
         actions.runAll();
 
         assertEquals(0, caller.count("Group.SetClients"));
-        assertEquals(SnapcastControls.Failure.Kind.NOT_POSSIBLE, failures.get(0).getKind());
+        assertEquals(SnapcastControls.Failure.Kind.GONE, failures.get(0).getKind());
+    }
+
+    @Test
+    public void aLinkChangeIsAlwaysOffTheCallingThread() {
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Collections.<String>emptyList()));
+
+        assertTrue(caller.methods.isEmpty());
+        assertEquals(1, actions.tasks.size());
+    }
+
+    @Test
+    public void aLinkChangeIsACopyThatLaterEditsOfTheListsDoNotReach() {
+        List<String> added = new ArrayList<>(Arrays.asList("d"));
+        SnapcastLinkChoices.Change change = change(added, Collections.<String>emptyList());
+        added.add("zzz");
+
+        controls.changeMembers(KEY, GROUP, change);
+        actions.runAll();
+
+        assertEquals("[\"a\",\"b\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
     }
 
     // ---- failures
@@ -615,10 +706,10 @@ public class SnapcastControlsTest {
     // ---- a fresh status before a change of the members (security review S42)
 
     @Test
-    public void addingAClientUsesTheMembersTheServerHasNowNotTheCachedOnes() {
+    public void linkingAClientUsesTheMembersTheServerHasNowNotTheCachedOnes() {
         caller.serverMembers = new String[]{"a", "b", "c", "e"}; // another controller added "e" behind the model
 
-        controls.addClients(KEY, GROUP, Arrays.asList("d"));
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Collections.<String>emptyList()));
         actions.runAll();
 
         assertEquals(1, caller.count("Server.GetStatus"));
@@ -626,20 +717,20 @@ public class SnapcastControlsTest {
     }
 
     @Test
-    public void removingAClientUsesTheMembersTheServerHasNow() {
+    public void unlinkingAClientUsesTheMembersTheServerHasNow() {
         caller.serverMembers = new String[]{"a", "b", "c", "e"};
 
-        controls.removeClient(KEY, GROUP, "b");
+        controls.changeMembers(KEY, GROUP, change(Collections.<String>emptyList(), Arrays.asList("b")));
         actions.runAll();
 
         assertEquals("[\"a\",\"c\",\"e\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
     }
 
     @Test
-    public void aStaleRemovalOfSomeoneWhoLeftIsStillRefused() {
+    public void aRemovalOfEveryoneWhoIsLeftIsStillRefused() {
         caller.serverMembers = new String[]{"a", "c"}; // "b" left the group meanwhile
 
-        controls.removeClient(KEY, GROUP, "b");
+        controls.changeMembers(KEY, GROUP, change(Collections.<String>emptyList(), Arrays.asList("a", "b", "c")));
         actions.runAll();
 
         assertEquals(0, caller.count("Group.SetClients"));
@@ -649,7 +740,7 @@ public class SnapcastControlsTest {
     @Test
     public void whenTheRateLimitRefusesTheReadTheCachedModelIsUsed() {
         caller.serverMembers = new String[]{"a", "b", "c", "e"};
-        controls.addClients(KEY, GROUP, Arrays.asList("d")); // takes the one read that the limit allows in this second
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Collections.<String>emptyList())); // takes the one read that the limit allows in this second
         actions.runAll();
         caller.methods.clear();
         caller.params.clear();
@@ -657,7 +748,7 @@ public class SnapcastControlsTest {
                 group(GROUP, "Living", "Default", client("a", "Kitchen", true, 40, false), client("b", "Hall", true, 60, true)),
                 group("g2", "Other", "Default", client("d", "Desk", true, 10, false))), stream("Default", "idle")));
 
-        controls.addClients(KEY, GROUP, Arrays.asList("d"));
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Collections.<String>emptyList()));
         actions.runAll();
 
         assertEquals("no second read inside the limit", 0, caller.count("Server.GetStatus"));
@@ -669,7 +760,7 @@ public class SnapcastControlsTest {
         caller.failure = new SnapcastException(SnapcastException.Kind.TIMEOUT, 0, "slow", null, null);
         caller.failOnly = "Server.GetStatus";
 
-        controls.removeClient(KEY, GROUP, "b");
+        controls.changeMembers(KEY, GROUP, change(Collections.<String>emptyList(), Arrays.asList("b")));
         actions.runAll();
 
         assertEquals(1, caller.count("Server.GetStatus"));
@@ -680,7 +771,7 @@ public class SnapcastControlsTest {
     @Test
     public void anAnswerThatIsNoStatusFallsBackToTheCachedModel() {
         // the recording caller answers an empty object when no members are set: the library reports it as malformed
-        controls.addClients(KEY, GROUP, Arrays.asList("d"));
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Collections.<String>emptyList()));
         actions.runAll();
 
         assertEquals("[\"a\",\"b\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
@@ -697,5 +788,132 @@ public class SnapcastControlsTest {
         actions.runAll();
 
         assertEquals(0, caller.count("Server.GetStatus"));
+    }
+
+    // ---- Fix Group 9d W1: the mute of a group is coalesced like its volume
+
+    @Test
+    public void aFloodOfMuteChangesIsOneQueuedTaskAndTheLastWantedValueWins() {
+        for (int i = 0; i < 20_000; i++) {
+            controls.setGroupMuted(KEY, GROUP, i % 2 == 0); // the last one (19 999) is false
+        }
+
+        assertEquals("one task for the group, not one per call", 1, actions.tasks.size());
+        actions.runAll();
+
+        assertEquals("one call to the server", 1, caller.count("Group.SetMute"));
+        assertFalse("the last wanted value", link.getStatus().findGroup(GROUP).isMuted());
+    }
+
+    @Test
+    public void aFloodAfterARunQueuesOneMoreTaskAndSendsOnlyTheNewestValue() {
+        controls.setGroupMuted(KEY, GROUP, true);
+        actions.runAll();
+        assertTrue(link.getStatus().findGroup(GROUP).isMuted());
+
+        for (int i = 0; i < 5_000; i++) {
+            controls.setGroupMuted(KEY, GROUP, i % 2 == 1); // ends with true (4 999 is odd)
+        }
+        assertEquals(1, actions.tasks.size());
+        actions.runAll();
+
+        assertEquals(2, caller.count("Group.SetMute"));
+        assertTrue(link.getStatus().findGroup(GROUP).isMuted());
+    }
+
+    @Test
+    public void everyGroupHasItsOwnWantedMuteAndItsOwnTask() {
+        for (int i = 0; i < 100; i++) {
+            controls.setGroupMuted(KEY, GROUP, true);
+            controls.setGroupMuted(KEY, "g2", i % 2 == 1);
+        }
+
+        assertEquals(2, actions.tasks.size());
+        actions.runAll();
+
+        assertEquals(2, caller.count("Group.SetMute"));
+        assertTrue(link.getStatus().findGroup(GROUP).isMuted());
+        assertTrue(link.getStatus().findGroup("g2").isMuted());
+    }
+
+    @Test
+    public void aMuteFloodDoesNotQueueBehindItselfInFrontOfTheUsersOtherActions() {
+        for (int i = 0; i < 10_000; i++) {
+            controls.setGroupMuted(KEY, GROUP, i % 2 == 0);
+        }
+        controls.setGroupStream(KEY, GROUP, "Radio");
+
+        assertEquals("the mute is one task, the stream change the second", 2, actions.tasks.size());
+    }
+
+    @Test
+    public void aMuteThatCouldNotBeSentIsReportedOnceForTheWholeFlood() {
+        SnapcastControls none = new SnapcastControls(key -> null, actions, volumes, () -> now.get(),
+                (action, failure) -> {
+                    failedActions.add(action);
+                    failures.add(failure);
+                });
+        for (int i = 0; i < 1_000; i++) {
+            none.setGroupMuted(KEY, GROUP, i % 2 == 0);
+        }
+        actions.runAll();
+
+        assertEquals(1, failures.size());
+        assertEquals(SnapcastControls.Action.GROUP_MUTE, failedActions.get(0));
+    }
+
+    // ---- Fix Group 9e W7: the mute that arrives while the mute is being sent, and after a failed send
+
+    @Test
+    public void aMuteThatArrivesWhileTheMuteIsBeingSentIsSentAfterItAndTheNewestValueIsLast() {
+        final boolean[] once = {true};
+        caller.onCall = method -> {
+            if ("Group.SetMute".equals(method) && once[0]) {
+                once[0] = false;
+                controls.setGroupMuted(KEY, GROUP, false); // the controller's next SetMute, while this one is sent
+            }
+        };
+
+        controls.setGroupMuted(KEY, GROUP, true);
+        actions.runAll();
+
+        assertEquals("both were sent, the newer one second", 2, caller.count("Group.SetMute"));
+        List<JSONObject> sent = caller.all("Group.SetMute");
+        assertTrue(sent.get(0).optBoolean("mute"));
+        assertFalse(sent.get(1).optBoolean("mute"));
+        assertFalse(link.getStatus().findGroup(GROUP).isMuted());
+        assertNull("nothing is left waiting", controls.pendingMuteFor(KEY, GROUP));
+    }
+
+    @Test
+    public void aMuteAfterAFailedSendIsSentAndReportedOnceForTheFailureOnly() {
+        caller.failure = new SnapcastException(SnapcastException.Kind.NOT_CONNECTED, 0, "down", null, null);
+        caller.failOnly = "Group.SetMute";
+        controls.setGroupMuted(KEY, GROUP, true);
+        actions.runAll();
+        assertEquals(1, failures.size());
+
+        caller.failure = null;
+        controls.setGroupMuted(KEY, GROUP, false); // the first one failed: this one must not be swallowed
+        assertEquals("a task is queued again", 1, actions.tasks.size());
+        actions.runAll();
+
+        assertEquals(2, caller.count("Group.SetMute"));
+        assertFalse(caller.last("Group.SetMute").optBoolean("mute"));
+        assertEquals("only the failed one was reported", 1, failures.size());
+        assertNull(controls.pendingMuteFor(KEY, GROUP));
+    }
+
+    @Test
+    public void theWantedMuteIsKeptOnlyWhileItIsWaiting() {
+        assertNull(controls.pendingMuteFor(KEY, GROUP));
+        controls.setGroupMuted(KEY, GROUP, true);
+        assertEquals(Boolean.TRUE, controls.pendingMuteFor(KEY, GROUP));
+        controls.setGroupMuted(KEY, GROUP, false);
+        assertEquals("the latest wins", Boolean.FALSE, controls.pendingMuteFor(KEY, GROUP));
+
+        actions.runAll();
+
+        assertNull("sent: nothing is left in the map", controls.pendingMuteFor(KEY, GROUP));
     }
 }

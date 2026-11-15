@@ -42,7 +42,7 @@ import de.yaacc.multiroom.ui.SnapcastServerListModel;
 
 /**
  * The resources of the Snapcast rows, sheet and settings (task 5.1 and 5.2): every new text exists in the seven locales
- * with the same format arguments as the English one, the discovery switch is declared off by default under the key the
+ * with the same format arguments as the English one, the discovery switch is declared on by default under the key the
  * code reads, no new resource has a color of its own, and every outcome of the server list has its own message. Plain
  * JVM: the resource files are read from the module directory Gradle runs unit tests in.
  */
@@ -160,14 +160,14 @@ public class SnapcastSettingsResourcesTest {
     }
 
     @Test
-    public void theDiscoverySwitchIsOffByDefaultUnderTheKeyTheCodeReads() throws Exception {
+    public void theDiscoverySwitchIsOnByDefaultUnderTheKeyTheCodeReads() throws Exception {
         assertEquals(SnapcastSettings.KEY_DISCOVERY, strings("values", "setting_strings.xml").get("settings_snapcast_discovery"));
         String xml = read("src/main/res/xml/preference.xml");
         Matcher m = Pattern.compile("<CheckBoxPreference[^>]*?android:defaultValue=\"(\\w+)\"[^>]*?android:key=\"@string/settings_snapcast_discovery\"",
                 Pattern.DOTALL).matcher(xml);
         assertTrue("the preference is declared", m.find());
-        assertEquals("false", m.group(1));
-        assertFalse(SnapcastSettings.DISCOVERY_DEFAULT);
+        assertEquals("true", m.group(1));
+        assertTrue(SnapcastSettings.DISCOVERY_DEFAULT);
     }
 
     @Test
@@ -190,6 +190,41 @@ public class SnapcastSettingsResourcesTest {
         assertTrue(english.get("settings_snapcast_about_summary").contains("existing Snapcast server"));
         assertTrue(english.get("settings_snapcast_about_summary").contains("reachable on your network"));
         assertTrue(english.get("settings_snapcast_discovery_summary").contains("contacts every server"));
+    }
+
+    @Test
+    public void theSummaryOfTheDiscoverySwitchSaysHonestlyWhatItDoesWhenItIsOnInEveryLocale() throws Exception {
+        // on by default (2026-11-14): the summary says that it is on, that it asks on the network (not "the Wi-Fi": the scan
+        // asks on whatever network the phone is on, S73), that it contacts every server and that an announcement is not
+        // authenticated; it no longer talks of "leaving it off" as the normal state
+        String[][] words = {
+                {"values", "on by default", "mDNS queries on the network", "contacts every server", "not authenticated"},
+                {"values-de", "standardmäßig an", "im Netzwerk mDNS-Anfragen", "jeder Server kontaktiert", "nicht authentifiziert"},
+                {"values-es", "activada de forma predeterminada", "consultas mDNS por la red", "se contacta con todos los servidores", "no están autenticados"},
+                {"values-fr", "activée par défaut", "requêtes mDNS sur le réseau", "contacte tous les serveurs", "ne sont pas authentifiées"},
+                {"values-nl", "standaard aan", "mDNS-verzoeken over het netwerk", "contact gemaakt met elke server", "niet geauthenticeerd"},
+                {"values-pt", "ativada por predefinição", "consultas mDNS pela rede", "contacta todos os servidores", "não são autenticados"},
+                {"values-zh", "默认开启", "通过网络发送 mDNS 查询", "连接", "未经身份验证"}};
+        for (String[] row : words) {
+            String text = strings(row[0], "setting_strings.xml").get("settings_snapcast_discovery_summary");
+            for (int i = 1; i < row.length; i++) {
+                assertTrue(row[0] + " summary lacks \"" + row[i] + "\": " + text, text.contains(row[i]));
+            }
+        }
+    }
+
+    @Test
+    public void noSnapcastScanTextSaysWiFiOrWlanAnyMore() throws Exception {
+        // S73: the scan asks on the network the phone is on (also a cable or a VPN), the texts must not promise the Wi-Fi
+        String[] wifi = {"Wi-Fi", "WLAN", "wifi", "WiFi"};
+        for (String locale : LOCALES) {
+            // the report note names the Wi-Fi state as a fact of the report (it is in it), the summary of the switch must not
+            // promise the Wi-Fi
+            String text = strings(locale, "setting_strings.xml").get("settings_snapcast_discovery_summary");
+            for (String word : wifi) {
+                assertFalse(locale + " the summary of the discovery switch says " + word, text.contains(word));
+            }
+        }
     }
 
     @Test
@@ -222,6 +257,23 @@ public class SnapcastSettingsResourcesTest {
                 assertFalse(locale + " " + name, text.contains("#") && Pattern.compile("#[0-9A-Fa-f]{6}").matcher(text).find());
                 assertFalse(locale + " " + name + " has an unescaped apostrophe", Pattern.compile("(?<!\\\\)'").matcher(text).find());
             }
+        }
+    }
+
+    @Test
+    public void theNoteBesideTheReportButtonSaysTheReportCarriesThePhoneModel() throws Exception {
+        // Group 11Cb S8: the report has the device model and the API level, the note says so in every language
+        java.util.Map<String, String> word = new java.util.LinkedHashMap<>();
+        word.put("values", "phone model");
+        word.put("values-de", "Telefonmodell");
+        word.put("values-es", "modelo del teléfono");
+        word.put("values-fr", "modèle du téléphone");
+        word.put("values-nl", "telefoonmodel");
+        word.put("values-pt", "modelo do telemóvel");
+        word.put("values-zh", "手机型号");
+        for (java.util.Map.Entry<String, String> entry : word.entrySet()) {
+            String note = strings(entry.getKey(), "strings.xml").get("snapcast_servers_discovery_note");
+            assertTrue(entry.getKey() + ": " + note, note != null && note.contains(entry.getValue()));
         }
     }
 }

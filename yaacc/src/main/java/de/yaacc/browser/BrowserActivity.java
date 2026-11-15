@@ -19,6 +19,7 @@ package de.yaacc.browser;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -355,6 +356,30 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
                 finish();
                 break;
         }
+    }
+
+    // ---- hardware volume keys ----------------------------------------------------------------
+
+    /**
+     * The default layout: its receivers page (and the device sheet, which has a window of its own) show receiver rows. A Snapcast
+     * group that has the focus or was touched last takes the volume keys (11.4); every other key, and a volume key that no group
+     * takes, goes to the system as before. The same two calls are in {@link TabBrowserActivity}; {@code VolumeKeyRoutingGuardTest}
+     * fails when an activity that can show receiver rows lacks them.
+     */
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (VolumeKeyHosts.onKeyDown(keyCode)) {
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (VolumeKeyHosts.onKeyUp(keyCode)) {
+            return true;
+        }
+        return super.onKeyUp(keyCode, event);
     }
 
     // ---- toolbar -----------------------------------------------------------------------------

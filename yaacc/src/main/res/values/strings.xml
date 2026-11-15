@@ -304,6 +304,10 @@
     <string name="snapcast_offline">offline</string>
     <string name="snapcast_play_not_available">Playing to Snapcast groups is not available yet</string>
     <string name="snapcast_play_audio_only">Only music can be played to Snapcast groups</string>
+    <string name="player_track_skipped">Could not play \"%1$s\", skipped</string>
+    <string name="player_stopped_after_errors">Playback stopped: several tracks in a row could not be played</string>
+    <string name="player_nothing_playable">Nothing to play: playlist files (.m3u, .pls, .asx) are not supported</string>
+    <string name="player_track_number">Track %1$d</string>
     <string name="snapcast_play_delay_note">Snapcast plays about a second behind the display (the buffer of the server)</string>
     <string name="snapcast_feed_error_unreachable">The Snapcast server cannot be reached</string>
     <string name="snapcast_feed_error_refused">The Snapcast server did not accept a stream from YAACC</string>
@@ -312,7 +316,7 @@
     <string name="snapcast_feed_error_connect">Could not connect to the stream of the Snapcast server</string>
     <string name="snapcast_feed_error_busy">Another group of this Snapcast server is already being played from this phone</string>
     <string name="snapcast_feed_error_lost">The connection to the Snapcast server was lost</string>
-    <string name="snapcast_feed_static_source_hint">Add a TCP stream source to the server configuration instead (see the YAACC documentation).</string>
+    <string name="snapcast_feed_static_source_hint">The server must allow adding a TCP stream source at run time.</string>
     <string name="snapcast_feed_authorization_hint">Switch off the login for the control connection of the server, or use a server without one.</string>
     <string name="snapcast_feed_error_player">Playing to the Snapcast group stopped because of an error</string>
     <string name="snapcast_row_stream">Stream: %1$s</string>
@@ -326,6 +330,12 @@
     <string name="snapcast_row_server">Server %1$s</string>
     <string name="snapcast_row_group_gone">This group is no longer on the server</string>
     <string name="snapcast_row_settings">Snapcast group settings</string>
+    <string name="snapcast_row_link">Link clients of this Snapcast group</string>
+    <string name="snapcast_link_keep_one">A group keeps at least one client.</string>
+    <string name="snapcast_link_none">No other client on this server</string>
+    <string name="snapcast_link_last_member">%1$s (last client of this group)</string>
+    <string name="snapcast_mute_state_on">Muted</string>
+    <string name="snapcast_mute_state_off">Not muted</string>
     <string name="snapcast_sheet_group_volume">Group volume</string>
     <string name="snapcast_sheet_group_mute">Mute group</string>
     <string name="snapcast_sheet_stream">Stream</string>
@@ -334,9 +344,6 @@
     <string name="snapcast_sheet_stream_unavailable">%1$s (unavailable)</string>
     <string name="snapcast_sheet_stream_current">%1$s (current)</string>
     <string name="snapcast_sheet_no_streams">The server lists no streams</string>
-    <string name="snapcast_sheet_add_client">Add client</string>
-    <string name="snapcast_sheet_add_client_title">Add clients to this group</string>
-    <string name="snapcast_sheet_add_client_none">All clients of this server are in this group already</string>
     <string name="snapcast_sheet_candidate_in_group">%1$s (in group %2$s)</string>
     <string name="snapcast_sheet_candidate_empties">%1$s (in group %2$s, which then ends)</string>
     <string name="snapcast_sheet_members">Clients</string>
@@ -346,7 +353,6 @@
     <string name="snapcast_member_actions">Actions for %1$s</string>
     <string name="snapcast_member_rename">Rename</string>
     <string name="snapcast_member_latency">Latency</string>
-    <string name="snapcast_member_remove">Remove from group</string>
     <string name="snapcast_rename_title">Rename client</string>
     <string name="snapcast_rename_hint">Name (empty: use the host name)</string>
     <string name="snapcast_latency_title">Latency in milliseconds</string>
@@ -370,6 +376,10 @@
     <string name="snapcast_servers_error_full">You can add up to 16 servers</string>
     <string name="snapcast_servers_already">This server is in the list already</string>
     <string name="snapcast_servers_removed">Server removed. Its selected groups are no longer selected.</string>
+    <string name="snapcast_servers_discovery_title">Discovery report</string>
+    <string name="snapcast_servers_discovery_copy">Copy report</string>
+    <string name="snapcast_servers_discovery_copied">Report copied to the clipboard</string>
+    <string name="snapcast_servers_discovery_note">The report lists the servers found with their addresses on your network, your phone model, and the state of the Wi-Fi and of the search. Look at it before you paste it somewhere. While this window is open and Find Snapcast servers is on, the network is searched.</string>
     <string name="snapcast_client_title">Snapcast client (listen test)</string>
     <string name="snapcast_client_note">Experimental. This phone plays as a Snapcast client so that you can check the sync by ear. Audio and control are not encrypted. The server and its controllers see the name of this phone and a generated id.</string>
     <string name="snapcast_client_host_hint">Server address, optional :port (default 1704)</string>
@@ -380,6 +390,10 @@
     <string name="snapcast_client_copy_trace">Copy trace</string>
     <string name="snapcast_client_trace_copied">Trace copied to the clipboard</string>
     <string name="snapcast_client_trace_empty">No trace yet</string>
+    <string name="snapcast_client_choose_server">Choose server</string>
+    <string name="snapcast_client_choose_title">Known servers</string>
+    <string name="snapcast_client_choose_none">No known servers yet. Add one under Snapcast servers in the settings.</string>
+    <string name="snapcast_client_choose_last">used last</string>
     <string name="snapcast_client_close">Close</string>
     <string name="snapcast_client_error_empty_host">Enter the address of the server</string>
     <string name="snapcast_client_error_invalid_host">This is not a valid address</string>
@@ -402,4 +416,17 @@
     <string name="snapcast_client_notification_reconnecting">Connection lost, trying again…</string>
     <string name="snapcast_client_warning_public">This address is not on your local network. Audio and control are not encrypted or authenticated on the way there.</string>
     <string name="snapcast_client_busy">The previous session is still stopping. Tap Start again in a moment.</string>
+    <string name="renderer_output_damaged_note">The Snapcast output of the renderer is damaged; playing on this device. Choose the group again in the settings.</string>
+    <string name="renderer_output_error_no_group">The renderer is set to play into a Snapcast group, but no group is chosen. Choose one in the settings.</string>
+    <string name="renderer_output_error_server_not_listed">The Snapcast server of the renderer\'s group is not in the server list. Add it under Snapcast servers in the settings, or choose another group.</string>
+    <string name="renderer_output_error_unreachable">The Snapcast server of the renderer\'s group does not answer. Nothing was played.</string>
+    <string name="renderer_output_error_group_gone">The group chosen for the renderer is not on its Snapcast server any more. Choose another group in the settings.</string>
+    <string name="renderer_group_server_title">Snapcast server of the renderer</string>
+    <string name="renderer_group_group_title">Snapcast group of the renderer</string>
+    <string name="renderer_group_no_servers">No Snapcast server is known. Add one under Snapcast servers, or let YAACC search the network.</string>
+    <string name="renderer_group_reading">Reading the groups of the server…</string>
+    <string name="renderer_group_unreachable">The server did not answer.</string>
+    <string name="renderer_group_none">This server has no groups.</string>
+    <string name="renderer_group_members">Members: %1$d</string>
+    <string name="renderer_output_error_unknown_type">The renderer plays only music into a Snapcast group, and the type of this content is unknown (the controller gave no type and the address has no known file extension). Nothing was played.</string>
 </resources>

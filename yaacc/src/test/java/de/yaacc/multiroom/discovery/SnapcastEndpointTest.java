@@ -275,4 +275,38 @@ public class SnapcastEndpointTest {
             return b.toString();
         }
     }
+
+    // ---- S72: loopback is for the user's own typed server, not for an announcement
+
+    @Test
+    public void aDiscoveredServerMayNotBeAtALoopbackAddress() throws Exception {
+        assertFalse(SnapcastAddressFilter.isAcceptedForDiscovery(address(127, 0, 0, 1)));
+        assertFalse(SnapcastAddressFilter.isAcceptedForDiscovery(address(127, 1, 2, 3)));
+        assertFalse(SnapcastAddressFilter.isAcceptedForDiscovery(address(127, 255, 255, 254)));
+        assertFalse(SnapcastAddressFilter.isAcceptedForDiscovery(
+                InetAddress.getByAddress(new byte[]{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})));
+        assertFalse(SnapcastAddressFilter.isAcceptedForDiscovery(null));
+    }
+
+    @Test
+    public void everyOtherLocalRangeStaysAcceptedForADiscoveredServer() throws Exception {
+        assertTrue(SnapcastAddressFilter.isAcceptedForDiscovery(address(10, 1, 2, 3)));
+        assertTrue(SnapcastAddressFilter.isAcceptedForDiscovery(address(172, 16, 0, 1)));
+        assertTrue(SnapcastAddressFilter.isAcceptedForDiscovery(address(192, 168, 0, 5)));
+        assertTrue(SnapcastAddressFilter.isAcceptedForDiscovery(address(169, 254, 7, 7)));
+        assertTrue(SnapcastAddressFilter.isAcceptedForDiscovery(
+                InetAddress.getByAddress(new byte[]{(byte) 0xfe, (byte) 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})));
+        assertTrue(SnapcastAddressFilter.isAcceptedForDiscovery(
+                InetAddress.getByAddress(new byte[]{(byte) 0xfd, 0x12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})));
+        assertFalse(SnapcastAddressFilter.isAcceptedForDiscovery(address(8, 8, 8, 8)));
+        assertFalse(SnapcastAddressFilter.isAcceptedForDiscovery(address(100, 64, 0, 1)));
+    }
+
+    @Test
+    public void aTypedLoopbackServerStillParsesAndTheGeneralLocalRangeStillHasLoopback() throws Exception {
+        // the docs say the rig is used with a typed 127.0.0.1; the client's locality check keeps seeing it as local
+        assertNotNull(SnapcastEndpoint.parse("127.0.0.1"));
+        assertNotNull(SnapcastEndpoint.parse("[::1]:1705"));
+        assertTrue(SnapcastAddressFilter.isAccepted(address(127, 0, 0, 1)));
+    }
 }

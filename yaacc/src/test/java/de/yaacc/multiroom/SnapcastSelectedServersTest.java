@@ -251,4 +251,17 @@ public class SnapcastSelectedServersTest {
         }
         return text;
     }
+
+    // ---- S72
+
+    @Test
+    public void aLoopbackLineInTheStoreIsNotRestored() {
+        storage.text = "127.0.0.1:1705\n192.168.1.5:1705\n[::1]:1705";
+
+        selected.restore();
+
+        assertEquals(1, selected.list().size());
+        assertEquals("192.168.1.5:1705", selected.list().get(0).toString());
+        assertEquals(1, directory.servers().size());
+    }
 }

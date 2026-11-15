@@ -30,11 +30,13 @@ import de.yaacc.player.AbstractPlayer;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.upnp.server.renderingcontrol.SystemVolume;
+import de.yaacc.upnp.server.renderingcontrol.RendererVolume;
+import de.yaacc.upnp.server.renderingcontrol.RendererVolumes;
 import de.yaacc.util.YaaccLogger;
 
 /**
- * The Android side of the OpenHome renderer: the music player of this device and the system volume.
+ * The Android side of the OpenHome renderer: the music player of this device (or of the Snapcast group the renderer's output
+ * is) and the volume.
  */
 public final class AndroidOpenHomeHost implements OpenHomeRenderer.Host, OpenHomeRenderer.Volume {
 
@@ -42,12 +44,13 @@ public final class AndroidOpenHomeHost implements OpenHomeRenderer.Host, OpenHom
 
     private final Context context;
     private final UpnpClient upnpClient;
-    private final SystemVolume systemVolume;
+    private final RendererVolume systemVolume;
 
     public AndroidOpenHomeHost(Context context, UpnpClient upnpClient) {
         this.context = context;
         this.upnpClient = upnpClient;
-        this.systemVolume = new SystemVolume(context);
+        // the system volume, or the volume of the Snapcast group while the renderer's output is that group (task 9.1)
+        this.systemVolume = RendererVolumes.forContext(context);
     }
 
     @Override
@@ -102,14 +105,22 @@ public final class AndroidOpenHomeHost implements OpenHomeRenderer.Host, OpenHom
         return item;
     }
 
+    // The poll of the renderer reads once a second: it reads without waking a connection (peek), so an OpenHome renderer that
+    // stays on does not hold or retry a connection to the server of the group while nothing plays. The group's level is the
+    // last one the model knows until the next play or the wake at the start.
     @Override
     public int percent() {
-        return systemVolume.getPercent();
+        return systemVolume.peekPercent();
     }
 
     @Override
     public boolean muted() {
-        return systemVolume.isMuted();
+        return systemVolume.peekMuted();
+    }
+
+    @Override
+    public void wakeNow() {
+        systemVolume.wakeNow();
     }
 
     @Override

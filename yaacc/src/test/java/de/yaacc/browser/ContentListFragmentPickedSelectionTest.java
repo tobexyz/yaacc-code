@@ -18,7 +18,9 @@
 package de.yaacc.browser;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -212,6 +214,31 @@ public class ContentListFragmentPickedSelectionTest {
         assertNotNull(capturePick(activity));
         assertEquals(0, started.get());
         verify(client, never()).setReceiverDeviceIds(any());
+    }
+
+    @Test
+    public void thePickerIsToldWhatIsAboutToBePlayed() {
+        FragmentActivity activity = hostActivity(true, true);
+        fragment.attachForTest(client, true);
+        org.fourthline.cling.support.model.item.Item photo = new org.fourthline.cling.support.model.item.Item(
+                "p", "0", "p", "yaacc", (DIDLObject.Class) null);
+        photo.addResource(new org.fourthline.cling.support.model.Res(new org.fourthline.cling.support.model.ProtocolInfo(
+                org.fourthline.cling.support.model.Protocol.HTTP_GET, org.fourthline.cling.support.model.ProtocolInfo.WILDCARD,
+                "image/jpeg", "*"), 1L, "http://x/p"));
+
+        fragment.startPlayAction(photo, ContentItemPlayTask.PLAY_CURRENT, null, null);
+
+        assertFalse("a Snapcast group is not offered for a picture", capturePick(activity).content().offersAudioOnlyReceivers());
+    }
+
+    @Test
+    public void whenNothingIsKnownTheContentOffersEveryReceiver() {
+        FragmentActivity activity = hostActivity(true, true);
+        fragment.attachForTest(client, true);
+
+        fragment.startPlayAction(object, ContentItemPlayTask.PLAY_ALL, null, null);
+
+        assertTrue(capturePick(activity).content().offersAudioOnlyReceivers());
     }
 
     @Test

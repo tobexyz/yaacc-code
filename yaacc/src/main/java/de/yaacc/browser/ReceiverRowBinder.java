@@ -57,6 +57,7 @@ import de.yaacc.R;
 import de.yaacc.browser.DeviceSessionGrouper.PlayerRef;
 import de.yaacc.multiroom.SnapcastGroupDevice;
 import de.yaacc.multiroom.ui.SnapcastRowText;
+import de.yaacc.multiroom.ui.SnapcastVolumeKeys;
 import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.callback.avtransport.Pause;
@@ -138,8 +139,11 @@ final class ReceiverRowBinder {
         final ImageButton btnPause;
         final ImageButton btnStop;
         final View itemContainer;
+        // the whole row: asked for the input focus (the hardware volume keys go to the Snapcast row that has it)
+        final View root;
 
         RowViews(@NonNull View itemView) {
+            root = itemView;
             icon = itemView.findViewById(R.id.browseReceiverDeviceItemIcon);
             albumArt = itemView.findViewById(R.id.browseReceiverDeviceItemAlbumArt);
             name = itemView.findViewById(R.id.browseReceiverDeviceItemName);
@@ -280,6 +284,8 @@ final class ReceiverRowBinder {
             // the slider and the box are the group's volume and mute on the server (a model in memory, no UPnP read)
             snapcastRows.bind(holder, (SnapcastGroupDevice) device);
         } else {
+            // a recycled card may have been a Snapcast row, whose mute symbol is described for it
+            SnapcastMuteToggle.clear(holder.mute);
             wireVolumeAndMute(holder, device, deviceId);
             new DeviceVolumeStateLoadTask(holder, this, upnpClient).execute(device);
             new DeviceMuteStateLoadTask(holder, this, upnpClient).execute(device);
@@ -399,6 +405,20 @@ final class ReceiverRowBinder {
     /** Shows a group's volume, mute state and text in a bound row (the poll of the live volume calls this). */
     void showSnapcast(RowViews views, SnapcastGroupDevice device) {
         snapcastRows.show(views, device);
+    }
+
+    /**
+     * A hardware volume key for the Snapcast group row that has the focus or was touched last (11.4).
+     *
+     * @return true when the key was taken
+     */
+    boolean snapcastVolumeKey(Map<Device<?, ?, ?>, RowViews> visible, SnapcastVolumeKeys.Direction direction) {
+        return snapcastRows.onVolumeKey(visible, direction);
+    }
+
+    /** The host (tab, sheet) is no longer on screen: the volume keys are the system's again. */
+    void forgetSnapcastKeyFocus() {
+        snapcastRows.forgetKeyFocus();
     }
 
     /** How a group's row looks now; the host compares it with the last one to see whether the row needs a new look. */
@@ -1200,6 +1220,9 @@ final class ReceiverRowBinder {
     }
 
     private void executeAction(Device<?, ?, ?> device, String action) {
+        if (device instanceof SnapcastGroupDevice) {
+            snapcastRows.touched((SnapcastGroupDevice) device); // the hardware volume keys go to this group from now on
+        }
         // a device that plays a source of its own (net radio, tuner) and nothing from yaacc: the buttons act on that source
         if (!isLocalDevice(device)) {
             String udn = device.getIdentity().getUdn().getIdentifierString();

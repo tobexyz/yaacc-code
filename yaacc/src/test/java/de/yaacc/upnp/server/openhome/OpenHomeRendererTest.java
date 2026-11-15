@@ -18,6 +18,7 @@
 package de.yaacc.upnp.server.openhome;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -1068,5 +1069,48 @@ public class OpenHomeRendererTest {
         assertEquals(0, OpenHomeRenderer.parseSeconds("abc"));
         assertEquals(0, OpenHomeRenderer.parseSeconds("1:2:3:4"));
         assertEquals(0, OpenHomeRenderer.parseSeconds("-1:00"));
+    }
+
+    // ---- Fix Group 9c S16: the poll reads the volume without waking a connection
+
+    @Test
+    public void theRendererWakesTheVolumeOnceAtItsStartAndNeverInThePoll() {
+        final int[] wakes = {0};
+        final int[] reads = {0};
+        OpenHomeRenderer.Volume counting = new OpenHomeRenderer.Volume() {
+            @Override
+            public int percent() {
+                reads[0]++;
+                return 40;
+            }
+
+            @Override
+            public boolean muted() {
+                return false;
+            }
+
+            @Override
+            public void setPercent(int percent) {
+            }
+
+            @Override
+            public void setMuted(boolean mute) {
+            }
+
+            @Override
+            public void wakeNow() {
+                wakes[0]++;
+            }
+        };
+        OpenHomeRenderer own = new OpenHomeRenderer(host, counting, new InlineThreads(),
+                new OhRendererCore.Details("m", "https://example.org", "model", "room", "name"), "http-get:*:audio/mpeg:*");
+
+        own.start();
+        own.refresh();
+        own.refresh();
+        own.refresh();
+
+        assertEquals("once, at the start", 1, wakes[0]);
+        assertTrue("the poll reads", reads[0] >= 3);
     }
 }

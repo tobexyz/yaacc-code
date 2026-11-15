@@ -37,6 +37,8 @@ import de.yaacc.multiroom.control.MonotonicClock;
 import de.yaacc.multiroom.control.RetryScheduler;
 import de.yaacc.multiroom.control.SnapcastRpc;
 import de.yaacc.multiroom.discovery.SnapcastDirectory;
+import de.yaacc.multiroom.discovery.SnapcastDiscoveryLog;
+import de.yaacc.multiroom.discovery.SnapcastDiscoveryReport;
 import de.yaacc.multiroom.discovery.SnapcastManualServers;
 import de.yaacc.multiroom.discovery.SnapcastNsd;
 import de.yaacc.multiroom.discovery.SnapcastPreferencesStorage;
@@ -49,7 +51,7 @@ import de.yaacc.multiroom.ui.SnapcastServerListModel;
  * The app-wide Snapcast part, the counterpart of {@code YxcMonitor.getShared()}: the directory of servers, the manual
  * server list, the mDNS discovery, and the receivers that join them. It holds the application context only, and it
  * does nothing until a page tells it to: {@link #pageStarted()} (the receivers page is visible) opens the connections to
- * the listed servers and, <b>only when the setting {@link SnapcastSettings#KEY_DISCOVERY} is on</b> (default off), starts
+ * the listed servers and, <b>only when the setting {@link SnapcastSettings#KEY_DISCOVERY} is on</b> (default on), starts
  * the discovery (and with it the multicast lock); {@link #pageStopped()} stops the discovery at once and closes the
  * connections after a grace period. The setting is read live ({@link SnapcastDiscoveryGate}): switching it off stops the
  * scan and drops the servers that only the scan knew, so with it off only the typed-in and the remembered servers are
@@ -68,19 +70,23 @@ public final class SnapcastHub implements SnapcastGroupSource {
     private final SnapcastDirectory directory = new SnapcastDirectory(MonotonicClock.SYSTEM, SnapcastDirectory.DEFAULT_GRACE_MILLIS);
     private final SnapcastManualServers manualServers;
     private final SnapcastSelectedServers selectedServers;
+    private final SnapcastDiscoveryLog discoveryLog = new SnapcastDiscoveryLog(MonotonicClock.SYSTEM);
     private final SnapcastNsd nsd;
     private final SnapcastReceivers receivers;
     private final SnapcastFeedSessions feeds;
     private final SnapcastDiscoveryGate gate;
     // kept in a field: the preferences hold their listeners weakly
     private final SharedPreferences.OnSharedPreferenceChangeListener settingListener;
+    // the ids of the selected receivers as of the last change; the chosen group of the renderer is added to them (task 9.1)
+    private final Object selectionLock = new Object();
+    private Set<String> lastSelection = new HashSet<>();
 
     private SnapcastHub(Context context) {
         this.context = context.getApplicationContext();
         this.manualServers = new SnapcastManualServers(new SnapcastPreferencesStorage(this.context));
         this.selectedServers = new SnapcastSelectedServers(
                 new SnapcastPreferencesStorage(this.context, SnapcastPreferencesStorage.SELECTED_KEY), directory);
-        this.nsd = new SnapcastNsd(this.context, directory);
+        this.nsd = new SnapcastNsd(this.context, directory, discoveryLog);
         final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(runnable -> {
             Thread thread = new Thread(runnable, "snapcast-hub");
             thread.setDaemon(true);
@@ -107,6 +113,7 @@ public final class SnapcastHub implements SnapcastGroupSource {
         // the servers of the selected groups are known at once, without a scan (see SnapcastSelectedServers)
         selectedServers.restore();
         final SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this.context);
+        lastSelection = new HashSet<>(readSelection(preferences));
         this.gate = new SnapcastDiscoveryGate(() -> SnapcastSettings.isDiscoveryEnabled(preferences::getBoolean),
                 new SnapcastDiscoveryGate.Discovery() {
                     @Override
@@ -122,6 +129,9 @@ public final class SnapcastHub implements SnapcastGroupSource {
         this.settingListener = (changed, key) -> {
             if (SnapcastSettings.isDiscoveryKey(key)) {
                 gate.settingChanged();
+            }
+            if (SnapcastRendererOutput.KEY_OUTPUT.equals(key) || SnapcastRendererOutput.KEY_GROUP.equals(key)) {
+                rememberServers(); // the server of the renderer's group is remembered while the output is the group
             }
         };
         preferences.registerOnSharedPreferenceChangeListener(settingListener);
@@ -191,6 +201,71 @@ public final class SnapcastHub implements SnapcastGroupSource {
         receivers.pageStopped();
     }
 
+    /**
+     * The Snapcast server settings are open (task 11.6): with the switch on the scan runs while they are, so that the report
+     * shows a live scan. Only the scan, not the connections of a receivers page. The caller closes the lease when its window
+     * goes away, on every path (dismiss, stop, destroy); closing it twice is harmless.
+     */
+    public SnapcastDiscoveryGate.Lease diagnosticsOpened() {
+        return gate.pageLease();
+    }
+
+    /**
+     * The discovery report for the screen and the clipboard (see {@link SnapcastDiscoveryReport}). It names the servers
+     * and addresses found: the caller says so near the copy button.
+     */
+    public String discoveryReport() {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        List<SnapcastDiscoveryReport.ServerLine> servers = new java.util.ArrayList<>();
+        for (SnapcastDirectory.Entry entry : directory.servers()) {
+            SnapcastDiscoveryReport.Origin origin = entry.isManual() ? SnapcastDiscoveryReport.Origin.TYPED
+                    : entry.isRemembered() && !entry.isDiscovered() && !entry.isLost() ? SnapcastDiscoveryReport.Origin.REMEMBERED
+                    : SnapcastDiscoveryReport.Origin.FOUND;
+            servers.add(new SnapcastDiscoveryReport.ServerLine(entry.getKey().asString(), entry.getDisplayName(), origin));
+        }
+        SnapcastDiscoveryReport.Facts facts = new SnapcastDiscoveryReport.Facts()
+                .device(android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL + " / API " + android.os.Build.VERSION.SDK_INT)
+                .switchOn(SnapcastSettings.isDiscoveryEnabled(preferences::getBoolean))
+                .scanRunning(nsd.isStarted())
+                .wifi(wifiState())
+                .multicastPermission(multicastPermission())
+                .multicastLock(nsd.lockState())
+                .servers(servers);
+        return SnapcastDiscoveryReport.of(facts, discoveryLog.snapshot());
+    }
+
+    private SnapcastDiscoveryReport.Tri multicastPermission() {
+        try {
+            return context.checkSelfPermission(android.Manifest.permission.CHANGE_WIFI_MULTICAST_STATE)
+                    == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    ? SnapcastDiscoveryReport.Tri.YES : SnapcastDiscoveryReport.Tri.NO;
+        } catch (RuntimeException unreadable) {
+            return SnapcastDiscoveryReport.Tri.UNKNOWN;
+        }
+    }
+
+    /** The Wi-Fi fact from the transports of the default network (the rule is {@link SnapcastDiscoveryReport#wifiOf}). */
+    private SnapcastDiscoveryReport.Tri wifiState() {
+        try {
+            android.net.ConnectivityManager manager = (android.net.ConnectivityManager) context
+                    .getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (manager == null) {
+                return SnapcastDiscoveryReport.Tri.UNKNOWN;
+            }
+            android.net.Network network = manager.getActiveNetwork();
+            android.net.NetworkCapabilities capabilities = network == null ? null : manager.getNetworkCapabilities(network);
+            if (capabilities == null) {
+                return SnapcastDiscoveryReport.wifiOf(false, false, false, false);
+            }
+            return SnapcastDiscoveryReport.wifiOf(true,
+                    capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI),
+                    capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET),
+                    capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN));
+        } catch (RuntimeException unreadable) {
+            return SnapcastDiscoveryReport.Tri.UNKNOWN;
+        }
+    }
+
     public void addChangeListener(SnapcastReceivers.ChangeListener listener) {
         receivers.addChangeListener(listener);
     }
@@ -219,10 +294,35 @@ public final class SnapcastHub implements SnapcastGroupSource {
         return receivers.isPending(receiverId);
     }
 
-    /** Remembers the servers of the selected groups, so that the selection survives a restart. */
+    /**
+     * Remembers the servers of the selected groups, so that the selection survives a restart, and the server of the group
+     * the renderer plays into while its output is that group.
+     */
     @Override
     public void selectionChanged(Collection<String> receiverIds) {
-        selectedServers.selectionChanged(receiverIds);
+        synchronized (selectionLock) {
+            lastSelection = receiverIds == null ? new HashSet<String>() : new HashSet<>(receiverIds);
+        }
+        rememberServers();
+    }
+
+    private void rememberServers() {
+        final Set<String> ids;
+        synchronized (selectionLock) {
+            ids = new HashSet<>(lastSelection);
+        }
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        SnapcastRendererOutput.Setting setting = SnapcastRendererOutput.read(key -> preferences.getString(key, null));
+        selectedServers.selectionChanged(SnapcastRendererOutput.withRendererGroup(ids, setting));
+    }
+
+    private Set<String> readSelection(SharedPreferences preferences) {
+        try {
+            Set<String> stored = preferences.getStringSet(context.getString(R.string.settings_selected_receivers_title), null);
+            return stored == null ? new HashSet<String>() : stored;
+        } catch (ClassCastException unreadable) {
+            return new HashSet<>();
+        }
     }
 
     /** Connects to the listed servers of the chosen groups. Does not start the discovery (that is the page's). */

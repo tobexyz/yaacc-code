@@ -303,6 +303,10 @@
     <string name="snapcast_offline">sin conexión</string>
     <string name="snapcast_play_not_available">La reproducción en grupos de Snapcast aún no está disponible</string>
     <string name="snapcast_play_audio_only">En los grupos de Snapcast solo se puede reproducir música</string>
+    <string name="player_track_skipped">No se pudo reproducir \"%1$s\", se omite</string>
+    <string name="player_stopped_after_errors">Reproducción detenida: varias pistas seguidas no se pudieron reproducir</string>
+    <string name="player_nothing_playable">Nada que reproducir: los archivos de lista de reproducción (.m3u, .pls, .asx) no son compatibles</string>
+    <string name="player_track_number">Pista %1$d</string>
     <string name="snapcast_play_delay_note">Snapcast reproduce con un segundo de retraso respecto a la pantalla (búfer del servidor)</string>
     <string name="snapcast_feed_error_unreachable">No se puede acceder al servidor de Snapcast</string>
     <string name="snapcast_feed_error_refused">El servidor de Snapcast no aceptó un flujo de YAACC</string>
@@ -311,7 +315,7 @@
     <string name="snapcast_feed_error_connect">No se pudo conectar con el flujo del servidor de Snapcast</string>
     <string name="snapcast_feed_error_busy">Este teléfono ya está reproduciendo en otro grupo de este servidor de Snapcast</string>
     <string name="snapcast_feed_error_lost">Se perdió la conexión con el servidor de Snapcast</string>
-    <string name="snapcast_feed_static_source_hint">Añada en su lugar una fuente de flujo TCP a la configuración del servidor (consulte la documentación de YAACC).</string>
+    <string name="snapcast_feed_static_source_hint">El servidor debe permitir añadir una fuente de flujo TCP en tiempo de ejecución.</string>
     <string name="snapcast_feed_authorization_hint">Desactive el inicio de sesión de la conexión de control del servidor o use un servidor sin él.</string>
     <string name="snapcast_feed_error_player">La reproducción en el grupo de Snapcast se detuvo por un error</string>
     <string name="snapcast_row_stream">Flujo: %1$s</string>
@@ -325,6 +329,12 @@
     <string name="snapcast_row_server">Servidor %1$s</string>
     <string name="snapcast_row_group_gone">Este grupo ya no está en el servidor</string>
     <string name="snapcast_row_settings">Ajustes del grupo de Snapcast</string>
+    <string name="snapcast_row_link">Vincular clientes de este grupo de Snapcast</string>
+    <string name="snapcast_link_keep_one">Un grupo conserva al menos un cliente.</string>
+    <string name="snapcast_link_none">No hay otro cliente en este servidor</string>
+    <string name="snapcast_link_last_member">%1$s (último cliente de este grupo)</string>
+    <string name="snapcast_mute_state_on">Silenciado</string>
+    <string name="snapcast_mute_state_off">No silenciado</string>
     <string name="snapcast_sheet_group_volume">Volumen del grupo</string>
     <string name="snapcast_sheet_group_mute">Silenciar grupo</string>
     <string name="snapcast_sheet_stream">Flujo</string>
@@ -333,9 +343,6 @@
     <string name="snapcast_sheet_stream_unavailable">%1$s (no disponible)</string>
     <string name="snapcast_sheet_stream_current">%1$s (actual)</string>
     <string name="snapcast_sheet_no_streams">El servidor no lista ningún flujo</string>
-    <string name="snapcast_sheet_add_client">Añadir cliente</string>
-    <string name="snapcast_sheet_add_client_title">Añadir clientes a este grupo</string>
-    <string name="snapcast_sheet_add_client_none">Todos los clientes de este servidor ya están en este grupo</string>
     <string name="snapcast_sheet_candidate_in_group">%1$s (en el grupo %2$s)</string>
     <string name="snapcast_sheet_candidate_empties">%1$s (en el grupo %2$s, que dejará de existir)</string>
     <string name="snapcast_sheet_members">Clientes</string>
@@ -345,7 +352,6 @@
     <string name="snapcast_member_actions">Acciones para %1$s</string>
     <string name="snapcast_member_rename">Cambiar nombre</string>
     <string name="snapcast_member_latency">Latencia</string>
-    <string name="snapcast_member_remove">Quitar del grupo</string>
     <string name="snapcast_rename_title">Cambiar el nombre del cliente</string>
     <string name="snapcast_rename_hint">Nombre (vacío: usar el nombre del equipo)</string>
     <string name="snapcast_latency_title">Latencia en milisegundos</string>
@@ -369,6 +375,10 @@
     <string name="snapcast_servers_error_full">Puede añadir hasta 16 servidores</string>
     <string name="snapcast_servers_already">Este servidor ya está en la lista</string>
     <string name="snapcast_servers_removed">Servidor quitado. Sus grupos seleccionados ya no están seleccionados.</string>
+    <string name="snapcast_servers_discovery_title">Informe de búsqueda</string>
+    <string name="snapcast_servers_discovery_copy">Copiar informe</string>
+    <string name="snapcast_servers_discovery_copied">Informe copiado al portapapeles</string>
+    <string name="snapcast_servers_discovery_note">El informe muestra los servidores encontrados con sus direcciones en su red, el modelo del teléfono, y el estado de la Wi-Fi y de la búsqueda. Revíselo antes de pegarlo en algún sitio. Mientras esta ventana esté abierta y Buscar servidores Snapcast esté activado, se busca en la red.</string>
     <string name="snapcast_client_title">Cliente Snapcast (prueba de escucha)</string>
     <string name="snapcast_client_note">Experimental. Este teléfono reproduce como cliente Snapcast para que pueda comprobar la sincronización de oído. El audio y el control no están cifrados. El servidor y sus controladores ven el nombre de este teléfono y un identificador generado.</string>
     <string name="snapcast_client_host_hint">Dirección del servidor, :puerto opcional (predeterminado 1704)</string>
@@ -379,6 +389,10 @@
     <string name="snapcast_client_copy_trace">Copiar traza</string>
     <string name="snapcast_client_trace_copied">Traza copiada al portapapeles</string>
     <string name="snapcast_client_trace_empty">Aún no hay traza</string>
+    <string name="snapcast_client_choose_server">Elegir servidor</string>
+    <string name="snapcast_client_choose_title">Servidores conocidos</string>
+    <string name="snapcast_client_choose_none">Aún no hay servidores conocidos. Añada uno en los ajustes, en Servidores Snapcast.</string>
+    <string name="snapcast_client_choose_last">usado la última vez</string>
     <string name="snapcast_client_close">Cerrar</string>
     <string name="snapcast_client_error_empty_host">Introduzca la dirección del servidor</string>
     <string name="snapcast_client_error_invalid_host">No es una dirección válida</string>
@@ -401,4 +415,17 @@
     <string name="snapcast_client_notification_reconnecting">Conexión perdida, reintentando…</string>
     <string name="snapcast_client_warning_public">Esta dirección no está en su red local. El audio y el control no están cifrados ni autenticados en el camino.</string>
     <string name="snapcast_client_busy">La sesión anterior aún se está deteniendo. Toque Iniciar de nuevo en un momento.</string>
+    <string name="renderer_output_damaged_note">La salida Snapcast del renderizador está dañada; se reproduce en este dispositivo. Elija el grupo de nuevo en los ajustes.</string>
+    <string name="renderer_output_error_no_group">El renderizador está configurado para reproducir en un grupo de Snapcast, pero no hay ningún grupo elegido. Elija uno en los ajustes.</string>
+    <string name="renderer_output_error_server_not_listed">El servidor Snapcast del grupo del renderizador no está en la lista de servidores. Añádalo en los ajustes, en Servidores Snapcast, o elija otro grupo.</string>
+    <string name="renderer_output_error_unreachable">El servidor Snapcast del grupo del renderizador no responde. No se reprodujo nada.</string>
+    <string name="renderer_output_error_group_gone">El grupo elegido para el renderizador ya no existe en su servidor Snapcast. Elija otro grupo en los ajustes.</string>
+    <string name="renderer_group_server_title">Servidor Snapcast del renderizador</string>
+    <string name="renderer_group_group_title">Grupo Snapcast del renderizador</string>
+    <string name="renderer_group_no_servers">No se conoce ningún servidor Snapcast. Añada uno en Servidores Snapcast o deje que YAACC busque en la red.</string>
+    <string name="renderer_group_reading">Leyendo los grupos del servidor…</string>
+    <string name="renderer_group_unreachable">El servidor no respondió.</string>
+    <string name="renderer_group_none">Este servidor no tiene grupos.</string>
+    <string name="renderer_group_members">Miembros: %1$d</string>
+    <string name="renderer_output_error_unknown_type">El renderizador solo reproduce música en un grupo de Snapcast, y el tipo de este contenido es desconocido (el controlador no indicó ningún tipo y la dirección no tiene una extensión de archivo conocida). No se reprodujo nada.</string>
 </resources>

@@ -1196,6 +1196,8 @@ public class SnapcastRpcTest {
         scheduler.runNext();
         assertTrue(await(() -> rpc.getState() == SnapcastRpc.State.CONNECTED, 5_000));
         assertTrue(rpc.call("A.B", null).getBoolean("second"));
+        // the listener is told on its own thread, so it may be a moment behind the answer of the call
+        assertTrue(listener.awaitCount("connected", 2, 3_000));
         assertEquals(2, listener.count("connected"));
     }
 

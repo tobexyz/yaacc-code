@@ -299,6 +299,10 @@
     <string name="snapcast_offline">offline</string>
     <string name="snapcast_play_not_available">Afspelen op Snapcast-groepen is nog niet beschikbaar</string>
     <string name="snapcast_play_audio_only">Op Snapcast-groepen kan alleen muziek worden afgespeeld</string>
+    <string name="player_track_skipped">\"%1$s\" kan niet worden afgespeeld en wordt overgeslagen</string>
+    <string name="player_stopped_after_errors">Afspelen gestopt: meerdere nummers achter elkaar konden niet worden afgespeeld</string>
+    <string name="player_nothing_playable">Niets om af te spelen: afspeellijstbestanden (.m3u, .pls, .asx) worden niet ondersteund</string>
+    <string name="player_track_number">Nummer %1$d</string>
     <string name="snapcast_play_delay_note">Snapcast speelt ongeveer een seconde na de weergave af (buffer van de server)</string>
     <string name="snapcast_feed_error_unreachable">De Snapcast-server is niet bereikbaar</string>
     <string name="snapcast_feed_error_refused">De Snapcast-server accepteerde geen stream van YAACC</string>
@@ -307,7 +311,7 @@
     <string name="snapcast_feed_error_connect">Kon geen verbinding maken met de stream van de Snapcast-server</string>
     <string name="snapcast_feed_error_busy">Deze telefoon speelt al af op een andere groep van deze Snapcast-server</string>
     <string name="snapcast_feed_error_lost">De verbinding met de Snapcast-server is verbroken</string>
-    <string name="snapcast_feed_static_source_hint">Voeg in plaats daarvan een TCP-streambron toe aan de serverconfiguratie (zie de YAACC-documentatie).</string>
+    <string name="snapcast_feed_static_source_hint">De server moet toestaan dat er tijdens runtime een TCP-streambron wordt toegevoegd.</string>
     <string name="snapcast_feed_authorization_hint">Schakel het inloggen voor de besturingsverbinding van de server uit of gebruik een server zonder.</string>
     <string name="snapcast_feed_error_player">Het afspelen op de Snapcast-groep is gestopt vanwege een fout</string>
     <string name="snapcast_row_stream">Stream: %1$s</string>
@@ -321,6 +325,12 @@
     <string name="snapcast_row_server">Server %1$s</string>
     <string name="snapcast_row_group_gone">Deze groep staat niet meer op de server</string>
     <string name="snapcast_row_settings">Instellingen van de Snapcast-groep</string>
+    <string name="snapcast_row_link">Clients van deze Snapcast-groep koppelen</string>
+    <string name="snapcast_link_keep_one">Een groep houdt minstens één client.</string>
+    <string name="snapcast_link_none">Geen andere client op deze server</string>
+    <string name="snapcast_link_last_member">%1$s (laatste client van deze groep)</string>
+    <string name="snapcast_mute_state_on">Gedempt</string>
+    <string name="snapcast_mute_state_off">Niet gedempt</string>
     <string name="snapcast_sheet_group_volume">Groepsvolume</string>
     <string name="snapcast_sheet_group_mute">Groep dempen</string>
     <string name="snapcast_sheet_stream">Stream</string>
@@ -329,9 +339,6 @@
     <string name="snapcast_sheet_stream_unavailable">%1$s (niet beschikbaar)</string>
     <string name="snapcast_sheet_stream_current">%1$s (huidig)</string>
     <string name="snapcast_sheet_no_streams">De server meldt geen streams</string>
-    <string name="snapcast_sheet_add_client">Client toevoegen</string>
-    <string name="snapcast_sheet_add_client_title">Clients aan deze groep toevoegen</string>
-    <string name="snapcast_sheet_add_client_none">Alle clients van deze server zitten al in deze groep</string>
     <string name="snapcast_sheet_candidate_in_group">%1$s (in groep %2$s)</string>
     <string name="snapcast_sheet_candidate_empties">%1$s (in groep %2$s, die dan ophoudt)</string>
     <string name="snapcast_sheet_members">Clients</string>
@@ -341,7 +348,6 @@
     <string name="snapcast_member_actions">Acties voor %1$s</string>
     <string name="snapcast_member_rename">Hernoemen</string>
     <string name="snapcast_member_latency">Latentie</string>
-    <string name="snapcast_member_remove">Uit de groep verwijderen</string>
     <string name="snapcast_rename_title">Client hernoemen</string>
     <string name="snapcast_rename_hint">Naam (leeg: hostnaam gebruiken)</string>
     <string name="snapcast_latency_title">Latentie in milliseconden</string>
@@ -365,6 +371,10 @@
     <string name="snapcast_servers_error_full">U kunt maximaal 16 servers toevoegen</string>
     <string name="snapcast_servers_already">Deze server staat al in de lijst</string>
     <string name="snapcast_servers_removed">Server verwijderd. De geselecteerde groepen ervan zijn niet meer geselecteerd.</string>
+    <string name="snapcast_servers_discovery_title">Zoekrapport</string>
+    <string name="snapcast_servers_discovery_copy">Rapport kopiëren</string>
+    <string name="snapcast_servers_discovery_copied">Rapport naar het klembord gekopieerd</string>
+    <string name="snapcast_servers_discovery_note">Het rapport toont de gevonden servers met hun adressen in uw netwerk, het telefoonmodel, en de status van wifi en zoeken. Bekijk het voordat u het ergens plakt. Zolang dit venster open is en Snapcast-servers zoeken aanstaat, wordt het netwerk doorzocht.</string>
     <string name="snapcast_client_title">Snapcast-client (luistest)</string>
     <string name="snapcast_client_note">Experimenteel. Deze telefoon speelt als Snapcast-client, zodat u de synchronisatie op het gehoor kunt controleren. Audio en besturing zijn niet versleuteld. De server en zijn controllers zien de naam van deze telefoon en een gegenereerde id.</string>
     <string name="snapcast_client_host_hint">Serveradres, optioneel :poort (standaard 1704)</string>
@@ -375,6 +385,10 @@
     <string name="snapcast_client_copy_trace">Trace kopiëren</string>
     <string name="snapcast_client_trace_copied">Trace naar het klembord gekopieerd</string>
     <string name="snapcast_client_trace_empty">Nog geen trace</string>
+    <string name="snapcast_client_choose_server">Server kiezen</string>
+    <string name="snapcast_client_choose_title">Bekende servers</string>
+    <string name="snapcast_client_choose_none">Nog geen bekende servers. Voeg er een toe in de instellingen onder Snapcast-servers.</string>
+    <string name="snapcast_client_choose_last">laatst gebruikt</string>
     <string name="snapcast_client_close">Sluiten</string>
     <string name="snapcast_client_error_empty_host">Voer het adres van de server in</string>
     <string name="snapcast_client_error_invalid_host">Dit is geen geldig adres</string>
@@ -397,4 +411,17 @@
     <string name="snapcast_client_notification_reconnecting">Verbinding verbroken, opnieuw proberen…</string>
     <string name="snapcast_client_warning_public">Dit adres staat niet in uw lokale netwerk. Audio en besturing zijn onderweg niet versleuteld of geauthenticeerd.</string>
     <string name="snapcast_client_busy">De vorige sessie wordt nog gestopt. Tik zo meteen opnieuw op Starten.</string>
+    <string name="renderer_output_damaged_note">De Snapcast-uitvoer van de renderer is beschadigd; er wordt op dit apparaat afgespeeld. Kies de groep opnieuw in de instellingen.</string>
+    <string name="renderer_output_error_no_group">De renderer is ingesteld om naar een Snapcast-groep af te spelen, maar er is geen groep gekozen. Kies er een in de instellingen.</string>
+    <string name="renderer_output_error_server_not_listed">De Snapcast-server van de groep van de renderer staat niet in de serverlijst. Voeg hem toe onder Snapcast-servers in de instellingen of kies een andere groep.</string>
+    <string name="renderer_output_error_unreachable">De Snapcast-server van de groep van de renderer antwoordt niet. Er is niets afgespeeld.</string>
+    <string name="renderer_output_error_group_gone">De voor de renderer gekozen groep bestaat niet meer op zijn Snapcast-server. Kies een andere groep in de instellingen.</string>
+    <string name="renderer_group_server_title">Snapcast-server van de renderer</string>
+    <string name="renderer_group_group_title">Snapcast-groep van de renderer</string>
+    <string name="renderer_group_no_servers">Er is geen Snapcast-server bekend. Voeg er een toe onder Snapcast-servers of laat YAACC het netwerk doorzoeken.</string>
+    <string name="renderer_group_reading">De groepen van de server worden gelezen…</string>
+    <string name="renderer_group_unreachable">De server heeft niet geantwoord.</string>
+    <string name="renderer_group_none">Deze server heeft geen groepen.</string>
+    <string name="renderer_group_members">Leden: %1$d</string>
+    <string name="renderer_output_error_unknown_type">De renderer speelt naar een Snapcast-groep alleen muziek af, en het type van deze inhoud is onbekend (de controller gaf geen type en het adres heeft geen bekende bestandsextensie). Er is niets afgespeeld.</string>
 </resources>

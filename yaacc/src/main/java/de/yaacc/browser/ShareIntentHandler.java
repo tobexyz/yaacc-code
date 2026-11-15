@@ -49,6 +49,7 @@ import de.yaacc.share.BoundedCall;
 import de.yaacc.share.DisplayName;
 import de.yaacc.share.LaunchNonces;
 import de.yaacc.share.PendingShare;
+import de.yaacc.share.PickContent;
 import de.yaacc.share.ProviderCallGate;
 import de.yaacc.share.ReadinessWait;
 import de.yaacc.share.ShareLimits;
@@ -599,6 +600,18 @@ public final class ShareIntentHandler {
             pendingShare.cancel(token);
             YaaccLogger.w(TAG, "Dropped a shared file: the picker failed (" + e.getClass().getSimpleName() + ")");
         }
+    }
+
+    /**
+     * What the waiting share is, for the receiver picker (11.2): a video or an image is not offered to a receiver that plays
+     * music only. Nothing is consumed. Everything is offered for an unknown token and for a link.
+     */
+    public PickContent pendingContent(String token) {
+        PendingShare.Data data = pendingShare.peek(token);
+        if (data == null || data.getKind() != PendingShare.Kind.FILE) {
+            return PickContent.UNKNOWN;
+        }
+        return PickContent.ofMimeTypes(java.util.Collections.singletonList(data.getMimeType()));
     }
 
     /**

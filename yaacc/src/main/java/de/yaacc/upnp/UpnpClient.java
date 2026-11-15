@@ -95,6 +95,7 @@ import de.yaacc.browser.Position;
 import de.yaacc.multiroom.SnapcastGroupDevice;
 import de.yaacc.multiroom.SnapcastGroupSource;
 import de.yaacc.multiroom.SnapcastHub;
+import de.yaacc.player.ContentTypes;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlaylistTargets;
@@ -125,6 +126,8 @@ import de.yaacc.upnp.registry.RegistryListener;
 import de.yaacc.upnp.server.NetworkDeviceListener;
 import de.yaacc.upnp.server.NetworkRecoveryListener;
 import de.yaacc.upnp.server.NetworkRecoveryNotifier;
+import de.yaacc.upnp.server.renderingcontrol.RendererVolume;
+import de.yaacc.upnp.server.renderingcontrol.RendererVolumes;
 import de.yaacc.upnp.server.renderingcontrol.SystemVolume;
 import de.yaacc.upnp.server.ResumeRefreshPolicy;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
@@ -983,6 +986,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return true;
     }
 
+    /** The type of the file extension of an address, null when it has none or the extension is not known. */
+    private static String mimeTypeOfAddress(String address) {
+        String extension = MimeTypeMap.getFileExtensionFromUrl(address);
+        return extension == null || extension.isEmpty() ? null : MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+    }
+
     /**
      * Returns all player instances initialized with the given transport object
      *
@@ -1038,6 +1047,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension);
             YaaccLogger.d(getClass().getName(), "fileextension from trackURI: " + ShareLogRedactor.redact(String.valueOf(fileExtension)));
         }
+        // one rule with getCurrentPlayers: the type of the description, else the one of the file extension
+        mimeType = ContentTypes.pick(mimeType, mimeTypeOfAddress(positionInfo.getTrackURI()));
         playableItem.setMimeType(mimeType);
         playableItem.setUri(Uri.parse(positionInfo.getTrackURI()));
         // FIXME Duration not supported in receiver yet
@@ -1060,7 +1071,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (!waitForPlayerServiceComeUp()) {
             return null;
         }
-        List<Player> players = playerService.createPlayerForLocalDevice(this, items);
+        // the OpenHome renderer indexes this list: no entry may disappear from it
+        List<Player> players = playerService.createPlayerForLocalQueue(this, items);
         return players.isEmpty() ? null : players.get(0);
     }
 
@@ -1144,7 +1156,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         PlayableItem playableItem = new PlayableItem();
         playableItem.setDuration(getDefaultDuration());
         playableItem.setTitle(positionInfo.getTrackURI());
-        String fileExtension = MimeTypeMap.getFileExtensionFromUrl(positionInfo.getTrackURI());
         if (metadata != null) {
             List<Item> metadataItems = metadata.getItems();
             for (Item item : metadataItems) {
@@ -1159,13 +1170,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 break;
             }
         }
-        if (mimeType.isEmpty()) {
-            mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension);
-        }
+        mimeType = ContentTypes.pick(mimeType, mimeTypeOfAddress(positionInfo.getTrackURI()));
         playableItem.setMimeType(mimeType);
         playableItem.setUri(Uri.parse(positionInfo.getTrackURI()));
         YaaccLogger.d(getClass().getName(), "MimeType: " + playableItem.getMimeType());
-        return playerService.getCurrentPlayersOfType(playerService.getPlayerClassForMimeType(mimeType));
+        return playerService.getRendererPlayersOfType(this, playerService.getPlayerClassForMimeType(mimeType));
     }
 
     /**
@@ -1521,6 +1530,20 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         new SystemVolume(getContext()).setPercent(desired);
     }
 
+    /** The volume of the renderer: the system volume, or the volume of the Snapcast group while that is its output. */
+    RendererVolume rendererVolume() {
+        return RendererVolumes.forContext(getContext());
+    }
+
+    /**
+     * The volume a row of the app changes for a local receiver. YAACC's own renderer (the cling local device) follows the
+     * output setting like the control points that play to it (in group mode the slider is the group's: the phone's volume
+     * would do nothing audible); "this phone" (the dummy device that plays locally) is always the phone's volume.
+     */
+    RendererVolume volumeOf(Device<?, ?, ?> device) {
+        return device instanceof LocalDevice ? rendererVolume() : new SystemVolume(getContext());
+    }
+
     public void downloadItem(DIDLObject selectedDIDLObject) {
         new FileDownloader(this).execute(selectedDIDLObject);
     }
@@ -1557,6 +1580,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     public boolean getMute(Device<?, ?, ?> device) {
+        if (device instanceof LocalDevice || device instanceof LocalDummyDevice) {
+            return volumeOf(device).isMuted(); // this phone, or YAACC's own renderer by its output
+        }
         if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
                 && yxcVolume().handles(udnOf(device))) {
             Boolean muted = yxcVolume().readMute(udnOf(device));
@@ -1662,6 +1688,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     public void setMute(Device<?, ?, ?> device, boolean mute) {
+        if (device instanceof LocalDevice || device instanceof LocalDummyDevice) {
+            volumeOf(device).setMuted(mute);
+            return;
+        }
         if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
                 && yxcVolume().handles(udnOf(device))) {
             yxcVolume().setMute(udnOf(device), mute);
@@ -1723,6 +1753,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     public int getVolume(Device<?, ?, ?> device) {
+        if (device instanceof LocalDevice || device instanceof LocalDummyDevice) {
+            return volumeOf(device).getPercent();
+        }
         if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
                 && yxcVolume().handles(udnOf(device))) {
             return Math.max(0, yxcVolume().readPercent(udnOf(device)));
@@ -1818,6 +1851,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     public void setVolume(Device<?, ?, ?> device, int volume) {
+        if (device instanceof LocalDevice || device instanceof LocalDummyDevice) {
+            volumeOf(device).setPercent(volume);
+            return;
+        }
         if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
                 && yxcVolume().handles(udnOf(device))) {
             yxcVolume().setPercent(udnOf(device), volume);

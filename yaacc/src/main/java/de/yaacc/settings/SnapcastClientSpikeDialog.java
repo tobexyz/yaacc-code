@@ -18,7 +18,6 @@
  */
 package de.yaacc.settings;
 
-import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -50,6 +49,7 @@ import de.yaacc.multiroom.client.SnapcastClientService;
 import de.yaacc.multiroom.client.SnapcastClientSpike;
 import de.yaacc.multiroom.client.SnapcastClientStatusText;
 import de.yaacc.multiroom.client.SnapcastClientTraceReport;
+import de.yaacc.multiroom.ui.SnapcastServerChoices;
 import de.yaacc.multiroom.ui.SnapcastServerListModel;
 
 /**
@@ -128,6 +128,11 @@ final class SnapcastClientSpikeDialog {
         host.setFilters(new InputFilter[]{new InputFilter.LengthFilter(300)});
         host.setText(preferences.getString(SnapcastClientSpike.KEY_LAST_HOST, ""));
         root.addView(host, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        Button chooseServer = new Button(context);
+        chooseServer.setText(R.string.snapcast_client_choose_server);
+        chooseServer.setOnClickListener(v -> onChooseServer());
+        root.addView(chooseServer, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         warning = new TextView(context);
         warning.setText(R.string.snapcast_client_warning_public);
@@ -242,19 +247,20 @@ final class SnapcastClientSpikeDialog {
         opened.prefillFromServers();
     }
 
-    /** With nothing remembered, offers the host of the first server of the Snapcast server list (the port is 1704 then). */
+    /**
+     * With nothing in the field, fills in the server used last, or the first typed-in or remembered one (the port is the
+     * default 1704 then); a server that was only found on the network is not filled in, the user chooses it (S67).
+     */
     private void prefillFromServers() {
         if (host.getText().length() > 0) {
             return;
         }
         try {
             worker.execute(() -> {
-                List<SnapcastServerListModel.Row> rows = SnapcastHub.getShared(context).newServerListModel().rows();
-                if (rows.isEmpty()) {
-                    return;
+                final String text = SnapcastServerChoices.prefill(knownChoices());
+                if (text == null) {
+                    return; // nothing the user made known: the user chooses (a found server is never filled in)
                 }
-                String name = rows.get(0).getKey().getEndpoint().getHost();
-                final String text = name.indexOf(':') >= 0 ? "[" + name + "]" : name;
                 main.post(() -> {
                     if (shown && host.getText().length() == 0) {
                         host.setText(text);
@@ -263,6 +269,64 @@ final class SnapcastClientSpikeDialog {
             });
         } catch (RejectedExecutionException closed) {
             // dismissed meanwhile
+        }
+    }
+
+    /** The servers to choose from (task 11.7): the server list of the settings and the address used last. Off the main thread. */
+    private List<SnapcastServerChoices.Choice> knownChoices() {
+        List<SnapcastServerListModel.Row> rows = SnapcastHub.getShared(context).newServerListModel().rows();
+        return SnapcastServerChoices.of(rows, preferences.getString(SnapcastClientSpike.KEY_LAST_HOST, ""));
+    }
+
+    /**
+     * Lists the known servers and puts the chosen one into the address field. Nothing starts by it: Start checks the field
+     * as for any typed address, so the target is the address the user chose, and a server can still be typed in.
+     */
+    private void onChooseServer() {
+        try {
+            worker.execute(() -> {
+                final List<SnapcastServerChoices.Choice> choices = knownChoices();
+                main.post(() -> {
+                    if (shown) {
+                        showChoices(choices);
+                    }
+                });
+            });
+        } catch (RejectedExecutionException closed) {
+            // dismissed meanwhile
+        }
+    }
+
+    private void showChoices(final List<SnapcastServerChoices.Choice> choices) {
+        if (choices.isEmpty()) {
+            Toast.makeText(context, R.string.snapcast_client_choose_none, Toast.LENGTH_LONG).show();
+            return;
+        }
+        String[] items = new String[choices.size()];
+        for (int i = 0; i < items.length; i++) {
+            SnapcastServerChoices.Choice choice = choices.get(i);
+            // the label has the name from the network cleaned by the model; plain text in the list
+            items[i] = choice.label() + "\n" + sourceText(choice);
+        }
+        new AlertDialog.Builder(context)
+                .setTitle(R.string.snapcast_client_choose_title)
+                .setItems(items, (d, which) -> host.setText(choices.get(which).hostText()))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private String sourceText(SnapcastServerChoices.Choice choice) {
+        String last = context.getString(R.string.snapcast_client_choose_last);
+        switch (choice.source()) {
+            case TYPED:
+                return context.getString(R.string.snapcast_servers_kind_manual) + (choice.isLastUsed() ? ", " + last : "");
+            case REMEMBERED:
+                return context.getString(R.string.snapcast_servers_kind_remembered) + (choice.isLastUsed() ? ", " + last : "");
+            case FOUND:
+                return context.getString(R.string.snapcast_servers_kind_found) + (choice.isLastUsed() ? ", " + last : "");
+            case LAST_USED:
+            default:
+                return last;
         }
     }
 
@@ -332,7 +396,7 @@ final class SnapcastClientSpikeDialog {
             return;
         }
         String report = SnapcastClientTraceReport.of(view, deviceDescription(), System.currentTimeMillis());
-        clipboard.setPrimaryClip(ClipData.newPlainText("snapcast trace", report));
+        clipboard.setPrimaryClip(SensitiveClip.plainText("snapcast trace", report));
         Toast.makeText(context, R.string.snapcast_client_trace_copied, Toast.LENGTH_SHORT).show();
     }
 

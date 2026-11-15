@@ -28,13 +28,26 @@ import org.junit.Test;
 public class SnapcastSettingsTest {
 
     @Test
-    public void discoveryIsOffByDefault() {
-        assertFalse(SnapcastSettings.DISCOVERY_DEFAULT);
-        assertFalse(SnapcastSettings.isDiscoveryEnabled((key, defaultValue) -> defaultValue));
+    public void discoveryIsOnByDefault() {
+        // the owner's decision of 2026-11-14 (it reverses the default of security review S19)
+        assertTrue(SnapcastSettings.DISCOVERY_DEFAULT);
+        assertTrue(SnapcastSettings.isDiscoveryEnabled((key, defaultValue) -> defaultValue));
     }
 
     @Test
-    public void theDiscoverySwitchIsReadFromItsKeyWithTheDefaultOff() {
+    public void anInstallThatNeverSetTheKeyGetsTheDefaultAndAStoredChoiceIsKept() {
+        java.util.Map<String, Boolean> stored = new java.util.HashMap<>();
+        SnapcastSettings.BooleanSource preferences = (key, defaultValue) -> stored.containsKey(key) ? stored.get(key) : defaultValue;
+
+        assertTrue("never set: on", SnapcastSettings.isDiscoveryEnabled(preferences));
+        stored.put(SnapcastSettings.KEY_DISCOVERY, false);
+        assertFalse("the user switched it off: off", SnapcastSettings.isDiscoveryEnabled(preferences));
+        stored.put(SnapcastSettings.KEY_DISCOVERY, true);
+        assertTrue(SnapcastSettings.isDiscoveryEnabled(preferences));
+    }
+
+    @Test
+    public void theDiscoverySwitchIsReadFromItsKeyWithTheDefaultOn() {
         final String[] asked = new String[1];
         final boolean[] askedDefault = new boolean[1];
 
@@ -45,7 +58,7 @@ public class SnapcastSettingsTest {
         });
 
         assertEquals("settings_snapcast_discovery", asked[0]);
-        assertFalse(askedDefault[0]);
+        assertTrue(askedDefault[0]);
     }
 
     @Test
@@ -54,7 +67,13 @@ public class SnapcastSettingsTest {
     }
 
     @Test
+    public void aSwitchThatIsOffIsOff() {
+        assertFalse(SnapcastSettings.isDiscoveryEnabled((key, defaultValue) -> false));
+    }
+
+    @Test
     public void aDamagedValueCountsAsOff() {
+        // the user's choice can not be read: fail safe, nothing is scanned (not the default of an untouched install)
         // SharedPreferences.getBoolean throws ClassCastException for a value of another type
         assertFalse(SnapcastSettings.isDiscoveryEnabled((key, defaultValue) -> {
             throw new ClassCastException("not a boolean");
@@ -63,6 +82,7 @@ public class SnapcastSettingsTest {
 
     @Test
     public void noPreferencesCountAsOff() {
+        // no preferences to read: fail safe, as for a damaged value
         assertFalse(SnapcastSettings.isDiscoveryEnabled(null));
     }
 

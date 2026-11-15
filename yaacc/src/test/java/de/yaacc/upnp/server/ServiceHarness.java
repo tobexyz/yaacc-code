@@ -38,6 +38,7 @@ import org.fourthline.cling.model.gena.LocalGENASubscription;
 import org.fourthline.cling.model.message.StreamRequestMessage;
 import org.fourthline.cling.model.message.StreamResponseMessage;
 import org.fourthline.cling.model.message.UpnpHeaders;
+import org.fourthline.cling.model.message.header.UpnpHeader;
 import org.fourthline.cling.model.message.UpnpRequest;
 import org.fourthline.cling.model.message.UpnpResponse;
 import org.fourthline.cling.model.message.gena.OutgoingEventRequestMessage;
@@ -80,6 +81,10 @@ public class ServiceHarness<T> implements AutoCloseable {
     public final List<String> sentEvents = new CopyOnWriteArrayList<>();
     /** {@code System.nanoTime()} at which each entry of {@link #sentEvents} was sent (same index). */
     public final List<Long> sentEventNanos = new CopyOnWriteArrayList<>();
+    private final List<String> eventSids = new java.util.ArrayList<>();
+    private final List<Long> eventSeqs = new java.util.ArrayList<>();
+    /** How many events arrived after a newer one of their subscription and were put before it (see {@link OrderedEvents}). */
+    public final AtomicInteger reorderedEvents = new AtomicInteger();
     /** When set, every delivery of an event fails like a connect timeout to an address that is not reachable. */
     public volatile boolean deliveryFails;
     public final AtomicInteger deliveryAttempts = new AtomicInteger();
@@ -127,10 +132,24 @@ public class ServiceHarness<T> implements AutoCloseable {
                 if (deliveryFails) {
                     throw new java.io.IOException("connect timed out");
                 }
-                synchronized (sentEvents) { // both lists in step, also when two threads of the pool send
+                String sid = String.valueOf(message.getHeaders().getFirstHeader(UpnpHeader.Type.SID).getValue());
+                long seq = ((org.fourthline.cling.model.types.UnsignedIntegerFourBytes) message.getHeaders()
+                        .getFirstHeader(UpnpHeader.Type.SEQ).getValue()).getValue();
+                synchronized (sentEvents) { // all lists in step, also when two threads of the pool send
+                    // In the order of the sequence number of the subscription, as a control point orders them, not in the order of
+                    // arrival: the pool may send two events that were made microseconds apart in the other order, and "the last
+                    // event" must be the newest one that was made.
+                    int at = OrderedEvents.insertIndex(eventSids, eventSeqs, sid, seq);
+                    long nanos = System.nanoTime();
+                    if (at < sentEvents.size()) {
+                        reorderedEvents.incrementAndGet();
+                        nanos = Math.min(nanos, sentEventNanos.get(at)); // times stay in step with the order
+                    }
+                    eventSids.add(at, sid);
+                    eventSeqs.add(at, seq);
                     // time first: a reader that sees the event also sees when it was sent
-                    sentEventNanos.add(System.nanoTime());
-                    sentEvents.add(message.getBodyString());
+                    sentEventNanos.add(at, nanos);
+                    sentEvents.add(at, message.getBodyString());
                 }
                 return new StreamResponseMessage(new UpnpResponse(UpnpResponse.Status.OK));
             });

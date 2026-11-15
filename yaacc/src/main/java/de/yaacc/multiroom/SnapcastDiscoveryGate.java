@@ -71,6 +71,36 @@ public final class SnapcastDiscoveryGate {
         evaluate();
     }
 
+    /**
+     * A holder that is not a receivers page but wants the scan while it is open (the server list window of the settings,
+     * task 11.6) takes a lease. Closing it ends that page <b>once</b>: a second close, or a close after the holder was
+     * destroyed and closed on another path, can not take the count of another page, so the count can not go below what the
+     * other pages hold and can not stay up either.
+     */
+    public synchronized Lease pageLease() {
+        pageStarted();
+        return new Lease();
+    }
+
+    /** One page of the gate, given back at most once. */
+    public final class Lease {
+        private boolean closed;
+
+        private Lease() {
+        }
+
+        /** Gives the page back; further calls do nothing. */
+        public void close() {
+            synchronized (SnapcastDiscoveryGate.this) {
+                if (closed) {
+                    return;
+                }
+                closed = true;
+                pageStopped();
+            }
+        }
+    }
+
     /** The setting changed (or may have): look at it again. */
     public synchronized void settingChanged() {
         evaluate();

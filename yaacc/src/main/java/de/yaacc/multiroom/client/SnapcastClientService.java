@@ -472,10 +472,12 @@ public final class SnapcastClientService extends Service {
             return;
         }
         main.removeCallbacks(watchdog);
+        // the locks first (S25): the record below writes a preference, a trace line and a notification, and none of it may
+        // keep the phone awake or hold the Wi-Fi if it blocks or throws
+        releaseLocks();
         recordEnding(ending);
         SnapcastClientRuntime.phase(ending == SnapcastClientRuntime.Ending.USER ? SnapcastClientRuntime.Phase.STOPPED
                 : SnapcastClientRuntime.Phase.FAILED, ending, startedAtMillis);
-        releaseLocks();
         Thread teardown = new Thread(() -> {
             teardown();
             main.post(() -> {
@@ -557,7 +559,9 @@ public final class SnapcastClientService extends Service {
 
     @Override
     public void onDestroy() {
-        if (ended.compareAndSet(false, true)) {
+        boolean firstEnd = ended.compareAndSet(false, true); // before the locks: nothing takes them again after this
+        releaseLocks(); // first, as in endSession (S25); the record below must not keep a lock held
+        if (firstEnd) {
             main.removeCallbacks(watchdog);
             if (sessionStarted.get()) {
                 // nobody asked for this (a stop by the user ends the session first): the system or the app ended the service
@@ -568,7 +572,6 @@ public final class SnapcastClientService extends Service {
             teardown.setDaemon(true);
             teardown.start();
         }
-        releaseLocks();
         if (worker != null) {
             worker.shutdownNow();
         }

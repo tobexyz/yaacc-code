@@ -37,6 +37,8 @@ import java.util.Collection;
 import java.util.List;
 
 import de.yaacc.R;
+import de.yaacc.multiroom.SnapcastHub;
+import de.yaacc.multiroom.SnapcastRendererOutput;
 import de.yaacc.multiroom.client.SnapcastClientRuntime;
 import de.yaacc.multiroom.client.SnapcastClientService;
 import de.yaacc.upnp.UpnpClient;
@@ -91,12 +93,70 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         }
 
         setUpSnapcastClientSpike();
+        setUpRendererOutput();
 
         // Populate renderer settings dynamically
         populateRendererSettings();
 
         // Populate network interface list
         populateNetworkInterfaceList();
+    }
+
+    /**
+     * The output of the media renderer (task 9.1): "This device" or "Snapcast group". The chooser of the group is visible only
+     * with the second; choosing the second without a group opens it at once. The summary of the group says which one is
+     * stored (its name when the server is known, else the server), or that the stored value is damaged.
+     */
+    private void setUpRendererOutput() {
+        final ListPreference output = findPreference(getString(R.string.settings_renderer_output));
+        final androidx.preference.Preference group = findPreference(getString(R.string.settings_renderer_output_group));
+        if (output == null || group == null) {
+            return;
+        }
+        output.setEntries(new CharSequence[]{getString(R.string.settings_renderer_output_device),
+                getString(R.string.settings_renderer_output_group_option)});
+        output.setEntryValues(new CharSequence[]{SnapcastRendererOutput.VALUE_DEVICE, SnapcastRendererOutput.VALUE_GROUP});
+        group.setVisible(SnapcastRendererOutput.VALUE_GROUP.equals(output.getValue()));
+        updateRendererGroupSummary(group);
+        output.setOnPreferenceChangeListener((preference, newValue) -> {
+            boolean isGroup = SnapcastRendererOutput.VALUE_GROUP.equals(newValue);
+            group.setVisible(isGroup);
+            if (isGroup && !SnapcastRendererOutput.isCanonicalGroupId(
+                    PreferenceManager.getDefaultSharedPreferences(requireContext())
+                            .getString(SnapcastRendererOutput.KEY_GROUP, null))) {
+                SnapcastRendererGroupDialog.show(requireContext(), () -> updateRendererGroupSummary(group));
+            }
+            return true;
+        });
+        group.setOnPreferenceClickListener(preference -> {
+            SnapcastRendererGroupDialog.show(requireContext(), () -> updateRendererGroupSummary(group));
+            return true;
+        });
+    }
+
+    private void updateRendererGroupSummary(androidx.preference.Preference group) {
+        if (!isAdded() || getContext() == null) {
+            return; // the chooser answers after the fragment was detached (a rotation, the screen was left): nothing to show
+        }
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(requireContext());
+        String stored;
+        try {
+            stored = preferences.getString(SnapcastRendererOutput.KEY_GROUP, null);
+        } catch (RuntimeException damaged) {
+            stored = "damaged"; // another type is stored: not a group id
+        }
+        if (stored == null || stored.isEmpty()) {
+            group.setSummary(R.string.settings_renderer_output_group_none);
+        } else if (!SnapcastRendererOutput.isCanonicalGroupId(stored)) {
+            group.setSummary(R.string.settings_renderer_output_group_damaged);
+        } else {
+            // the name is display text of the server (already cleaned), the server is shown by its address; never the id
+            de.yaacc.multiroom.SnapcastGroupDevice known = SnapcastHub.getShared(requireContext()).findGroup(stored);
+            String endpoint = de.yaacc.multiroom.ui.SnapcastRowText.endpointOf(stored);
+            group.setSummary(known == null
+                    ? getString(R.string.settings_renderer_output_group_server, endpoint)
+                    : getString(R.string.settings_renderer_output_group_named, known.getDisplayString(), endpoint));
+        }
     }
 
     /**

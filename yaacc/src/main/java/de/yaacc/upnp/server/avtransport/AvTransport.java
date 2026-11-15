@@ -283,6 +283,17 @@ public class AvTransport extends AVTransport {
     }
 
     /**
+     * A play was asked for and no player came out (the renderer's output refused it, for example because the Snapcast server
+     * is not reachable, or the content is not playable there; the user has been told). Nothing plays, so the transport must
+     * not say PLAYING: the stop is queued like the one of {@link #playersGone}, because this runs inside a transition of the
+     * state machine.
+     */
+    public void noPlayerStarted() {
+        YaaccLogger.d(getClass().getName(), "AVT no player could be started: transport -> STOPPED");
+        requestStop(null);
+    }
+
+    /**
      * A state is about to create the players of this transport (it may replace the player that plays now
      * by a new one): until {@link #playersStarted()} the removal of the old player does not mean that the
      * transport has no player left.

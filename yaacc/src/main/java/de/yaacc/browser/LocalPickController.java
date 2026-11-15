@@ -47,6 +47,7 @@ import de.yaacc.share.BoundedCall;
 import de.yaacc.share.DisplayName;
 import de.yaacc.share.FolderListing;
 import de.yaacc.share.OwnProviders;
+import de.yaacc.share.PickContent;
 import de.yaacc.share.PickedAction;
 import de.yaacc.share.PickedQueue;
 import de.yaacc.share.ProviderCallGate;
@@ -285,6 +286,11 @@ final class LocalPickController {
             @Override
             public void onCancelled() {
                 // nothing was opened or shared
+            }
+
+            @Override
+            public PickContent content() {
+                return PickContent.of(queue);
             }
         }, DisplayName.clean(title), initial);
         if (!opened) {

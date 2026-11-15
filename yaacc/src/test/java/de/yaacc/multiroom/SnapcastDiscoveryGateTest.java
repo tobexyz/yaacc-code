@@ -230,4 +230,56 @@ public class SnapcastDiscoveryGateTest {
         }
         return n;
     }
+
+    // ---- Group 11Cb W1: a holder that is not a receivers page (the server list window) leases a page, once
+
+    @Test
+    public void aLeaseCountsAsAPageUntilItIsClosed() {
+        enabled = true;
+        SnapcastDiscoveryGate.Lease lease = gate.pageLease();
+
+        assertTrue(gate.isRunning());
+        lease.close();
+
+        assertFalse(gate.isRunning());
+    }
+
+    @Test
+    public void closingALeaseTwiceDoesNotTakeAnotherPagesCount() {
+        enabled = true;
+        gate.pageStarted(); // the receivers page
+        SnapcastDiscoveryGate.Lease lease = gate.pageLease();
+
+        lease.close();
+        lease.close();
+        lease.close();
+
+        assertTrue("the receivers page still shows", gate.isRunning());
+        gate.pageStopped();
+        assertFalse(gate.isRunning());
+    }
+
+    @Test
+    public void theCountNeverGoesBelowZeroAndNeverGetsStuck() {
+        enabled = true;
+        gate.pageStopped(); // a stop without a start
+        SnapcastDiscoveryGate.Lease lease = gate.pageLease();
+        lease.close();
+        lease.close();
+        gate.pageStopped();
+
+        gate.pageStarted();
+        assertTrue("one start is one page", gate.isRunning());
+        gate.pageStopped();
+        assertFalse(gate.isRunning());
+    }
+
+    @Test
+    public void aLeaseOfASwitchedOffDiscoveryStartsNothingAndClosesQuietly() {
+        SnapcastDiscoveryGate.Lease lease = gate.pageLease();
+        lease.close();
+
+        assertFalse(events.contains("start"));
+        assertFalse(gate.isRunning());
+    }
 }

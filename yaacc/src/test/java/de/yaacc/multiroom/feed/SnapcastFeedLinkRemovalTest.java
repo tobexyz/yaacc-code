@@ -117,7 +117,9 @@ public class SnapcastFeedLinkRemovalTest {
         endpoint = SnapcastEndpoint.parse("127.0.0.1:" + control.port());
         directory = new SnapcastDirectory(MonotonicClock.SYSTEM, 30_000L);
         receivers = new SnapcastReceivers(directory, ep -> {
-            SnapcastSession session = new SnapcastSession(ep.toKey(), new SocketTransport(ep.getAddress(), ep.getPort()),
+            // every server of this test is the loopback fake, whatever address the directory lists it under (an announcement
+            // at a loopback address is refused since S72, so the discovered one is listed at a private address)
+            SnapcastSession session = new SnapcastSession(ep.toKey(), new SocketTransport(java.net.InetAddress.getLoopbackAddress(), ep.getPort()),
                     new SnapcastRpc.Config(), MonotonicClock.SYSTEM, null);
             sessions.add(session);
             return session;
@@ -203,9 +205,13 @@ public class SnapcastFeedLinkRemovalTest {
 
     @Test
     public void switchingDiscoveryOffEndsARunningFeedToADiscoveredServer() throws Exception {
-        assertTrue(directory.serviceFound("Snapcast", InetAddress.getByAddress(new byte[]{127, 0, 0, 1}), control.port()));
+        InetAddress announced = InetAddress.getByAddress(new byte[]{(byte) 192, (byte) 168, 1, 5});
+        assertTrue(directory.serviceFound("Snapcast", announced, control.port()));
+        SnapcastClient member = new SnapcastClient("c1", "member", "", true, new SnapcastVolume(40, false), 0);
+        SnapcastGroupDevice discovered = SnapcastGroupDevice.of(SnapcastEndpoint.fromAddress(announced, control.port()).toKey(),
+                new SnapcastGroup("g1", "Room", false, "Default", Collections.singletonList(member)), false, LABELS);
         Events events = new Events();
-        SnapcastFeedController controller = feedSessions.newController(device, "Phone", events);
+        SnapcastFeedController controller = feedSessions.newController(discovered, "Phone", events);
         Socket accepted = startFeed(controller);
 
         directory.discoveryStopped(); // what the gate does when the setting is switched off

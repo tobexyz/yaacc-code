@@ -647,5 +647,113 @@ public class SnapcastDirectoryTest {
 
         assertEquals(before, notifications);
     }
-}
 
+    // ---- one server announced under several service types (task 11.6): the id of a service carries the type
+
+    @Test
+    public void oneServerUnderTwoTypesIsOneEntry() throws Exception {
+        String ctrl = SnapcastServiceTypes.serviceId("_snapcast-ctrl._tcp", "Snapcast");
+        String tcp = SnapcastServiceTypes.serviceId("_snapcast-tcp._tcp", "Snapcast");
+
+        assertTrue(directory.serviceFound(ctrl, "Snapcast", ip(192, 168, 1, 5), 1705));
+        assertTrue(directory.serviceFound(tcp, "Snapcast", ip(192, 168, 1, 5), 1705));
+
+        assertEquals(1, directory.servers().size());
+        assertEquals("Snapcast", directory.servers().get(0).getDisplayName());
+    }
+
+    @Test
+    public void theServerStaysWhileOneOfItsTypesIsStillAnnounced() throws Exception {
+        String ctrl = SnapcastServiceTypes.serviceId("_snapcast-ctrl._tcp", "Snapcast");
+        String tcp = SnapcastServiceTypes.serviceId("_snapcast-tcp._tcp", "Snapcast");
+        directory.serviceFound(ctrl, "Snapcast", ip(192, 168, 1, 5), 1705);
+        directory.serviceFound(tcp, "Snapcast", ip(192, 168, 1, 5), 1705);
+
+        directory.serviceLost(tcp);
+
+        assertTrue(directory.servers().get(0).isDiscovered());
+        assertFalse(directory.servers().get(0).isLost());
+
+        directory.serviceLost(ctrl);
+
+        assertTrue(directory.servers().get(0).isLost());
+    }
+
+    @Test
+    public void theDisplayNameNeverShowsTheTypeOrTheId() throws Exception {
+        String id = SnapcastServiceTypes.serviceId("_snapcast-tcp._tcp", "Living room");
+        directory.serviceFound(id, "Living room", ip(192, 168, 1, 5), 1705);
+
+        assertEquals("Living room", directory.servers().get(0).getDisplayName());
+    }
+
+    @Test
+    public void aTooLongNameIsRefusedWhateverTheId() throws Exception {
+        StringBuilder name = new StringBuilder();
+        for (int i = 0; i < 300; i++) {
+            name.append('x');
+        }
+        assertFalse(directory.serviceFound("id", name.toString(), ip(192, 168, 1, 5), 1705));
+        assertFalse(directory.serviceFound("", "Snapcast", ip(192, 168, 1, 5), 1705));
+        assertFalse(directory.serviceFound("id", null, ip(192, 168, 1, 5), 1705));
+        assertEquals(0, directory.servers().size());
+    }
+
+    @Test
+    public void theSameServiceIdAtANewAddressMovesTheServiceAndLeavesTheOldServerLost() throws Exception {
+        // the id is the key of the service, not the display name: "Snapcast" under two ids must not be confused
+        String id = SnapcastServiceTypes.serviceId("_snapcast-ctrl._tcp", "Snapcast");
+        String otherId = SnapcastServiceTypes.serviceId("_snapcast-tcp._tcp", "Snapcast");
+        directory.serviceFound(id, "Snapcast", ip(192, 168, 1, 5), 1705);
+        directory.serviceFound(otherId, "Snapcast", ip(192, 168, 1, 5), 1705);
+
+        directory.serviceFound(id, "Snapcast", ip(192, 168, 1, 6), 1705); // the server got a new address
+
+        SnapcastDirectory.Entry old = directory.find(key("192.168.1.5:1705"));
+        assertTrue("the old address still has the other type", old.isDiscovered());
+        directory.serviceLost(otherId);
+        assertTrue("now nothing announces the old address", directory.find(key("192.168.1.5:1705")).isLost());
+        assertTrue(directory.find(key("192.168.1.6:1705")).isDiscovered());
+    }
+
+    @Test
+    public void aNameThatOnlyMatchesTheDisplayNameDoesNotMoveAService() throws Exception {
+        directory.serviceFound("id-1", "Snapcast", ip(192, 168, 1, 5), 1705);
+        directory.serviceFound("id-2", "id-1", ip(192, 168, 1, 6), 1705); // a display name that equals another service's id
+
+        assertTrue(directory.find(key("192.168.1.5:1705")).isDiscovered());
+        assertTrue(directory.find(key("192.168.1.6:1705")).isDiscovered());
+        assertEquals(2, directory.servers().size());
+    }
+
+    // ---- S72: an announcement at a loopback address is refused, a typed one is kept
+
+    @Test
+    public void anAnnouncementAtALoopbackAddressIsRefused() throws Exception {
+        assertFalse(directory.serviceFound("Evil", ip(127, 0, 0, 1), 1705));
+        assertFalse(directory.serviceFound("Evil2", ip(127, 8, 8, 8), 1705));
+        assertFalse(directory.serviceFound("Evil3", InetAddress.getByAddress(new byte[]{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}), 1705));
+
+        assertTrue(directory.servers().isEmpty());
+    }
+
+    @Test
+    public void aTypedLoopbackServerIsListedAndAnAnnouncementOfTheSameAddressStillIsNot() throws Exception {
+        directory.setManualServers(Collections.singletonList(manual("127.0.0.1")));
+
+        assertFalse(directory.serviceFound("Snapcast", ip(127, 0, 0, 1), 1705));
+
+        assertEquals(1, directory.servers().size());
+        assertTrue(directory.servers().get(0).isManual());
+        assertFalse(directory.servers().get(0).isDiscovered());
+    }
+
+    @Test
+    public void aRememberedServerAtALoopbackAddressIsNotTaken() throws Exception {
+        int accepted = directory.setRememberedServers(java.util.Arrays.asList(manual("127.0.0.1:1705"), manual("192.168.1.5:1705")));
+
+        assertEquals(1, accepted);
+        assertEquals(1, directory.servers().size());
+        assertEquals(key("192.168.1.5:1705"), directory.servers().get(0).getKey());
+    }
+}

@@ -377,6 +377,66 @@ public class SnapcastReceiversTest {
         assertTrue(scheduler.tasks.isEmpty());
     }
 
+    @Test
+    public void wakeServerOpensOnlyThatListedServerAndNothingForAnotherOne() throws Exception {
+        server(2);
+        server(3);
+
+        receivers.wakeServer(key(2));
+        receivers.wakeServer(key(9));
+        receivers.wakeServer(null);
+
+        assertEquals(1, links.size());
+        assertEquals(key(2), links.get(0).key);
+        assertTrue(links.get(0).started);
+    }
+
+    @Test
+    public void aServerWokenForTheSettingsIsClosedAgainAfterTheGrace() throws Exception {
+        server(2);
+        receivers.wakeServer(key(2));
+
+        scheduler.runAll();
+
+        assertTrue(links.get(0).closed);
+    }
+
+    @Test
+    public void theGroupsOfOneServerAreNullUntilItsStatusIsThereThenOnlyItsOwn() throws Exception {
+        server(2);
+        server(3);
+        receivers.wakeServer(key(2));
+        receivers.wakeServer(key(3));
+        assertNull("no status yet", receivers.groupsOf(key(2)));
+
+        linkOf(2).update(status(group("g-b", "bedroom", "x"), group("g-a", "Attic", "y")), true);
+        linkOf(3).update(status(group("g-c", "Cellar", "z")), true);
+        List<SnapcastGroupDevice> groups = receivers.groupsOf(key(2));
+
+        assertEquals(2, groups.size());
+        assertEquals("Attic (Snapcast)", groups.get(0).getDetails().getFriendlyName());
+        assertEquals("g-a", groups.get(0).getGroupId());
+        assertEquals("bedroom (Snapcast)", groups.get(1).getDetails().getFriendlyName());
+        assertEquals(1, receivers.groupsOf(key(3)).size());
+    }
+
+    @Test
+    public void aServerWithoutGroupsAnswersWithAnEmptyListNotNull() throws Exception {
+        server(2);
+        receivers.wakeServer(key(2));
+        linkOf(2).update(status(), true);
+
+        assertEquals(0, receivers.groupsOf(key(2)).size());
+    }
+
+    @Test
+    public void theGroupsOfAServerThatIsNotListedAreNull() throws Exception {
+        server(2);
+
+        assertNull(receivers.groupsOf(key(9)));
+        assertNull(receivers.groupsOf(null));
+    }
+
     // ---- the groups
 
     @Test
@@ -955,6 +1015,26 @@ public class SnapcastReceiversTest {
         assertNull(receivers.stateOf("not-a-snapcast-id"));
         assertNull(receivers.stateOf("snapcast:10.0.0.2:1705:bad id"));
         assertNull(receivers.stateOf(SnapcastGroupDevice.idOf(key(9), "g-a")));
+    }
+
+    @Test
+    public void theFactsOfAGroupFollowTheStateOfItsServer() throws Exception {
+        server(2);
+        String id = SnapcastGroupDevice.idOf(key(2), "g-a");
+        assertEquals("not a listed server", SnapcastRendererOutput.GroupFacts.NOT_LISTED,
+                SnapcastReceivers.factsOf(receivers.stateOf(SnapcastGroupDevice.idOf(key(9), "g-a"))));
+        assertEquals(SnapcastRendererOutput.GroupFacts.NOT_LISTED, SnapcastReceivers.factsOf(receivers.stateOf("garbage")));
+        assertEquals("listed, no answer yet", SnapcastRendererOutput.GroupFacts.PENDING, SnapcastReceivers.factsOf(receivers.stateOf(id)));
+
+        receivers.pageStarted();
+        linkOf(2).update(status(group("g-a", "Attic", "y")), true);
+        assertEquals(SnapcastRendererOutput.GroupFacts.READY, SnapcastReceivers.factsOf(receivers.stateOf(id)));
+
+        linkOf(2).update(linkOf(2).status, false);
+        assertEquals("the last status only", SnapcastRendererOutput.GroupFacts.OFFLINE, SnapcastReceivers.factsOf(receivers.stateOf(id)));
+
+        linkOf(2).update(status(group("g-b", "Cellar", "z")), true);
+        assertEquals("answered without the group", SnapcastRendererOutput.GroupFacts.GONE, SnapcastReceivers.factsOf(receivers.stateOf(id)));
     }
 
     // ---- a server that leaves while a link is retained or woken (security review W1, S46)

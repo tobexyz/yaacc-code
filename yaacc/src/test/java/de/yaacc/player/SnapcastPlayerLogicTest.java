@@ -101,6 +101,25 @@ public class SnapcastPlayerLogicTest {
     }
 
     @Test
+    public void theStaticSourceHintIsTheTrueSentenceInEveryLocale() throws Exception {
+        // task 11.8, option (d), owner 2026-11-14: YAACC has no static-source fallback, so the hint no longer suggests
+        // one; it states the one requirement that is true for every use of the hint (the raw text of the resource file)
+        String[][] expected = {
+                {"values", "The server must allow adding a TCP stream source at run time."},
+                {"values-de", "Der Server muss es erlauben, zur Laufzeit eine TCP-Streamquelle hinzuzufügen."},
+                {"values-es", "El servidor debe permitir añadir una fuente de flujo TCP en tiempo de ejecución."},
+                {"values-fr", "Le serveur doit autoriser l\\'ajout d\\'une source de flux TCP à l\\'exécution."},
+                {"values-nl", "De server moet toestaan dat er tijdens runtime een TCP-streambron wordt toegevoegd."},
+                {"values-pt", "O servidor tem de permitir a adição de uma fonte de fluxo TCP durante a execução."},
+                {"values-zh", "服务器必须允许在运行时添加 TCP 音频流源。"}};
+        for (String[] row : expected) {
+            java.io.File file = new java.io.File("src/main/res/" + row[0] + "/strings.xml");
+            String xml = new String(java.nio.file.Files.readAllBytes(file.toPath()), java.nio.charset.StandardCharsets.UTF_8);
+            assertTrue(row[0], xml.contains("<string name=\"snapcast_feed_static_source_hint\">" + row[1] + "</string>"));
+        }
+    }
+
+    @Test
     public void theTextsOfEveryErrorKindExistInEveryLocale() throws Exception {
         String[] names = {"snapcast_play_audio_only", "snapcast_play_delay_note", "snapcast_feed_error_unreachable",
                 "snapcast_feed_error_refused", "snapcast_feed_error_unauthorized", "snapcast_feed_error_group_gone",

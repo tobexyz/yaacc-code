@@ -172,7 +172,7 @@
     <string name="settings_snapcast_play_experimental_summary">Experimental: music from the player is sent to a Snapcast server so that a group plays it. The audio is sent unencrypted to the server. Not tested on a device yet.</string>
     <string name="settings_snapcast_play_experimental" translatable="false">settings_snapcast_play_experimental</string>
     <string name="settings_snapcast_discovery_title">Find Snapcast servers</string>
-    <string name="settings_snapcast_discovery_summary">Searches the local network for Snapcast servers. This contacts every server that announces itself there, so leave it off on networks you do not trust. Off: only the servers listed below are used.</string>
+    <string name="settings_snapcast_discovery_summary">Searches the local network for Snapcast servers; on by default. It sends mDNS queries on the network and contacts every server that announces itself there. Announcements are not authenticated: any device on the network can announce a server. Clear the checkbox on networks you do not trust. Off: only the servers listed below are used.</string>
     <string name="settings_snapcast_servers_title">Snapcast servers</string>
     <string name="settings_snapcast_servers_summary">Add servers by address, or remove them</string>
     <string name="settings_snapcast_about_title">What Snapcast needs</string>
@@ -185,4 +185,15 @@
     <string name="settings_snapcast_client_spike_open_summary">Connect this phone to a Snapcast server and see the sync numbers</string>
     <string name="settings_snapcast_client_spike" translatable="false">settings_snapcast_client_spike</string>
     <string name="settings_snapcast_client_spike_open" translatable="false">settings_snapcast_client_spike_open</string>
+    <string name="settings_renderer_output_title">Output</string>
+    <string name="settings_renderer_output_summary">Experimental: the audio is sent unencrypted to the server. Not tested on a device yet. Any device that can reach the receiver can change the volume and mute of the whole group. Snapcast group: only the group plays, this phone stays silent; volume and mute are the group\'s.</string>
+    <string name="settings_renderer_output_device">This device</string>
+    <string name="settings_renderer_output_group_option">Snapcast group</string>
+    <string name="settings_renderer_output_group_title">Snapcast group</string>
+    <string name="settings_renderer_output_group_none">No group chosen. Tap to choose a server and a group.</string>
+    <string name="settings_renderer_output_group_server">Group on server %1$s. Tap to change.</string>
+    <string name="settings_renderer_output_group_named">%1$s on server %2$s. Tap to change.</string>
+    <string name="settings_renderer_output_group_damaged">The stored group is damaged; the receiver plays on this device. Tap to choose the group again.</string>
+    <string name="settings_renderer_output" translatable="false">settings_renderer_output</string>
+    <string name="settings_renderer_output_group" translatable="false">settings_renderer_output_group</string>
 </resources>

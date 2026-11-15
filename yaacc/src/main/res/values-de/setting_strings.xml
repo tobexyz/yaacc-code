@@ -125,7 +125,7 @@
     <string name="settings_snapcast_play_experimental_title">Auf Snapcast-Gruppen abspielen</string>
     <string name="settings_snapcast_play_experimental_summary">Experimentell: Die Musik des Players wird an einen Snapcast-Server gesendet, damit eine Gruppe sie abspielt. Das Audio wird unverschlüsselt an den Server gesendet. Auf einem Gerät noch nicht getestet.</string>
     <string name="settings_snapcast_discovery_title">Snapcast-Server suchen</string>
-    <string name="settings_snapcast_discovery_summary">Sucht im lokalen Netzwerk nach Snapcast-Servern. Dabei wird jeder Server kontaktiert, der sich dort meldet; in Netzwerken, denen Sie nicht trauen, sollte die Suche aus bleiben. Aus: Es werden nur die unten aufgeführten Server verwendet.</string>
+    <string name="settings_snapcast_discovery_summary">Sucht im lokalen Netzwerk nach Snapcast-Servern; standardmäßig an. Dabei werden im Netzwerk mDNS-Anfragen gesendet und jeder Server kontaktiert, der sich dort meldet. Die Meldungen sind nicht authentifiziert: Jedes Gerät im Netzwerk kann einen Server melden. In Netzwerken, denen Sie nicht trauen, entfernen Sie das Häkchen. Aus: Es werden nur die unten aufgeführten Server verwendet.</string>
     <string name="settings_snapcast_servers_title">Snapcast-Server</string>
     <string name="settings_snapcast_servers_summary">Server per Adresse hinzufügen oder entfernen</string>
     <string name="settings_snapcast_about_title">Was Snapcast braucht</string>
@@ -134,4 +134,13 @@
     <string name="settings_snapcast_client_spike_summary">Experimentell: zeigt einen Testbildschirm, auf dem dieses Telefon als Snapcast-Client spielt, um den Gleichlauf nach Gehör zu prüfen. Standardmäßig aus. Audio und Steuerung werden unverschlüsselt übertragen. Noch nicht auf einem Gerät getestet.</string>
     <string name="settings_snapcast_client_spike_open_title">Snapcast-Client-Hörtest</string>
     <string name="settings_snapcast_client_spike_open_summary">Dieses Telefon mit einem Snapcast-Server verbinden und die Sync-Werte ansehen</string>
+    <string name="settings_renderer_output_title">Ausgabe</string>
+    <string name="settings_renderer_output_summary">Experimentell: Das Audio wird unverschlüsselt an den Server gesendet. Auf einem Gerät noch nicht getestet. Jedes Gerät, das den Empfänger erreicht, kann Lautstärke und Stumm der ganzen Gruppe ändern. Snapcast-Gruppe: Nur die Gruppe spielt, dieses Telefon bleibt still; Lautstärke und Stumm sind die der Gruppe.</string>
+    <string name="settings_renderer_output_device">Dieses Gerät</string>
+    <string name="settings_renderer_output_group_option">Snapcast-Gruppe</string>
+    <string name="settings_renderer_output_group_title">Snapcast-Gruppe</string>
+    <string name="settings_renderer_output_group_none">Keine Gruppe gewählt. Tippen, um Server und Gruppe zu wählen.</string>
+    <string name="settings_renderer_output_group_server">Gruppe auf Server %1$s. Tippen zum Ändern.</string>
+    <string name="settings_renderer_output_group_named">%1$s auf Server %2$s. Tippen zum Ändern.</string>
+    <string name="settings_renderer_output_group_damaged">Die gespeicherte Gruppe ist beschädigt; der Empfänger spielt auf diesem Gerät. Tippen, um die Gruppe neu zu wählen.</string>
 </resources>

@@ -22,6 +22,15 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import java.util.Collections;
+
+import de.yaacc.multiroom.SnapcastGroupDevice;
+import de.yaacc.multiroom.control.SnapcastClient;
+import de.yaacc.multiroom.control.SnapcastGroup;
+import de.yaacc.multiroom.control.SnapcastVolume;
+import de.yaacc.multiroom.discovery.SnapcastEndpoint;
+import de.yaacc.share.PickContent;
+
 import de.yaacc.browser.DeviceSessionGrouper.Row;
 
 /**
@@ -46,5 +55,36 @@ public class DeviceSheetListedRowsTest {
     public void thePickerAndThePageShowNoPlayerSessions() {
         assertFalse("picker", DeviceSheetAdapter.listsRow(Row.Kind.PLAYER_SESSION, true, true));
         assertFalse("page", DeviceSheetAdapter.listsRow(Row.Kind.PLAYER_SESSION, false, false));
+    }
+    // ---- 11.2: the picker does not offer a receiver that plays music only for pictures and videos
+
+    private static SnapcastGroupDevice snapcastGroup() {
+        SnapcastClient member = new SnapcastClient("m", "member", "", true, new SnapcastVolume(50, false), 0);
+        SnapcastGroup group = new SnapcastGroup("g", "Group", false, "Default", Collections.singletonList(member));
+        return SnapcastGroupDevice.of(SnapcastEndpoint.parse("192.168.1.5:1705").toKey(), group, false,
+                new SnapcastGroupDevice.Labels("Snapcast group", "offline"));
+    }
+
+    @Test
+    public void aSnapcastGroupIsOfferedForMusicAndWhenTheContentIsNotKnown() {
+        assertTrue(DeviceSheetAdapter.offersReceiver(snapcastGroup(), PickContent.ofKind("audio")));
+        assertTrue(DeviceSheetAdapter.offersReceiver(snapcastGroup(), PickContent.UNKNOWN));
+        assertTrue("no content given: as before", DeviceSheetAdapter.offersReceiver(snapcastGroup(), null));
+    }
+
+    @Test
+    public void aSnapcastGroupIsNotOfferedForImagesAndVideos() {
+        assertFalse(DeviceSheetAdapter.offersReceiver(snapcastGroup(), PickContent.ofKind("image")));
+        assertFalse(DeviceSheetAdapter.offersReceiver(snapcastGroup(), PickContent.ofKind("video")));
+    }
+
+    @Test
+    public void everyOtherReceiverIsOfferedForEveryContent() {
+        org.fourthline.cling.model.meta.Device<?, ?, ?> other = org.mockito.Mockito.mock(org.fourthline.cling.model.meta.Device.class);
+
+        assertTrue(DeviceSheetAdapter.offersReceiver(other, PickContent.ofKind("image")));
+        assertTrue(DeviceSheetAdapter.offersReceiver(other, PickContent.ofKind("video")));
+        assertTrue(DeviceSheetAdapter.offersReceiver(other, PickContent.ofKind("audio")));
+        assertTrue(DeviceSheetAdapter.offersReceiver(null, PickContent.ofKind("image")));
     }
 }
