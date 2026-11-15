@@ -84,23 +84,66 @@ public class ExitFlowGuardTest {
         String yaacc = code("Yaacc.java");
         String exit = body(yaacc, "public void exit()");
         assertTrue("exit() builds an ExitSequence", exit.contains("new ExitSequence()"));
-        assertInOrder(exit, "ExitSequence.STEP_MARK", "ExitSequence.STEP_PLAYERS", "ExitSequence.STEP_SERVICES",
-                "ExitSequence.STEP_NOTIFICATIONS", "ExitSequence.STEP_TASKS");
+        assertInOrder(exit, "ExitSequence.STEP_MARK", "ExitSequence.STEP_SHARES", "ExitSequence.STEP_SNAPCAST_NOTE",
+                "exitPlayersThenContinue()");
+        // the whole order, as the steps are built: mark, shares, the Snapcast ending, players, services, notifications, tasks, end
+        assertInOrder(yaacc, "ExitSequence.STEP_MARK", "ExitSequence.STEP_SHARES", "ExitSequence.STEP_SNAPCAST_NOTE",
+                "ExitSequence.STEP_PLAYERS", "ExitSequence.STEP_SERVICES", "ExitSequence.STEP_NOTIFICATIONS",
+                "ExitSequence.STEP_TASKS", "ExitSequence.STEP_END");
         // the end of the process is a step of its own, after the notifications once more, and the only place that ends it
-        assertInOrder(yaacc, "ExitSequence.STEP_PLAYERS", "ExitSequence.STEP_SERVICES", "ExitSequence.STEP_NOTIFICATIONS",
-                "ExitSequence.STEP_END");
         Matcher ends = Pattern.compile("Runtime\\.getRuntime\\(\\)\\.exit").matcher(yaacc);
         assertTrue(ends.find());
         assertFalse("only one place ends the process", ends.find());
         assertTrue("the process end is after STEP_END", yaacc.indexOf("Runtime.getRuntime().exit") > yaacc.indexOf("ExitSequence.STEP_END"));
         assertFalse("exit() itself does not end the process", exit.contains("Runtime.getRuntime().exit"));
+        String rest = body(yaacc, "private void continueExit(");
+        assertInOrder(rest, "ExitSequence.STEP_SERVICES", "ExitSequence.STEP_NOTIFICATIONS", "ExitSequence.STEP_TASKS");
     }
 
     @Test
-    public void exitMarksTheExitBeforeAnythingElseIsStopped() throws Exception {
-        String exit = body(code("Yaacc.java"), "public void exit()");
-        assertInOrder(exit, "ExitSequence.STEP_MARK", "ExitSequence.STEP_PLAYERS");
-        assertTrue(exit.contains("markExitRequested"));
+    public void theSnapcastEndingIsRecordedBeforeTheServicesAndTheProcessEnd() throws Exception {
+        String yaacc = code("Yaacc.java");
+        assertTrue(body(yaacc, "public void exit()").contains("this::recordSnapcastClientEnding"));
+        assertTrue(yaacc.indexOf("this::recordSnapcastClientEnding") < yaacc.indexOf("ExitSequence.STEP_SERVICES"));
+        assertTrue(yaacc.indexOf("this::recordSnapcastClientEnding") < yaacc.indexOf("Runtime.getRuntime().exit"));
+    }
+
+    /**
+     * Review W2: ending a remote player sleeps and polls (up to 30 s) on the thread that does it. No step of the exit may sleep or wait
+     * on the main thread, and the players end on threads of their own.
+     */
+    @Test
+    public void noStepOfTheExitSleepsOrWaitsOnTheMainThread() throws Exception {
+        for (String file : new String[]{"Yaacc.java", "util/ExitSequence.java", "util/ExitHandoff.java"}) {
+            String code = code(file);
+            for (String blocking : new String[]{"Thread.sleep(", ".join(", ".await(", ".wait(", "awaitTermination(", "SystemClock.sleep("}) {
+                assertFalse(file + " must not use " + blocking, code.contains(blocking));
+            }
+        }
+        String yaacc = code("Yaacc.java");
+        assertFalse("the players are ended by the hand-over only", yaacc.contains("playerService.shutdown("));
+        assertFalse("client.shutdown() ends the players on the calling (main) thread", yaacc.contains("client.shutdown()"));
+        assertFalse(yaacc.contains(".onDestroy()"));
+        String starter = body(yaacc, "private void exitPlayersThenContinue()");
+        assertTrue(starter.contains("ExitHandoff.run("));
+        assertTrue("the player's exit is a step handed to the hand-over", starter.contains("player::exit"));
+        assertFalse("not called directly", starter.contains("player.exit()"));
+        assertTrue(code("util/ExitHandoff.java").contains("workers.execute("));
+        // the player service is stopped only when every player ended: its onDestroy would end the rest on the main thread
+        String stop = body(yaacc, "private void stopServices(boolean playersEnded)");
+        assertTrue(stop.indexOf("if (playersEnded)") < stop.indexOf("stopService(new Intent(this, PlayerService.class))"));
+    }
+
+    @Test
+    public void aUserStartWhileTheExitRunsIsIgnored() throws Exception {
+        String started = body(code("Yaacc.java"), "public void userStarted()");
+        assertInOrder(started, "exiting.get()", "clearOnUserStart()");
+    }
+
+    @Test
+    public void theGuardIsOneObjectPerProcess() throws Exception {
+        String guards = code("util/ExitRestartGuards.java");
+        assertTrue(guards.contains("private static ExitRestartGuard shared"));
     }
 
     @Test
@@ -159,10 +202,10 @@ public class ExitFlowGuardTest {
     @Test
     public void theServicesStopThemselvesOnAStickyRestartAfterAnExitBeforeTheyShowAnyNotification() throws Exception {
         String player = body(code("player/PlayerService.java"), "public int onStartCommand(");
-        assertInOrder(player, "ExitRestartGuards", "StartReason.SYSTEM_RESTART", "stopSelf()", "createYaaccGroupNotification()");
+        assertInOrder(player, "ExitRestartGuards", "StartReason.SYSTEM_RESTART", "stopRestartedService(", "createYaaccGroupNotification()");
         assertTrue(player.contains("intent == null"));
         String server = body(code("upnp/server/YaaccUpnpServerService.java"), "public int onStartCommand(");
-        assertInOrder(server, "ExitRestartGuards", "StartReason.SYSTEM_RESTART", "stopSelf()", "showNotification()");
+        assertInOrder(server, "ExitRestartGuards", "StartReason.SYSTEM_RESTART", "stopRestartedService(", "showNotification()");
         assertTrue(server.contains("intent == null"));
     }
 
@@ -206,9 +249,19 @@ public class ExitFlowGuardTest {
         assertFalse(browserBack.contains(".exit()"));
         assertTrue(browserBack.contains("leaveToBackground()"));
         assertTrue(body(code("browser/BrowserActivity.java"), "private void leaveToBackground()").contains("moveTaskToBack(true)"));
-        String tabBack = body(code("browser/TabBrowserActivity.java"), "public void onBackPressed()");
+        String tabBack = body(code("browser/TabBrowserActivity.java"), "private void onBack()");
         assertFalse(tabBack.contains(".exit()"));
         assertTrue(tabBack.contains("moveTaskToBack(true)"));
+    }
+
+    /** With predictive back (the default from target SDK 36) an override of onBackPressed() is not called, a dispatcher callback is. */
+    @Test
+    public void bothBrowserActivitiesHandleBackThroughTheDispatcher() throws Exception {
+        for (String file : new String[]{"browser/BrowserActivity.java", "browser/TabBrowserActivity.java"}) {
+            String code = code(file);
+            assertTrue(file, code.contains("getOnBackPressedDispatcher().addCallback(this, backPressedCallback)"));
+            assertFalse(file + " has no onBackPressed override that predictive back would skip", code.contains("public void onBackPressed()"));
+        }
     }
 
     @Test

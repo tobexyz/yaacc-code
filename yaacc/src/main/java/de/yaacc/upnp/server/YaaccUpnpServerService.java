@@ -297,7 +297,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         // user starting the app (task 12.2): stop at once, before the notification is shown or anything is built.
         if (intent == null && ExitRestartGuards.of(this).decide(ExitRestartGuard.StartReason.SYSTEM_RESTART) == ExitRestartGuard.Decision.STOP_SELF) {
             YaaccLogger.i(getClass().getName(), "Restarted by the system right after an exit, stopping");
-            stopSelf();
+            ExitRestartGuards.stopRestartedService(this, NotificationId.UPNP_SERVER.getId());
             return START_NOT_STICKY;
         }
         YaaccLogger.i(getClass().getName(), "YaaccUpnpServerService onStartCommand called");

@@ -32,6 +32,7 @@ public final class ExitSequence {
 
     public static final String STEP_MARK = "mark the exit";
     public static final String STEP_SHARES = "close the shares";
+    public static final String STEP_SNAPCAST_NOTE = "note the Snapcast client ending";
     public static final String STEP_PLAYERS = "exit the players";
     public static final String STEP_SERVICES = "stop the services";
     public static final String STEP_NOTIFICATIONS = "cancel the notifications";
@@ -93,10 +94,15 @@ public final class ExitSequence {
     }
 
     /**
-     * Whether to look again later: something (a service, a feed that gives the group its stream back) still runs and the time
-     * allowed is not used up. The wait is bounded, the exit is never held for good.
+     * Whether to look again later: the main thread is given {@code minMillis} in any case (what the exit posted, the players' releases
+     * and the second cancel of the notifications, runs in that time), and after that for as long as something (a service that is
+     * started, a feed that gives the group its stream back) still runs and {@code maxMillis} is not used up. The wait is bounded, the
+     * exit is never held for good.
      */
-    public static boolean shouldKeepWaiting(boolean somethingStillRunning, long waitedMillis, long maxMillis) {
+    public static boolean shouldKeepWaiting(boolean somethingStillRunning, long waitedMillis, long minMillis, long maxMillis) {
+        if (waitedMillis < minMillis) {
+            return true;
+        }
         return somethingStillRunning && waitedMillis < maxMillis;
     }
 }

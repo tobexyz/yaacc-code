@@ -343,7 +343,7 @@ public class PlayerService extends MediaSessionService {
         // user starting the app (task 12.2): stop at once, before any notification is shown.
         if (intent == null && ExitRestartGuards.of(this).decide(ExitRestartGuard.StartReason.SYSTEM_RESTART) == ExitRestartGuard.Decision.STOP_SELF) {
             YaaccLogger.i(this.getClass().getName(), "Restarted by the system right after an exit, stopping");
-            stopSelf();
+            ExitRestartGuards.stopRestartedService(this, NotificationId.PLAYER_SERVICE.getId());
             return START_NOT_STICKY;
         }
         super.onStartCommand(intent, flags, startId);

@@ -36,6 +36,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceManager;
@@ -90,6 +91,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
             return;
         }
         setContentView(R.layout.activity_tab_browse);
+        getOnBackPressedDispatcher().addCallback(this, backPressedCallback);
         pickController = new ReceiverPickController(this);
         viewPager = findViewById(R.id.browserTabPager);
         tabLayout = findViewById(R.id.browserTabLayout);
@@ -282,19 +284,26 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         BackgroundIdleTimer.browserStopped(this);
     }
 
-    @Override
-    public void onBackPressed() {
-        YaaccLogger.d(TabBrowserActivity.class.getName(), "onBackPressed() ");
+    // A callback, not an override of onBackPressed(): with predictive back (the default from target SDK 36) the activity's
+    // onBackPressed() is not called any more, the dispatcher's callbacks are.
+    private final OnBackPressedCallback backPressedCallback = new OnBackPressedCallback(true) {
+        @Override
+        public void handleOnBackPressed() {
+            onBack();
+        }
+    };
+
+    private void onBack() {
+        YaaccLogger.d(TabBrowserActivity.class.getName(), "onBack() ");
         if (getSupportFragmentManager().getFragments().size() > tabLayout.getSelectedTabPosition()) {
             Fragment fragment = getSupportFragmentManager().getFragments().get(tabLayout.getSelectedTabPosition());
             if (!(fragment instanceof OnBackPressedListener) || !((OnBackPressedListener) fragment).onBackPressed()) {
                 // nothing left to go back to: the app goes to the background and keeps running (task 12.1)
                 if (!moveTaskToBack(true)) {
-                    super.onBackPressed();
+                    finish(); // not the root of its task: the activity ends, the app does not
                 }
             }
         }
-
     }
 
     @Override

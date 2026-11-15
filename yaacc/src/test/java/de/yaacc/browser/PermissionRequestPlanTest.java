@@ -54,16 +54,39 @@ public class PermissionRequestPlanTest {
     // ---- what can be requested at all -------------------------------------------------------------------------------
 
     @Test
-    public void onApi27And28ItIsReadAndWriteStorage() {
+    public void writeStorageIsGrantableAndNeededUpToApi29() {
+        // the manifest has requestLegacyExternalStorage="true" and Android 10 honours it: write storage is what lets FileDownloader write
+        // to the public Downloads folder there (review W1 of Group 12A: the first version stopped asking at 29)
         assertEquals(set(READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE), new HashSet<>(PermissionRequestPlan.requestable(27)));
         assertEquals(set(READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE), new HashSet<>(PermissionRequestPlan.requestable(28)));
+        assertEquals(set(READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE), new HashSet<>(PermissionRequestPlan.requestable(29)));
     }
 
     @Test
-    public void writeStorageCanNeverBeGrantedFromApi29() {
-        assertEquals(set(READ_EXTERNAL_STORAGE), new HashSet<>(PermissionRequestPlan.requestable(29)));
+    public void writeStorageHasNoEffectFromApi30() {
         assertEquals(set(READ_EXTERNAL_STORAGE), new HashSet<>(PermissionRequestPlan.requestable(30)));
+        assertEquals(set(READ_EXTERNAL_STORAGE), new HashSet<>(PermissionRequestPlan.requestable(31)));
         assertEquals(set(READ_EXTERNAL_STORAGE), new HashSet<>(PermissionRequestPlan.requestable(32)));
+    }
+
+    /** The manifest: READ_EXTERNAL_STORAGE up to 32, WRITE_EXTERNAL_STORAGE up to 33 (legacy storage only to 29), media and notifications from 33. */
+    @Test
+    public void theWholeListPerApiLevel() {
+        Object[][] table = {
+                {26, set(READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE)},
+                {28, set(READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE)},
+                {29, set(READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE)},
+                {30, set(READ_EXTERNAL_STORAGE)},
+                {32, set(READ_EXTERNAL_STORAGE)},
+                {33, set(READ_MEDIA_AUDIO, READ_MEDIA_IMAGES, READ_MEDIA_VIDEO, POST_NOTIFICATIONS)},
+                {34, set(READ_MEDIA_AUDIO, READ_MEDIA_IMAGES, READ_MEDIA_VIDEO, READ_MEDIA_VISUAL_USER_SELECTED, POST_NOTIFICATIONS)},
+                {36, set(READ_MEDIA_AUDIO, READ_MEDIA_IMAGES, READ_MEDIA_VIDEO, READ_MEDIA_VISUAL_USER_SELECTED, POST_NOTIFICATIONS)},
+        };
+        for (Object[] row : table) {
+            List<String> list = PermissionRequestPlan.requestable((Integer) row[0]);
+            assertEquals("API " + row[0], row[1], new HashSet<>(list));
+            assertEquals("no duplicates at API " + row[0], list.size(), new HashSet<>(list).size());
+        }
     }
 
     @Test
@@ -107,6 +130,7 @@ public class PermissionRequestPlanTest {
         assertTrue(PermissionRequestPlan.atStart(34, new HashSet<>(PermissionRequestPlan.requestable(34)), NONE, false).isEmpty());
         assertTrue(PermissionRequestPlan.atStart(33, new HashSet<>(PermissionRequestPlan.requestable(33)), NONE, false).isEmpty());
         assertTrue(PermissionRequestPlan.atStart(30, set(READ_EXTERNAL_STORAGE), NONE, false).isEmpty());
+        assertTrue(PermissionRequestPlan.atStart(29, set(READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE), NONE, false).isEmpty());
     }
 
     @Test
@@ -114,6 +138,12 @@ public class PermissionRequestPlanTest {
         // the old code checked WRITE_EXTERNAL_STORAGE too, which is never granted there: it asked at every start
         Set<String> granted = new HashSet<>(PermissionRequestPlan.requestable(33));
         assertTrue(PermissionRequestPlan.atStart(33, granted, NONE, false).isEmpty());
+    }
+
+    @Test
+    public void onAndroid10GrantingReadDoesNotGrantWriteSoWriteIsAskedToo() {
+        assertEquals(Collections.singletonList(WRITE_EXTERNAL_STORAGE),
+                PermissionRequestPlan.atStart(29, set(READ_EXTERNAL_STORAGE), NONE, false));
     }
 
     @Test

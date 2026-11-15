@@ -24,6 +24,7 @@ import static de.yaacc.util.ExitRestartGuard.StartReason.PROCESS_START;
 import static de.yaacc.util.ExitRestartGuard.StartReason.SYSTEM_RESTART;
 import static de.yaacc.util.ExitRestartGuard.StartReason.USER_LAUNCH;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -94,6 +95,22 @@ public class ExitRestartGuardTest {
     @Test
     public void aSmallClockStepBackwardsStillCountsAsRightAfter() {
         assertEquals(STOP_SELF, ExitRestartGuard.decide(T, T - 1_000L, SYSTEM_RESTART));
+    }
+
+    @Test
+    public void theWindowIsAboutTwoMinutes() {
+        // "a restart comes within seconds, a later start is a start": not 5 seconds, not an hour
+        assertTrue(ExitRestartGuard.WINDOW_MILLIS >= 60_000L);
+        assertTrue(ExitRestartGuard.WINDOW_MILLIS <= 300_000L);
+    }
+
+    @Test
+    public void theClockSkewBoundaryIsExactlyFiveSecondsBack() {
+        assertEquals("exactly 5 s back still counts as right after", STOP_SELF,
+                ExitRestartGuard.decide(T, T - ExitRestartGuard.CLOCK_SKEW_MILLIS, SYSTEM_RESTART));
+        assertEquals("one millisecond further back can not be judged", START,
+                ExitRestartGuard.decide(T, T - ExitRestartGuard.CLOCK_SKEW_MILLIS - 1, SYSTEM_RESTART));
+        assertEquals(5_000L, ExitRestartGuard.CLOCK_SKEW_MILLIS);
     }
 
     @Test
@@ -182,6 +199,36 @@ public class ExitRestartGuardTest {
         new ExitRestartGuard(store, () -> T + 1L).clearOnUserStart();
         assertEquals(1, store.writes);
         assertEquals(0L, store.value);
+    }
+
+    @Test
+    public void whenTheMarkCanNotBeClearedTheUserIsStillTheUserInThisProcess() {
+        // review suggestion: a failed clear must not make every restored screen finish for two minutes
+        MemoryStore store = new MemoryStore();
+        AtomicLong clock = new AtomicLong(T);
+        ExitRestartGuard guard = new ExitRestartGuard(store, clock::get);
+        guard.markExitRequested();
+        store.failWrites = true;
+        clock.set(T + 1_000L);
+        assertEquals(STOP_SELF, guard.decide(ExitRestartGuard.StartReason.RESTORED_SCREEN));
+        guard.clearOnUserStart();
+        assertEquals(T, store.value); // the write failed, the mark is still there
+        assertEquals(START, guard.decide(ExitRestartGuard.StartReason.RESTORED_SCREEN));
+        assertEquals(START, guard.decide(SYSTEM_RESTART));
+        assertEquals(START, guard.decide(PROCESS_START));
+    }
+
+    @Test
+    public void aNewExitAfterTheUserStartedIsGuardedAgain() {
+        MemoryStore store = new MemoryStore();
+        AtomicLong clock = new AtomicLong(T);
+        ExitRestartGuard guard = new ExitRestartGuard(store, clock::get);
+        guard.markExitRequested();
+        guard.clearOnUserStart();
+        clock.set(T + 60_000L);
+        guard.markExitRequested();
+        clock.set(T + 61_000L);
+        assertEquals(STOP_SELF, guard.decide(SYSTEM_RESTART));
     }
 
     @Test

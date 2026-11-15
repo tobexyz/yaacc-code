@@ -18,8 +18,15 @@
 package de.yaacc.util;
 
 import android.annotation.SuppressLint;
+import android.app.Notification;
+import android.app.Service;
 import android.content.Context;
 import android.content.SharedPreferences;
+
+import androidx.core.app.NotificationCompat;
+
+import de.yaacc.R;
+import de.yaacc.Yaacc;
 
 /**
  * The {@link ExitRestartGuard} of the app, with its mark in a preferences file of its own (not the settings: it is no setting).
@@ -32,8 +39,18 @@ public final class ExitRestartGuards {
     private ExitRestartGuards() {
     }
 
-    public static ExitRestartGuard of(Context context) {
-        final SharedPreferences preferences = context.getApplicationContext().getSharedPreferences(FILE, Context.MODE_PRIVATE);
+    private static ExitRestartGuard shared;
+
+    /** The one guard of the process (the in-process "the user started" state is shared by the application, the services and the screens). */
+    public static synchronized ExitRestartGuard of(Context context) {
+        if (shared == null) {
+            shared = create(context.getApplicationContext());
+        }
+        return shared;
+    }
+
+    private static ExitRestartGuard create(Context context) {
+        final SharedPreferences preferences = context.getSharedPreferences(FILE, Context.MODE_PRIVATE);
         return new ExitRestartGuard(new ExitRestartGuard.Store() {
             @Override
             public long readExitRequestedAt() {
@@ -54,5 +71,32 @@ public final class ExitRestartGuards {
                 }
             }
         }, System::currentTimeMillis);
+    }
+
+    /**
+     * Ends a service that the system restarted right after an explicit exit (null intent in {@code onStartCommand}). A null intent
+     * never comes from {@code startForegroundService()} (that always carries an intent), so the system's own restart is the only
+     * entry and it is not "foreground required"; but a service that was started that way and does not call {@code startForeground()}
+     * in time raises a {@code ForegroundServiceDidNotStartInTimeException} on Android 12 and newer, and this can not be verified
+     * by reading. So the path is made safe where it costs little: the smallest possible notification goes up and comes down again in
+     * the same call (a flash is acceptable, a crash is not), and then the service stops. Every step is guarded: a refused
+     * {@code startForeground} (background start limits) must not keep the service from stopping.
+     */
+    public static void stopRestartedService(Service service, int notificationId) {
+        try {
+            Notification notification = new NotificationCompat.Builder(service, Yaacc.NOTIFICATION_CHANNEL_ID)
+                    .setSmallIcon(R.drawable.ic_notification_default)
+                    .setSilent(true)
+                    .build();
+            service.startForeground(notificationId, notification);
+        } catch (RuntimeException refused) {
+            // not allowed in this state: nothing was promised either, stop all the same
+        }
+        try {
+            service.stopForeground(Service.STOP_FOREGROUND_REMOVE);
+        } catch (RuntimeException ignored) {
+            // not in the foreground
+        }
+        service.stopSelf();
     }
 }

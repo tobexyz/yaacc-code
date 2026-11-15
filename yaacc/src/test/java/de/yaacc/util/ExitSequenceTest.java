@@ -105,20 +105,31 @@ public class ExitSequenceTest {
 
     // ---- the wait for the services and the feeds to end ---------------------------------------------------------------
 
+    private static final long MIN = 100;
+    private static final long MAX = 2_000;
+
     @Test
     public void weWaitWhileSomethingRunsAndTheTimeIsNotUp() {
-        assertTrue(ExitSequence.shouldKeepWaiting(true, 0, 2_000));
-        assertTrue(ExitSequence.shouldKeepWaiting(true, 1_999, 2_000));
+        assertTrue(ExitSequence.shouldKeepWaiting(true, 0, MIN, MAX));
+        assertTrue(ExitSequence.shouldKeepWaiting(true, 1_999, MIN, MAX));
     }
 
     @Test
-    public void weStopWaitingWhenNothingRunsAnyMore() {
-        assertFalse(ExitSequence.shouldKeepWaiting(false, 0, 2_000));
+    public void weStopWaitingWhenNothingRunsAnyMoreAfterTheMinimumLook() {
+        assertFalse(ExitSequence.shouldKeepWaiting(false, MIN, MIN, MAX));
+        assertFalse(ExitSequence.shouldKeepWaiting(false, 1_000, MIN, MAX));
+    }
+
+    @Test
+    public void weAlwaysGiveTheMainThreadTheMinimumTimeEvenWhenNothingRuns() {
+        // the posted releases and the second cancelAll() get their turn before the process ends
+        assertTrue(ExitSequence.shouldKeepWaiting(false, 0, MIN, MAX));
+        assertTrue(ExitSequence.shouldKeepWaiting(false, MIN - 1, MIN, MAX));
     }
 
     @Test
     public void weStopWaitingWhenTheTimeIsUpEvenIfSomethingRuns() {
-        assertFalse(ExitSequence.shouldKeepWaiting(true, 2_000, 2_000));
-        assertFalse(ExitSequence.shouldKeepWaiting(true, 60_000, 2_000));
+        assertFalse(ExitSequence.shouldKeepWaiting(true, 2_000, MIN, MAX));
+        assertFalse(ExitSequence.shouldKeepWaiting(true, 60_000, MIN, MAX));
     }
 }

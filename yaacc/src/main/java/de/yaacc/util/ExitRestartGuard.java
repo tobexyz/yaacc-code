@@ -71,6 +71,8 @@ public final class ExitRestartGuard {
 
     private final Store store;
     private final LongSupplier clock;
+    // The user started the app in this process: whatever starts now is a normal start, also when the mark could not be cleared.
+    private volatile boolean userStartedInThisProcess;
 
     public ExitRestartGuard(Store store, LongSupplier clock) {
         if (store == null || clock == null) {
@@ -97,6 +99,7 @@ public final class ExitRestartGuard {
 
     /** Called first thing in the exit, before anything is stopped. Never throws. */
     public void markExitRequested() {
+        userStartedInThisProcess = false; // a new exit: guarded again
         try {
             store.writeExitRequestedAt(clock.getAsLong());
         } catch (RuntimeException e) {
@@ -106,6 +109,7 @@ public final class ExitRestartGuard {
 
     /** Called when the user starts the app: whatever starts later is a normal start. Never throws. */
     public void clearOnUserStart() {
+        userStartedInThisProcess = true; // before the write: a store that fails must not make restored screens finish for the window
         try {
             if (store.readExitRequestedAt() != 0L) { // every screen calls this: no write when there is nothing to clear
                 store.writeExitRequestedAt(0L);
@@ -115,8 +119,11 @@ public final class ExitRestartGuard {
         }
     }
 
-    /** What a start for this reason does now. Never throws; an unreadable store allows the start. */
+    /** What a start for this reason does now. Never throws; an unreadable store allows the start; after a user start in this process always START. */
     public Decision decide(StartReason reason) {
+        if (userStartedInThisProcess) {
+            return Decision.START;
+        }
         try {
             return decide(store.readExitRequestedAt(), clock.getAsLong(), reason);
         } catch (RuntimeException e) {

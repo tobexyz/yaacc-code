@@ -30,7 +30,7 @@ import java.util.Set;
  * What it leaves out on purpose, because asking can never end in "granted" (so an "all granted" check is never true and the
  * request shows at every start): the permissions that are granted at install (internet, Wi-Fi, wake lock, boot, battery exemption
  * request), the all-files access (a special permission, the user grants it in the system settings, the request dialog never shows
- * it), and write storage from API 29 on (it has no effect there). What is asked is a missing one, once: after the first request the
+ * it), and write storage from API 30 on (scoped storage is enforced, it has no effect; on Android 10 the legacy storage flag of the manifest still makes it the permission for the file API). What is asked is a missing one, once: after the first request the
  * ask is remembered and a permission that is still missing is taken as declined and left alone; the user asks again from a settings
  * action ({@link #onUserAction}) or a feature that needs it. Android 14's partial photo and video access (the selected-photos
  * permission granted, images and video not) counts as an answer.
@@ -38,7 +38,7 @@ import java.util.Set;
 final class PermissionRequestPlan {
 
     static final int API_M = 23;
-    static final int API_Q = 29;
+    static final int API_R = 30;
     static final int API_TIRAMISU = 33;
     static final int API_UPSIDE_DOWN_CAKE = 34;
 
@@ -59,7 +59,8 @@ final class PermissionRequestPlan {
         if (sdk < API_M) {
             return list;
         }
-        if (sdk < API_Q) {
+        if (sdk < API_R) {
+            // Android 10 honours requestLegacyExternalStorage (manifest): write storage is what FileDownloader needs for Downloads
             list.add(READ_EXTERNAL_STORAGE);
             list.add(WRITE_EXTERNAL_STORAGE);
         } else if (sdk < API_TIRAMISU) {

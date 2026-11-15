@@ -67,6 +67,7 @@ import de.yaacc.share.UnclaimedShares;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.util.SAFCacheManager;
+import de.yaacc.util.ExitHandoff;
 import de.yaacc.util.ExitRestartGuard;
 import de.yaacc.util.ExitRestartGuards;
 import de.yaacc.util.ExitSequence;
@@ -106,6 +107,10 @@ public class Yaacc extends Application {
     // How long the exit waits for the services and the Snapcast feeds to end, and how often it looks (milliseconds).
     private static final long EXIT_MAX_WAIT_MILLIS = 3000L;
     private static final long EXIT_POLL_MILLIS = 100L;
+    // How long the exit waits for the players to end (each on its own thread) before it goes on without them.
+    private static final long EXIT_PLAYERS_MAX_WAIT_MILLIS = 4000L;
+    // The player service was stopped by the exit (only when every player ended): only then is it waited for.
+    private volatile boolean playerServiceStopped;
 
 
     @Override
@@ -161,6 +166,9 @@ public class Yaacc extends Application {
      * normal start, and what was held back after an exit is started now. Main thread.
      */
     public void userStarted() {
+        if (exiting.get()) {
+            return; // the exit is running: a screen opened now must not clear the mark or start services in a process that ends
+        }
         ExitRestartGuards.of(this).clearOnUserStart();
         if (startDeferredAfterExit) {
             startDeferredAfterExit = false;
@@ -355,10 +363,14 @@ public class Yaacc extends Application {
     /**
      * Ends the app: the exit button and the notification action, the shutdown (sleep) timer and the idle timer. The order is the
      * point (tasks 12.2 and 12.9): mark the exit (persisted, so that a restart the system does afterwards is recognised), close the
-     * shares, exit the players (media session, player notification, the Snapcast feed gives the group its stream back), stop the
+     * shares, end the players (media session, player notification, the Snapcast feed gives the group its stream back), stop the
      * services and let go of the bindings, cancel the notifications, finish the tasks, then wait (bounded, without blocking the
      * main thread, which the releases need) for the services and the feeds to end, cancel the notifications once more and end the
      * process. A step that fails does not keep the others from running ({@link ExitSequence}).
+     * <p>
+     * The main thread never waits for a player (review W2 of Group 12A): ending a remote player sleeps and polls on the thread that
+     * does it, so every player is ended on a thread of its own ({@link ExitHandoff}) and the rest of the exit continues on the main
+     * thread when they ended or after {@link #EXIT_PLAYERS_MAX_WAIT_MILLIS}.
      */
     public void exit() {
         if (Looper.myLooper() != Looper.getMainLooper()) {
@@ -376,14 +388,59 @@ public class Yaacc extends Application {
                 // close every share (held files, links) first, so that a failure further down cannot
                 // leave a descriptor open or a share reachable
                 .add(ExitSequence.STEP_SHARES, this::closeShares)
-                .add("note the Snapcast client ending", this::recordSnapcastClientEnding)
-                .add(ExitSequence.STEP_PLAYERS, this::exitPlayers)
-                .add(ExitSequence.STEP_SERVICES, this::stopServices)
-                .add(ExitSequence.STEP_NOTIFICATIONS, this::cancelNotifications)
-                .add(ExitSequence.STEP_TASKS, this::finishTasks)
+                // written before the process ends, and before the services go (the spike dialog finds the reason)
+                .add(ExitSequence.STEP_SNAPCAST_NOTE, this::recordSnapcastClientEnding)
                 .run();
         if (!first.allSucceeded()) {
             YaaccLogger.w(getClass().getName(), "Steps of the exit failed: " + first.failed());
+        }
+        exitPlayersThenContinue();
+    }
+
+    /** Ends every active player on a thread of its own and goes on with {@link #continueExit} on the main thread. */
+    private void exitPlayersThenContinue() {
+        final Handler main = new Handler(Looper.getMainLooper());
+        List<String> names = new ArrayList<>();
+        List<ExitSequence.Step> steps = new ArrayList<>();
+        UpnpClient client = upnpClient;
+        if (client != null) {
+            for (Player player : new ArrayList<>(client.getCurrentPlayers())) {
+                names.add("player " + player.getId());
+                steps.add(player::exit);
+            }
+        }
+        ExitHandoff.run(names, steps, Executors.newCachedThreadPool(runnable -> {
+            Thread thread = new Thread(runnable, "yaacc-exit-player");
+            thread.setDaemon(true);
+            return thread;
+        }), new ExitHandoff.MainThread() {
+            @Override
+            public void post(Runnable task) {
+                main.post(task);
+            }
+
+            @Override
+            public void postDelayed(Runnable task, long delayMillis) {
+                main.postDelayed(task, delayMillis);
+            }
+        }, EXIT_PLAYERS_MAX_WAIT_MILLIS, outcome -> {
+            if (!outcome.failed().isEmpty() || !outcome.allEnded()) {
+                YaaccLogger.w(getClass().getName(), ExitSequence.STEP_PLAYERS + ": failed " + outcome.failed()
+                        + ", not ended " + outcome.unfinished());
+            }
+            continueExit(outcome.allEnded());
+        });
+    }
+
+    /** The rest of the exit, on the main thread, after the players ended (or the bound was up). */
+    private void continueExit(boolean playersEnded) {
+        ExitSequence.Result rest = new ExitSequence()
+                .add(ExitSequence.STEP_SERVICES, () -> stopServices(playersEnded))
+                .add(ExitSequence.STEP_NOTIFICATIONS, this::cancelNotifications)
+                .add(ExitSequence.STEP_TASKS, this::finishTasks)
+                .run();
+        if (!rest.allSucceeded()) {
+            YaaccLogger.w(getClass().getName(), "Steps of the exit failed: " + rest.failed());
         }
         awaitEndOfServicesThenEndProcess(SystemClock.uptimeMillis());
     }
@@ -391,8 +448,7 @@ public class Yaacc extends Application {
     private void awaitEndOfServicesThenEndProcess(long startedAt) {
         long waited = SystemClock.uptimeMillis() - startedAt;
         // posted, not slept: the main thread has to run what the exit queued (the players' releases, the services' onDestroy)
-        if (ExitSequence.shouldKeepWaiting(servicesOrFeedsStillRunning(), waited, EXIT_MAX_WAIT_MILLIS)
-                || waited < EXIT_POLL_MILLIS) {
+        if (ExitSequence.shouldKeepWaiting(servicesOrFeedsStillRunning(), waited, EXIT_POLL_MILLIS, EXIT_MAX_WAIT_MILLIS)) {
             new Handler(Looper.getMainLooper()).postDelayed(() -> awaitEndOfServicesThenEndProcess(startedAt), EXIT_POLL_MILLIS);
             return;
         }
@@ -416,39 +472,27 @@ public class Yaacc extends Application {
         }
     }
 
-    /** Exits every active player, each in a step of its own: one that fails to release does not keep the others. */
-    private void exitPlayers() {
-        UpnpClient client = upnpClient;
-        if (client == null) {
-            return;
-        }
-        ExitSequence players = new ExitSequence();
-        for (Player player : new ArrayList<>(client.getCurrentPlayers())) {
-            players.add("player " + player.getId(), player::exit);
-        }
-        ExitSequence.Result result = players.run();
-        if (!result.allSucceeded()) {
-            YaaccLogger.w(getClass().getName(), "Players that did not exit cleanly: " + result.failed());
-        }
-    }
-
-    private void stopServices() {
+    /**
+     * Lets go of the bindings and stops the services. The player service is stopped only when every player ended: its onDestroy
+     * ends the players that are left, on the main thread, and a remote player waits there.
+     */
+    private void stopServices(boolean playersEnded) {
         final UpnpClient client = upnpClient;
-        ExitSequence.Result result = new ExitSequence()
-                // the server service and the players that are left; its bindings go next, a bound service does not end
-                .add("shut the client down", () -> {
-                    if (client != null) {
-                        client.shutdown();
-                    }
-                })
+        ExitSequence sequence = new ExitSequence()
+                // a bound service does not end when it is stopped
                 .add("let go of the bindings", () -> {
                     if (client != null) {
                         client.unbindServices();
                     }
                 })
-                .add("stop the player service", () -> stopService(new Intent(this, PlayerService.class)))
-                .add("stop the server service", () -> stopService(new Intent(this, YaaccUpnpServerService.class)))
-                .run();
+                .add("stop the server service", () -> stopService(new Intent(this, YaaccUpnpServerService.class)));
+        if (playersEnded) {
+            sequence.add("stop the player service", () -> {
+                stopService(new Intent(this, PlayerService.class));
+                playerServiceStopped = true;
+            });
+        }
+        ExitSequence.Result result = sequence.run();
         if (!result.allSucceeded()) {
             YaaccLogger.w(getClass().getName(), "Services that did not stop cleanly: " + result.failed());
         }
@@ -480,7 +524,10 @@ public class Yaacc extends Application {
             ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
             for (ActivityManager.RunningServiceInfo service : am.getRunningServices(100)) {
                 String name = service.service.getClassName();
-                if (PlayerService.class.getName().equals(name) || YaaccUpnpServerService.class.getName().equals(name)) {
+                // "started": a service that only some other app has bound (a media controller of the system) is not ours to wait for
+                boolean ours = YaaccUpnpServerService.class.getName().equals(name)
+                        || (playerServiceStopped && PlayerService.class.getName().equals(name));
+                if (ours && service.started) {
                     return true;
                 }
             }
