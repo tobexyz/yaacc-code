@@ -1156,7 +1156,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         PlayableItem playableItem = new PlayableItem();
         playableItem.setDuration(getDefaultDuration());
         playableItem.setTitle(positionInfo.getTrackURI());
-        String fileExtension = MimeTypeMap.getFileExtensionFromUrl(positionInfo.getTrackURI());
         if (metadata != null) {
             List<Item> metadataItems = metadata.getItems();
             for (Item item : metadataItems) {

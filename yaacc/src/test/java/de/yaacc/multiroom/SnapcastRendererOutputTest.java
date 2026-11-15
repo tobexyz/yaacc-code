@@ -449,6 +449,8 @@ public class SnapcastRendererOutputTest {
                 SnapcastRendererOutput.contentOf(Arrays.asList("application/pdf")));
         assertEquals(SnapcastRendererOutput.Content.UNKNOWN_TYPE, SnapcastRendererOutput.contentOf(Arrays.asList((String) null)));
         assertEquals(SnapcastRendererOutput.Content.UNKNOWN_TYPE, SnapcastRendererOutput.contentOf(Arrays.asList("")));
+        assertEquals("white space is no type", SnapcastRendererOutput.Content.UNKNOWN_TYPE, SnapcastRendererOutput.contentOf(Arrays.asList("   ")));
+        assertEquals(SnapcastRendererOutput.Content.UNKNOWN_TYPE, SnapcastRendererOutput.contentOf(Arrays.asList("audio/mpeg", " ")));
         assertEquals(SnapcastRendererOutput.Content.UNKNOWN_TYPE, SnapcastRendererOutput.contentOf(Arrays.asList("audio/mpeg", null)));
         assertEquals("a video is a video even next to an unknown one", SnapcastRendererOutput.Content.NOT_MUSIC,
                 SnapcastRendererOutput.contentOf(Arrays.asList(null, "video/mp4")));

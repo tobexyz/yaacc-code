@@ -51,7 +51,9 @@ public class OutputRoutedVolumeTest {
     private final FakeGroup group = new FakeGroup();
     private final List<Runnable> queue = new ArrayList<>();
     private final List<Problem> problems = new ArrayList<>();
-    private long now;
+    // a large start: a mutant that never stores the time of the last wake would look right at a clock of 0 (S9)
+    private static final long START = 5_000_000L;
+    private long now = START;
     private final OutputRoutedVolume volume = new OutputRoutedVolume(
             () -> SnapcastRendererOutput.read(prefs::get), local, group, queue::add, new SnapcastRendererOutput.Waiter() {
         @Override
@@ -264,7 +266,7 @@ public class OutputRoutedVolumeTest {
 
         assertEquals(1, group.wakes);
         assertEquals(List.of(Problem.SERVER_UNREACHABLE), problems);
-        assertTrue("it waited up to the limit and no longer: " + now, now >= 4_000 && now <= 4_200);
+        assertTrue("it waited up to the limit and no longer: " + (now - START), now - START >= 4_000 && now - START <= 4_200);
     }
 
     @Test
@@ -485,5 +487,34 @@ public class OutputRoutedVolumeTest {
         }
 
         assertEquals(wakesAtSubscription, group.wakes);
+    }
+
+    // ---- Fix Group 9c S10: the controller's mute read wakes as its volume read does
+
+    @Test
+    public void aControllersMuteReadWakesTheLinkToo() {
+        groupMode();
+
+        volume.isMuted();
+
+        assertEquals(1, group.wakes);
+        now += OutputRoutedVolume.WAKE_INTERVAL_MILLIS - 1;
+        volume.isMuted();
+        assertEquals("rate limited like the volume read", 1, group.wakes);
+        now += 2;
+        volume.isMuted();
+        assertEquals(2, group.wakes);
+    }
+
+    @Test
+    public void theWakeIsRememberedFromTheFirstOneOnWhateverTheClockStartedAt() {
+        groupMode();
+        volume.getPercent();
+        now += 1;
+
+        volume.getPercent();
+        volume.isMuted();
+
+        assertEquals(1, group.wakes);
     }
 }

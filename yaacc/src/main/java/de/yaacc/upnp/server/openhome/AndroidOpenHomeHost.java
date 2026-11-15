@@ -105,14 +105,22 @@ public final class AndroidOpenHomeHost implements OpenHomeRenderer.Host, OpenHom
         return item;
     }
 
+    // The poll of the renderer reads once a second: it reads without waking a connection (peek), so an OpenHome renderer that
+    // stays on does not hold or retry a connection to the server of the group while nothing plays. The group's level is the
+    // last one the model knows until the next play or the wake at the start.
     @Override
     public int percent() {
-        return systemVolume.getPercent();
+        return systemVolume.peekPercent();
     }
 
     @Override
     public boolean muted() {
-        return systemVolume.isMuted();
+        return systemVolume.peekMuted();
+    }
+
+    @Override
+    public void wakeNow() {
+        systemVolume.wakeNow();
     }
 
     @Override

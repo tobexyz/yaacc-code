@@ -363,6 +363,12 @@ Notes are kept current as items are done (interruption safe). Tests first (red, 
 - [x] F9b.6 S1 stale player check after `addPlayer` (`SnapcastRendererOutput.isStale`), S2 null facts test, S3 last known level per group, S4 no hub in device mode (`GroupSubscription`), S5 one type lookup (`ContentTypes.pick`) and `UNKNOWN_TYPE` with its own message (7 locales), S6 and S8 docs, S7 the row of YAACC's own renderer is routed (`UpnpClient.volumeOf`), S8 `?` kept
 - **Verify**: `./gradlew :yaacc:testDebugUnitTest --offline --rerun`, assembleDebug, lintDebug at baseline.
 
+## Fix Group 9c: general review cycle 2 of Group 9 (W6, S9 to S16), done 2026-11-15
+- [x] F9c.1 W6 the harness records the events a subscriber gets in the order of their SEQ number per subscription (`OrderedEvents`, used by `ServiceHarness`), not in arrival order; red first: 1 of 20 runs failed under 8 busy loops before, 0 of 25 after (events were reordered in 24 of 25 of those runs)
+- [x] F9c.2 S9 fake clock starts large, S10 `isMuted()` wake pinned, S11 guard for one type rule and the unused local removed, S12 docs say "the first subscription", S14 white space is no type, S15 guard for the late attach
+- [x] F9c.3 S16 the OpenHome poll reads with `peek*`; `OpenHomeRenderer.Volume.wakeNow()` once at the start; docs say the price
+- **Verify**: `./gradlew :yaacc:testDebugUnitTest --offline --rerun`, assembleDebug, lintDebug at baseline.
+
 ## Group 10 (Phase B): Documentation
 - [ ] 10.1 Update documentation for Phase B | `README.md`, `docs/`, `CHANGELOG.md`
   - **Accept**: no stale references; requirements and limits (sync, doze) described.

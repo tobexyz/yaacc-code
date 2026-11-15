@@ -192,4 +192,40 @@ public class RendererOutputWiringGuardTest {
             assertFalse(forbidden, decision.contains(forbidden));
         }
     }
+
+    // ---- Fix Group 9c S11, S15, S16
+
+    @Test
+    public void creatingAndFindingThePlayerUseTheSameTypeRule() throws Exception {
+        String client = source("upnp/UpnpClient.java");
+        String create = methodBody(client, "public List<Player> initializePlayers(AvTransport transport)");
+        String find = methodBody(client, "public List<Player> getCurrentPlayers(AvTransport transport)");
+
+        assertTrue(create.contains("ContentTypes.pick("));
+        assertTrue(find.contains("ContentTypes.pick("));
+        assertFalse("no second rule for the extension", find.contains("getMimeTypeFromExtension"));
+        assertFalse("the unused local is gone", find.contains("String fileExtension"));
+    }
+
+    @Test
+    public void aSwitchToTheGroupWhileSubscribedAttachesTheHubAndWakesOnce() throws Exception {
+        String volumes = source("upnp/server/renderingcontrol/RendererVolumes.java");
+        String subscription = volumes.substring(volumes.indexOf("this.setting = (changed, key)"), volumes.indexOf("Runnable start()"));
+
+        assertTrue(subscription.contains("attachIfGroup()"));
+        assertTrue(subscription.contains("forContext(app).wakeNow()"));
+        assertTrue(subscription.contains("onChange.run()"));
+        assertTrue("the start attaches too (the output may be the group already)", methodBody(volumes, "Runnable start()").contains("attachIfGroup()"));
+    }
+
+    @Test
+    public void theOpenHomePollReadsWithoutWakingAndTheRendererWakesOnceAtItsStart() throws Exception {
+        String host = source("upnp/server/openhome/AndroidOpenHomeHost.java");
+        String renderer = source("upnp/server/openhome/OpenHomeRenderer.java");
+
+        assertTrue(methodBody(host, "public int percent()").contains("peekPercent()"));
+        assertTrue(methodBody(host, "public boolean muted()").contains("peekMuted()"));
+        assertTrue(methodBody(host, "public void wakeNow()").contains("systemVolume.wakeNow()"));
+        assertEquals("the renderer wakes in start() only", 1, count(renderer, "volume.wakeNow()"));
+    }
 }
