@@ -28,11 +28,33 @@ public final class ContentTypes {
     private ContentTypes() {
     }
 
-    /** @return {@code described} if it says something, else {@code byExtension} if it does, else null */
+    /**
+     * @return {@code described} if it says something, else {@code byExtension} if it does, else null; normalised
+     * ({@link #normalize})
+     */
     public static String pick(String described, String byExtension) {
-        if (described != null && !described.trim().isEmpty()) {
-            return described;
+        String type = normalize(described);
+        return type != null ? type : normalize(byExtension);
+    }
+
+    /**
+     * The one rule for what a content type is, for the gate that decides "music, play it into the group" and for the lookup
+     * that finds the player again: trimmed, lower case, without parameters ({@code ;charset=...}). The description of a
+     * controller keeps the case it was written in ({@code Audio/Mpeg}), and two code paths that compare the raw text can
+     * disagree, which would leave a feed that no controller can stop.
+     *
+     * @return the normalised type, null for null or for text that has no type in it
+     */
+    public static String normalize(String type) {
+        if (type == null) {
+            return null;
         }
-        return byExtension != null && !byExtension.trim().isEmpty() ? byExtension : null;
+        String text = type;
+        int parameters = text.indexOf(';');
+        if (parameters >= 0) {
+            text = text.substring(0, parameters);
+        }
+        text = text.trim().toLowerCase(java.util.Locale.ROOT);
+        return text.isEmpty() ? null : text;
     }
 }

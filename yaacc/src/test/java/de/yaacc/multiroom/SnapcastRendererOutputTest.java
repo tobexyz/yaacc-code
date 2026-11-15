@@ -499,4 +499,94 @@ public class SnapcastRendererOutputTest {
         assertTrue("another group", SnapcastRendererOutput.isStale(madeForGroup, SnapcastRendererOutput.read(prefs("group", OTHER))));
         assertTrue("an unknown key is stale", SnapcastRendererOutput.isStale(null, SnapcastRendererOutput.read(prefs(null, null))));
     }
+
+    // ---- Fix Group 9d S75: a server that did not answer is not waited for again at once
+
+    @Test
+    public void aSecondPlayRightAfterAnUnreachableOneIsRefusedAtOnceWithoutAskingOrWaiting() {
+        FakeWorld world = new FakeWorld(GroupFacts.PENDING);
+        SnapcastRendererOutput.UnreachableMemory memory = new SnapcastRendererOutput.UnreachableMemory();
+        Setting setting = SnapcastRendererOutput.read(prefs("group", ID));
+
+        Decision first = SnapcastRendererOutput.resolve(setting, SnapcastRendererOutput.Content.PLAYABLE, world, world, 4_000, memory);
+        long sleptByFirst = world.slept;
+        int askedByFirst = world.asked;
+        int wakesByFirst = world.wakes;
+        Decision second = SnapcastRendererOutput.resolve(setting, SnapcastRendererOutput.Content.PLAYABLE, world, world, 4_000, memory);
+        Decision third = SnapcastRendererOutput.resolve(setting, SnapcastRendererOutput.Content.PLAYABLE, world, world, 4_000, memory);
+
+        assertEquals(Problem.SERVER_UNREACHABLE, first.problem());
+        assertEquals(Problem.SERVER_UNREACHABLE, second.problem());
+        assertEquals(Problem.SERVER_UNREACHABLE, third.problem());
+        assertEquals(Output.NONE, second.output());
+        assertEquals("no more waiting", sleptByFirst, world.slept);
+        assertEquals("no more asking", askedByFirst, world.asked);
+        assertEquals("no more wake", wakesByFirst, world.wakes);
+    }
+
+    @Test
+    public void afterTheMemoryTimeTheServerIsTriedAgainAndAReadyServerClearsIt() {
+        FakeWorld world = new FakeWorld(GroupFacts.PENDING);
+        SnapcastRendererOutput.UnreachableMemory memory = new SnapcastRendererOutput.UnreachableMemory();
+        Setting setting = SnapcastRendererOutput.read(prefs("group", ID));
+        SnapcastRendererOutput.resolve(setting, SnapcastRendererOutput.Content.PLAYABLE, world, world, 4_000, memory);
+
+        world.now += SnapcastRendererOutput.UnreachableMemory.MEMORY_MILLIS + 1;
+        world.answers.clear();
+        world.answers.add(GroupFacts.READY);
+        world.asked = 0;
+        Decision later = SnapcastRendererOutput.resolve(setting, SnapcastRendererOutput.Content.PLAYABLE, world, world, 4_000, memory);
+
+        assertEquals("it is asked again", Output.GROUP, later.output());
+        assertEquals(1, world.asked);
+        // and it is forgotten: a failure of the facts right after is judged on its own, not by the old memory
+        world.answers.clear();
+        world.answers.add(GroupFacts.GONE);
+        assertEquals(Problem.GROUP_GONE,
+                SnapcastRendererOutput.resolve(setting, SnapcastRendererOutput.Content.PLAYABLE, world, world, 4_000, memory).problem());
+    }
+
+    @Test
+    public void theMemoryBelongsToOneGroupAndOnlyUnreachableIsRemembered() {
+        SnapcastRendererOutput.UnreachableMemory memory = new SnapcastRendererOutput.UnreachableMemory();
+        FakeWorld pending = new FakeWorld(GroupFacts.PENDING);
+        SnapcastRendererOutput.resolve(SnapcastRendererOutput.read(prefs("group", ID)), SnapcastRendererOutput.Content.PLAYABLE,
+                pending, pending, 4_000, memory);
+
+        FakeWorld other = new FakeWorld(GroupFacts.READY);
+        Decision otherGroup = SnapcastRendererOutput.resolve(SnapcastRendererOutput.read(prefs("group", OTHER)),
+                SnapcastRendererOutput.Content.PLAYABLE, other, other, 4_000, memory);
+        FakeWorld gone = new FakeWorld(GroupFacts.GONE);
+        SnapcastRendererOutput.resolve(SnapcastRendererOutput.read(prefs("group", OTHER)), SnapcastRendererOutput.Content.PLAYABLE,
+                gone, gone, 4_000, memory);
+        FakeWorld ready = new FakeWorld(GroupFacts.READY);
+        Decision again = SnapcastRendererOutput.resolve(SnapcastRendererOutput.read(prefs("group", OTHER)),
+                SnapcastRendererOutput.Content.PLAYABLE, ready, ready, 4_000, memory);
+
+        assertEquals(Output.GROUP, otherGroup.output());
+        assertEquals("gone is not remembered", Output.GROUP, again.output());
+    }
+
+    @Test
+    public void thisDeviceAndRefusedContentNeverTouchTheMemory() {
+        SnapcastRendererOutput.UnreachableMemory memory = new SnapcastRendererOutput.UnreachableMemory();
+        FakeWorld world = new FakeWorld(GroupFacts.PENDING);
+
+        Decision local = SnapcastRendererOutput.resolve(SnapcastRendererOutput.read(prefs("device", ID)),
+                SnapcastRendererOutput.Content.PLAYABLE, world, world, 4_000, memory);
+
+        assertEquals(Output.LOCAL, local.output());
+        assertEquals(0, world.asked);
+        assertTrue(!memory.isRecent(ID, world.now));
+    }
+
+    @Test
+    public void theMemoryIsBounded() {
+        SnapcastRendererOutput.UnreachableMemory memory = new SnapcastRendererOutput.UnreachableMemory();
+        for (int i = 0; i < 1_000; i++) {
+            memory.remember("snapcast:10.0.0.1:1705:g" + i, 100L);
+        }
+
+        assertTrue(memory.size() <= SnapcastRendererOutput.UnreachableMemory.MAX_ENTRIES);
+    }
 }

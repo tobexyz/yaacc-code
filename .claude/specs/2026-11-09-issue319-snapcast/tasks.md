@@ -381,6 +381,12 @@ Notes are kept current as items are done (interruption safe). Tests first (red, 
 - [x] F9c.3 S16 the OpenHome poll reads with `peek*`; `OpenHomeRenderer.Volume.wakeNow()` once at the start; docs say the price
 - **Verify**: `./gradlew :yaacc:testDebugUnitTest --offline --rerun`, assembleDebug, lintDebug at baseline.
 
+## Fix Group 9d: security review cycle 1 of Group 9 (W1, W2, S74 to S77), done 2026-11-15
+- [x] F9d.1 W1 `SnapcastControls.setGroupMuted` is coalesced per group (one wanted value, one task, latest wins), shared by the app's group card and the renderer; tests: 20,000 calls = one queued task and one server call, final value is the last wanted, one task per group, a mute flood does not queue in front of other actions
+- [x] F9d.2 W2 `ContentTypes.normalize` (trim, lower case, no parameters) is the one rule: `pick`, `SnapcastRendererOutput.contentOf`, `getPlayerClassForMimeType` and `createLocalPlayer`; tests for `Audio/Mpeg`, ` audio/mpeg `, `audio/mpeg; charset=x`, unchanged for well-formed types, source guard
+- [x] F9d.3 S74 sentence in `settings_renderer_output_summary` (7 locales, keyword test); S75 `UnreachableMemory` (5 s) in `SnapcastRendererOutput.resolve`, used by `PlayerService`; S76 `SnapcastToastGate` (3 s) for the refused-play toasts; S77 `updateRendererGroupSummary` returns when the fragment is not added
+- **Verify**: full suite, assembleDebug, lintDebug at baseline, avtransport package 5 times under 4 busy loops.
+
 ## Group 10 (Phase B): Documentation
 - [ ] 10.1 Update documentation for Phase B | `README.md`, `docs/`, `CHANGELOG.md`
   - **Accept**: no stale references; requirements and limits (sync, doze) described.

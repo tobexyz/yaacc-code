@@ -156,6 +156,8 @@ public final class SnapcastControls {
     // the latest wanted value of each group and client slider, and which of them have a task queued (guarded by lock)
     private final Map<String, Integer> wantedGroupVolume = new HashMap<>();
     private final Set<String> queuedGroupVolume = new HashSet<>();
+    private final Map<String, Boolean> wantedGroupMute = new HashMap<>();
+    private final Set<String> queuedGroupMute = new HashSet<>();
     private final Map<String, Integer> wantedClientVolume = new HashMap<>();
     private final Set<String> queuedClientVolume = new HashSet<>();
     private final Map<String, Gesture> gestures = new HashMap<>();
@@ -241,9 +243,30 @@ public final class SnapcastControls {
         }
     }
 
-    /** Mutes or unmutes a group. */
+    /**
+     * Mutes or unmutes a group. Coalesced like the volume: one wanted value per group and one queued task, the latest value
+     * wins. The app's own card of the group and the renderer's mute (a controller can send thousands of them) go through here,
+     * so a flood is one call to the server, can not grow the queue of the actions, and the two can not fight.
+     */
     public void setGroupMuted(final SnapcastServerKey key, final String groupId, final boolean muted) {
-        submit(actions, Action.GROUP_MUTE, () -> linked(key).operations.setGroupMute(groupId, muted));
+        final String id = idOf(key, groupId);
+        boolean schedule;
+        synchronized (lock) {
+            wantedGroupMute.put(id, muted);
+            schedule = queuedGroupMute.add(id);
+        }
+        if (schedule) {
+            submit(actions, Action.GROUP_MUTE, () -> {
+                Boolean wanted;
+                synchronized (lock) {
+                    wanted = wantedGroupMute.remove(id);
+                    queuedGroupMute.remove(id);
+                }
+                if (wanted != null) {
+                    linked(key).operations.setGroupMute(groupId, wanted);
+                }
+            });
+        }
     }
 
     /** The group plays this stream. {@code streamId} is the server's own id (from the stream picker), used for the call only. */

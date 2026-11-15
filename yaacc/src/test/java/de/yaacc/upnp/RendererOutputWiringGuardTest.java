@@ -228,4 +228,38 @@ public class RendererOutputWiringGuardTest {
         assertTrue(methodBody(host, "public void wakeNow()").contains("systemVolume.wakeNow()"));
         assertEquals("the renderer wakes in start() only", 1, count(renderer, "volume.wakeNow()"));
     }
+
+    // ---- Fix Group 9d
+
+    @Test
+    public void theGateAndTheLookupCompareOnlyTheNormalisedType() throws Exception {
+        String service = source("player/PlayerService.java");
+
+        for (String method : new String[]{"public Class getPlayerClassForMimeType(String mimeType)",
+                "private List<Player> createLocalPlayer(UpnpClient upnpClient, List<PlayableItem> items, boolean leaveOutPlaylistFiles)"}) {
+            String body = methodBody(service, method);
+            assertTrue(method, body.contains("ContentTypes.normalize("));
+            assertFalse(method + " compares a raw type", body.contains("getMimeType().startsWith(") || body.contains("mimeType.startsWith("));
+        }
+        assertTrue(source("multiroom/SnapcastRendererOutput.java").contains("ContentTypes.normalize("));
+    }
+
+    @Test
+    public void theRenderersMuteGoesThroughTheCoalescedControlsAndNeverAroundThem() throws Exception {
+        String volumes = source("upnp/server/renderingcontrol/RendererVolumes.java");
+        String controls = source("multiroom/ui/SnapcastControls.java");
+
+        assertTrue(methodBody(volumes, "public void setMuted(String receiverId, boolean muted)").contains("setGroupMuted("));
+        assertTrue(methodBody(controls, "public void setGroupMuted(").contains("wantedGroupMute.put("));
+    }
+
+    @Test
+    public void theToastsOfRefusedPlaysAreRateLimitedAndTheChooserNeedsNoFragment() throws Exception {
+        String service = source("player/PlayerService.java");
+        String settings = source("settings/SettingsFragment.java");
+
+        assertTrue(methodBody(service, "void notifyRendererOutputProblem(").contains("rendererToastGate.allow()"));
+        // S77: the callback of the chooser may come after the fragment was detached
+        assertTrue(methodBody(settings, "private void updateRendererGroupSummary(androidx.preference.Preference group)").contains("isAdded()"));
+    }
 }

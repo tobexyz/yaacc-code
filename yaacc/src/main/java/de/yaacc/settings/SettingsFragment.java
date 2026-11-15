@@ -135,6 +135,9 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     }
 
     private void updateRendererGroupSummary(androidx.preference.Preference group) {
+        if (!isAdded() || getContext() == null) {
+            return; // the chooser answers after the fragment was detached (a rotation, the screen was left): nothing to show
+        }
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(requireContext());
         String stored;
         try {

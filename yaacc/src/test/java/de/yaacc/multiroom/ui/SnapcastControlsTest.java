@@ -783,4 +783,76 @@ public class SnapcastControlsTest {
 
         assertEquals(0, caller.count("Server.GetStatus"));
     }
+
+    // ---- Fix Group 9d W1: the mute of a group is coalesced like its volume
+
+    @Test
+    public void aFloodOfMuteChangesIsOneQueuedTaskAndTheLastWantedValueWins() {
+        for (int i = 0; i < 20_000; i++) {
+            controls.setGroupMuted(KEY, GROUP, i % 2 == 0); // the last one (19 999) is false
+        }
+
+        assertEquals("one task for the group, not one per call", 1, actions.tasks.size());
+        actions.runAll();
+
+        assertEquals("one call to the server", 1, caller.count("Group.SetMute"));
+        assertFalse("the last wanted value", link.getStatus().findGroup(GROUP).isMuted());
+    }
+
+    @Test
+    public void aFloodAfterARunQueuesOneMoreTaskAndSendsOnlyTheNewestValue() {
+        controls.setGroupMuted(KEY, GROUP, true);
+        actions.runAll();
+        assertTrue(link.getStatus().findGroup(GROUP).isMuted());
+
+        for (int i = 0; i < 5_000; i++) {
+            controls.setGroupMuted(KEY, GROUP, i % 2 == 1); // ends with true (4 999 is odd)
+        }
+        assertEquals(1, actions.tasks.size());
+        actions.runAll();
+
+        assertEquals(2, caller.count("Group.SetMute"));
+        assertTrue(link.getStatus().findGroup(GROUP).isMuted());
+    }
+
+    @Test
+    public void everyGroupHasItsOwnWantedMuteAndItsOwnTask() {
+        for (int i = 0; i < 100; i++) {
+            controls.setGroupMuted(KEY, GROUP, true);
+            controls.setGroupMuted(KEY, "g2", i % 2 == 1);
+        }
+
+        assertEquals(2, actions.tasks.size());
+        actions.runAll();
+
+        assertEquals(2, caller.count("Group.SetMute"));
+        assertTrue(link.getStatus().findGroup(GROUP).isMuted());
+        assertTrue(link.getStatus().findGroup("g2").isMuted());
+    }
+
+    @Test
+    public void aMuteFloodDoesNotQueueBehindItselfInFrontOfTheUsersOtherActions() {
+        for (int i = 0; i < 10_000; i++) {
+            controls.setGroupMuted(KEY, GROUP, i % 2 == 0);
+        }
+        controls.setGroupStream(KEY, GROUP, "Radio");
+
+        assertEquals("the mute is one task, the stream change the second", 2, actions.tasks.size());
+    }
+
+    @Test
+    public void aMuteThatCouldNotBeSentIsReportedOnceForTheWholeFlood() {
+        SnapcastControls none = new SnapcastControls(key -> null, actions, volumes, () -> now.get(),
+                (action, failure) -> {
+                    failedActions.add(action);
+                    failures.add(failure);
+                });
+        for (int i = 0; i < 1_000; i++) {
+            none.setGroupMuted(KEY, GROUP, i % 2 == 0);
+        }
+        actions.runAll();
+
+        assertEquals(1, failures.size());
+        assertEquals(SnapcastControls.Action.GROUP_MUTE, failedActions.get(0));
+    }
 }

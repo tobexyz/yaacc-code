@@ -517,4 +517,36 @@ public class PlayerServiceRendererOutputTest {
         assertEquals(1, players.size());
         verify(service, never()).shutdown(any(Player.class));
     }
+
+    // ---- Fix Group 9d S75, S76
+
+    @Test
+    public void aSecondPlayRightAfterAnUnreachableServerIsRefusedAtOnceWithoutAskingTheServerAgain() {
+        groupMode();
+        facts = GroupFacts.PENDING;
+        // one clock for all plays, as the real one is
+        final long[] clock = {0};
+        doReturn(new SnapcastRendererOutput.Waiter() {
+            @Override
+            public long nowMillis() {
+                return clock[0];
+            }
+
+            @Override
+            public void sleep(long millis) {
+                clock[0] += millis;
+            }
+        }).when(service).rendererWaiter();
+
+        service.createPlayerForLocalDevice(client, Arrays.asList(item("audio/mpeg", "a.mp3")));
+        int probesAfterFirst = probes;
+        int wakesAfterFirst = wakes;
+        List<Player> second = service.createPlayerForLocalDevice(client, Arrays.asList(item("audio/mpeg", "b.mp3")));
+        List<Player> third = service.createPlayerForLocalQueue(client, Arrays.asList(item("audio/mpeg", "c.mp3")));
+
+        assertTrue(second.isEmpty() && third.isEmpty());
+        assertEquals("not asked again", probesAfterFirst, probes);
+        assertEquals("not woken again", wakesAfterFirst, wakes);
+        assertEquals(Arrays.asList(Problem.SERVER_UNREACHABLE, Problem.SERVER_UNREACHABLE, Problem.SERVER_UNREACHABLE), told);
+    }
 }

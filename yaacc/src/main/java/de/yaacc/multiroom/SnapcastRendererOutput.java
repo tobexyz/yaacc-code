@@ -218,10 +218,11 @@ public final class SnapcastRendererOutput {
             return Content.UNKNOWN_TYPE;
         }
         boolean unknown = false;
-        for (String type : mimeTypes) {
-            if (type == null || type.trim().isEmpty()) {
+        for (String raw : mimeTypes) {
+            String type = de.yaacc.player.ContentTypes.normalize(raw); // the one rule of the gate and of the player lookup
+            if (type == null) {
                 unknown = true;
-            } else if (!type.trim().toLowerCase(java.util.Locale.ROOT).startsWith("audio/")) {
+            } else if (!type.startsWith("audio/")) {
                 return Content.NOT_MUSIC;
             }
         }
@@ -350,6 +351,67 @@ public final class SnapcastRendererOutput {
 
     private static boolean isComingUp(GroupFacts facts) {
         return facts == GroupFacts.PENDING || facts == GroupFacts.OFFLINE;
+    }
+
+    /**
+     * Remembers for a few seconds that the server of a group did not answer, so that a flood of plays (the wait of up to 4 s is
+     * inside the transport's state-machine lock) is refused at once instead of costing the wait every time and waking the
+     * connection again and again. Only "unreachable" is remembered (a server that is listed but did not answer after the
+     * wait); a server that is ready, a group that is gone and a server that is not listed are judged afresh at every play.
+     * At most {@value #MAX_ENTRIES} groups; thread safe.
+     */
+    public static final class UnreachableMemory {
+        /** How long a failed wait is remembered. */
+        public static final long MEMORY_MILLIS = 5_000L;
+        /** The most groups remembered; more clears the memory. */
+        public static final int MAX_ENTRIES = 8;
+
+        private final java.util.Map<String, Long> failedAt = new java.util.HashMap<>();
+
+        /** True while {@code receiverId} failed less than {@link #MEMORY_MILLIS} ago. */
+        public synchronized boolean isRecent(String receiverId, long now) {
+            Long at = failedAt.get(receiverId);
+            return at != null && now - at >= 0 && now - at < MEMORY_MILLIS;
+        }
+
+        public synchronized void remember(String receiverId, long now) {
+            if (!failedAt.containsKey(receiverId) && failedAt.size() >= MAX_ENTRIES) {
+                failedAt.clear();
+            }
+            failedAt.put(receiverId, now);
+        }
+
+        public synchronized void forget(String receiverId) {
+            failedAt.remove(receiverId);
+        }
+
+        public synchronized int size() {
+            return failedAt.size();
+        }
+    }
+
+    /**
+     * As {@link #resolve(Setting, Content, Probe, Waiter, long)}, with the memory of servers that did not answer: a play for a
+     * group that failed a moment ago is refused at once ({@code SERVER_UNREACHABLE}) without asking or waking anything.
+     *
+     * @param memory may be null (nothing is remembered)
+     */
+    public static Decision resolve(Setting setting, Content content, Probe probe, Waiter waiter, long maxWaitMillis,
+                                   UnreachableMemory memory) {
+        if (memory == null || setting == null || setting.mode != Mode.GROUP || setting.receiverId == null
+                || content != Content.PLAYABLE) {
+            return resolve(setting, content, probe, waiter, maxWaitMillis);
+        }
+        if (memory.isRecent(setting.receiverId, waiter.nowMillis())) {
+            return refused(Problem.SERVER_UNREACHABLE);
+        }
+        GroupFacts facts = awaitFacts(setting.receiverId, probe, waiter, maxWaitMillis);
+        if (isComingUp(facts)) {
+            memory.remember(setting.receiverId, waiter.nowMillis());
+        } else {
+            memory.forget(setting.receiverId);
+        }
+        return decide(setting, content, facts);
     }
 
     /** As {@link #resolve(Setting, Content, Probe, Waiter, long)} for a content that is music or not. */

@@ -50,4 +50,51 @@ public class ContentTypesTest {
         assertNull(ContentTypes.pick("", null));
         assertNull(ContentTypes.pick(null, "  "));
     }
+
+    // ---- Fix Group 9d W2: one rule for the gate and the lookup
+
+    @Test
+    public void aTypeIsNormalisedOnceTrimmedLowerCasedAndWithoutParameters() {
+        assertEquals("audio/mpeg", ContentTypes.pick("Audio/Mpeg", null));
+        assertEquals("audio/mpeg", ContentTypes.pick(" audio/mpeg ", null));
+        assertEquals("audio/mpeg", ContentTypes.pick("audio/mpeg; charset=x", null));
+        assertEquals("audio/mpeg", ContentTypes.pick("AUDIO/MPEG;q=1", null));
+        assertEquals("audio/mpeg", ContentTypes.pick(null, "Audio/MPEG"));
+        assertEquals("audio/mpeg", ContentTypes.normalize("\taudio/mpeg \n"));
+        assertNull(ContentTypes.normalize(null));
+        assertNull(ContentTypes.normalize("; charset=x"));
+        assertNull(ContentTypes.normalize("   "));
+    }
+
+    @Test
+    public void aWellFormedTypeIsUnchanged() {
+        for (String type : new String[]{"audio/mpeg", "video/mp4", "image/png", "audio/x-mpegurl", "application/x-mpegurl"}) {
+            assertEquals(type, ContentTypes.pick(type, "audio/flac"));
+        }
+    }
+
+    @Test
+    public void theGateAndTheLookupAgreeOnEveryWayToWriteAnAudioType() {
+        PlayerService service = new PlayerService();
+        for (String written : new String[]{"audio/mpeg", "Audio/Mpeg", "AUDIO/MPEG", " audio/mpeg ", "audio/mpeg; charset=x"}) {
+            String type = ContentTypes.pick(written, null);
+
+            assertEquals(written, de.yaacc.multiroom.SnapcastRendererOutput.Content.PLAYABLE,
+                    de.yaacc.multiroom.SnapcastRendererOutput.contentOf(java.util.Collections.singletonList(type)));
+            assertEquals("the lookup finds the player the gate made: " + written, LocalMediaSessionPlayer.class,
+                    service.getPlayerClassForMimeType(type));
+            assertEquals("also with the raw text: " + written, LocalMediaSessionPlayer.class, service.getPlayerClassForMimeType(written));
+        }
+    }
+
+    @Test
+    public void thisDevicesLookupIsTheSameForWellFormedTypes() {
+        PlayerService service = new PlayerService();
+
+        assertEquals(LocalMediaSessionPlayer.class, service.getPlayerClassForMimeType("audio/mpeg"));
+        assertEquals(LocalImagePlayer.class, service.getPlayerClassForMimeType("image/png"));
+        assertEquals(MultiContentPlayer.class, service.getPlayerClassForMimeType("video/mp4"));
+        assertEquals(MultiContentPlayer.class, service.getPlayerClassForMimeType(null));
+        assertEquals(MultiContentPlayer.class, service.getPlayerClassForMimeType("application/octet-stream"));
+    }
 }

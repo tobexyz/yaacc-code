@@ -88,6 +88,10 @@ public class PlayerService extends MediaSessionService {
     // The players that the YAACC renderer made, with the output each was made for (task 9.1). A change of the output setting
     // stops exactly these players of another output.
     private final RendererPlayers rendererPlayers = new RendererPlayers();
+    // a server that did not answer is not waited for again for a few seconds (a flood of plays holds the state machine's lock)
+    private final de.yaacc.multiroom.ui.SnapcastToastGate rendererToastGate =
+            new de.yaacc.multiroom.ui.SnapcastToastGate(de.yaacc.multiroom.control.MonotonicClock.SYSTEM, 3_000L);
+    private final SnapcastRendererOutput.UnreachableMemory unreachableServers = new SnapcastRendererOutput.UnreachableMemory();
     // kept in a field: the preferences hold their listeners weakly
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener rendererOutputListener =
             (preferences, key) -> {
@@ -583,11 +587,12 @@ public class PlayerService extends MediaSessionService {
         boolean image = false;
         boolean music = false;
         for (PlayableItem playableItem : items) {
-            if (playableItem.getMimeType() != null) {
-                image = image || playableItem.getMimeType().startsWith("image");
-                video = video || playableItem.getMimeType().startsWith("video");
-                music = music || playableItem.getMimeType().startsWith("audio");
-            } else {
+            String type = ContentTypes.normalize(playableItem.getMimeType()); // one rule with the gate and the lookup
+            if (type != null) {
+                image = image || type.startsWith("image");
+                video = video || type.startsWith("video");
+                music = music || type.startsWith("audio");
+            } else if (playableItem.getMimeType() == null) {
                 image = true;
                 music = true;
                 video = true;
@@ -603,7 +608,7 @@ public class PlayerService extends MediaSessionService {
         }
         SnapcastRendererOutput.Decision decision = SnapcastRendererOutput.resolve(setting,
                 SnapcastRendererOutput.contentOf(types), rendererProbe(upnpClient), rendererWaiter(),
-                SnapcastRendererOutput.DEFAULT_MAX_WAIT_MILLIS);
+                SnapcastRendererOutput.DEFAULT_MAX_WAIT_MILLIS, unreachableServers);
         if (decision.output() == SnapcastRendererOutput.Output.NONE) {
             notifyRendererOutputProblem(upnpClient, decision.problem());
             return resultList;
@@ -732,8 +737,8 @@ public class PlayerService extends MediaSessionService {
     void notifyRendererOutputProblem(UpnpClient upnpClient, SnapcastRendererOutput.Problem problem) {
         final android.content.Context context = upnpClient.getContext();
         final int text = textFor(problem);
-        if (text == 0) {
-            return;
+        if (text == 0 || !rendererToastGate.allow()) {
+            return; // at most one in a few seconds: a controller that floods plays must not keep toasts on the screen
         }
         new android.os.Handler(Looper.getMainLooper()).post(() -> Toast.makeText(context, text, Toast.LENGTH_LONG).show());
     }
@@ -1151,10 +1156,11 @@ public class PlayerService extends MediaSessionService {
     public Class getPlayerClassForMimeType(String mimeType) {
 // FIXME don't implement business logic twice
         Class result = MultiContentPlayer.class;
-        if (mimeType != null) {
-            boolean image = mimeType.startsWith("image");
-            boolean video = mimeType.startsWith("video");
-            boolean music = mimeType.startsWith("audio");
+        String type = ContentTypes.normalize(mimeType); // the rule of the gate of the renderer's output too
+        if (type != null) {
+            boolean image = type.startsWith("image");
+            boolean video = type.startsWith("video");
+            boolean music = type.startsWith("audio");
             if (video && !image && !music) {
 // use videoplayer
                 result = MultiContentPlayer.class;

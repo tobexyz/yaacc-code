@@ -249,4 +249,24 @@ public class RendererOutputResourcesTest {
                     || entry.contains("not tested on a device yet"));
         }
     }
+
+    @Test
+    public void theSummaryOfTheOutputSaysThatAnyDeviceThatReachesTheReceiverCanChangeTheGroupsVolumeInEveryLocale() throws Exception {
+        // Fix Group 9d S74
+        String[][] words = {
+                {"values", "Any device that can reach the receiver", "volume and mute of the whole group"},
+                {"values-de", "Jedes Gerät, das den Empfänger erreicht", "Lautstärke und Stumm der ganzen Gruppe"},
+                {"values-es", "Cualquier dispositivo que pueda llegar al receptor", "el volumen y el silencio de todo el grupo"},
+                {"values-fr", "Tout appareil qui peut joindre le récepteur", "le volume et la sourdine de tout le groupe"},
+                {"values-nl", "Elk apparaat dat de ontvanger kan bereiken", "het volume en het dempen van de hele groep"},
+                {"values-pt", "Qualquer dispositivo que consiga alcançar o recetor", "o volume e o silêncio de todo o grupo"},
+                {"values-zh", "任何能访问该接收器的设备", "整个组的音量和静音"}};
+        for (String[] row : words) {
+            String text = strings(row[0], "setting_strings.xml").get("settings_renderer_output_summary");
+            for (int i = 1; i < row.length; i++) {
+                assertTrue(row[0] + " summary lacks \"" + row[i] + "\": " + text, text.contains(row[i]));
+            }
+            assertFalse(row[0] + " has a double space", text.contains("  "));
+        }
+    }
 }
