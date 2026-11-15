@@ -55,6 +55,7 @@ import de.yaacc.multiroom.control.SnapcastClient;
 import de.yaacc.multiroom.control.SnapcastDisplayText;
 import de.yaacc.multiroom.control.SnapcastGroup;
 import de.yaacc.multiroom.discovery.SnapcastServerKey;
+import de.yaacc.multiroom.ui.SnapcastClientRemoval;
 import de.yaacc.multiroom.ui.SnapcastControls;
 import de.yaacc.multiroom.ui.SnapcastInputs;
 import de.yaacc.multiroom.ui.SnapcastMemberRows;
@@ -401,6 +402,11 @@ final class SnapcastGroupSheet {
         PopupMenu menu = new PopupMenu(context, anchor);
         menu.getMenu().add(0, 1, 0, R.string.snapcast_member_rename);
         menu.getMenu().add(0, 2, 1, R.string.snapcast_member_latency);
+        // an offline client is a leftover entry of the server: it can be removed (task 12.8). Not the client of this phone's own
+        // session, not a connected one; the call decides again from a fresh status.
+        if (SnapcastClientRemoval.offered(member.isConnected(), member.getClientId(), SnapcastUi.ownClient())) {
+            menu.getMenu().add(0, 3, 2, R.string.snapcast_client_delete_menu);
+        }
         menu.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
                 case 1:
@@ -409,11 +415,26 @@ final class SnapcastGroupSheet {
                 case 2:
                     showLatency(member);
                     return true;
+                case 3:
+                    showDeleteOffline(member);
+                    return true;
                 default:
                     return false;
             }
         });
         menu.show();
+    }
+
+    /** The confirmation of the removal: it names the client (cleaned) and says that only its entry goes. */
+    private void showDeleteOffline(final SnapcastMemberRows.Member member) {
+        final String clientId = member.getClientId();
+        openDialog = new AlertDialog.Builder(context)
+                .setTitle(R.string.snapcast_client_delete_title)
+                .setMessage(context.getString(R.string.snapcast_client_delete_message, member.getName()))
+                .setPositiveButton(R.string.snapcast_client_delete_confirm, (d, which) ->
+                        controls.deleteOfflineClient(serverKey, clientId))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     private EditText inputField(String hint, int inputType, int maxLength, String initial) {

@@ -105,6 +105,7 @@ import de.yaacc.upnp.server.media.SystemAudioCaptureService;
 import de.yaacc.upnp.callback.openhome.ClingOhControl;
 import de.yaacc.upnp.server.openhome.AndroidOhThreads;
 import de.yaacc.upnp.server.openhome.AndroidOpenHomeHost;
+import de.yaacc.upnp.server.openhome.AndroidOutputSources;
 import de.yaacc.upnp.server.openhome.OhRendererCore;
 import de.yaacc.upnp.server.openhome.OpenHomeRenderer;
 import de.yaacc.upnp.server.renderingcontrol.RenderingControlServiceManager;
@@ -136,6 +137,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
     /** The OpenHome renderer; created with the first device, lives as long as this service. */
     private OpenHomeRenderer openHomeRenderer;
+    private AndroidOutputSources outputSources;
 
     public static int PORT = 49157;
     public static ServiceType[] EXCLUSIVE_SERVER_TYPES = new ServiceType[]{
@@ -390,6 +392,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             registry.removeDevice(localDevice);
             localDevice = null;
         }
+        closeOutputSources();
         if (openHomeRenderer != null) {
             openHomeRenderer.shutdown();
             openHomeRenderer = null;
@@ -1028,16 +1031,27 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                         new OhRendererCore.Details("yaacc.de", "https://www.yaacc.de", "YAACC", name, name),
                         OPENHOME_PROTOCOL_INFO);
                 openHomeRenderer.start();
+                // the Snapcast groups as further sources of the Product service, another way into the output setting (task 12.5)
+                outputSources = AndroidOutputSources.start(getApplicationContext(), openHomeRenderer.core());
             }
             return openHomeRenderer.core().buildServices(LOCK_TIMEOUT);
         } catch (ValidationException | RuntimeException e) {
             // OpenHome is an addition: without it the renderer still works with AVTransport
             YaaccLogger.e(getClass().getName(), "OpenHome services not available", e);
+            closeOutputSources();
             if (openHomeRenderer != null) {
                 openHomeRenderer.shutdown();
                 openHomeRenderer = null;
             }
             return new ArrayList<>();
+        }
+    }
+
+    /** Stops the source list of the OpenHome renderer following the output setting and the groups (task 12.5). */
+    private void closeOutputSources() {
+        if (outputSources != null) {
+            outputSources.close();
+            outputSources = null;
         }
     }
 

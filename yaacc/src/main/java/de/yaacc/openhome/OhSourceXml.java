@@ -30,7 +30,24 @@ public final class OhSourceXml {
     }
 
     public static String source(String name, String type, boolean visible, String systemName) {
-        return "<SourceList><Source><Name>" + OhEscape.xml(name) + "</Name><Type>" + OhEscape.xml(type) + "</Type><Visible>"
-                + visible + "</Visible><SystemName>" + OhEscape.xml(systemName) + "</SystemName></Source></SourceList>";
+        return "<SourceList>" + item(name, type, visible, systemName) + "</SourceList>";
+    }
+
+    /**
+     * The list of several sources in the order given (the position is the index a controller selects with). Every text is escaped.
+     *
+     * @param sources one entry is {@code {name, type, systemName}}; every source is visible
+     */
+    public static String list(java.util.List<String[]> sources) {
+        StringBuilder xml = new StringBuilder("<SourceList>");
+        for (String[] source : sources) {
+            xml.append(item(source[0], source[1], true, source[2]));
+        }
+        return xml.append("</SourceList>").toString();
+    }
+
+    private static String item(String name, String type, boolean visible, String systemName) {
+        return "<Source><Name>" + OhEscape.xml(name) + "</Name><Type>" + OhEscape.xml(type) + "</Type><Visible>"
+                + visible + "</Visible><SystemName>" + OhEscape.xml(systemName) + "</SystemName></Source>";
     }
 }

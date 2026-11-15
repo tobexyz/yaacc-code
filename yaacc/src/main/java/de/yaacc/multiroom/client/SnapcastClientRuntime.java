@@ -75,7 +75,21 @@ public final class SnapcastClientRuntime {
 
     private static final AtomicReference<View> VIEW = new AtomicReference<>(new View(Phase.IDLE, Ending.NONE, null, 0));
 
+    // The client id of the Hello of the session that runs (task 12.8: that client is never removed from a server); empty
+    // before the Hello is built and again at the start of the next session. Never logged.
+    private static final AtomicReference<String> CLIENT_ID = new AtomicReference<>();
+
     private SnapcastClientRuntime() {
+    }
+
+    /** The service built the Hello of the session that starts: its client id. */
+    public static void clientId(String id) {
+        CLIENT_ID.set(id);
+    }
+
+    /** The client id of the session that runs or starts; null when it is not known yet, and after the session ended. */
+    public static String clientId() {
+        return isActive() ? CLIENT_ID.get() : null;
     }
 
     public static View get() {
@@ -83,6 +97,9 @@ public final class SnapcastClientRuntime {
     }
 
     public static void phase(Phase phase, Ending ending, long startedAtMillis) {
+        if (phase == Phase.CONNECTING) {
+            CLIENT_ID.set(null); // the id of an earlier session is not this one's
+        }
         // one atomic step: the engine thread publishes at the same time and must not bring an old phase back
         VIEW.updateAndGet(old -> new View(phase, ending, phase == Phase.CONNECTING ? null : old.engine, startedAtMillis,
                 phase == Phase.CONNECTING ? null : old.server));

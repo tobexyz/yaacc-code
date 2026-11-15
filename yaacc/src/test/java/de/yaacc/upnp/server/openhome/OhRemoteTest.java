@@ -97,6 +97,38 @@ public class OhRemoteTest {
     }
 
     @Test
+    public void prepareKeepsTheGroupSourceOfAnotherYaaccRendererThatPlaysIntoAGroup() throws Exception {
+        // the other renderer lists "this device" and two Snapcast groups, all of the type Playlist; it plays into the second group
+        final List<de.yaacc.multiroom.SnapcastRendererSources.Entry> chosen = new ArrayList<>();
+        final String groupId = de.yaacc.multiroom.SnapcastGroupDevice.idOf(
+                de.yaacc.multiroom.discovery.SnapcastEndpoint.parse("192.168.1.5:1705").toKey(), "g2");
+        final String otherId = de.yaacc.multiroom.SnapcastGroupDevice.idOf(
+                de.yaacc.multiroom.discovery.SnapcastEndpoint.parse("192.168.1.5:1705").toKey(), "g1");
+        core.setSourceProvider(new OhSourceProvider() {
+            @Override
+            public de.yaacc.multiroom.SnapcastRendererSources.Snapshot snapshot() {
+                return de.yaacc.multiroom.SnapcastRendererSources.build(
+                        de.yaacc.multiroom.SnapcastRendererOutput.read(k -> k.equals("settings_renderer_output") ? "group" : groupId),
+                        java.util.Arrays.asList(new de.yaacc.multiroom.SnapcastRendererSources.GroupRef(otherId, "Attic"),
+                                new de.yaacc.multiroom.SnapcastRendererSources.GroupRef(groupId, "Kitchen")),
+                        new de.yaacc.multiroom.SnapcastRendererSources.Labels("g", "u"));
+            }
+
+            @Override
+            public boolean select(de.yaacc.multiroom.SnapcastRendererSources.Entry entry) {
+                chosen.add(entry);
+                return true;
+            }
+        });
+        assertEquals("2", core.stateValue("product", "SourceIndex"));
+
+        remote.prepare();
+
+        assertTrue("playing there must not move its output back to this device", chosen.isEmpty());
+        assertEquals("2", core.stateValue("product", "SourceIndex"));
+    }
+
+    @Test
     public void prepareFailsForADeviceWithoutPlaylistSource() throws Exception {
         OhRemote other = new OhRemote((service, action, args) -> {
             if (action.equals("SourceXml")) {

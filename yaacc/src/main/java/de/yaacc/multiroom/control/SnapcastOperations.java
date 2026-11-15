@@ -212,6 +212,31 @@ public final class SnapcastOperations {
         return caller.callOrdered("Group.SetClients", json("id", groupId, "clients", array), this::takeStatus);
     }
 
+    /**
+     * {@code Server.DeleteClient} ({@code {"id": <client id>}}): the server forgets a client it knows. The answer is the status
+     * of the server afterwards (as for {@code Group.SetClients}) and becomes the model. A server that answers without one has
+     * done it all the same: the model is then read again and the result is {@code null}.
+     *
+     * <p>Whether the server refuses a client that is connected is not settled by its documentation: the caller decides that
+     * from a fresh status (see {@code SnapcastClientRemoval}), this method sends what it is told.
+     *
+     * @return the status after the call, or null when the answer had none
+     */
+    public SnapcastServerStatus deleteClient(String clientId) throws SnapcastException {
+        requireId(clientId);
+        return caller.callOrdered("Server.DeleteClient", json("id", clientId), answer -> {
+            try {
+                return takeStatus(answer);
+            } catch (SnapcastException unreadable) {
+                if (unreadable.getKind() != SnapcastException.Kind.MALFORMED) {
+                    throw unreadable;
+                }
+                requestReRead();
+                return null;
+            }
+        });
+    }
+
     /** {@code Group.SetName}. */
     public void setGroupName(String groupId, String name) throws SnapcastException {
         requireId(groupId);

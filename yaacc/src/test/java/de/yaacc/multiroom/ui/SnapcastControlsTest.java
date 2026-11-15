@@ -75,6 +75,10 @@ public class SnapcastControlsTest {
         java.util.function.Consumer<String> onCall;
         /** The members (ids) that a fresh {@code Server.GetStatus} reports for group g1; null: no such answer. */
         String[] serverMembers;
+        /** The whole result of a fresh {@code Server.GetStatus}; null: see {@link #serverMembers}. */
+        String freshStatus;
+        /** The result of {@code Server.DeleteClient}. */
+        String deleteAnswer = "{\"server\":{\"groups\":[],\"streams\":[]}}";
 
         @Override
         public synchronized JSONObject call(String method, JSONObject callParams) throws SnapcastException {
@@ -87,6 +91,12 @@ public class SnapcastControlsTest {
                 params.add(callParams == null ? null : new JSONObject(callParams.toString()));
                 if (failure != null && (failOnly == null || failOnly.equals(method))) {
                     throw failure;
+                }
+                if ("Server.GetStatus".equals(method) && freshStatus != null) {
+                    return new JSONObject(freshStatus);
+                }
+                if ("Server.DeleteClient".equals(method)) {
+                    return new JSONObject(deleteAnswer);
                 }
                 if ("Server.GetStatus".equals(method) && serverMembers != null) {
                     StringBuilder clients = new StringBuilder();
@@ -915,5 +925,193 @@ public class SnapcastControlsTest {
         actions.runAll();
 
         assertNull("sent: nothing is left in the map", controls.pendingMuteFor(KEY, GROUP));
+    }
+
+    // ---- removing an offline client from the server (task 12.8)
+
+    private static String freshServer(boolean cConnected, boolean aConnected) {
+        return "{\"server\":{\"groups\":[{\"id\":\"g1\",\"name\":\"Living\",\"muted\":false,\"stream_id\":\"Default\",\"clients\":["
+                + "{\"id\":\"a\",\"connected\":" + aConnected + ",\"config\":{\"name\":\"Kitchen\",\"volume\":{\"percent\":40,\"muted\":false},\"latency\":0}},"
+                + "{\"id\":\"c\",\"connected\":" + cConnected + ",\"config\":{\"name\":\"Attic\",\"volume\":{\"percent\":100,\"muted\":false},\"latency\":0}}"
+                + "]}],\"streams\":[]}}";
+    }
+
+    private SnapcastControls controlsWithOwn(SnapcastClientRemoval.Own own) {
+        return new SnapcastControls(key -> KEY.equals(key) ? link : null, actions, volumes, () -> now.get(),
+                (action, failure) -> {
+                    failedActions.add(action);
+                    failures.add(failure);
+                }, () -> own);
+    }
+
+    @Test
+    public void removingAClientRunsOffTheCallingThread() {
+        caller.freshStatus = freshServer(false, true);
+
+        controls.deleteOfflineClient(KEY, "c");
+
+        assertTrue("queued, not run", caller.methods.isEmpty());
+        assertEquals(1, actions.tasks.size());
+    }
+
+    @Test
+    public void anOfflineClientOfTheFreshStatusIsDeletedWithItsExactId() {
+        caller.freshStatus = freshServer(false, true);
+
+        controls.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+
+        assertEquals(Arrays.asList("Server.GetStatus", "Server.DeleteClient"), caller.methods);
+        assertEquals("c", caller.last("Server.DeleteClient").optString("id"));
+        assertTrue(failures.isEmpty());
+    }
+
+    @Test
+    public void theConnectedFlagOfTheFreshStatusDecidesNotTheModel() {
+        // the model (setUp) says that c is offline; the server says it has connected since
+        caller.freshStatus = freshServer(true, true);
+
+        controls.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+
+        assertEquals("nothing is deleted", 0, caller.count("Server.DeleteClient"));
+        assertEquals(1, failures.size());
+        assertEquals(SnapcastControls.Failure.Kind.CLIENT_CONNECTED, failures.get(0).getKind());
+        assertEquals(SnapcastControls.Action.CLIENT_REMOVE, failedActions.get(0));
+    }
+
+    @Test
+    public void aClientThatTheModelShowsConnectedButTheServerSaysIsOfflineMayGo() {
+        caller.freshStatus = freshServer(false, false);
+
+        controls.deleteOfflineClient(KEY, "a"); // the model of setUp has a connected
+        actions.runAll();
+
+        assertEquals(1, caller.count("Server.DeleteClient"));
+        assertEquals("a", caller.last("Server.DeleteClient").optString("id"));
+    }
+
+    @Test
+    public void theFreshReadIsMadeEvenWhenTheRateLimitOfTheModelWouldRefuseIt() {
+        caller.freshStatus = freshServer(true, true);
+        assertTrue("the grant of this second is used up", link.updater.tryGrantRead());
+
+        controls.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+
+        assertEquals("a real read, not the cached model (which says offline)", 1, caller.count("Server.GetStatus"));
+        assertEquals(0, caller.count("Server.DeleteClient"));
+    }
+
+    @Test
+    public void theClientThePhoneIsConnectedWithIsNotDeletedEvenIfTheStatusSaysOffline() {
+        caller.freshStatus = freshServer(false, true);
+        SnapcastControls own = controlsWithOwn(SnapcastClientRemoval.Own.session("c"));
+
+        own.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+
+        assertEquals(0, caller.count("Server.DeleteClient"));
+        assertEquals(SnapcastControls.Failure.Kind.OWN_CLIENT, failures.get(0).getKind());
+    }
+
+    @Test
+    public void whileTheOwnSessionStartsNothingIsDeleted() {
+        caller.freshStatus = freshServer(false, true);
+        SnapcastControls own = controlsWithOwn(SnapcastClientRemoval.Own.session(null));
+
+        own.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+
+        assertEquals(0, caller.count("Server.DeleteClient"));
+        assertEquals(SnapcastControls.Failure.Kind.OWN_CLIENT, failures.get(0).getKind());
+    }
+
+    @Test
+    public void aClientThatIsAlreadyGoneIsReportedAsGoneAndNothingIsSent() {
+        caller.freshStatus = freshServer(false, true);
+
+        controls.deleteOfflineClient(KEY, "zzz");
+        actions.runAll();
+
+        assertEquals(0, caller.count("Server.DeleteClient"));
+        assertEquals(SnapcastControls.Failure.Kind.GONE, failures.get(0).getKind());
+    }
+
+    @Test
+    public void twoTapsOnTheSameClientAreOneDelete() {
+        caller.freshStatus = freshServer(false, true);
+
+        controls.deleteOfflineClient(KEY, "c");
+        controls.deleteOfflineClient(KEY, "c");
+
+        assertEquals("coalesced while the first is waiting", 1, actions.tasks.size());
+        actions.runAll();
+        assertEquals(1, caller.count("Server.DeleteClient"));
+    }
+
+    @Test
+    public void aSecondDeleteOfTheSameClientRightAfterTheFirstIsDropped() {
+        caller.freshStatus = freshServer(false, true);
+
+        controls.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+        now.addAndGet(500);
+        controls.deleteOfflineClient(KEY, "c");
+
+        assertTrue("within the rate limit: no task", actions.tasks.isEmpty());
+        now.addAndGet(SnapcastControls.REMOVE_GAP_MILLIS);
+        controls.deleteOfflineClient(KEY, "c");
+        assertEquals("later it is allowed again", 1, actions.tasks.size());
+    }
+
+    @Test
+    public void theModelNoLongerHasTheClientAfterTheDelete() {
+        caller.freshStatus = freshServer(false, true);
+        caller.deleteAnswer = "{\"server\":{\"groups\":[{\"id\":\"g1\",\"name\":\"Living\",\"muted\":false,\"stream_id\":\"Default\","
+                + "\"clients\":[{\"id\":\"a\",\"connected\":true,\"config\":{\"name\":\"Kitchen\",\"volume\":{\"percent\":40,"
+                + "\"muted\":false},\"latency\":0}}]}],\"streams\":[]}}";
+
+        controls.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+
+        assertNull(link.getStatus().findClient("c"));
+        assertNotNull(link.getStatus().findClient("a"));
+    }
+
+    @Test
+    public void aRefusalOfTheServerIsReportedWithItsReason() {
+        caller.freshStatus = freshServer(false, true);
+        caller.failOnly = "Server.DeleteClient";
+        caller.failure = new SnapcastException(SnapcastException.Kind.SERVER_ERROR, -32603, "no way", null, null);
+
+        controls.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+
+        assertEquals(SnapcastControls.Failure.Kind.REJECTED, failures.get(0).getKind());
+    }
+
+    @Test
+    public void aServerThatIsNotConnectedIsUnreachableAndNothingIsSent() {
+        SnapcastServerKey other = SnapcastEndpoint.parse("192.168.1.9").toKey();
+
+        controls.deleteOfflineClient(other, "c");
+        actions.runAll();
+
+        assertEquals(SnapcastControls.Failure.Kind.UNREACHABLE, failures.get(0).getKind());
+        assertTrue(caller.methods.isEmpty());
+    }
+
+    @Test
+    public void aFailedFreshReadDeletesNothing() {
+        caller.freshStatus = freshServer(false, true);
+        caller.failOnly = "Server.GetStatus";
+        caller.failure = new SnapcastException(SnapcastException.Kind.TIMEOUT, 0, "t", null, null);
+
+        controls.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+
+        assertEquals("the model is not good enough for a delete", 0, caller.count("Server.DeleteClient"));
+        assertEquals(SnapcastControls.Failure.Kind.TIMEOUT, failures.get(0).getKind());
     }
 }

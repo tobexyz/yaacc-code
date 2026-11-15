@@ -34,8 +34,10 @@ public final class YxcSourceCapabilities {
     private final int tunerPresets;
     private final int netPresets;
     private final boolean recent;
+    private final boolean power;
 
-    private YxcSourceCapabilities(boolean fm, boolean dab, int tunerPresets, int netPresets, boolean recent) {
+    private YxcSourceCapabilities(boolean fm, boolean dab, int tunerPresets, int netPresets, boolean recent, boolean power) {
+        this.power = power;
         this.fm = fm;
         this.dab = dab;
         this.tunerPresets = tunerPresets;
@@ -49,7 +51,17 @@ public final class YxcSourceCapabilities {
         java.util.List<String> tunerFunctions = YxcJson.strings(tuner, "func_list");
         java.util.List<String> netFunctions = YxcJson.strings(netusb, "func_list");
         return new YxcSourceCapabilities(tunerFunctions.contains("fm"), tunerFunctions.contains("dab"),
-                presets(tuner), presets(netusb), netFunctions.contains("recent_info"));
+                presets(tuner), presets(netusb), netFunctions.contains("recent_info"), mainZoneHasPower(features));
+    }
+
+    /** The main zone lists {@code power} in its {@code func_list}: the rule of docs/tech.md for {@code setPower}. */
+    private static boolean mainZoneHasPower(JSONObject features) {
+        for (JSONObject zone : YxcJson.objects(features, "zone")) {
+            if ("main".equals(YxcJson.string(zone, "id")) && YxcJson.strings(zone, "func_list").contains("power")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static int presets(JSONObject block) {
@@ -60,7 +72,7 @@ public final class YxcSourceCapabilities {
 
     /** No facts known: nothing that needs them is offered. */
     public static YxcSourceCapabilities none() {
-        return new YxcSourceCapabilities(false, false, 0, 0, false);
+        return new YxcSourceCapabilities(false, false, 0, 0, false, false);
     }
 
     public boolean hasFm() {
@@ -81,6 +93,11 @@ public final class YxcSourceCapabilities {
         return netPresets;
     }
 
+    /** @return whether the main zone can be switched on and to standby ({@code power} in its function list) */
+    public boolean hasPower() {
+        return power;
+    }
+
     /** @return whether the network source keeps a list of recently played items */
     public boolean hasRecent() {
         return recent;
@@ -96,11 +113,11 @@ public final class YxcSourceCapabilities {
         }
         YxcSourceCapabilities other = (YxcSourceCapabilities) o;
         return fm == other.fm && dab == other.dab && tunerPresets == other.tunerPresets && netPresets == other.netPresets
-                && recent == other.recent;
+                && recent == other.recent && power == other.power;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fm, dab, tunerPresets, netPresets, recent);
+        return Objects.hash(fm, dab, tunerPresets, netPresets, recent, power);
     }
 }

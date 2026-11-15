@@ -29,7 +29,9 @@ import java.util.concurrent.Executors;
 import de.yaacc.R;
 import de.yaacc.multiroom.SnapcastHub;
 import de.yaacc.multiroom.SnapcastReceivers;
+import de.yaacc.multiroom.client.SnapcastClientRuntime;
 import de.yaacc.multiroom.control.MonotonicClock;
+import de.yaacc.multiroom.ui.SnapcastClientRemoval;
 import de.yaacc.multiroom.ui.SnapcastControls;
 import de.yaacc.multiroom.ui.SnapcastLinkChoices;
 import de.yaacc.multiroom.ui.SnapcastMemberRows;
@@ -66,9 +68,16 @@ public final class SnapcastUi {
                             final String message = SnapcastFailureTexts.message(failure, id -> app.getString(id));
                             main.post(() -> Toast.makeText(app, message, Toast.LENGTH_LONG).show());
                         }
-                    });
+                    },
+                    // the client of this phone's own session is never removed from a server (task 12.8)
+                    SnapcastUi::ownClient);
         }
         return controls;
+    }
+
+    /** The client of this phone's own Snapcast session (none while no session runs), which is never removed from a server. */
+    static SnapcastClientRemoval.Own ownClient() {
+        return SnapcastClientRemoval.ownOf(SnapcastClientRuntime.isActive(), SnapcastClientRuntime.clientId());
     }
 
     /** The hardware volume keys of the app: they change the group volume through {@link #controls}. */

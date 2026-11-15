@@ -84,7 +84,8 @@ public final class SnapcastControls {
         CLIENT_LATENCY,
         CLIENT_NAME,
         GROUP_STREAM,
-        GROUP_CLIENTS
+        GROUP_CLIENTS,
+        CLIENT_REMOVE
     }
 
     /** Why a change did not happen. Immutable. */
@@ -104,6 +105,10 @@ public final class SnapcastControls {
             GONE,
             /** The change makes no sense (the last member of a group can not leave). */
             NOT_POSSIBLE,
+            /** The client to remove has connected again (the fresh status says so). */
+            CLIENT_CONNECTED,
+            /** The client to remove is the one of this phone's own session. */
+            OWN_CLIENT,
             /** Anything else. */
             FAILED
         }
@@ -147,6 +152,11 @@ public final class SnapcastControls {
         }
     }
 
+    /** The same client is not removed twice within this time (a second tap, a retry that races the first). */
+    static final long REMOVE_GAP_MILLIS = 2_000L;
+    private static final int MAX_REMOVED_MEMORY = 64;
+
+    private final SnapcastClientRemoval.OwnSource own;
     private final Links links;
     private final Executor actions;
     private final Executor volumes;
@@ -161,8 +171,17 @@ public final class SnapcastControls {
     private final Map<String, Integer> wantedClientVolume = new HashMap<>();
     private final Set<String> queuedClientVolume = new HashSet<>();
     private final Map<String, Gesture> gestures = new HashMap<>();
+    // the clients a removal is queued or running for, and when the last one ended (guarded by lock)
+    private final Set<String> removing = new HashSet<>();
+    private final Map<String, Long> lastRemoved = new HashMap<>();
 
     public SnapcastControls(Links links, Executor actions, Executor volumes, MonotonicClock clock, Reporter reporter) {
+        this(links, actions, volumes, clock, reporter, SnapcastClientRemoval.Own::none);
+    }
+
+    public SnapcastControls(Links links, Executor actions, Executor volumes, MonotonicClock clock, Reporter reporter,
+                            SnapcastClientRemoval.OwnSource own) {
+        this.own = own;
         this.links = links;
         this.actions = actions;
         this.volumes = volumes;
@@ -327,6 +346,62 @@ public final class SnapcastControls {
         submit(actions, Action.CLIENT_NAME, () -> linked(key).operations.setClientName(clientId, clean));
     }
 
+    // ---- removing an offline client from the server (task 12.8)
+
+    /**
+     * Removes an <b>offline</b> client from the server's list ({@code Server.DeleteClient}). The decision is made on the server's
+     * answer, not on the model: a fresh {@code Server.GetStatus} is read right before (a real read, not the model that the rate
+     * limit would hand out; a read that fails ends the removal), and only a client that this status shows as offline, and that is not
+     * the client of this phone's own running session ({@link SnapcastClientRemoval}), is deleted, with the exact id of that status.
+     * The reasons it does not happen are failures of their own ({@code CLIENT_CONNECTED}, {@code OWN_CLIENT}, {@code GONE}).
+     * Returns at once; a second call for the same client while one is queued, and within {@value #REMOVE_GAP_MILLIS} ms of the
+     * last one, is dropped. Nothing is logged: the id is the MAC address of a machine and the name is the server's text.
+     */
+    public void deleteOfflineClient(final SnapcastServerKey key, final String clientId) {
+        if (clientId == null || clientId.isEmpty()) {
+            return;
+        }
+        final String id = idOf(key, clientId);
+        synchronized (lock) {
+            long now = clock.nowMillis();
+            Long last = lastRemoved.get(id);
+            if (removing.contains(id) || (last != null && now - last < REMOVE_GAP_MILLIS)) {
+                return;
+            }
+            if (lastRemoved.size() >= MAX_REMOVED_MEMORY) {
+                lastRemoved.clear(); // a bound, not a feature: the next removal of any of them is allowed at once
+            }
+            removing.add(id);
+        }
+        final Runnable done = () -> {
+            synchronized (lock) {
+                removing.remove(id);
+                lastRemoved.put(id, clock.nowMillis());
+            }
+        };
+        submit(actions, Action.CLIENT_REMOVE, () -> {
+            try {
+                Linked linked = linked(key);
+                SnapcastServerStatus fresh = linked.operations.getStatus(); // fails: nothing is deleted on a guess
+                switch (SnapcastClientRemoval.decide(fresh, clientId, own.own())) {
+                    case REMOVABLE:
+                        linked.operations.deleteClient(clientId);
+                        return;
+                    case CONNECTED:
+                        throw new ClientConnected();
+                    case OWN_CLIENT:
+                    case OWN_CLIENT_UNKNOWN:
+                        throw new OwnClient();
+                    case NOT_FOUND:
+                    default:
+                        throw new Gone();
+                }
+            } finally {
+                done.run();
+            }
+        }, done);
+    }
+
     // ---- members of a group
 
     /**
@@ -409,6 +484,14 @@ public final class SnapcastControls {
         private static final long serialVersionUID = 1L;
     }
 
+    private static final class ClientConnected extends Exception {
+        private static final long serialVersionUID = 1L;
+    }
+
+    private static final class OwnClient extends Exception {
+        private static final long serialVersionUID = 1L;
+    }
+
     private static final class Unreachable extends Exception {
         private static final long serialVersionUID = 1L;
     }
@@ -436,10 +519,19 @@ public final class SnapcastControls {
     }
 
     private void submit(Executor executor, final Action action, final Change change) {
+        submit(executor, action, change, null);
+    }
+
+    /** @param ifRejected run when the executor does not take the task (it is shut down), so that what the task would end is ended */
+    private void submit(Executor executor, final Action action, final Change change, final Runnable ifRejected) {
         try {
             executor.execute(() -> {
                 try {
                     change.run();
+                } catch (ClientConnected connected) {
+                    report(action, new Failure(Failure.Kind.CLIENT_CONNECTED, null));
+                } catch (OwnClient ownClient) {
+                    report(action, new Failure(Failure.Kind.OWN_CLIENT, null));
                 } catch (Gone gone) {
                     report(action, new Failure(Failure.Kind.GONE, null));
                 } catch (NotPossible impossible) {
@@ -455,6 +547,9 @@ public final class SnapcastControls {
                 }
             });
         } catch (RuntimeException rejected) {
+            if (ifRejected != null) {
+                ifRejected.run();
+            }
             report(action, new Failure(Failure.Kind.FAILED, null)); // the executor is shut down
         }
     }

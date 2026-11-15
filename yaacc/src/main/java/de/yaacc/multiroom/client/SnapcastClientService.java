@@ -278,6 +278,7 @@ public final class SnapcastClientService extends Service {
                             }
                         }
                     });
+            SnapcastClientRuntime.clientId(hello.getId());
             startServerPoll(address, hello.getId());
             SnapcastConnection newConnection = session.connection();
             EngineHost newHost = session.host();

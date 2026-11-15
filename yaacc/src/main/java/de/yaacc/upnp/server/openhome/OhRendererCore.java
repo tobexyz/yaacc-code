@@ -36,6 +36,7 @@ import de.yaacc.openhome.OhTrackList;
 import de.yaacc.openhome.OhTransportState;
 import de.yaacc.openhome.OhUriPolicy;
 import de.yaacc.openhome.OhVolume;
+import de.yaacc.multiroom.SnapcastRendererSources;
 
 /**
  * The OpenHome side of YAACC's renderer: the play queue, the state of the five services (Product, Playlist, Info, Time, Volume) and
@@ -84,6 +85,12 @@ public final class OhRendererCore {
     /** The id of the channel set with {@code Radio.SetChannel} (0 for none) and a counter that changes with it. */
     private volatile long radioId;
     private final java.util.concurrent.atomic.AtomicLong radioToken = new java.util.concurrent.atomic.AtomicLong(1);
+    // the sources of the Product service: what the controllers were told last, and where the groups come from (task 12.5)
+    private static final SnapcastRendererSources.Snapshot DEFAULT_SOURCES = SnapcastRendererSources.build(null, null, null);
+    private final Object sourcesLock = new Object();
+    private SnapcastRendererSources.Snapshot sources = DEFAULT_SOURCES; // guarded by sourcesLock
+    private long sourceXmlChanges; // guarded by sourcesLock
+    private volatile OhSourceProvider sourceProvider;
     private final OhPlayback playback;
     private final Delayer delayer;
     private final AtomicBoolean idArrayPending = new AtomicBoolean();
@@ -155,6 +162,98 @@ public final class OhRendererCore {
         product.init("SourceName", OhSourceXml.PLAYLIST);
         product.init("SourceSystemName", OhSourceXml.PLAYLIST);
         product.init("SourceVisible", "true");
+    }
+
+    // ---- the sources of the Product service (task 12.5)
+
+    /**
+     * Gives the Product service its sources: this device and the Snapcast groups, and the place a choice goes to. Without a
+     * provider (the default) the renderer has the one source of before. The list is read again now.
+     */
+    public void setSourceProvider(OhSourceProvider provider) {
+        this.sourceProvider = provider;
+        refreshSources();
+    }
+
+    /**
+     * Reads the sources again and tells the controllers what changed: {@code SourceXml}, {@code SourceCount} and the change
+     * counter when the list is another, {@code SourceIndex} (and the current source's name) when only the current one is. A list that
+     * is the same sends nothing. Called when the groups change or the output setting is changed anywhere (the settings screen, a
+     * controller); a provider that fails leaves everything as it was. Any thread.
+     */
+    public void refreshSources() {
+        OhSourceProvider provider = sourceProvider;
+        synchronized (sourcesLock) {
+            SnapcastRendererSources.Snapshot next;
+            if (provider == null) {
+                next = DEFAULT_SOURCES;
+            } else {
+                try {
+                    next = provider.snapshot();
+                } catch (RuntimeException unreadable) {
+                    return;
+                }
+                if (next == null) {
+                    return;
+                }
+            }
+            if (next.equals(sources)) {
+                return;
+            }
+            boolean listChanged = !next.entries().equals(sources.entries());
+            sources = next;
+            SnapcastRendererSources.Entry current = next.current();
+            Map<String, String> changes = new LinkedHashMap<>();
+            if (listChanged) {
+                List<String[]> items = new ArrayList<>();
+                for (SnapcastRendererSources.Entry entry : next.entries()) {
+                    items.add(new String[]{entry.name(), entry.type(), entry.systemName()});
+                }
+                changes.put("SourceXml", OhSourceXml.list(items));
+                changes.put("SourceCount", String.valueOf(next.entries().size()));
+                changes.put("SourceXmlChangeCount", String.valueOf(++sourceXmlChanges));
+            }
+            changes.put("SourceIndex", String.valueOf(next.currentIndex()));
+            changes.put("SourceType", current.type());
+            changes.put("SourceName", current.name());
+            changes.put("SourceSystemName", current.systemName());
+            changes.put("SourceVisible", "true");
+            product.setAll(changes);
+        }
+    }
+
+    private SnapcastRendererSources.Snapshot sourcesNow() {
+        synchronized (sourcesLock) {
+            return sources;
+        }
+    }
+
+    /**
+     * A controller chooses a source of the list it was told. Without a provider only this device exists (index 0), as before.
+     * With one the choice goes to it, and the list is read again either way, so that the controller sees the real state after a
+     * refusal. A source that is not in the list, or a choice that is refused, is an invalid argument and changes nothing.
+     */
+    private void chooseSource(SnapcastRendererSources.Entry entry) {
+        if (entry == null) {
+            throw OhError.invalid("source");
+        }
+        OhSourceProvider provider = sourceProvider;
+        if (provider == null) {
+            if (entry.index() != 0) {
+                throw OhError.invalid("source");
+            }
+            return;
+        }
+        boolean accepted;
+        try {
+            accepted = provider.select(entry);
+        } catch (RuntimeException failed) {
+            accepted = false;
+        }
+        refreshSources();
+        if (!accepted) {
+            throw OhError.invalid("source");
+        }
     }
 
     public OhQueue queue() {
@@ -534,28 +633,28 @@ public final class OhRendererCore {
             product.set("Standby", String.valueOf(standby));
             return null;
         });
+        // the choices are against the list the controllers were told last (task 12.5)
         h.put("SetSourceIndex", in -> {
-            if (number(in.get("Value")) != 0) {
-                throw OhError.invalid("source");
-            }
+            chooseSource(sourcesNow().byIndex(number(in.get("Value"))));
             return null;
         });
         h.put("SetSourceIndexByName", in -> {
-            requirePlaylistSource(in.get("Value"));
+            chooseSource(sourcesNow().byName(in.get("Value")));
             return null;
         });
         h.put("SetSourceBySystemName", in -> {
-            requirePlaylistSource(in.get("Value"));
+            chooseSource(sourcesNow().bySystemName(in.get("Value")));
             return null;
         });
         h.put("Source", in -> {
-            if (number(in.get("Index")) != 0) {
+            SnapcastRendererSources.Entry entry = sourcesNow().byIndex(number(in.get("Index")));
+            if (entry == null) {
                 throw OhError.invalid("source");
             }
             Map<String, String> out = new HashMap<>();
-            out.put("SystemName", OhSourceXml.PLAYLIST);
-            out.put("Type", OhSourceXml.PLAYLIST);
-            out.put("Name", OhSourceXml.PLAYLIST);
+            out.put("SystemName", entry.systemName());
+            out.put("Type", entry.type());
+            out.put("Name", entry.name());
             out.put("Visible", "true");
             return out;
         });
@@ -565,12 +664,6 @@ public final class OhRendererCore {
     /** Playing, or choosing a track to play, wakes a device that is in standby (as devices do). */
     private void wake() {
         product.set("Standby", "false");
-    }
-
-    private static void requirePlaylistSource(String name) {
-        if (!OhSourceXml.PLAYLIST.equals(name)) {
-            throw OhError.invalid("source");
-        }
     }
 
     private Map<String, OhActionHandler> volumeHandlers() {

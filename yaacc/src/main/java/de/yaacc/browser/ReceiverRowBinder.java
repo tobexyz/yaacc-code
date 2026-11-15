@@ -127,6 +127,7 @@ final class ReceiverRowBinder {
         final android.widget.Button yxcSrcBandDab;
         final ImageButton yxcSrcShuffle;
         final ImageButton yxcToggle;
+        final ImageButton power;
         final ImageButton yxcSettings;
         final ImageButton yxcPresets;
         final SeekBar yxcGroupVolume;
@@ -162,6 +163,7 @@ final class ReceiverRowBinder {
             yxcSrcBandDab = itemView.findViewById(R.id.yxc_src_band_dab);
             yxcSrcShuffle = itemView.findViewById(R.id.yxc_src_shuffle);
             yxcToggle = itemView.findViewById(R.id.yxc_btn_link);
+            power = itemView.findViewById(R.id.power_btn);
             yxcSettings = itemView.findViewById(R.id.yxc_btn_settings);
             yxcPresets = itemView.findViewById(R.id.yxc_btn_presets);
             yxcGroupVolume = itemView.findViewById(R.id.yxc_group_volume);
@@ -339,6 +341,7 @@ final class ReceiverRowBinder {
             bindGroupState(holder, deviceId);
             bindSourceControls(holder, device, deviceId);
         }
+        bindPower(holder, device, deviceId);
         Player player = primaryPlayer(device);
         RendererStatus status = statusMap.get(device);
         if (status != null) {
@@ -400,6 +403,52 @@ final class ReceiverRowBinder {
                 holder.statusBadge.setVisibility(View.GONE);
             }
         }
+    }
+
+    /**
+     * The power button (task 12.4): MusicCast first (its state is kept live by the device's own events), then OpenHome (the standby
+     * state read by {@link OpenHomePowerMonitor}); a device that offers neither, the phone's own card and a Snapcast group have none
+     * (the phone's own Snapcast client plugs in here later with its own {@link RendererPower} and toggle source). Busy while a change
+     * of this device runs, also while a group change of a MusicCast device does.
+     */
+    private void bindPower(RowViews holder, Device<?, ?, ?> device, final String udn) {
+        if (holder.power == null) {
+            return;
+        }
+        RendererPower power = RendererPower.unsupported();
+        final boolean[] musicCast = {false};
+        if (!(device instanceof SnapcastGroupDevice) && !isLocalDevice(device)) {
+            power = MusicCastPower.of(YxcMonitor.getShared().getState(udn));
+            if (power.isSupported()) {
+                musicCast[0] = true;
+            } else if (OpenHomePower.offeredBy(device)) {
+                power = OpenHomePower.of(true, OpenHomePowerMonitor.getShared().standbyOf(udn));
+            }
+        }
+        boolean busy = RendererPowerController.getShared().isBusy(udn) || YxcGroupController.getShared().isBusy(udn);
+        final boolean viaMusicCast = musicCast[0];
+        RendererPowerButton.bind(context, holder.power, YxcRowText.clean(String.valueOf(device.getDetails().getFriendlyName())), power, busy,
+                () -> RendererPowerController.getShared().toggle(udn, () -> powerSource(device, udn, viaMusicCast), outcome -> {
+                    if (viaMusicCast) {
+                        YxcMonitor.getShared().refreshNow(udn); // its events follow; the read makes sure
+                    } else {
+                        OpenHomePowerMonitor.getShared().applyOutcome(udn, outcome.state());
+                    }
+                    int text = RendererPowerLook.errorText(outcome.error());
+                    if (text != 0) {
+                        Toast.makeText(context, text, Toast.LENGTH_LONG).show();
+                    }
+                }));
+    }
+
+    /** The calls of a device's power: its MusicCast zone, or its OpenHome Product service. Runs on the worker of the controller. */
+    private RendererPowerToggle.Source powerSource(Device<?, ?, ?> device, String udn, boolean musicCast) {
+        if (musicCast) {
+            de.yaacc.yxc.YxcClient client = YxcMonitor.getShared().newClient(udn);
+            return client == null ? RendererPowerToggle.unreachable() : MusicCastPower.source(client);
+        }
+        return OpenHomePower.source(new de.yaacc.openhome.OhRemote(
+                new de.yaacc.upnp.callback.openhome.ClingOhControl(device, upnpClient.getHttpRequestSender())));
     }
 
     /** Shows a group's volume, mute state and text in a bound row (the poll of the live volume calls this). */

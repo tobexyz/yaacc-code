@@ -87,4 +87,31 @@ public class SnapcastClientRuntimeTest {
         assertEquals(SnapcastClientRuntime.Ending.CONNECTION_GAVE_UP, SnapcastClientRuntime.get().ending);
         assertFalse(SnapcastClientRuntime.isActive());
     }
+
+    // ---- the client id of the running session (task 12.8: that client is never removed from a server)
+
+    @Test
+    public void theClientIdIsKnownOnlyWhileTheSessionRunsAndStartsEmpty() {
+        SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.CONNECTING, SnapcastClientRuntime.Ending.NONE, 1);
+        assertEquals("not known before the Hello is built", null, SnapcastClientRuntime.clientId());
+
+        SnapcastClientRuntime.clientId("yaacc-0123456789abcdef");
+        assertEquals("yaacc-0123456789abcdef", SnapcastClientRuntime.clientId());
+        SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Ending.NONE, 1);
+        assertEquals("yaacc-0123456789abcdef", SnapcastClientRuntime.clientId());
+
+        SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.STOPPED, SnapcastClientRuntime.Ending.USER, 1);
+        assertEquals("no session, nothing to protect", null, SnapcastClientRuntime.clientId());
+    }
+
+    @Test
+    public void aNewSessionDoesNotInheritTheIdOfTheEarlierOne() {
+        SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.CONNECTING, SnapcastClientRuntime.Ending.NONE, 1);
+        SnapcastClientRuntime.clientId("yaacc-aaaaaaaaaaaaaaaa");
+        SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.FAILED, SnapcastClientRuntime.Ending.CONNECTION_GAVE_UP, 1);
+
+        SnapcastClientRuntime.phase(SnapcastClientRuntime.Phase.CONNECTING, SnapcastClientRuntime.Ending.NONE, 2);
+
+        assertEquals(null, SnapcastClientRuntime.clientId());
+    }
 }

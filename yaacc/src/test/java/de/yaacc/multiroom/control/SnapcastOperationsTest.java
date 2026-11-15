@@ -558,4 +558,58 @@ public class SnapcastOperationsTest {
         assertEquals(2, applied.size());
         assertEquals(Arrays.asList("Client.SetVolume", "Client.SetVolume"), caller.methods);
     }
+
+    // ---- Server.DeleteClient (task 12.8)
+
+    private static final String DELETE_ANSWER = "{\"server\":{\"groups\":[{\"id\":\"g1\",\"name\":\"\",\"muted\":false,"
+            + "\"stream_id\":\"s\",\"clients\":[{\"id\":\"keep\",\"connected\":true,\"config\":{\"name\":\"Keep\","
+            + "\"volume\":{\"percent\":10,\"muted\":false},\"latency\":0}}]}],\"streams\":[]}}";
+
+    @Test
+    public void deleteClientSendsTheExactIdAndTakesTheAnswerAsTheModel() throws Exception {
+        RecordingCaller caller = new RecordingCaller().answerJson("Server.DeleteClient", DELETE_ANSWER);
+        SnapcastModelUpdater updater = new SnapcastModelUpdater(() -> 0L, () -> { });
+        updater.setStatus(SnapcastServerStatus.fromResult(new JSONObject(DELETE_ANSWER.replace("\"keep\"", "\"ghost\""))));
+
+        SnapcastServerStatus status = new SnapcastOperations(caller, updater).deleteClient("ghost");
+
+        caller.assertSingleCall("Server.DeleteClient", "{\"id\":\"ghost\"}");
+        assertTrue("the answer is the status after the call", status.findClient("keep") != null && status.findClient("ghost") == null);
+        assertTrue(updater.getStatus().findClient("ghost") == null);
+    }
+
+    @Test
+    public void deleteClientAcceptsAnAnswerWithoutAStatusAndAsksForAReRead() throws Exception {
+        RecordingCaller caller = new RecordingCaller(); // answers {}
+        final int[] reReads = {0};
+        SnapcastModelUpdater updater = new SnapcastModelUpdater(() -> 0L, () -> reReads[0]++);
+        updater.setStatus(SnapcastServerStatus.fromResult(new JSONObject(DELETE_ANSWER)));
+
+        assertNull(new SnapcastOperations(caller, updater).deleteClient("ghost"));
+
+        assertEquals("the server did it; the model is read again", 1, reReads[0]);
+    }
+
+    @Test
+    public void deleteClientRefusesAnEmptyIdBeforeAnythingIsSent() throws Exception {
+        RecordingCaller caller = new RecordingCaller();
+        try {
+            new SnapcastOperations(caller).deleteClient("");
+            fail("empty id");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(caller.methods.isEmpty());
+        }
+    }
+
+    @Test
+    public void deleteClientPassesTheServersRefusalOn() throws Exception {
+        RecordingCaller caller = new RecordingCaller();
+        caller.failure = new SnapcastException(SnapcastException.Kind.SERVER_ERROR, -32603, "client is connected", null, null);
+        try {
+            new SnapcastOperations(caller).deleteClient("ghost");
+            fail("refused");
+        } catch (SnapcastException expected) {
+            assertEquals(SnapcastException.Kind.SERVER_ERROR, expected.getKind());
+        }
+    }
 }

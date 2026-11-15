@@ -424,4 +424,23 @@
     <string name="renderer_group_none">Deze server heeft geen groepen.</string>
     <string name="renderer_group_members">Leden: %1$d</string>
     <string name="renderer_output_error_unknown_type">De renderer speelt naar een Snapcast-groep alleen muziek af, en het type van deze inhoud is onbekend (de controller gaf geen type en het adres heeft geen bekende bestandsextensie). Er is niets afgespeeld.</string>
+    <!-- Removing an offline client from a Snapcast server (task 12.8) -->
+    <string name="snapcast_client_delete_menu">Van de server verwijderen</string>
+    <string name="snapcast_client_delete_title">Client van de server verwijderen?</string>
+    <string name="snapcast_client_delete_message">%1$s is offline. Dit verwijdert alleen de vermelding uit de lijst van de server. Een client die nog bestaat komt vanzelf terug als hij opnieuw verbinding maakt.</string>
+    <string name="snapcast_client_delete_confirm">Verwijderen</string>
+    <string name="snapcast_remove_error_connected">De client is weer verbonden en is niet verwijderd.</string>
+    <string name="snapcast_remove_error_own">De eigen client van deze telefoon wordt niet verwijderd zolang zijn sessie loopt of start.</string>
+    <!-- The Snapcast groups as sources of the OpenHome renderer (task 12.5) -->
+    <string name="renderer_source_unavailable">Snapcast-groep (niet beschikbaar)</string>
+    <string name="renderer_source_error_group_gone">Een besturing koos een Snapcast-groep die niet meer beschikbaar is. De uitvoer van de renderer blijft zoals hij was.</string>
+    <string name="renderer_source_error_not_saved">De uitvoer van de renderer kon niet worden gewijzigd. Hij blijft zoals hij was.</string>
+    <!-- Power button of the renderer cards (task 12.4) -->
+    <string name="power_button_description">Aan/uit: %1$s</string>
+    <string name="power_state_on">Aan</string>
+    <string name="power_state_standby">Stand-by</string>
+    <string name="power_state_unknown">Status onbekend</string>
+    <string name="power_error_unreachable">Het apparaat antwoordt niet. De stroom is niet gewijzigd.</string>
+    <string name="power_error_unknown_state">Het apparaat meldt niet of het aan staat. De stroom is niet gewijzigd.</string>
+    <string name="power_error_refused">Het apparaat heeft de wijziging van de stroom niet geaccepteerd.</string>
 </resources>

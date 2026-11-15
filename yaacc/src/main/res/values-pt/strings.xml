@@ -428,4 +428,23 @@
     <string name="renderer_group_none">Este servidor não tem grupos.</string>
     <string name="renderer_group_members">Membros: %1$d</string>
     <string name="renderer_output_error_unknown_type">O renderizador só reproduz música num grupo do Snapcast, e o tipo deste conteúdo é desconhecido (o controlador não indicou nenhum tipo e o endereço não tem uma extensão de ficheiro conhecida). Nada foi reproduzido.</string>
+    <!-- Removing an offline client from a Snapcast server (task 12.8) -->
+    <string name="snapcast_client_delete_menu">Remover do servidor</string>
+    <string name="snapcast_client_delete_title">Remover o cliente do servidor?</string>
+    <string name="snapcast_client_delete_message">%1$s está offline. Isto só remove a sua entrada da lista do servidor. Um cliente que ainda exista volta sozinho quando se ligar de novo.</string>
+    <string name="snapcast_client_delete_confirm">Remover</string>
+    <string name="snapcast_remove_error_connected">O cliente voltou a ligar-se e não foi removido.</string>
+    <string name="snapcast_remove_error_own">O cliente próprio deste telefone não é removido enquanto a sua sessão estiver ativa ou a iniciar.</string>
+    <!-- The Snapcast groups as sources of the OpenHome renderer (task 12.5) -->
+    <string name="renderer_source_unavailable">Grupo Snapcast (indisponível)</string>
+    <string name="renderer_source_error_group_gone">Um controlador escolheu um grupo Snapcast que já não está disponível. A saída do renderizador mantém-se como estava.</string>
+    <string name="renderer_source_error_not_saved">Não foi possível alterar a saída do renderizador. Mantém-se como estava.</string>
+    <!-- Power button of the renderer cards (task 12.4) -->
+    <string name="power_button_description">Alimentação: %1$s</string>
+    <string name="power_state_on">Ligado</string>
+    <string name="power_state_standby">Em espera</string>
+    <string name="power_state_unknown">Estado desconhecido</string>
+    <string name="power_error_unreachable">O dispositivo não responde. A alimentação não foi alterada.</string>
+    <string name="power_error_unknown_state">O dispositivo não indica se está ligado. A alimentação não foi alterada.</string>
+    <string name="power_error_refused">O dispositivo não aceitou a alteração da alimentação.</string>
 </resources>
