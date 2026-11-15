@@ -175,6 +175,16 @@ public final class SnapcastHub implements SnapcastGroupSource {
         return preferences.getString(context.getString(R.string.settings_local_server_name_key), "Yaacc");
     }
 
+    /** The app-wide hub if it exists already, else null (the exit must not create it just to ask). */
+    public static synchronized SnapcastHub peekShared() {
+        return shared;
+    }
+
+    /** How many feed controllers are not yet released and ended (the exit waits for them, bounded, so the groups get their streams back). */
+    public int openFeedControllers() {
+        return feeds.openControllers();
+    }
+
     /** The app-wide hub. */
     public static synchronized SnapcastHub getShared(Context context) {
         if (shared == null) {

@@ -64,6 +64,8 @@ import de.yaacc.share.ShareService;
 import de.yaacc.upnp.OpenHomeReceivers;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NotificationId;
+import de.yaacc.util.ExitRestartGuard;
+import de.yaacc.util.ExitRestartGuards;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -337,6 +339,13 @@ public class PlayerService extends MediaSessionService {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // The system restarts a sticky service with no intent after its process ended. Right after an explicit exit that is not the
+        // user starting the app (task 12.2): stop at once, before any notification is shown.
+        if (intent == null && ExitRestartGuards.of(this).decide(ExitRestartGuard.StartReason.SYSTEM_RESTART) == ExitRestartGuard.Decision.STOP_SELF) {
+            YaaccLogger.i(this.getClass().getName(), "Restarted by the system right after an exit, stopping");
+            stopSelf();
+            return START_NOT_STICKY;
+        }
         super.onStartCommand(intent, flags, startId);
         YaaccLogger.d(this.getClass().getName(), "Received start id " + startId + ": " + intent);
         if (playerServiceBroadcastReceiver == null) {

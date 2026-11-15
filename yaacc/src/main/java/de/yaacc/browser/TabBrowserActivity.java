@@ -83,6 +83,12 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     public void onCreate(Bundle savedInstanceState) {
         long start = System.currentTimeMillis();
         super.onCreate(savedInstanceState);
+        // A screen that the system restores right after an explicit exit is left over from before it: it ends at once (task 12.2).
+        // (A fresh start by the user is noticed by the application's activity callback, see Yaacc.)
+        if (savedInstanceState != null && ((Yaacc) getApplicationContext()).dropRestoredScreen()) {
+            finish();
+            return;
+        }
         setContentView(R.layout.activity_tab_browse);
         pickController = new ReceiverPickController(this);
         viewPager = findViewById(R.id.browserTabPager);
@@ -282,7 +288,10 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
         if (getSupportFragmentManager().getFragments().size() > tabLayout.getSelectedTabPosition()) {
             Fragment fragment = getSupportFragmentManager().getFragments().get(tabLayout.getSelectedTabPosition());
             if (!(fragment instanceof OnBackPressedListener) || !((OnBackPressedListener) fragment).onBackPressed()) {
-                super.onBackPressed();
+                // nothing left to go back to: the app goes to the background and keeps running (task 12.1)
+                if (!moveTaskToBack(true)) {
+                    super.onBackPressed();
+                }
             }
         }
 

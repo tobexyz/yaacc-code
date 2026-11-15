@@ -89,6 +89,12 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // A screen that the system restores right after an explicit exit is left over from before it: it ends at once (task 12.2).
+        // (A fresh start by the user is noticed by the application's activity callback, see Yaacc.)
+        if (savedInstanceState != null && ((Yaacc) getApplicationContext()).dropRestoredScreen()) {
+            finish();
+            return;
+        }
         // The layout check comes first, before anything reads the intent. The launcher starts this
         // activity only for the effective NEW layout, so this fires only when the setting changed
         // in between or a stale explicit launch arrived (e.g. an old notification). The forwarded
@@ -349,12 +355,18 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
             case SHOW_SERVERS:
                 showServers();
                 break;
-            case EXIT:
+            case TO_BACKGROUND:
             default:
-                // as ServerListFragment#onBackPressed does in the classic layout
-                ((Yaacc) getApplicationContext()).exit();
-                finish();
+                // the last back is what it is in every app: the app goes to the background and keeps running (task 12.1); closing is
+                // the exit button's and the idle timer's job
+                leaveToBackground();
                 break;
+        }
+    }
+
+    private void leaveToBackground() {
+        if (!moveTaskToBack(true)) {
+            finish(); // not the root of its task: the activity itself ends, the app does not
         }
     }
 

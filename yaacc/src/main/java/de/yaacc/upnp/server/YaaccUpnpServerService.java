@@ -112,6 +112,8 @@ import de.yaacc.upnp.server.renderingcontrol.YaaccAudioRenderingControlService;
 import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.SAFCacheManager;
+import de.yaacc.util.ExitRestartGuard;
+import de.yaacc.util.ExitRestartGuards;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -291,6 +293,13 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
      */
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // The system restarts a sticky service with no intent after its process ended. Right after an explicit exit that is not the
+        // user starting the app (task 12.2): stop at once, before the notification is shown or anything is built.
+        if (intent == null && ExitRestartGuards.of(this).decide(ExitRestartGuard.StartReason.SYSTEM_RESTART) == ExitRestartGuard.Decision.STOP_SELF) {
+            YaaccLogger.i(getClass().getName(), "Restarted by the system right after an exit, stopping");
+            stopSelf();
+            return START_NOT_STICKY;
+        }
         YaaccLogger.i(getClass().getName(), "YaaccUpnpServerService onStartCommand called");
         long start = System.currentTimeMillis();
         if (registry == null) {
@@ -386,7 +395,10 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             openHomeRenderer = null;
         }
 
-        networkDeviceListener.disable();
+        // a service that stopped itself right after an exit never built its listener
+        if (networkDeviceListener != null) {
+            networkDeviceListener.disable();
+        }
         if (httpServer != null) {
             httpServer.initiateShutdown();
             try {

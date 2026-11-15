@@ -171,11 +171,15 @@ public class ServerListFragment extends Fragment implements
         super.onDestroyView();
     }
 
+    /**
+     * The server list is the top of the app: back is not handled here, the activity puts the app in the background (task 12.1). The
+     * app is not closed by back; the exit button and the idle timer close it.
+     *
+     * @return false: not consumed
+     */
     public boolean onBackPressed() {
         YaaccLogger.d(ServerListFragment.class.getName(), "onBackPressed()");
-        ((Yaacc) requireActivity().getApplicationContext()).exit();
-        ServerListFragment.super.requireActivity().finish();
-        return true;
+        return false;
     }
 
     /**

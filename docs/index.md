@@ -86,7 +86,8 @@ There are no tabs. The screen shows one level at a time:
 * **Content**: tap a server to browse it, see [Content browsing](#content-browsing).
   The arrow in front of the path and the system back button go back one step at a
   time: from a folder to the parent folder, from the root of a server to the
-  server list, and from the server list the app exits. The server button in the
+  server list, and from the server list the app goes to the background like any
+  other app (it keeps running; the exit button and the idle close below end it). The server button in the
   header of the content (the broadcast icon, the same one as in front of the "Servers"
   header; a long press shows its name) shows the server list at once from any folder
   depth, so you can change the server without going back folder by folder.
@@ -736,6 +737,10 @@ The log opens from the overflow menu ("log"). It shows the entries of the level 
 (*Appearance* > *Log level*), refreshes every two seconds while it is open and scrolls down by itself only while you are
 at the end. The clear button hides all entries from before the moment you pressed it. The pause button stops the automatic refresh, so you can select and copy text; it starts again when you press it again.
 
+## Permissions
+
+YAACC asks for the permissions that this Android version can grant (the media permissions, on Android 13 and newer also the notification permission, on older versions the storage permission), and only for those that are missing. It asks once: a permission you declined is not asked again at the next start, and the partial photo and video access of Android 14 counts as an answer. You can grant a permission at any time in the system settings of the app. The request to exempt YAACC from battery optimization (the server and the players have to run with the screen off) is shown once, not at every start; if you declined, you can still exempt the app in the system settings.
+
 ## Shutdown timer
 
 The shutdown timer stops all running players and the app after a certain time.
@@ -743,6 +748,8 @@ The timer is settable and can be enabled at the bottom of the server list tab an
 is displayed. In the new layout the timer is the symbol in the toolbar instead: tap it
 while a timer runs to stop it (the remaining time is shown under the title of the toolbar); otherwise a tap opens the
 duration picker, and confirming a duration above 0 starts the timer.
+
+The back button never closes YAACC: the last back puts the app in the background and everything keeps running. The ways to end the app are the exit button (toolbar menu, and the notification action), the shutdown timer and the idle close below. The exit stops the players, the services and the notifications before the process ends (also the media notification of a player and a Snapcast play, which gives its group the previous stream back), and the app does not start again by itself afterwards: a restart that the system does within two minutes of an exit is ignored, and your own start of the app always works.
 
 The shutdown timer is your own decision: it ends the app when it runs out, also while the media server, the receiver or a Snapcast session runs (a Snapcast client session that is ended this way is noted as ended by the app, and the test screen shows it afterwards). Apart from that, YAACC closes itself five minutes after its last screen went to the background, **unless** a player, the media server, the receiver, the media proxy, a play to a Snapcast group or a Snapcast client session (the experimental listen test) is running.
 

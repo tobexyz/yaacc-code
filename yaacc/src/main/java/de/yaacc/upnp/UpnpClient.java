@@ -193,6 +193,17 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return true if initialization completes correctly
      */
     public boolean initialize(Context context) {
+        return attach(context) && bindServerService();
+    }
+
+    /**
+     * The first half of {@link #initialize}: takes the context and registers what needs no service. The application does only this
+     * when its process was created right after an explicit exit (task 12.2); {@link #bindServerService()} follows when the user
+     * starts the app.
+     *
+     * @return false without a context
+     */
+    public boolean attach(Context context) {
         if (context != null) {
             this.context = context;
             this.preferences = PreferenceManager.getDefaultSharedPreferences(context);
@@ -204,11 +215,16 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             androidx.mediarouter.media.MediaRouter.getInstance(context)
                     .addProvider(mediaRouteProvider);
 
-            // FIXME check if this is right: Context.BIND_AUTO_CREATE kills the
-            // service after closing the activity
-            return context.bindService(new Intent(context, YaaccUpnpServerService.class), this, Context.BIND_AUTO_CREATE);
+            return true;
         }
         return false;
+    }
+
+    /** The second half of {@link #initialize}: binds (and so creates) the server service. */
+    public boolean bindServerService() {
+        // FIXME check if this is right: Context.BIND_AUTO_CREATE kills the
+        // service after closing the activity
+        return context != null && context.bindService(new Intent(context, YaaccUpnpServerService.class), this, Context.BIND_AUTO_CREATE);
     }
 
     public boolean startService() {
@@ -1460,6 +1476,21 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (playerService != null) {
             playerService.shutdown();
         }
+    }
+
+    /**
+     * Lets go of the bindings to the server service and the player service. A service that is bound does not end when it is
+     * stopped, so the exit calls this after {@link #shutdown()} (task 12.2). One call ends both: the same connection object is
+     * registered for both.
+     */
+    public void unbindServices() {
+        try {
+            getContext().unbindService(this);
+        } catch (IllegalArgumentException notBound) {
+            YaaccLogger.d(getClass().getName(), "The services were not bound");
+        }
+        yaaccUpnpServerService = null;
+        playerService = null;
     }
 
     /**

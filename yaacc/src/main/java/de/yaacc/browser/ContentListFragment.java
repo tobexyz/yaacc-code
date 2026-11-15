@@ -786,7 +786,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
     }
 
     /**
-     * Steps 'up' in the folder hierarchy or closes App if on device level.
+     * Steps 'up' in the folder hierarchy; at the root there is nothing to do (back never closes the app).
      */
     public boolean onBackPressed() {
 
