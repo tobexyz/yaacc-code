@@ -240,6 +240,15 @@ Source: the owner's message after the Group 9 gates. Code facts found while read
 - [x] F12.3 Early stop of a restarted service: minimal notification up and down, then `stopSelf` (`ExitRestartGuards.stopRestartedService`).
 - [x] F12.4 Suggestions taken: `userStarted()` ignored while exiting; in-process "user started" flag (also when the clear write fails), one guard per process; window length and exactly -5 s skew pinned; Snapcast ending and shares positions pinned in the sequence (`OrderGuardTest` restored); minimum poll moved into `shouldKeepWaiting(still, waited, min, max)`; wait uses `RunningServiceInfo.started`; `TabBrowserActivity` back is an `OnBackPressedCallback`; `LocalMediaSessionPlayer.onDestroy` captures the notification manager.
 
+## Open: broken tests found by the owner's full run (2026-11-15), NOT STARTED, the owner said to wait
+Source: the owner's full run of `:yaacc:testDebugUnitTest` (Gradle 9.8.2, 18:33, 12m10s): 5579 tests, 11 failures, 4 skipped. The test count (5579) is the state of commit `0bf709b2` (Fix Group 12Ab), before Group 12B (`0bd3b63d`).
+- [ ] T.1 `de.yaacc.multiroom.feed.LinkBoundStreamsTest`: 3 of 6 tests fail.
+- [ ] T.2 `de.yaacc.multiroom.feed.SnapcastFeedControllerIntegrationTest`: 3 of 4 tests fail.
+- [ ] T.3 `de.yaacc.multiroom.feed.SnapcastFeedIntegrationTest`: 2 of 2 tests fail.
+- [ ] T.4 `de.yaacc.multiroom.feed.SnapcastFeedLinkRemovalTest`: 3 of 3 tests fail.
+  - Not investigated. The failure messages are not in the screenshot; they must be read first (the report's HTML or the `build/test-results` XML of the owner's run). The four classes are in the Phase A feed package and use a fake server on the local machine. Open hypothesis only, to be proven or rejected: the loopback refusal for discovered/remembered servers added in Group 9 (S72, `SnapcastAddressFilter.isAcceptedForDiscovery`) or another Group 9/12 change in the feed path. The agents reported these classes green in their own runs, so a difference between environments (network, ports, load, JDK) is also possible.
+- [ ] 12C is ON HOLD (owner, 2026-11-15): the phone's own Snapcast client card with the power button and the remembered on/off state (12.4 part 2, 12.6). Nothing of it is built.
+
 ## Group 7 (Phase B): Binary protocol and time sync (P1, pure Java, tests first)
 - [x] 7.1 (done 2026-11-11: `SnapcastMessageCodec`, `FrameReader`, message classes, `PcmFormat`, `FlacStreamInfo`; tests `SnapcastMessageCodecTest`, `FrameReaderTest`, `HelloMessageTest`, `ServerSettingsMessageTest`, `PcmFormatTest`, `FlacStreamInfoTest`; see `decisions.md`) Message codec: Base, Hello, ServerSettings, CodecHeader, WireChunk, Time, ClientInfo, Error (little endian) | `de.yaacc.multiroom.protocol`, tests with byte fixtures
   - **Accept**: round trip of every message; truncated/oversized messages give a typed error; payload size caps (e.g. 8 MiB) hold; unknown types are skipped by size.
