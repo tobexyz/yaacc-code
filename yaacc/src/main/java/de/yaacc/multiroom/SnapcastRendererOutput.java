@@ -406,6 +406,9 @@ public final class SnapcastRendererOutput {
             return refused(Problem.SERVER_UNREACHABLE);
         }
         GroupFacts facts = awaitFacts(setting.receiverId, probe, waiter, maxWaitMillis);
+        if (Thread.currentThread().isInterrupted() && isComingUp(facts)) {
+            return cancelled(); // the wait was cut short: the server did not fail, so nothing is remembered
+        }
         if (isComingUp(facts)) {
             memory.remember(setting.receiverId, waiter.nowMillis());
         } else {
@@ -427,7 +430,16 @@ public final class SnapcastRendererOutput {
         if (setting == null || setting.mode != Mode.GROUP || setting.receiverId == null || content != Content.PLAYABLE) {
             return decide(setting, content, null);
         }
-        return decide(setting, content, awaitFacts(setting.receiverId, probe, waiter, maxWaitMillis));
+        GroupFacts facts = awaitFacts(setting.receiverId, probe, waiter, maxWaitMillis);
+        if (Thread.currentThread().isInterrupted() && isComingUp(facts)) {
+            return cancelled();
+        }
+        return decide(setting, content, facts);
+    }
+
+    /** The wait was interrupted (the app is ending the thread): no output, no problem, no message; the flag stays set. */
+    private static Decision cancelled() {
+        return new Decision(Output.NONE, Problem.NONE, null);
     }
 
     /**

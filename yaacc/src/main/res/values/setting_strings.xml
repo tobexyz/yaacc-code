@@ -186,7 +186,7 @@
     <string name="settings_snapcast_client_spike" translatable="false">settings_snapcast_client_spike</string>
     <string name="settings_snapcast_client_spike_open" translatable="false">settings_snapcast_client_spike_open</string>
     <string name="settings_renderer_output_title">Output</string>
-    <string name="settings_renderer_output_summary">Where the media receiver plays what other apps send to it. Snapcast group: it only feeds the group, this phone stays silent; the volume and mute of the receiver are then those of the group. Takes effect at the next play; a play that is running on the other output is stopped. Experimental: the audio is sent unencrypted to the server. Not tested on a device yet. Any device that can reach the receiver can change the volume and mute of the whole group.</string>
+    <string name="settings_renderer_output_summary">Experimental: the audio is sent unencrypted to the server. Not tested on a device yet. Any device that can reach the receiver can change the volume and mute of the whole group. Snapcast group: only the group plays, this phone stays silent; volume and mute are the group\'s.</string>
     <string name="settings_renderer_output_device">This device</string>
     <string name="settings_renderer_output_group_option">Snapcast group</string>
     <string name="settings_renderer_output_group_title">Snapcast group</string>

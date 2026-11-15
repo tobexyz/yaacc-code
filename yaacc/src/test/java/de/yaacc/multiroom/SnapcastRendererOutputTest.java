@@ -377,7 +377,8 @@ public class SnapcastRendererOutputTest {
 
         Decision decision = SnapcastRendererOutput.resolve(SnapcastRendererOutput.read(prefs("group", ID)), false, probe, waiter, 4_000);
 
-        assertEquals(Problem.SERVER_UNREACHABLE, decision.problem());
+        assertEquals("cancelled, not unreachable: no message", Problem.NONE, decision.problem());
+        assertEquals(Output.NONE, decision.output());
         assertTrue(interrupted[0]);
         assertTrue("the interrupt flag is set again", Thread.interrupted());
     }
@@ -588,5 +589,43 @@ public class SnapcastRendererOutputTest {
         }
 
         assertTrue(memory.size() <= SnapcastRendererOutput.UnreachableMemory.MAX_ENTRIES);
+    }
+
+    // ---- Fix Group 9e S78: an interrupt is a cancel, not "unreachable"
+
+    @Test
+    public void anInterruptedWaitIsNotRememberedAsUnreachable() {
+        SnapcastRendererOutput.UnreachableMemory memory = new SnapcastRendererOutput.UnreachableMemory();
+        SnapcastRendererOutput.Probe probe = new SnapcastRendererOutput.Probe() {
+            @Override
+            public GroupFacts facts(String receiverId) {
+                return GroupFacts.PENDING;
+            }
+
+            @Override
+            public void wake(String receiverId) {
+            }
+        };
+        SnapcastRendererOutput.Waiter interrupting = new SnapcastRendererOutput.Waiter() {
+            @Override
+            public long nowMillis() {
+                return 0;
+            }
+
+            @Override
+            public void sleep(long millis) throws InterruptedException {
+                throw new InterruptedException();
+            }
+        };
+        Setting setting = SnapcastRendererOutput.read(prefs("group", ID));
+
+        Decision cancelled = SnapcastRendererOutput.resolve(setting, SnapcastRendererOutput.Content.PLAYABLE, probe, interrupting, 4_000, memory);
+        boolean flag = Thread.interrupted(); // clears it for the next call
+
+        assertEquals(Output.NONE, cancelled.output());
+        assertEquals(Problem.NONE, cancelled.problem());
+        assertTrue("the interrupt flag is kept", flag);
+        assertTrue("not remembered", !memory.isRecent(ID, 0));
+        assertEquals(0, memory.size());
     }
 }

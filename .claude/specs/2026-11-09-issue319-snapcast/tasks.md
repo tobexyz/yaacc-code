@@ -387,6 +387,12 @@ Notes are kept current as items are done (interruption safe). Tests first (red, 
 - [x] F9d.3 S74 sentence in `settings_renderer_output_summary` (7 locales, keyword test); S75 `UnreachableMemory` (5 s) in `SnapcastRendererOutput.resolve`, used by `PlayerService`; S76 `SnapcastToastGate` (3 s) for the refused-play toasts; S77 `updateRendererGroupSummary` returns when the fragment is not added
 - **Verify**: full suite, assembleDebug, lintDebug at baseline, avtransport package 5 times under 4 busy loops.
 
+## Fix Group 9e: general review cycle 4 of Group 9 (W7, W8, S78), done 2026-11-15
+- [x] F9e.1 W7 `SnapcastControlsTest`: a mute that arrives during the send, a mute after a failed send (one failure reported), the wanted value is kept only while waiting (`pendingMuteFor`); red against the mutants D, G, E in scratch copies, green on the real code
+- [x] F9e.2 W8 `settings_renderer_output_summary` shortened in 7 locales (98 to 312 characters, limit 330), all three disclosures first; length and order test per locale; the rest is in `docs/settings.md`
+- [x] F9e.3 S78 an interrupt during the wait is a cancel (no output, no problem, nothing remembered)
+- **Verify**: full suite, assembleDebug, lintDebug at baseline.
+
 ## Group 10 (Phase B): Documentation
 - [ ] 10.1 Update documentation for Phase B | `README.md`, `docs/`, `CHANGELOG.md`
   - **Accept**: no stale references; requirements and limits (sync, doze) described.

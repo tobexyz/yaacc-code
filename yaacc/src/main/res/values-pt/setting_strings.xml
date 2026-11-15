@@ -135,7 +135,7 @@
     <string name="settings_snapcast_client_spike_open_title">Teste de audição do cliente Snapcast</string>
     <string name="settings_snapcast_client_spike_open_summary">Ligar este telefone a um servidor Snapcast e ver os valores de sincronização</string>
     <string name="settings_renderer_output_title">Saída</string>
-    <string name="settings_renderer_output_summary">Onde o recetor multimédia reproduz o que outras aplicações lhe enviam. Grupo Snapcast: só alimenta o grupo e este telemóvel fica em silêncio; o volume e o silêncio do recetor passam a ser os do grupo. Aplica-se na próxima reprodução; uma reprodução em curso na outra saída é parada. Experimental: o áudio é enviado sem encriptação para o servidor. Ainda não foi testado num dispositivo. Qualquer dispositivo que consiga alcançar o recetor pode alterar o volume e o silêncio de todo o grupo.</string>
+    <string name="settings_renderer_output_summary">Experimental: o áudio é enviado sem encriptação para o servidor. Ainda não foi testado num dispositivo. Qualquer dispositivo que consiga alcançar o recetor pode alterar o volume e o silêncio de todo o grupo. Grupo Snapcast: só o grupo reproduz, este telemóvel fica em silêncio; volume e silêncio são os do grupo.</string>
     <string name="settings_renderer_output_device">Este dispositivo</string>
     <string name="settings_renderer_output_group_option">Grupo Snapcast</string>
     <string name="settings_renderer_output_group_title">Grupo Snapcast</string>

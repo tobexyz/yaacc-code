@@ -71,12 +71,18 @@ public class SnapcastControlsTest {
         SnapcastException failure;
         /** Fails only this method (the others work). */
         String failOnly;
+        /** Called at the start of every call, before it is answered or fails (a call from inside a send). */
+        java.util.function.Consumer<String> onCall;
         /** The members (ids) that a fresh {@code Server.GetStatus} reports for group g1; null: no such answer. */
         String[] serverMembers;
 
         @Override
         public synchronized JSONObject call(String method, JSONObject callParams) throws SnapcastException {
             methods.add(method);
+            if (onCall != null) {
+                java.util.function.Consumer<String> hook = onCall;
+                hook.accept(method);
+            }
             try {
                 params.add(callParams == null ? null : new JSONObject(callParams.toString()));
                 if (failure != null && (failOnly == null || failOnly.equals(method))) {
@@ -854,5 +860,60 @@ public class SnapcastControlsTest {
 
         assertEquals(1, failures.size());
         assertEquals(SnapcastControls.Action.GROUP_MUTE, failedActions.get(0));
+    }
+
+    // ---- Fix Group 9e W7: the mute that arrives while the mute is being sent, and after a failed send
+
+    @Test
+    public void aMuteThatArrivesWhileTheMuteIsBeingSentIsSentAfterItAndTheNewestValueIsLast() {
+        final boolean[] once = {true};
+        caller.onCall = method -> {
+            if ("Group.SetMute".equals(method) && once[0]) {
+                once[0] = false;
+                controls.setGroupMuted(KEY, GROUP, false); // the controller's next SetMute, while this one is sent
+            }
+        };
+
+        controls.setGroupMuted(KEY, GROUP, true);
+        actions.runAll();
+
+        assertEquals("both were sent, the newer one second", 2, caller.count("Group.SetMute"));
+        List<JSONObject> sent = caller.all("Group.SetMute");
+        assertTrue(sent.get(0).optBoolean("mute"));
+        assertFalse(sent.get(1).optBoolean("mute"));
+        assertFalse(link.getStatus().findGroup(GROUP).isMuted());
+        assertNull("nothing is left waiting", controls.pendingMuteFor(KEY, GROUP));
+    }
+
+    @Test
+    public void aMuteAfterAFailedSendIsSentAndReportedOnceForTheFailureOnly() {
+        caller.failure = new SnapcastException(SnapcastException.Kind.NOT_CONNECTED, 0, "down", null, null);
+        caller.failOnly = "Group.SetMute";
+        controls.setGroupMuted(KEY, GROUP, true);
+        actions.runAll();
+        assertEquals(1, failures.size());
+
+        caller.failure = null;
+        controls.setGroupMuted(KEY, GROUP, false); // the first one failed: this one must not be swallowed
+        assertEquals("a task is queued again", 1, actions.tasks.size());
+        actions.runAll();
+
+        assertEquals(2, caller.count("Group.SetMute"));
+        assertFalse(caller.last("Group.SetMute").optBoolean("mute"));
+        assertEquals("only the failed one was reported", 1, failures.size());
+        assertNull(controls.pendingMuteFor(KEY, GROUP));
+    }
+
+    @Test
+    public void theWantedMuteIsKeptOnlyWhileItIsWaiting() {
+        assertNull(controls.pendingMuteFor(KEY, GROUP));
+        controls.setGroupMuted(KEY, GROUP, true);
+        assertEquals(Boolean.TRUE, controls.pendingMuteFor(KEY, GROUP));
+        controls.setGroupMuted(KEY, GROUP, false);
+        assertEquals("the latest wins", Boolean.FALSE, controls.pendingMuteFor(KEY, GROUP));
+
+        actions.runAll();
+
+        assertNull("sent: nothing is left in the map", controls.pendingMuteFor(KEY, GROUP));
     }
 }

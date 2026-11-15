@@ -269,4 +269,30 @@ public class RendererOutputResourcesTest {
             assertFalse(row[0] + " has a double space", text.contains("  "));
         }
     }
+
+    @Test
+    public void theSummaryOfTheOutputIsShortEnoughForTheListLayoutInEveryLocale() throws Exception {
+        // Fix Group 9e W8: a ListPreference shows at most 10 lines; on a narrow phone with a large font the last sentence of a
+        // long summary is cut off, so the three disclosures are in a short text, the unencrypted audio and the experiment first
+        final int limit = 330;
+        String[][] disclosures = {
+                {"values", "unencrypted", "Not tested on a device yet", "Any device that can reach the receiver"},
+                {"values-de", "unverschlüsselt", "noch nicht getestet", "Jedes Gerät, das den Empfänger erreicht"},
+                {"values-es", "sin cifrar", "Aún no se ha probado", "Cualquier dispositivo que pueda llegar al receptor"},
+                {"values-fr", "non chiffré", "Pas encore testé", "Tout appareil qui peut joindre le récepteur"},
+                {"values-nl", "onversleuteld", "Nog niet op een apparaat getest", "Elk apparaat dat de ontvanger kan bereiken"},
+                {"values-pt", "sem encriptação", "Ainda não foi testado", "Qualquer dispositivo que consiga alcançar o recetor"},
+                {"values-zh", "未加密", "尚未在设备上测试", "任何能访问该接收器的设备"}};
+        for (String[] row : disclosures) {
+            String text = strings(row[0], "setting_strings.xml").get("settings_renderer_output_summary").replace("\\'", "'");
+            assertTrue(row[0] + " summary has " + text.length() + " characters: " + text, text.length() <= limit);
+            for (int k = 1; k < row.length; k++) {
+                int at = text.indexOf(row[k]);
+                assertTrue(row[0] + " lacks " + row[k], at >= 0);
+                assertTrue(row[0] + " has " + row[k] + " too late (" + at + ")", at < limit - 60);
+            }
+            assertTrue(row[0] + ": the unencrypted audio is said before the exposure of the group",
+                    text.indexOf(row[1]) < text.indexOf(row[3]));
+        }
+    }
 }

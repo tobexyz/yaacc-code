@@ -236,6 +236,13 @@ public final class SnapcastControls {
         }
     }
 
+    /** For tests: the mute waiting to be sent for a group, or null. */
+    Boolean pendingMuteFor(SnapcastServerKey key, String groupId) {
+        synchronized (lock) {
+            return wantedGroupMute.get(idOf(key, groupId));
+        }
+    }
+
     /** For tests: the value waiting to be sent for a group, or null. */
     Integer pendingVolumeFor(SnapcastServerKey key, String groupId) {
         synchronized (lock) {
