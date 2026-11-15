@@ -416,4 +416,16 @@
     <string name="snapcast_client_notification_reconnecting">Connection lost, trying again…</string>
     <string name="snapcast_client_warning_public">This address is not on your local network. Audio and control are not encrypted or authenticated on the way there.</string>
     <string name="snapcast_client_busy">The previous session is still stopping. Tap Start again in a moment.</string>
+    <string name="renderer_output_damaged_note">The Snapcast output of the renderer is damaged; playing on this device. Choose the group again in the settings.</string>
+    <string name="renderer_output_error_no_group">The renderer is set to play into a Snapcast group, but no group is chosen. Choose one in the settings.</string>
+    <string name="renderer_output_error_server_not_listed">The Snapcast server of the renderer\'s group is not in the server list. Add it under Snapcast servers in the settings, or choose another group.</string>
+    <string name="renderer_output_error_unreachable">The Snapcast server of the renderer\'s group does not answer. Nothing was played.</string>
+    <string name="renderer_output_error_group_gone">The group chosen for the renderer is not on its Snapcast server any more. Choose another group in the settings.</string>
+    <string name="renderer_group_server_title">Snapcast server of the renderer</string>
+    <string name="renderer_group_group_title">Snapcast group of the renderer</string>
+    <string name="renderer_group_no_servers">No Snapcast server is known. Add one under Snapcast servers, or let YAACC search the network.</string>
+    <string name="renderer_group_reading">Reading the groups of the server…</string>
+    <string name="renderer_group_unreachable">The server did not answer.</string>
+    <string name="renderer_group_none">This server has no groups.</string>
+    <string name="renderer_group_members">Members: %1$d</string>
 </resources>

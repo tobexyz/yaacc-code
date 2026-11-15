@@ -194,20 +194,35 @@ public class SnapcastSettingsResourcesTest {
 
     @Test
     public void theSummaryOfTheDiscoverySwitchSaysHonestlyWhatItDoesWhenItIsOnInEveryLocale() throws Exception {
-        // on by default (2026-11-14): the summary says that it is on, that it asks on the Wi-Fi, that it contacts every
-        // server and that an announcement is not authenticated; it no longer talks of "leaving it off" as the normal state
+        // on by default (2026-11-14): the summary says that it is on, that it asks on the network (not "the Wi-Fi": the scan
+        // asks on whatever network the phone is on, S73), that it contacts every server and that an announcement is not
+        // authenticated; it no longer talks of "leaving it off" as the normal state
         String[][] words = {
-                {"values", "on by default", "Wi-Fi", "contacts every server", "not authenticated"},
-                {"values-de", "standardmäßig an", "WLAN", "jeder Server kontaktiert", "nicht authentifiziert"},
-                {"values-es", "activada de forma predeterminada", "Wi-Fi", "se contacta con todos los servidores", "no están autenticados"},
-                {"values-fr", "activée par défaut", "Wi-Fi", "contacte tous les serveurs", "ne sont pas authentifiées"},
-                {"values-nl", "standaard aan", "wifi", "contact gemaakt met elke server", "niet geauthenticeerd"},
-                {"values-pt", "ativada por predefinição", "Wi-Fi", "contacta todos os servidores", "não são autenticados"},
-                {"values-zh", "默认开启", "Wi-Fi", "连接", "未经身份验证"}};
+                {"values", "on by default", "mDNS queries on the network", "contacts every server", "not authenticated"},
+                {"values-de", "standardmäßig an", "im Netzwerk mDNS-Anfragen", "jeder Server kontaktiert", "nicht authentifiziert"},
+                {"values-es", "activada de forma predeterminada", "consultas mDNS por la red", "se contacta con todos los servidores", "no están autenticados"},
+                {"values-fr", "activée par défaut", "requêtes mDNS sur le réseau", "contacte tous les serveurs", "ne sont pas authentifiées"},
+                {"values-nl", "standaard aan", "mDNS-verzoeken over het netwerk", "contact gemaakt met elke server", "niet geauthenticeerd"},
+                {"values-pt", "ativada por predefinição", "consultas mDNS pela rede", "contacta todos os servidores", "não são autenticados"},
+                {"values-zh", "默认开启", "通过网络发送 mDNS 查询", "连接", "未经身份验证"}};
         for (String[] row : words) {
             String text = strings(row[0], "setting_strings.xml").get("settings_snapcast_discovery_summary");
             for (int i = 1; i < row.length; i++) {
                 assertTrue(row[0] + " summary lacks \"" + row[i] + "\": " + text, text.contains(row[i]));
+            }
+        }
+    }
+
+    @Test
+    public void noSnapcastScanTextSaysWiFiOrWlanAnyMore() throws Exception {
+        // S73: the scan asks on the network the phone is on (also a cable or a VPN), the texts must not promise the Wi-Fi
+        String[] wifi = {"Wi-Fi", "WLAN", "wifi", "WiFi"};
+        for (String locale : LOCALES) {
+            // the report note names the Wi-Fi state as a fact of the report (it is in it), the summary of the switch must not
+            // promise the Wi-Fi
+            String text = strings(locale, "setting_strings.xml").get("settings_snapcast_discovery_summary");
+            for (String word : wifi) {
+                assertFalse(locale + " the summary of the discovery switch says " + word, text.contains(word));
             }
         }
     }

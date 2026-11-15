@@ -415,4 +415,16 @@
     <string name="snapcast_client_notification_reconnecting">Ligação perdida, a tentar de novo…</string>
     <string name="snapcast_client_warning_public">Este endereço não está na sua rede local. O áudio e o controlo não estão cifrados nem autenticados pelo caminho.</string>
     <string name="snapcast_client_busy">A sessão anterior ainda está a terminar. Toque em Iniciar novamente dentro de instantes.</string>
+    <string name="renderer_output_damaged_note">A saída Snapcast do renderizador está danificada; a reprodução é neste dispositivo. Escolha o grupo de novo nas definições.</string>
+    <string name="renderer_output_error_no_group">O renderizador está definido para reproduzir num grupo do Snapcast, mas não há nenhum grupo escolhido. Escolha um nas definições.</string>
+    <string name="renderer_output_error_server_not_listed">O servidor Snapcast do grupo do renderizador não está na lista de servidores. Adicione-o em Servidores Snapcast nas definições ou escolha outro grupo.</string>
+    <string name="renderer_output_error_unreachable">O servidor Snapcast do grupo do renderizador não responde. Nada foi reproduzido.</string>
+    <string name="renderer_output_error_group_gone">O grupo escolhido para o renderizador já não existe no respetivo servidor Snapcast. Escolha outro grupo nas definições.</string>
+    <string name="renderer_group_server_title">Servidor Snapcast do renderizador</string>
+    <string name="renderer_group_group_title">Grupo Snapcast do renderizador</string>
+    <string name="renderer_group_no_servers">Não se conhece nenhum servidor Snapcast. Adicione um em Servidores Snapcast ou deixe o YAACC procurar na rede.</string>
+    <string name="renderer_group_reading">A ler os grupos do servidor…</string>
+    <string name="renderer_group_unreachable">O servidor não respondeu.</string>
+    <string name="renderer_group_none">Este servidor não tem grupos.</string>
+    <string name="renderer_group_members">Membros: %1$d</string>
 </resources>

@@ -725,4 +725,35 @@ public class SnapcastDirectoryTest {
         assertTrue(directory.find(key("192.168.1.6:1705")).isDiscovered());
         assertEquals(2, directory.servers().size());
     }
+
+    // ---- S72: an announcement at a loopback address is refused, a typed one is kept
+
+    @Test
+    public void anAnnouncementAtALoopbackAddressIsRefused() throws Exception {
+        assertFalse(directory.serviceFound("Evil", ip(127, 0, 0, 1), 1705));
+        assertFalse(directory.serviceFound("Evil2", ip(127, 8, 8, 8), 1705));
+        assertFalse(directory.serviceFound("Evil3", InetAddress.getByAddress(new byte[]{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}), 1705));
+
+        assertTrue(directory.servers().isEmpty());
+    }
+
+    @Test
+    public void aTypedLoopbackServerIsListedAndAnAnnouncementOfTheSameAddressStillIsNot() throws Exception {
+        directory.setManualServers(Collections.singletonList(manual("127.0.0.1")));
+
+        assertFalse(directory.serviceFound("Snapcast", ip(127, 0, 0, 1), 1705));
+
+        assertEquals(1, directory.servers().size());
+        assertTrue(directory.servers().get(0).isManual());
+        assertFalse(directory.servers().get(0).isDiscovered());
+    }
+
+    @Test
+    public void aRememberedServerAtALoopbackAddressIsNotTaken() throws Exception {
+        int accepted = directory.setRememberedServers(java.util.Arrays.asList(manual("127.0.0.1:1705"), manual("192.168.1.5:1705")));
+
+        assertEquals(1, accepted);
+        assertEquals(1, directory.servers().size());
+        assertEquals(key("192.168.1.5:1705"), directory.servers().get(0).getKey());
+    }
 }

@@ -415,4 +415,16 @@
     <string name="snapcast_client_notification_reconnecting">Connexion perdue, nouvel essai…</string>
     <string name="snapcast_client_warning_public">Cette adresse n\'est pas sur votre réseau local. L\'audio et le contrôle ne sont ni chiffrés ni authentifiés sur le trajet.</string>
     <string name="snapcast_client_busy">La session précédente est encore en cours d\'arrêt. Touchez de nouveau Démarrer dans un instant.</string>
+    <string name="renderer_output_damaged_note">La sortie Snapcast du moteur de rendu est endommagée ; la lecture se fait sur cet appareil. Choisissez de nouveau le groupe dans les réglages.</string>
+    <string name="renderer_output_error_no_group">Le moteur de rendu doit jouer vers un groupe Snapcast, mais aucun groupe n\'est choisi. Choisissez-en un dans les réglages.</string>
+    <string name="renderer_output_error_server_not_listed">Le serveur Snapcast du groupe du moteur de rendu n\'est pas dans la liste des serveurs. Ajoutez-le sous Serveurs Snapcast dans les réglages, ou choisissez un autre groupe.</string>
+    <string name="renderer_output_error_unreachable">Le serveur Snapcast du groupe du moteur de rendu ne répond pas. Rien n\'a été lu.</string>
+    <string name="renderer_output_error_group_gone">Le groupe choisi pour le moteur de rendu n\'existe plus sur son serveur Snapcast. Choisissez un autre groupe dans les réglages.</string>
+    <string name="renderer_group_server_title">Serveur Snapcast du moteur de rendu</string>
+    <string name="renderer_group_group_title">Groupe Snapcast du moteur de rendu</string>
+    <string name="renderer_group_no_servers">Aucun serveur Snapcast n\'est connu. Ajoutez-en un sous Serveurs Snapcast ou laissez YAACC chercher sur le réseau.</string>
+    <string name="renderer_group_reading">Lecture des groupes du serveur…</string>
+    <string name="renderer_group_unreachable">Le serveur n\'a pas répondu.</string>
+    <string name="renderer_group_none">Ce serveur n\'a aucun groupe.</string>
+    <string name="renderer_group_members">Membres : %1$d</string>
 </resources>

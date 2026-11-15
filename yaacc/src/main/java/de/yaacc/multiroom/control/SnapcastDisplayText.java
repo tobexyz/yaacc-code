@@ -22,9 +22,10 @@ package de.yaacc.multiroom.control;
  * Makes text that came from the network safe to show. Names of servers, groups, clients and streams, and service
  * names from mDNS are written by whoever runs the machine (or by someone who pretends to): control characters, line
  * and paragraph separators, bidi controls, the C1 range, invisible format characters (zero width, soft hyphen, word
- * joiner, the deprecated U+2065 to U+206F), the letters that draw nothing (Hangul fillers, Braille blank, Khmer inherent
- * vowels, combining grapheme joiner), tag characters and unpaired surrogates become {@code ?}, and the text is cut. The result is
- * <b>display text only</b>: never an identity, never a log line.
+ * joiner, the deprecated U+2065 to U+206F, and every other character of the general category Cf), the letters that draw
+ * nothing (Hangul fillers, Braille blank, Khmer inherent vowels, combining grapheme joiner), tag characters and unpaired
+ * surrogates become {@code ?}, and the text is cut. A text of white space only is the empty string (a name that shows
+ * nothing is no name). The result is <b>display text only</b>: never an identity, never a log line.
  */
 public final class SnapcastDisplayText {
 
@@ -37,7 +38,20 @@ public final class SnapcastDisplayText {
      */
     public static String of(String text, int max) {
         String cleaned = SnapcastJson.displayText(text, Math.max(0, max));
-        return cleaned == null ? "" : cleaned;
+        return cleaned == null || isBlank(cleaned) ? "" : cleaned;
+    }
+
+    /** True for text of white space only (also the no-break and the wide spaces, which {@code trim()} does not strip). */
+    private static boolean isBlank(String text) {
+        int i = 0;
+        while (i < text.length()) {
+            int codePoint = text.codePointAt(i);
+            if (!Character.isWhitespace(codePoint) && !Character.isSpaceChar(codePoint)) {
+                return false;
+            }
+            i += Character.charCount(codePoint);
+        }
+        return true;
     }
 
     /** The most code points of a server's reason that a toast shows. */

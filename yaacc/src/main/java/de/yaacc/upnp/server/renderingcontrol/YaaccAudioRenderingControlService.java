@@ -42,8 +42,10 @@ import de.yaacc.util.YaaccLogger;
 
 
 /**
- * The renderer's RenderingControl service: volume and mute of the music stream of the device, one instance
- * (0) with one channel ({@code Master}). The value is not stored here, it is the system's: {@link SystemVolume}.
+ * The renderer's RenderingControl service: volume and mute of what the renderer plays on, one instance
+ * (0) with one channel ({@code Master}). The value is not stored here: it is the system's music stream
+ * ({@link SystemVolume}), or, while the renderer's output is a Snapcast group, the volume and mute of that group
+ * ({@link RendererVolumes}, {@link OutputRoutedVolume}).
  * <p>
  * <b>Events.</b> Volume and mute are reported in the service's {@code LastChange}. A change is put into it by
  * {@code SetVolume}/{@code SetMute} (and any change through {@link SystemVolume}, e.g. the app's volume
@@ -56,7 +58,7 @@ public class YaaccAudioRenderingControlService extends
 
     private static final String MASTER = Channel.Master.name();
 
-    private final SystemVolume volume;
+    private final RendererVolume volume;
     private final VolumeWatcher watcher;
     private final SubscriberAwarePropertyChangeSupport subscribers = new SubscriberAwarePropertyChangeSupport(this);
     private final Runnable changeCallback = this::onSystemVolumeChanged;
@@ -68,10 +70,10 @@ public class YaaccAudioRenderingControlService extends
     private Integer knownVolume;
 
     public YaaccAudioRenderingControlService(Context context) {
-        this(new SystemVolume(context), new SystemVolumeBroadcastWatcher(context));
+        this(RendererVolumes.forContext(context), RendererVolumes.watcherFor(context));
     }
 
-    YaaccAudioRenderingControlService(SystemVolume volume, VolumeWatcher watcher) {
+    YaaccAudioRenderingControlService(RendererVolume volume, VolumeWatcher watcher) {
         super(new ObservableLastChange(new RenderingControlLastChangeParser()));
         this.volume = volume;
         this.watcher = watcher;

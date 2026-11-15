@@ -197,6 +197,10 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
                 wanted.add(parsed.getServerKey());
             }
         }
+        wakeKeys(wanted);
+    }
+
+    private void wakeKeys(Set<SnapcastServerKey> wanted) {
         if (wanted.isEmpty()) {
             return;
         }
@@ -219,6 +223,41 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
         if (any) {
             scheduleClose();
         }
+    }
+
+    /**
+     * Connects to one listed server without a page and without a player (the renderer's group chooser reads its groups with
+     * it, see {@link #groupsOf}); the link closes by itself after the grace period. Nothing for a server that is not listed.
+     */
+    public void wakeServer(SnapcastServerKey key) {
+        if (key != null) {
+            wakeKeys(Collections.singleton(key));
+        }
+    }
+
+    /**
+     * The groups of one server as of its last status, sorted by name.
+     *
+     * @return null while the server is not listed or has not delivered a status (the caller waits and asks again); an
+     * empty list for a server that answered without groups
+     */
+    public List<SnapcastGroupDevice> groupsOf(SnapcastServerKey key) {
+        if (key == null || directory.find(key) == null) {
+            return null;
+        }
+        synchronized (lock) {
+            View view = views.get(key);
+            if (view == null || view.status == null) {
+                return null;
+            }
+        }
+        List<SnapcastGroupDevice> own = new ArrayList<>();
+        for (SnapcastGroupDevice group : groups()) {
+            if (key.equals(group.getServerKey())) {
+                own.add(group);
+            }
+        }
+        return own;
     }
 
     /** Closes every link and forgets everything. */
@@ -565,6 +604,17 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
             SnapcastGroup group = status == null ? null : status.findGroup(id.getGroupId());
             return new GroupState(id.getServerKey(), id.getGroupId(), group, status, view != null && view.online);
         }
+    }
+
+    /**
+     * What a state says about the group, for the renderer's output ({@link SnapcastRendererOutput}): null (no such server in
+     * the list, or a malformed id) is {@code NOT_LISTED}.
+     */
+    public static SnapcastRendererOutput.GroupFacts factsOf(GroupState state) {
+        if (state == null) {
+            return SnapcastRendererOutput.GroupFacts.NOT_LISTED;
+        }
+        return SnapcastRendererOutput.GroupFacts.of(true, state.getStatus() != null, state.getGroup() != null, state.isOnline());
     }
 
     @Override

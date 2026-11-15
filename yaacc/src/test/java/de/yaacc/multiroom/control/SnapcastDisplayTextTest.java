@@ -215,4 +215,64 @@ public class SnapcastDisplayTextTest {
             assertEquals(String.format("U+%04X", c), "ab", SnapcastDisplayText.toastReason("a" + (char) c + "b", 80));
         }
     }
+
+    // ---- S71: every format character, and a name of white space only
+
+    @Test
+    public void everyFormatCharacterOfTheBasicPlaneBecomesAQuestionMark() {
+        int checked = 0;
+        for (int c = 0; c <= 0xFFFF; c++) {
+            if (Character.isSurrogate((char) c) || Character.getType(c) != Character.FORMAT) {
+                continue;
+            }
+            assertEquals("U+" + Integer.toHexString(c), "a?b", SnapcastDisplayText.of("a" + (char) c + "b", 64));
+            checked++;
+        }
+        assertTrue("the platform has format characters in the basic plane: " + checked, checked >= 20);
+    }
+
+    @Test
+    public void formatCharactersTheOldListMissedAreCleanedNow() {
+        // Arabic number sign, Syriac abbreviation mark, Arabic end of ayah style marks, Mongolian vowel separator
+        for (int c : new int[]{0x0600, 0x0601, 0x06DD, 0x070F, 0x08E2, 0x180E}) {
+            assertEquals("U+" + Integer.toHexString(c), "x?y", SnapcastDisplayText.of("x" + new String(Character.toChars(c)) + "y", 64));
+        }
+    }
+
+    @Test
+    public void everyFormatCharacterOutsideTheBasicPlaneBecomesOneQuestionMark() {
+        int checked = 0;
+        for (int c = 0x10000; c <= 0x10FFFF; c++) {
+            if (Character.getType(c) != Character.FORMAT) {
+                continue;
+            }
+            assertEquals("U+" + Integer.toHexString(c), "a?b", SnapcastDisplayText.of("a" + new String(Character.toChars(c)) + "b", 64));
+            checked++;
+        }
+        assertTrue("the platform has format characters outside the basic plane: " + checked, checked >= 90);
+    }
+
+    @Test
+    public void realLettersAndEmojiAreNotTouchedByTheFormatRule() {
+        assertEquals("Küche 厨房 \uD83C\uDFB5", SnapcastDisplayText.of("Küche 厨房 \uD83C\uDFB5", 64));
+        assertEquals("Wohnzimmer", SnapcastDisplayText.of("Wohnzimmer", 64));
+    }
+
+    @Test
+    public void aNameOfWhiteSpaceOnlyIsEmpty() {
+        assertEquals("", SnapcastDisplayText.of("   ", 64));
+        assertEquals("", SnapcastDisplayText.of("\u00A0", 64));
+        assertEquals("", SnapcastDisplayText.of("\u3000\u2003\u2009\u202F\u205F\u1680 \u00A0", 64));
+    }
+
+    @Test
+    public void whiteSpaceInsideOrAroundARealNameIsKeptAsItWas() {
+        assertEquals(" Living room ", SnapcastDisplayText.of(" Living room ", 64));
+        assertEquals("a\u3000b", SnapcastDisplayText.of("a\u3000b", 64));
+    }
+
+    @Test
+    public void aNameThatIsOnlyFormatCharactersShowsQuestionMarksNotAnEmptyLookingName() {
+        assertEquals("??", SnapcastDisplayText.of("\u0600\u06DD", 64));
+    }
 }

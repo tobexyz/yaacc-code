@@ -1166,7 +1166,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         playableItem.setMimeType(mimeType);
         playableItem.setUri(Uri.parse(positionInfo.getTrackURI()));
         YaaccLogger.d(getClass().getName(), "MimeType: " + playableItem.getMimeType());
-        return playerService.getCurrentPlayersOfType(playerService.getPlayerClassForMimeType(mimeType));
+        return playerService.getRendererPlayersOfType(this, playerService.getPlayerClassForMimeType(mimeType));
     }
 
     /**

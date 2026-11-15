@@ -294,6 +294,21 @@ public class AvTransportPlayerEndTest {
         await("STOPPED: nothing plays", () -> transportState(h).equals("STOPPED"));
     }
 
+    @Test
+    public void aFirstPlayThatCreatesNoPlayerLeavesTheTransportStoppedNotPlaying() throws Exception {
+        // task 9.1: the renderer's output can refuse a play (the Snapcast server is not reachable, the group is gone): the toast
+        // tells the user, and the control point must see STOPPED, not a PLAYING that never starts
+        RendererHarness h = renderer();
+        subscribe(h);
+        h.newPlayerCannotBeCreated = true;
+
+        homeAssistantPlays(h, MUSIC);
+
+        assertTrue(h.players.isEmpty());
+        await("STOPPED: nothing plays", () -> transportState(h).equals("STOPPED"));
+        await("the control point is told", () -> "STOPPED".equals(lastEventedTransportState(h)));
+    }
+
     // --- the flow of the owner (issue 296)
 
     @Test

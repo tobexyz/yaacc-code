@@ -77,6 +77,9 @@ public final class SnapcastHub implements SnapcastGroupSource {
     private final SnapcastDiscoveryGate gate;
     // kept in a field: the preferences hold their listeners weakly
     private final SharedPreferences.OnSharedPreferenceChangeListener settingListener;
+    // the ids of the selected receivers as of the last change; the chosen group of the renderer is added to them (task 9.1)
+    private final Object selectionLock = new Object();
+    private Set<String> lastSelection = new HashSet<>();
 
     private SnapcastHub(Context context) {
         this.context = context.getApplicationContext();
@@ -110,6 +113,7 @@ public final class SnapcastHub implements SnapcastGroupSource {
         // the servers of the selected groups are known at once, without a scan (see SnapcastSelectedServers)
         selectedServers.restore();
         final SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this.context);
+        lastSelection = new HashSet<>(readSelection(preferences));
         this.gate = new SnapcastDiscoveryGate(() -> SnapcastSettings.isDiscoveryEnabled(preferences::getBoolean),
                 new SnapcastDiscoveryGate.Discovery() {
                     @Override
@@ -125,6 +129,9 @@ public final class SnapcastHub implements SnapcastGroupSource {
         this.settingListener = (changed, key) -> {
             if (SnapcastSettings.isDiscoveryKey(key)) {
                 gate.settingChanged();
+            }
+            if (SnapcastRendererOutput.KEY_OUTPUT.equals(key) || SnapcastRendererOutput.KEY_GROUP.equals(key)) {
+                rememberServers(); // the server of the renderer's group is remembered while the output is the group
             }
         };
         preferences.registerOnSharedPreferenceChangeListener(settingListener);
@@ -287,10 +294,35 @@ public final class SnapcastHub implements SnapcastGroupSource {
         return receivers.isPending(receiverId);
     }
 
-    /** Remembers the servers of the selected groups, so that the selection survives a restart. */
+    /**
+     * Remembers the servers of the selected groups, so that the selection survives a restart, and the server of the group
+     * the renderer plays into while its output is that group.
+     */
     @Override
     public void selectionChanged(Collection<String> receiverIds) {
-        selectedServers.selectionChanged(receiverIds);
+        synchronized (selectionLock) {
+            lastSelection = receiverIds == null ? new HashSet<String>() : new HashSet<>(receiverIds);
+        }
+        rememberServers();
+    }
+
+    private void rememberServers() {
+        final Set<String> ids;
+        synchronized (selectionLock) {
+            ids = new HashSet<>(lastSelection);
+        }
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        SnapcastRendererOutput.Setting setting = SnapcastRendererOutput.read(key -> preferences.getString(key, null));
+        selectedServers.selectionChanged(SnapcastRendererOutput.withRendererGroup(ids, setting));
+    }
+
+    private Set<String> readSelection(SharedPreferences preferences) {
+        try {
+            Set<String> stored = preferences.getStringSet(context.getString(R.string.settings_selected_receivers_title), null);
+            return stored == null ? new HashSet<String>() : stored;
+        } catch (ClassCastException unreadable) {
+            return new HashSet<>();
+        }
     }
 
     /** Connects to the listed servers of the chosen groups. Does not start the discovery (that is the page's). */

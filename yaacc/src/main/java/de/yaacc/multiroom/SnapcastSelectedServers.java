@@ -126,7 +126,7 @@ public final class SnapcastSelectedServers {
     }
 
     private static boolean isRememberable(SnapcastEndpoint endpoint) {
-        return endpoint != null && endpoint.getAddress() != null && SnapcastAddressFilter.isAccepted(endpoint.getAddress());
+        return endpoint != null && endpoint.getAddress() != null && SnapcastAddressFilter.isAcceptedForDiscovery(endpoint.getAddress());
     }
 
     private List<SnapcastEndpoint> readLocked() {

@@ -52,6 +52,8 @@ import de.yaacc.Yaacc;
 import de.yaacc.browser.BrowserLauncher;
 import de.yaacc.multiroom.SnapcastGroupDevice;
 import de.yaacc.multiroom.SnapcastHub;
+import de.yaacc.multiroom.SnapcastReceivers;
+import de.yaacc.multiroom.SnapcastRendererOutput;
 import de.yaacc.share.ContentDuration;
 import de.yaacc.share.PickedQueue;
 import de.yaacc.share.QueueItems;
@@ -83,6 +85,18 @@ public class PlayerService extends MediaSessionService {
 
     private PowerManager.WakeLock wakeLock;
 
+    // The players that the YAACC renderer made, with the output each was made for (task 9.1). A change of the output setting
+    // stops exactly these players of another output.
+    private final RendererPlayers rendererPlayers = new RendererPlayers();
+    // kept in a field: the preferences hold their listeners weakly
+    private final android.content.SharedPreferences.OnSharedPreferenceChangeListener rendererOutputListener =
+            (preferences, key) -> {
+                if (SnapcastRendererOutput.KEY_OUTPUT.equals(key) || SnapcastRendererOutput.KEY_GROUP.equals(key)) {
+                    rendererOutputChanged(SnapcastRendererOutput.outputKey(
+                            SnapcastRendererOutput.read(stringsOf(preferences))));
+                }
+            };
+
     // Track active MediaSession from LocalMediaSessionPlayer. Two local music players can exist at once (the local one
     // and a Snapcast player), each with its session: the one registered last is the active one, and when it goes the one
     // before it takes over instead of leaving the media controllers with none.
@@ -96,6 +110,7 @@ public class PlayerService extends MediaSessionService {
     @Override
     public void onCreate() {
         super.onCreate();
+        PreferenceManager.getDefaultSharedPreferences(this).registerOnSharedPreferenceChangeListener(rendererOutputListener);
         YaaccLogger.d(getClass().getName(), "Service created");
     }
 
@@ -151,6 +166,7 @@ public class PlayerService extends MediaSessionService {
     }
 
     public void removePlayer(Player player) {
+        rendererPlayers.forget(player);
         playerListChangeNotifier.removeAndNotify(currentActivePlayer, player);
         updateForegroundState();
     }
@@ -185,7 +201,7 @@ public class PlayerService extends MediaSessionService {
         return playerListChangeNotifier.creationSequence(player);
     }
 
-    private void updateForegroundState() {
+    void updateForegroundState() {
         boolean hasPlayingPlayer = false;
 
         // Check if any player is actively playing
@@ -287,6 +303,7 @@ public class PlayerService extends MediaSessionService {
     @Override
     public void onDestroy() {
         YaaccLogger.d(this.getClass().getName(), "On Destroy");
+        PreferenceManager.getDefaultSharedPreferences(this).unregisterOnSharedPreferenceChangeListener(rendererOutputListener);
         // Stop all players before service is destroyed
         shutdown();
         // MediaSession is owned by players, they will release it
@@ -576,22 +593,164 @@ public class PlayerService extends MediaSessionService {
                 video = true;
             }
         }
-        
+
+        // The one place where the output of the renderer is decided, for AVTransport and OpenHome alike (task 9.1)
+        SnapcastRendererOutput.Setting setting = rendererOutputSetting(upnpClient);
+        // as the receiver picker judges it: anything that is not music is not played into a group
+        boolean refusedByAGroup = video || image || !music;
+        SnapcastRendererOutput.Decision decision = SnapcastRendererOutput.resolve(setting, refusedByAGroup,
+                rendererProbe(upnpClient), rendererWaiter(), SnapcastRendererOutput.DEFAULT_MAX_WAIT_MILLIS);
+        if (decision.output() == SnapcastRendererOutput.Output.NONE) {
+            notifyRendererOutputProblem(upnpClient, decision.problem());
+            return resultList;
+        }
+        if (decision.problem() == SnapcastRendererOutput.Problem.DAMAGED_SETTING) {
+            notifyRendererOutputProblem(upnpClient, decision.problem()); // a note: this device plays
+        }
+        List<PlayableItem> playable = leaveOutPlaylistFiles ? PlayableCheck.withoutPlaylistFiles(items) : items;
+        String outputKey = SnapcastRendererOutput.outputKey(setting);
+        if (decision.output() == SnapcastRendererOutput.Output.GROUP) {
+            return createRendererGroupPlayer(upnpClient, decision.receiverId(), playable, outputKey, resultList);
+        }
+
         Device<?, ?, ?> localDevice = upnpClient.getDevice(UpnpClient.LOCAL_UID);
         if (localDevice != null) {
-            List<PlayableItem> playable = leaveOutPlaylistFiles ? PlayableCheck.withoutPlaylistFiles(items) : items;
             if (playable.isEmpty()) {
                 notifyNothingPlayable(upnpClient);
                 return resultList;
             }
             Player result = createPlayer(upnpClient, localDevice, video, image, music);
             if (result != null) {
+                rendererPlayers.tag(result, outputKey);
                 addPlayer(result);
                 result.setItems(playable.toArray(new PlayableItem[0]));
                 resultList.add(result);
             }
         }
         return resultList;
+    }
+
+    /**
+     * The renderer plays into the chosen group: the Snapcast player of the group, made like the one of a group picked in the
+     * app (it does not need the experimental option: the choice in the renderer settings is the user's own). The queue is
+     * the list the caller gave (AVTransport has left its playlist files out, OpenHome keeps its list as it is).
+     */
+    private List<Player> createRendererGroupPlayer(UpnpClient upnpClient, String receiverId, List<PlayableItem> playable,
+                                                   String outputKey, List<Player> resultList) {
+        Device<?, ?, ?> group = upnpClient.getDevice(receiverId);
+        if (!(group instanceof SnapcastGroupDevice)) {
+            // gone between the check and now
+            notifyRendererOutputProblem(upnpClient, SnapcastRendererOutput.Problem.GROUP_GONE);
+            return resultList;
+        }
+        if (playable.isEmpty()) {
+            notifyNothingPlayable(upnpClient);
+            return resultList;
+        }
+        Player result = createSnapcastPlayer(upnpClient, (SnapcastGroupDevice) group, false, false, true);
+        if (result != null) {
+            rendererPlayers.tag(result, outputKey);
+            addPlayer(result);
+            result.setItems(playable.toArray(new PlayableItem[0]));
+            resultList.add(result);
+        }
+        return resultList;
+    }
+
+    // ---- the output of the renderer (task 9.1); the seams are for the tests
+
+    /** The renderer's output setting as it is now (validated at every read, never throws). */
+    SnapcastRendererOutput.Setting rendererOutputSetting(UpnpClient upnpClient) {
+        android.content.Context context = upnpClient == null ? null : upnpClient.getContext();
+        if (context == null) {
+            return SnapcastRendererOutput.read(key -> null); // nothing to read: the default, this device (not a damage)
+        }
+        return SnapcastRendererOutput.read(stringsOf(PreferenceManager.getDefaultSharedPreferences(context)));
+    }
+
+    static SnapcastRendererOutput.StringSource stringsOf(android.content.SharedPreferences preferences) {
+        return preferences == null ? null : key -> preferences.getString(key, null);
+    }
+
+    /** What the model of the servers says about the chosen group, and the wake of its connection. */
+    SnapcastRendererOutput.Probe rendererProbe(UpnpClient upnpClient) {
+        final android.content.Context context = upnpClient.getContext();
+        // only asked in group mode: this device never makes the hub
+        return new SnapcastRendererOutput.Probe() {
+            @Override
+            public SnapcastRendererOutput.GroupFacts facts(String receiverId) {
+                return SnapcastReceivers.factsOf(SnapcastHub.getShared(context).getReceivers().stateOf(receiverId));
+            }
+
+            @Override
+            public void wake(String receiverId) {
+                SnapcastHub.getShared(context).wake(java.util.Collections.singletonList(receiverId));
+            }
+        };
+    }
+
+    /** The real clock and sleep of a play that waits for a connection (a worker thread: never the main thread's). */
+    SnapcastRendererOutput.Waiter rendererWaiter() {
+        return new SnapcastRendererOutput.Waiter() {
+            @Override
+            public long nowMillis() {
+                return android.os.SystemClock.elapsedRealtime();
+            }
+
+            @Override
+            public void sleep(long millis) throws InterruptedException {
+                Thread.sleep(millis);
+            }
+        };
+    }
+
+    /** The message to the user for a refused play (or the note of a damaged setting); any thread. */
+    void notifyRendererOutputProblem(UpnpClient upnpClient, SnapcastRendererOutput.Problem problem) {
+        final android.content.Context context = upnpClient.getContext();
+        final int text = textFor(problem);
+        if (text == 0) {
+            return;
+        }
+        new android.os.Handler(Looper.getMainLooper()).post(() -> Toast.makeText(context, text, Toast.LENGTH_LONG).show());
+    }
+
+    /** The text of a problem; 0 for none. Every problem that refuses a play has one. */
+    public static int textFor(SnapcastRendererOutput.Problem problem) {
+        switch (problem) {
+            case DAMAGED_SETTING:
+                return R.string.renderer_output_damaged_note;
+            case NO_GROUP_CHOSEN:
+                return R.string.renderer_output_error_no_group;
+            case NOT_MUSIC:
+                return R.string.snapcast_play_audio_only;
+            case SERVER_NOT_LISTED:
+                return R.string.renderer_output_error_server_not_listed;
+            case SERVER_UNREACHABLE:
+                return R.string.renderer_output_error_unreachable;
+            case GROUP_GONE:
+                return R.string.renderer_output_error_group_gone;
+            case NONE:
+            default:
+                return 0;
+        }
+    }
+
+    /** For the tests: the players the renderer made. */
+    RendererPlayers rendererPlayers() {
+        return rendererPlayers;
+    }
+
+    /**
+     * The output setting changed to {@code currentKey} (see {@link SnapcastRendererOutput#outputKey}): every player the
+     * renderer made for another output is shut down, like a player that is closed (a Snapcast player closes its feed, gives
+     * the group its stream back and removes YAACC's stream; the transports see the player leave and report STOPPED). Nothing
+     * is started again; the next play uses the new output. Players of the app are never touched.
+     */
+    void rendererOutputChanged(String currentKey) {
+        for (Player player : rendererPlayers.toStopFor(currentKey)) {
+            YaaccLogger.d(getClass().getName(), "renderer output changed: stopping a renderer player");
+            shutdown(player);
+        }
     }
 
     @Override
@@ -910,6 +1069,28 @@ public class PlayerService extends MediaSessionService {
     }
 
     /**
+     * The players that the renderer's transport commands (stop, pause, seek, the position) look for: the current players of the
+     * kind the content needs. With the output set to a Snapcast group the player for music is the Snapcast player of the
+     * chosen group (the lookup by kind deliberately ignores a Snapcast player, see {@link #isOfType}) and never the local
+     * music player of the app; every other kind is looked up as before.
+     */
+    @OptIn(markerClass = UnstableApi.class)
+    public List<Player> getRendererPlayersOfType(UpnpClient upnpClient, Class<?> typeClazz) {
+        SnapcastRendererOutput.Setting setting = rendererOutputSetting(upnpClient);
+        if (typeClazz == LocalMediaSessionPlayer.class && setting.mode() == SnapcastRendererOutput.Mode.GROUP
+                && setting.receiverId() != null) {
+            List<Player> chosen = new ArrayList<>();
+            for (Player player : getCurrentPlayersOfType(SnapcastPlayer.class)) {
+                if (setting.receiverId().equals(player.getDeviceId())) {
+                    chosen.add(player);
+                }
+            }
+            return Collections.unmodifiableList(chosen);
+        }
+        return getCurrentPlayersOfType(typeClazz);
+    }
+
+    /**
      * returns the first current player of the given type.
      *
      * @param typeClazz the requested type
@@ -970,6 +1151,7 @@ public class PlayerService extends MediaSessionService {
     public void shutdown(Player player) {
         assert (player != null);
         YaaccLogger.d(getClass().getName(), "Shutting down player: " + player.getId());
+        rendererPlayers.forget(player);
         playerListChangeNotifier.removeAndNotify(currentActivePlayer, player);
         player.onDestroy();
         updateForegroundState();

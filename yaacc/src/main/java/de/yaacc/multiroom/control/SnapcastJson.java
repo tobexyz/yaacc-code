@@ -192,7 +192,8 @@ public final class SnapcastJson {
      * Server text made safe to show: control characters, line and paragraph separators, bidi controls, the C1 range,
      * the invisible format characters (zero width space and joiners U+200B to U+200D, word joiner and invisible
      * operators U+2060 to U+2064, the deprecated U+2065 to U+206F, soft hyphen U+00AD, U+180E, the byte order mark, the
-     * interlinear annotation marks, the non-characters U+FFFE and U+FFFF), the letters that draw nothing ({@link
+     * interlinear annotation marks, the non-characters U+FFFE and U+FFFF, and every other character of the general
+     * category Cf, in the basic plane or outside it), the letters that draw nothing ({@link
      * #isBlankLooking}), tag characters (U+E0000 to U+E007F) and unpaired surrogates become
      * {@code ?}; the text is cut at {@code max} characters (never inside a surrogate pair). So two names that look the
      * same on the screen are the same text, or show a {@code ?} where they differ. It is still the server's text (display
@@ -213,8 +214,8 @@ public final class SnapcastJson {
             if (Character.isHighSurrogate(c)) {
                 if (i + 1 < length && Character.isLowSurrogate(text.charAt(i + 1))) {
                     int codePoint = Character.toCodePoint(c, text.charAt(i + 1));
-                    if (codePoint >= 0xE0000 && codePoint <= 0xE007F) {
-                        out.append('?'); // a tag character: invisible
+                    if ((codePoint >= 0xE0000 && codePoint <= 0xE007F) || Character.getType(codePoint) == Character.FORMAT) {
+                        out.append('?'); // a tag character or another format character outside the basic plane: invisible
                     } else {
                         out.append(c).append(text.charAt(i + 1));
                     }
@@ -236,6 +237,7 @@ public final class SnapcastJson {
                 || (c >= 0x200b && c <= 0x200d) || (c >= 0x2060 && c <= 0x2064) || c == 0x00ad || c == 0x180e
                 || (c >= 0xfff9 && c <= 0xfffb) || c == 0xfffe || c == 0xffff
                 || (c >= 0x2065 && c <= 0x206f) || isBlankLooking(c)
+                || Character.getType(c) == Character.FORMAT // the general category Cf, whatever the list above forgot (S71)
                 || Character.isLowSurrogate(c);
     }
 

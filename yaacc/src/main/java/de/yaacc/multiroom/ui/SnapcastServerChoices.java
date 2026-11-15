@@ -184,7 +184,7 @@ public final class SnapcastServerChoices {
     }
 
     /** The host first, then the name in brackets: a name from the network can not pose as the address in front of it. */
-    private static String label(String name, String host) {
+    static String label(String name, String host) {
         return name.isEmpty() ? host : host + " (" + name + ")";
     }
 

@@ -200,7 +200,7 @@ public final class SnapcastDirectory {
     public boolean serviceFound(String serviceId, String serviceName, InetAddress address, int port) {
         if (serviceId == null || serviceId.isEmpty() || serviceId.length() > MAX_SERVICE_NAME + MAX_TYPE_PREFIX
                 || serviceName == null || serviceName.isEmpty() || serviceName.length() > MAX_SERVICE_NAME
-                || !SnapcastAddressFilter.isAccepted(address) || port < MIN_DISCOVERED_PORT) {
+                || !SnapcastAddressFilter.isAcceptedForDiscovery(address) || port < MIN_DISCOVERED_PORT) {
             return false;
         }
         SnapcastEndpoint endpoint = SnapcastEndpoint.fromAddress(address, port);
@@ -401,7 +401,7 @@ public final class SnapcastDirectory {
             Set<SnapcastServerKey> wanted = new HashSet<>();
             List<SnapcastEndpoint> ordered = new ArrayList<>();
             for (SnapcastEndpoint endpoint : endpoints == null ? Collections.<SnapcastEndpoint>emptyList() : endpoints) {
-                if (endpoint != null && ordered.size() < MAX_SERVERS && SnapcastAddressFilter.isAccepted(endpoint.getAddress())
+                if (endpoint != null && ordered.size() < MAX_SERVERS && SnapcastAddressFilter.isAcceptedForDiscovery(endpoint.getAddress())
                         && wanted.add(endpoint.toKey())) {
                     ordered.add(endpoint);
                 }

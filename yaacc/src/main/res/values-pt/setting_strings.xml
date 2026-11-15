@@ -125,7 +125,7 @@
     <string name="settings_snapcast_play_experimental_title">Reproduzir em grupos do Snapcast</string>
     <string name="settings_snapcast_play_experimental_summary">Experimental: a música do leitor é enviada para um servidor Snapcast para que um grupo a reproduza. O áudio é enviado sem encriptação para o servidor. Ainda não foi testado num dispositivo.</string>
     <string name="settings_snapcast_discovery_title">Procurar servidores Snapcast</string>
-    <string name="settings_snapcast_discovery_summary">Procura servidores Snapcast na rede local; ativada por predefinição. Envia consultas mDNS pela Wi-Fi e contacta todos os servidores que se anunciam aí. Os anúncios não são autenticados: qualquer dispositivo da rede pode anunciar um servidor. Desmarque a opção em redes em que não confia. Desativada: só são usados os servidores da lista abaixo.</string>
+    <string name="settings_snapcast_discovery_summary">Procura servidores Snapcast na rede local; ativada por predefinição. Envia consultas mDNS pela rede e contacta todos os servidores que se anunciam aí. Os anúncios não são autenticados: qualquer dispositivo da rede pode anunciar um servidor. Desmarque a opção em redes em que não confia. Desativada: só são usados os servidores da lista abaixo.</string>
     <string name="settings_snapcast_servers_title">Servidores Snapcast</string>
     <string name="settings_snapcast_servers_summary">Adicionar servidores por endereço ou removê-los</string>
     <string name="settings_snapcast_about_title">O que o Snapcast precisa</string>
@@ -134,4 +134,13 @@
     <string name="settings_snapcast_client_spike_summary">Experimental: mostra um ecrã de teste onde este telefone reproduz como cliente Snapcast, para verificar a sincronização de ouvido. Desativado por predefinição. O áudio e o controlo são enviados sem cifrar. Ainda não testado num dispositivo.</string>
     <string name="settings_snapcast_client_spike_open_title">Teste de audição do cliente Snapcast</string>
     <string name="settings_snapcast_client_spike_open_summary">Ligar este telefone a um servidor Snapcast e ver os valores de sincronização</string>
+    <string name="settings_renderer_output_title">Saída</string>
+    <string name="settings_renderer_output_summary">Onde o recetor multimédia reproduz o que outras aplicações lhe enviam. Grupo Snapcast: só alimenta o grupo e este telemóvel fica em silêncio; o volume e o silêncio do recetor passam a ser os do grupo. Aplica-se na próxima reprodução; uma reprodução em curso na outra saída é parada.</string>
+    <string name="settings_renderer_output_device">Este dispositivo</string>
+    <string name="settings_renderer_output_group_option">Grupo Snapcast</string>
+    <string name="settings_renderer_output_group_title">Grupo Snapcast</string>
+    <string name="settings_renderer_output_group_none">Nenhum grupo escolhido. Toque para escolher um servidor e um grupo.</string>
+    <string name="settings_renderer_output_group_server">Grupo no servidor %1$s. Toque para alterar.</string>
+    <string name="settings_renderer_output_group_named">%1$s no servidor %2$s. Toque para alterar.</string>
+    <string name="settings_renderer_output_group_damaged">O grupo guardado está danificado; o recetor reproduz neste dispositivo. Toque para escolher o grupo de novo.</string>
 </resources>

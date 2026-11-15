@@ -27,11 +27,23 @@ import java.net.InetAddress;
  * the local network: loopback, IPv4 private ranges (10/8, 172.16/12, 192.168/16), link-local (169.254/16 and
  * fe80::/10) and the IPv6 unique-local range fc00::/7. Everything else (public addresses, the carrier-grade NAT range
  * 100.64/10, the deprecated IPv6 site-local range fec0::/10, unspecified and multicast addresses) is refused. A server
- * that the user typed in is not filtered by range (see {@link SnapcastEndpoint}).
+ * that the user typed in is not filtered by range (see {@link SnapcastEndpoint}). {@link #isAccepted} is the "local
+ * network" test (it keeps loopback, the client settings use it for their public-address warning); what an announcement
+ * or a remembered server must pass is {@link #isAcceptedForDiscovery}, which also refuses loopback.
  */
 public final class SnapcastAddressFilter {
 
     private SnapcastAddressFilter() {
+    }
+
+    /**
+     * @return true if a <b>discovered</b> (announced, or remembered after being announced) server may be at this address:
+     * {@link #isAccepted} without loopback (security review S72). An announcement of {@code 127.0.0.1} or {@code ::1} can only
+     * come from this phone or from a forwarder and aims the app at a local service; a server the user <i>typed in</i> at a
+     * loopback address (the test rig does) is not filtered at all.
+     */
+    public static boolean isAcceptedForDiscovery(InetAddress address) {
+        return address != null && !address.isLoopbackAddress() && isAccepted(address);
     }
 
     /** @return true if a discovered server may be at this address */

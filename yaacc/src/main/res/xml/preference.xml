@@ -176,6 +176,17 @@
             android:title="@string/settings_local_server_receiver_title"
             android:summaryOff="@string/settings_local_server_receiver_off"
             android:summaryOn="@string/settings_local_server_receiver_on" />
+        <ListPreference
+            android:defaultValue="device"
+            android:dependency="@string/settings_local_server_receiver_chkbx"
+            android:key="@string/settings_renderer_output"
+            android:summary="@string/settings_renderer_output_summary"
+            android:title="@string/settings_renderer_output_title" />
+        <Preference
+            android:dependency="@string/settings_local_server_receiver_chkbx"
+            android:key="@string/settings_renderer_output_group"
+            android:persistent="false"
+            android:title="@string/settings_renderer_output_group_title" />
         <CheckBoxPreference
             android:key="@string/settings_local_server_provider_chkbx"
             android:title="@string/settings_local_server_provider_title"

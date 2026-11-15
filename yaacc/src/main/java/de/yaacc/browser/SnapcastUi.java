@@ -43,7 +43,7 @@ import de.yaacc.multiroom.ui.SnapcastVolumeKeys;
  * the presentation classes backed by string resources. Thin Android glue; the decisions are in the classes of
  * {@code de.yaacc.multiroom.ui}.
  */
-final class SnapcastUi {
+public final class SnapcastUi {
 
     private static final long TOAST_GAP_MILLIS = 3_000L;
 
@@ -54,7 +54,7 @@ final class SnapcastUi {
     }
 
     /** The controls of the app; they use the connections that {@link SnapcastHub} holds. */
-    static synchronized SnapcastControls controls(Context context) {
+    public static synchronized SnapcastControls controls(Context context) {
         if (controls == null) {
             final Context app = context.getApplicationContext();
             final Handler main = new Handler(Looper.getMainLooper());
