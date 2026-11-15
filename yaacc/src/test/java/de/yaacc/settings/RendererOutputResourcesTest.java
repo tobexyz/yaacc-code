@@ -84,6 +84,7 @@ public class RendererOutputResourcesTest {
 
     private static final String[] PLAY_TEXTS = {"renderer_output_damaged_note", "renderer_output_error_no_group",
             "renderer_output_error_server_not_listed", "renderer_output_error_unreachable", "renderer_output_error_group_gone",
+            "renderer_output_error_unknown_type",
             "renderer_group_server_title", "renderer_group_group_title", "renderer_group_no_servers", "renderer_group_reading",
             "renderer_group_unreachable", "renderer_group_none", "renderer_group_members"};
 
@@ -203,5 +204,49 @@ public class RendererOutputResourcesTest {
         assertTrue(english.get("renderer_output_error_unreachable").contains("does not answer"));
         assertTrue(english.get("renderer_output_error_group_gone").contains("not on its Snapcast server any more"));
         assertTrue(english.get("renderer_output_damaged_note").contains("playing on this device"));
+    }
+
+    @Test
+    public void theSummaryOfTheOutputSaysTheAudioIsUnencryptedAndExperimentalInEveryLocale() throws Exception {
+        // Fix Group 9b W2: choosing the group starts the same feed as the experimental option, so the same disclosure is there
+        String[][] words = {
+                {"values", "Experimental", "unencrypted", "Not tested on a device yet"},
+                {"values-de", "Experimentell", "unverschlüsselt", "noch nicht getestet"},
+                {"values-es", "Experimental", "sin cifrar", "Aún no se ha probado"},
+                {"values-fr", "Expérimental", "non chiffré", "Pas encore testé"},
+                {"values-nl", "Experimenteel", "onversleuteld", "Nog niet op een apparaat getest"},
+                {"values-pt", "Experimental", "sem encriptação", "Ainda não foi testado"},
+                {"values-zh", "实验性功能", "未加密", "尚未在设备上测试"}};
+        for (String[] row : words) {
+            String text = strings(row[0], "setting_strings.xml").get("settings_renderer_output_summary");
+            for (int i = 1; i < row.length; i++) {
+                assertTrue(row[0] + " summary lacks \"" + row[i] + "\": " + text, text.contains(row[i]));
+            }
+        }
+    }
+
+    @Test
+    public void theMessageForAnUnknownTypeSaysWhatIsMissing() throws Exception {
+        String english = strings("values", "strings.xml").get("renderer_output_error_unknown_type");
+
+        assertTrue(english, english.contains("type of this content is unknown"));
+        assertTrue(english, english.contains("Nothing was played"));
+    }
+
+    @Test
+    public void theDocumentationTellsTheDisclosureWhereTheOutputIsDescribed() throws Exception {
+        // the docs live one level above the module directory
+        for (String file : new String[]{"../README.md", "../CHANGELOG.md", "../docs/settings.md"}) {
+            String text = read(file);
+            int at = text.indexOf("renderer_output");
+            String paragraph = at >= 0 ? text.substring(at) : text;
+            int start = file.endsWith("settings.md") ? Math.max(0, text.indexOf("output of the media receiver")) :
+                    text.indexOf(file.endsWith("README.md") ? "The YAACC renderer into a group" : "Media renderer output: play into a Snapcast group");
+            assertTrue(file + " describes the output", start >= 0);
+            String entry = text.substring(start, Math.min(text.length(), start + 2500));
+            assertTrue(file + " says unencrypted: " + entry, entry.contains("unencrypted"));
+            assertTrue(file + " says it is not tested on a device", entry.contains("not tested on a device") || entry.contains("Not tested on a device")
+                    || entry.contains("not tested on a device yet"));
+        }
     }
 }

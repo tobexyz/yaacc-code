@@ -152,8 +152,9 @@ public class YaaccAudioRenderingControlService extends
             boolean mute;
             int percent;
             try {
-                mute = volume.isMuted();
-                percent = volume.getPercent();
+                // the check of a change reads the way that wakes no connection: the idle close of a group's link is itself a change
+                mute = volume.peekMuted();
+                percent = volume.peekPercent();
             } catch (RuntimeException e) {
                 YaaccLogger.w(getClass().getName(), "Volume not readable, no event", e);
                 return;
@@ -197,8 +198,9 @@ public class YaaccAudioRenderingControlService extends
         // the state a new subscriber gets is read after it is registered, so this is what it knows; later changes differ from it
         synchronized (stateLock) {
             try {
-                knownMute = volume.isMuted();
-                knownVolume = volume.getPercent();
+                volume.wakeNow(); // a subscriber came: the connection to the group's server is brought up once
+                knownMute = volume.peekMuted();
+                knownVolume = volume.peekPercent();
             } catch (RuntimeException e) {
                 knownMute = null;
                 knownVolume = null;

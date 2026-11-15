@@ -576,4 +576,89 @@ public class RenderingControlEventsTest {
             assertEquals(channel, "47", element(answer, "CurrentVolume"));
         }
     }
+
+    // --- Fix Group 9b W4: the event check reads without waking, a subscriber and a Get call do wake
+
+    /** A volume that records which way it was read: the controller's own call, or the check of a change event. */
+    private static final class RecordingVolume implements RendererVolume {
+        final AtomicInteger gets = new AtomicInteger();
+        final AtomicInteger peeks = new AtomicInteger();
+        final AtomicInteger wakes = new AtomicInteger();
+        volatile int percent = 40;
+
+        @Override
+        public int getPercent() {
+            gets.incrementAndGet();
+            return percent;
+        }
+
+        @Override
+        public boolean isMuted() {
+            gets.incrementAndGet();
+            return false;
+        }
+
+        @Override
+        public int peekPercent() {
+            peeks.incrementAndGet();
+            return percent;
+        }
+
+        @Override
+        public boolean peekMuted() {
+            peeks.incrementAndGet();
+            return false;
+        }
+
+        @Override
+        public void wakeNow() {
+            wakes.incrementAndGet();
+        }
+
+        @Override
+        public void setPercent(int desired) {
+            percent = desired;
+        }
+
+        @Override
+        public void setMuted(boolean mute) {
+        }
+    }
+
+    @Test
+    public void theCheckOfAChangeEventNeverReadsTheWayThatWakesAConnection() throws Exception {
+        RecordingVolume recording = new RecordingVolume();
+        ServiceHarness<AbstractAudioRenderingControl> own = new ServiceHarness<>(AbstractAudioRenderingControl.class, TYPE,
+                "RenderingControl", service -> new RenderingControlServiceManager(service, LOCK_TIMEOUT_MILLIS,
+                () -> new YaaccAudioRenderingControlService(recording, watcher)));
+        harnesses.add(own);
+        h = own;
+
+        subscribeAndAwaitInitialEvent();
+        assertEquals("the first subscriber wakes the connection once", 1, recording.wakes.get());
+        int getsAfterSubscribing = recording.gets.get();
+        recording.percent = 55;
+        watcher.systemVolumeChanged(); // what the idle close of the link (a group change) makes
+        watcher.systemVolumeChanged();
+        await("the Volume event", () -> anyCarries("Volume", "55"));
+
+        assertEquals("the change check reads the way that wakes nothing", getsAfterSubscribing, recording.gets.get());
+        assertTrue(recording.peeks.get() >= 2);
+        assertEquals("a change event wakes nothing", 1, recording.wakes.get());
+    }
+
+    @Test
+    public void aGetVolumeCallOfTheControllerIsAnOrdinaryRead() throws Exception {
+        RecordingVolume recording = new RecordingVolume();
+        ServiceHarness<AbstractAudioRenderingControl> own = new ServiceHarness<>(AbstractAudioRenderingControl.class, TYPE,
+                "RenderingControl", service -> new RenderingControlServiceManager(service, LOCK_TIMEOUT_MILLIS,
+                () -> new YaaccAudioRenderingControlService(recording, watcher)));
+        harnesses.add(own);
+        h = own;
+
+        assertTrue(ServiceHarness.succeeded(getVolume()));
+
+        assertEquals(1, recording.gets.get());
+        assertEquals(0, recording.peeks.get());
+    }
 }

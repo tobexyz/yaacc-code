@@ -135,7 +135,7 @@
     <string name="settings_snapcast_client_spike_open_title">Snapcast-Client-Hörtest</string>
     <string name="settings_snapcast_client_spike_open_summary">Dieses Telefon mit einem Snapcast-Server verbinden und die Sync-Werte ansehen</string>
     <string name="settings_renderer_output_title">Ausgabe</string>
-    <string name="settings_renderer_output_summary">Wohin der Medienempfänger abspielt, was andere Apps ihm senden. Snapcast-Gruppe: Er speist nur die Gruppe, dieses Telefon bleibt still; Lautstärke und Stumm des Empfängers sind dann die der Gruppe. Gilt ab dem nächsten Abspielen; eine laufende Wiedergabe auf der anderen Ausgabe wird beendet.</string>
+    <string name="settings_renderer_output_summary">Wohin der Medienempfänger abspielt, was andere Apps ihm senden. Snapcast-Gruppe: Er speist nur die Gruppe, dieses Telefon bleibt still; Lautstärke und Stumm des Empfängers sind dann die der Gruppe. Gilt ab dem nächsten Abspielen; eine laufende Wiedergabe auf der anderen Ausgabe wird beendet. Experimentell: Das Audio wird unverschlüsselt an den Server gesendet. Auf einem Gerät noch nicht getestet.</string>
     <string name="settings_renderer_output_device">Dieses Gerät</string>
     <string name="settings_renderer_output_group_option">Snapcast-Gruppe</string>
     <string name="settings_renderer_output_group_title">Snapcast-Gruppe</string>

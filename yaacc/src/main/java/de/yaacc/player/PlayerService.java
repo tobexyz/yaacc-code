@@ -596,10 +596,14 @@ public class PlayerService extends MediaSessionService {
 
         // The one place where the output of the renderer is decided, for AVTransport and OpenHome alike (task 9.1)
         SnapcastRendererOutput.Setting setting = rendererOutputSetting(upnpClient);
-        // as the receiver picker judges it: anything that is not music is not played into a group
-        boolean refusedByAGroup = video || image || !music;
-        SnapcastRendererOutput.Decision decision = SnapcastRendererOutput.resolve(setting, refusedByAGroup,
-                rendererProbe(upnpClient), rendererWaiter(), SnapcastRendererOutput.DEFAULT_MAX_WAIT_MILLIS);
+        // a group plays music only: video and images are refused, a content without a type has a message of its own
+        List<String> types = new ArrayList<>();
+        for (PlayableItem playableItem : items) {
+            types.add(playableItem.getMimeType());
+        }
+        SnapcastRendererOutput.Decision decision = SnapcastRendererOutput.resolve(setting,
+                SnapcastRendererOutput.contentOf(types), rendererProbe(upnpClient), rendererWaiter(),
+                SnapcastRendererOutput.DEFAULT_MAX_WAIT_MILLIS);
         if (decision.output() == SnapcastRendererOutput.Output.NONE) {
             notifyRendererOutputProblem(upnpClient, decision.problem());
             return resultList;
@@ -624,10 +628,28 @@ public class PlayerService extends MediaSessionService {
                 rendererPlayers.tag(result, outputKey);
                 addPlayer(result);
                 result.setItems(playable.toArray(new PlayableItem[0]));
-                resultList.add(result);
+                if (keepIfOutputIsCurrent(upnpClient, result, outputKey)) {
+                    resultList.add(result);
+                }
             }
         }
         return resultList;
+    }
+
+    /**
+     * The setting is read once at the start of a play, and a play may wait for a server; if the output was switched meanwhile
+     * the player that was made for the old output is shut down at once (the listener of the change found nothing tagged yet)
+     * and the play ends without a player, which the transport reports as STOPPED.
+     *
+     * @return true when the player is for the output the setting says now
+     */
+    private boolean keepIfOutputIsCurrent(UpnpClient upnpClient, Player player, String madeFor) {
+        if (!SnapcastRendererOutput.isStale(madeFor, rendererOutputSetting(upnpClient))) {
+            return true;
+        }
+        YaaccLogger.d(getClass().getName(), "renderer output changed during the play: stopping the new renderer player");
+        shutdown(player);
+        return false;
     }
 
     /**
@@ -652,7 +674,9 @@ public class PlayerService extends MediaSessionService {
             rendererPlayers.tag(result, outputKey);
             addPlayer(result);
             result.setItems(playable.toArray(new PlayableItem[0]));
-            resultList.add(result);
+            if (keepIfOutputIsCurrent(upnpClient, result, outputKey)) {
+                resultList.add(result);
+            }
         }
         return resultList;
     }
@@ -729,6 +753,8 @@ public class PlayerService extends MediaSessionService {
                 return R.string.renderer_output_error_unreachable;
             case GROUP_GONE:
                 return R.string.renderer_output_error_group_gone;
+            case UNKNOWN_TYPE:
+                return R.string.renderer_output_error_unknown_type;
             case NONE:
             default:
                 return 0;

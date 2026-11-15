@@ -192,8 +192,8 @@ final class ReceiverVolumeLiveUpdater implements VolumeKeyHosts.Host {
             Device<?, ?, ?> device = row.getKey();
             if (ReceiverRowBinder.isLocalDevice(device)) {
                 String id = device.getIdentity().getUdn().getIdentifierString();
-                binder.showVolume(row.getValue(), id, now, upnpClient.getVolume());
-                binder.showMute(row.getValue(), id, now, upnpClient.isMute());
+                binder.showVolume(row.getValue(), id, now, upnpClient.getVolume(device));
+                binder.showMute(row.getValue(), id, now, upnpClient.getMute(device));
             }
         }
     }

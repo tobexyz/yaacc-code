@@ -253,7 +253,7 @@ public class PlayerServiceRendererOutputTest {
     public void videoAndImagesAreRefusedInGroupModeWithAMessageAndNothingPlaysLocally() {
         groupMode();
 
-        for (String mime : new String[]{"video/mp4", "image/png", null, ""}) {
+        for (String mime : new String[]{"video/mp4", "image/png", "application/pdf"}) {
             told.clear();
             List<Player> players = service.createPlayerForLocalDevice(client, Collections.singletonList(item(mime, "x")));
 
@@ -440,5 +440,81 @@ public class PlayerServiceRendererOutputTest {
         doReturn(Collections.singletonList(video)).when(service).getCurrentPlayersOfType(MultiContentPlayer.class);
 
         assertEquals(Collections.singletonList(video), service.getRendererPlayersOfType(client, MultiContentPlayer.class));
+    }
+
+    // ---- Fix Group 9b S5: a content without a type has its own message
+
+    @Test
+    public void aContentWithoutATypeIsRefusedInGroupModeWithItsOwnMessage() {
+        groupMode();
+
+        for (String mime : new String[]{null, ""}) {
+            told.clear();
+            List<Player> players = service.createPlayerForLocalDevice(client, Collections.singletonList(item(mime, "x")));
+
+            assertTrue(players.isEmpty());
+            assertEquals(String.valueOf(mime), Collections.singletonList(Problem.UNKNOWN_TYPE), told);
+        }
+        assertEquals("the server was not asked", 0, probes);
+        verify(service, never()).newSnapcastPlayer(any(), any());
+    }
+
+    @Test
+    public void aContentWithoutATypeStillPlaysLocallyWhenTheOutputIsThisDevice() {
+        List<Player> players = service.createPlayerForLocalDevice(client, Collections.singletonList(item(null, "x")));
+
+        assertEquals(1, players.size());
+        assertTrue(told.isEmpty());
+    }
+
+    // ---- Fix Group 9b S1: the setting changed while the play was waiting
+
+    @Test
+    public void aSwitchToThisDeviceWhileThePlayWaitsForTheServerLeavesNoGroupPlayerRunning() {
+        groupMode();
+        doNothing().when(service).shutdown(any(Player.class));
+        doAnswer(call -> new SnapcastRendererOutput.Probe() {
+            int asked;
+
+            @Override
+            public GroupFacts facts(String receiverId) {
+                return ++asked < 3 ? GroupFacts.PENDING : GroupFacts.READY;
+            }
+
+            @Override
+            public void wake(String receiverId) {
+                prefs.put(SnapcastRendererOutput.KEY_OUTPUT, "device"); // the user switches during the wait
+            }
+        }).when(service).rendererProbe(any());
+
+        List<Player> players = service.createPlayerForLocalDevice(client, Arrays.asList(item("audio/mpeg", "a.mp3")));
+
+        verify(service).shutdown(snapcastPlayer);
+        assertTrue("the play ends without a player: the transport says STOPPED", players.isEmpty());
+    }
+
+    @Test
+    public void aSwitchToTheGroupWhileALocalPlayerIsBeingMadeLeavesNoLocalPlayerRunning() {
+        doNothing().when(service).shutdown(any(Player.class));
+        doAnswer(call -> {
+            groupMode(); // the user switches while the local player is made
+            return localPlayer;
+        }).when(service).createPlayer(any(), eq(localDevice), anyBoolean(), anyBoolean(), anyBoolean());
+
+        List<Player> players = service.createPlayerForLocalDevice(client, Arrays.asList(item("audio/mpeg", "a.mp3")));
+
+        verify(service).shutdown(localPlayer);
+        assertTrue(players.isEmpty());
+    }
+
+    @Test
+    public void withoutASwitchThePlayerIsKept() {
+        groupMode();
+        doNothing().when(service).shutdown(any(Player.class));
+
+        List<Player> players = service.createPlayerForLocalDevice(client, Arrays.asList(item("audio/mpeg", "a.mp3")));
+
+        assertEquals(1, players.size());
+        verify(service, never()).shutdown(any(Player.class));
     }
 }

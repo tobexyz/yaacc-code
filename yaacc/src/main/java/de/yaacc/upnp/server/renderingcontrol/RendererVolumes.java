@@ -98,27 +98,78 @@ public final class RendererVolumes {
     /** The watcher of the RenderingControl service: the system broadcast, the groups and the setting. */
     static VolumeWatcher watcherFor(final Context context) {
         final Context app = context.getApplicationContext() == null ? context : context.getApplicationContext();
-        return new RoutedVolumeWatcher(new SystemVolumeBroadcastWatcher(context), onChange -> {
-            final SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(app);
-            final SnapcastHub hub = SnapcastHub.getShared(app);
-            final SnapcastReceivers.ChangeListener groups = () -> {
-                if (SnapcastRendererOutput.read(key -> preferences.getString(key, null)).mode() == SnapcastRendererOutput.Mode.GROUP) {
+        return new RoutedVolumeWatcher(new SystemVolumeBroadcastWatcher(context), onChange -> new GroupSubscription(app, onChange).start());
+    }
+
+    /**
+     * The changes of the groups and of the output setting for one watch. The hub is taken only when the output is a group (it
+     * is not made, and no listener is put on it, while the output is this device); a switch to the group while a control point
+     * is subscribed attaches it then and wakes the connection once, like the first subscriber does.
+     */
+    private static final class GroupSubscription {
+        private final Context app;
+        private final Runnable onChange;
+        private final SharedPreferences preferences;
+        private final Object lock = new Object();
+        private boolean attached; // guarded by lock
+        private boolean released; // guarded by lock
+        private SnapcastHub hub; // guarded by lock
+        // the preferences hold their listeners weakly: this field keeps it alive until it is let go
+        private final SharedPreferences.OnSharedPreferenceChangeListener setting;
+        private final SnapcastReceivers.ChangeListener groups;
+
+        GroupSubscription(Context app, Runnable onChange) {
+            this.app = app;
+            this.onChange = onChange;
+            this.preferences = PreferenceManager.getDefaultSharedPreferences(app);
+            this.groups = () -> {
+                if (isGroupMode()) {
                     onChange.run();
                 }
             };
-            // the preferences hold their listeners weakly: the closure below keeps it alive until it is let go
-            final SharedPreferences.OnSharedPreferenceChangeListener setting = (changed, key) -> {
+            this.setting = (changed, key) -> {
                 if (SnapcastRendererOutput.KEY_OUTPUT.equals(key) || SnapcastRendererOutput.KEY_GROUP.equals(key)) {
+                    attachIfGroup();
+                    forContext(app).wakeNow(); // nothing unless the output is a group now
                     onChange.run();
                 }
             };
-            hub.addChangeListener(groups);
+        }
+
+        Runnable start() {
             preferences.registerOnSharedPreferenceChangeListener(setting);
-            return () -> {
-                hub.removeChangeListener(groups);
-                preferences.unregisterOnSharedPreferenceChangeListener(setting);
-            };
-        });
+            attachIfGroup();
+            return this::release;
+        }
+
+        private boolean isGroupMode() {
+            return SnapcastRendererOutput.read(key -> preferences.getString(key, null)).mode() == SnapcastRendererOutput.Mode.GROUP;
+        }
+
+        private void attachIfGroup() {
+            if (!isGroupMode()) {
+                return;
+            }
+            synchronized (lock) {
+                if (attached || released) {
+                    return;
+                }
+                attached = true;
+                hub = SnapcastHub.getShared(app);
+                hub.addChangeListener(groups);
+            }
+        }
+
+        private void release() {
+            synchronized (lock) {
+                released = true;
+                if (attached && hub != null) {
+                    hub.removeChangeListener(groups);
+                }
+                attached = false;
+            }
+            preferences.unregisterOnSharedPreferenceChangeListener(setting);
+        }
     }
 
     /** The group's side: the model for reading, the controls for setting. */

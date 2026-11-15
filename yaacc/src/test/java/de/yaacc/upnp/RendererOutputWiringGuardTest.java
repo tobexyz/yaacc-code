@@ -123,8 +123,9 @@ public class RendererOutputWiringGuardTest {
     public void theReadPathOfTheRoutedVolumeNeverSetsAnything() throws Exception {
         String routed = source("upnp/server/renderingcontrol/OutputRoutedVolume.java");
 
-        for (String read : new String[]{"public int getPercent()", "public boolean isMuted()", "private Level read(Setting setting)",
-                "private void wakeIfDue(String id)"}) {
+        for (String read : new String[]{"public int getPercent()", "public boolean isMuted()", "public int peekPercent()",
+                "public boolean peekMuted()", "private int percent(boolean mayWake)", "private boolean muted(boolean mayWake)",
+                "private Level read(Setting setting, boolean mayWake)", "private void wake(String id, boolean force)"}) {
             String body = methodBody(routed, read);
             assertFalse(read, body.contains("group.setVolume(") || body.contains("group.setMuted(") || body.contains("local.setPercent(")
                     || body.contains("local.setMuted(") || body.contains("sender.execute("));
@@ -137,11 +138,36 @@ public class RendererOutputWiringGuardTest {
     @Test
     public void theWatcherOnlyCallsTheReadingCallback() throws Exception {
         String volumes = source("upnp/server/renderingcontrol/RendererVolumes.java");
-        String groupsListener = volumes.substring(volumes.indexOf("final SnapcastReceivers.ChangeListener groups"),
-                volumes.indexOf("hub.addChangeListener(groups)"));
+        String groupsListener = volumes.substring(volumes.indexOf("this.groups = () -> {"), volumes.indexOf("this.setting = (changed, key)"));
 
         assertTrue(groupsListener.contains("onChange.run()"));
         assertFalse(groupsListener.contains("setVolume") || groupsListener.contains("setMuted") || groupsListener.contains("controls"));
+        assertFalse("the change of a group never wakes a connection (the idle close is a change)", groupsListener.contains("wakeNow"));
+        // the hub is taken only when the output is a group
+        assertTrue(methodBody(volumes, "private void attachIfGroup()").contains("if (!isGroupMode())"));
+        assertEquals("only attachIfGroup makes the hub", 1, count(volumes.substring(volumes.indexOf("private static final class GroupSubscription")),
+                "SnapcastHub.getShared(app)"));
+    }
+
+    @Test
+    public void theChangeCheckOfTheRenderingControlServiceReadsWithoutWaking() throws Exception {
+        String rendering = source("upnp/server/renderingcontrol/YaaccAudioRenderingControlService.java");
+        String check = methodBody(rendering, "void onSystemVolumeChanged()");
+
+        assertTrue(check.contains("volume.peekMuted()") && check.contains("volume.peekPercent()"));
+        assertFalse(check.contains("volume.isMuted()") || check.contains("volume.getPercent()"));
+        assertTrue(methodBody(rendering, "private void startWatching()").contains("volume.wakeNow()"));
+    }
+
+    @Test
+    public void theRowOfTheOwnRendererFollowsTheOutputAndTheRowOfThisPhoneDoesNot() throws Exception {
+        String client = source("upnp/UpnpClient.java");
+
+        assertTrue(methodBody(client, "RendererVolume volumeOf(Device<?, ?, ?> device)").contains("device instanceof LocalDevice ? rendererVolume()"));
+        for (String method : new String[]{"public boolean getMute(Device<?, ?, ?> device)", "public void setMute(Device<?, ?, ?> device, boolean mute)",
+                "public int getVolume(Device<?, ?, ?> device)", "public void setVolume(Device<?, ?, ?> device, int volume)"}) {
+            assertTrue(method, methodBody(client, method).contains("volumeOf(device)"));
+        }
     }
 
     @Test

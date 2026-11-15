@@ -27,6 +27,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -425,5 +426,75 @@ public class SnapcastRendererOutputTest {
                 SnapcastRendererOutput.withRendererGroup(null, SnapcastRendererOutput.read(prefs("group", ID))));
         assertEquals(java.util.Collections.singleton(OTHER),
                 SnapcastRendererOutput.withRendererGroup(java.util.Collections.singleton(OTHER), null));
+    }
+
+    // ---- Fix Group 9b S2: a missing fact never plays
+
+    @Test
+    public void aMissingFactIsNeverTheGroupOutput() {
+        Decision decision = SnapcastRendererOutput.decide(SnapcastRendererOutput.read(prefs("group", ID)), false, null);
+
+        assertEquals(Output.NONE, decision.output());
+        assertEquals(Problem.SERVER_UNREACHABLE, decision.problem());
+    }
+
+    // ---- Fix Group 9b S5: what the content is, and the text of an unknown type
+
+    @Test
+    public void contentIsJudgedByItsTypes() {
+        assertEquals(SnapcastRendererOutput.Content.PLAYABLE, SnapcastRendererOutput.contentOf(Arrays.asList("audio/mpeg", "audio/flac")));
+        assertEquals(SnapcastRendererOutput.Content.NOT_MUSIC, SnapcastRendererOutput.contentOf(Arrays.asList("video/mp4")));
+        assertEquals(SnapcastRendererOutput.Content.NOT_MUSIC, SnapcastRendererOutput.contentOf(Arrays.asList("audio/mpeg", "image/png")));
+        assertEquals("not audio at all", SnapcastRendererOutput.Content.NOT_MUSIC,
+                SnapcastRendererOutput.contentOf(Arrays.asList("application/pdf")));
+        assertEquals(SnapcastRendererOutput.Content.UNKNOWN_TYPE, SnapcastRendererOutput.contentOf(Arrays.asList((String) null)));
+        assertEquals(SnapcastRendererOutput.Content.UNKNOWN_TYPE, SnapcastRendererOutput.contentOf(Arrays.asList("")));
+        assertEquals(SnapcastRendererOutput.Content.UNKNOWN_TYPE, SnapcastRendererOutput.contentOf(Arrays.asList("audio/mpeg", null)));
+        assertEquals("a video is a video even next to an unknown one", SnapcastRendererOutput.Content.NOT_MUSIC,
+                SnapcastRendererOutput.contentOf(Arrays.asList(null, "video/mp4")));
+        assertEquals(SnapcastRendererOutput.Content.UNKNOWN_TYPE, SnapcastRendererOutput.contentOf(null));
+        assertEquals(SnapcastRendererOutput.Content.UNKNOWN_TYPE, SnapcastRendererOutput.contentOf(new ArrayList<String>()));
+        assertEquals("case is no matter", SnapcastRendererOutput.Content.PLAYABLE, SnapcastRendererOutput.contentOf(Arrays.asList("Audio/MPEG")));
+    }
+
+    @Test
+    public void anUnknownTypeIsRefusedWithItsOwnProblemInGroupModeAndPlaysLocallyOtherwise() {
+        Setting group = SnapcastRendererOutput.read(prefs("group", ID));
+
+        Decision refused = SnapcastRendererOutput.decide(group, SnapcastRendererOutput.Content.UNKNOWN_TYPE, GroupFacts.READY);
+        Decision local = SnapcastRendererOutput.decide(SnapcastRendererOutput.read(prefs(null, null)), SnapcastRendererOutput.Content.UNKNOWN_TYPE, null);
+
+        assertEquals(Output.NONE, refused.output());
+        assertEquals(Problem.UNKNOWN_TYPE, refused.problem());
+        assertEquals(Output.LOCAL, local.output());
+        assertEquals("a group that is not chosen is the first thing to say", Problem.NO_GROUP_CHOSEN,
+                SnapcastRendererOutput.decide(SnapcastRendererOutput.read(prefs("group", null)), SnapcastRendererOutput.Content.UNKNOWN_TYPE, null).problem());
+    }
+
+    @Test
+    public void anUnknownTypeDoesNotWakeTheServerEither() {
+        FakeWorld world = new FakeWorld(GroupFacts.PENDING);
+
+        Decision decision = SnapcastRendererOutput.resolve(SnapcastRendererOutput.read(prefs("group", ID)),
+                SnapcastRendererOutput.Content.UNKNOWN_TYPE, world, world, 4_000);
+
+        assertEquals(Problem.UNKNOWN_TYPE, decision.problem());
+        assertEquals(0, world.asked);
+        assertEquals(0, world.wakes);
+    }
+
+    // ---- Fix Group 9b S1: a player made for an output that is no longer the setting
+
+    @Test
+    public void aPlayerIsStaleWhenTheSettingNowIsAnotherOutput() {
+        String madeForDevice = SnapcastRendererOutput.outputKey(SnapcastRendererOutput.read(prefs(null, null)));
+        String madeForGroup = SnapcastRendererOutput.outputKey(SnapcastRendererOutput.read(prefs("group", ID)));
+
+        assertFalse(SnapcastRendererOutput.isStale(madeForDevice, SnapcastRendererOutput.read(prefs("device", null))));
+        assertFalse(SnapcastRendererOutput.isStale(madeForGroup, SnapcastRendererOutput.read(prefs("group", ID))));
+        assertTrue(SnapcastRendererOutput.isStale(madeForDevice, SnapcastRendererOutput.read(prefs("group", ID))));
+        assertTrue(SnapcastRendererOutput.isStale(madeForGroup, SnapcastRendererOutput.read(prefs("device", null))));
+        assertTrue("another group", SnapcastRendererOutput.isStale(madeForGroup, SnapcastRendererOutput.read(prefs("group", OTHER))));
+        assertTrue("an unknown key is stale", SnapcastRendererOutput.isStale(null, SnapcastRendererOutput.read(prefs(null, null))));
     }
 }

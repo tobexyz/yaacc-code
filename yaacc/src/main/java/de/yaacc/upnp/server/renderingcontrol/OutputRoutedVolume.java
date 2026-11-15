@@ -45,9 +45,13 @@ import de.yaacc.multiroom.control.MonotonicClock;
  * and whoever reports the state to the controllers (the RenderingControl event check, the OpenHome poll) only <i>reads</i>
  * here. Nothing in the read path sets anything, so a volume change by the server can not cause another set.
  *
- * <p>Reading in group mode wakes the connection to the server of the group, at most once in
- * {@link #WAKE_INTERVAL_MILLIS} (the connection closes by itself after a grace period when nobody asks): a controller that
- * asks for the volume sees the group's value without a play. Pure Java; the group side, the sender, the clock and the problem
+ * <p>The controller's own reads in group mode ({@link #getPercent}, {@link #isMuted}: Get calls, the OpenHome renderer's
+ * poll) wake the connection to the server of the group, at most once in {@link #WAKE_INTERVAL_MILLIS} (the connection closes
+ * by itself after a grace period when nobody asks), and so does {@link #wakeNow} for a new subscriber: a controller that asks
+ * for the volume sees the group's value without a play. The reads of the change check ({@link #peekPercent},
+ * {@link #peekMuted}) never wake: the idle close of the link is itself a change event, and a wake from its check would open
+ * the link again every grace period for as long as a controller is subscribed. The last known level is kept for the group it
+ * belongs to and forgotten when another group is chosen. Pure Java; the group side, the sender, the clock and the problem
  * report are the app's.
  */
 public final class OutputRoutedVolume implements RendererVolume {
@@ -100,6 +104,7 @@ public final class OutputRoutedVolume implements RendererVolume {
     private final Object lock = new Object();
     // guarded by lock
     private Level lastKnown;
+    private String lastKnownFor;
     private long lastWakeMillis;
     private boolean wokeOnce;
     private Integer wantedVolume;
@@ -129,33 +134,60 @@ public final class OutputRoutedVolume implements RendererVolume {
 
     @Override
     public int getPercent() {
-        Setting setting = current();
-        if (setting.mode() != Mode.GROUP) {
-            return local.getPercent();
-        }
-        Level level = read(setting);
-        return level == null ? 0 : level.percent();
+        return percent(true);
     }
 
     @Override
     public boolean isMuted() {
+        return muted(true);
+    }
+
+    @Override
+    public int peekPercent() {
+        return percent(false);
+    }
+
+    @Override
+    public boolean peekMuted() {
+        return muted(false);
+    }
+
+    private int percent(boolean mayWake) {
+        Setting setting = current();
+        if (setting.mode() != Mode.GROUP) {
+            return local.getPercent();
+        }
+        Level level = read(setting, mayWake);
+        return level == null ? 0 : level.percent();
+    }
+
+    private boolean muted(boolean mayWake) {
         Setting setting = current();
         if (setting.mode() != Mode.GROUP) {
             return local.isMuted();
         }
-        Level level = read(setting);
+        Level level = read(setting, mayWake);
         return level != null && level.muted();
     }
 
-    /** The level of the group now, else the last one known, else null. Never sets anything. */
-    private Level read(Setting setting) {
+    /**
+     * The level of the group now, else the last one known (of this group only), else null. Never sets anything; wakes the
+     * connection (at most once in the interval) only when {@code mayWake}.
+     */
+    private Level read(Setting setting, boolean mayWake) {
         String id = setting.receiverId();
         if (id == null) {
             return null;
         }
-        wakeIfDue(id);
+        if (mayWake) {
+            wake(id, false);
+        }
         Level level = group.level(id);
         synchronized (lock) {
+            if (!id.equals(lastKnownFor)) {
+                lastKnown = null; // another group: its level is not the old one's
+                lastKnownFor = id;
+            }
             if (level != null) {
                 lastKnown = level;
             }
@@ -163,16 +195,30 @@ public final class OutputRoutedVolume implements RendererVolume {
         }
     }
 
-    private void wakeIfDue(String id) {
+    private void wake(String id, boolean force) {
         long now = clock.nowMillis();
         synchronized (lock) {
-            if (wokeOnce && now - lastWakeMillis < WAKE_INTERVAL_MILLIS) {
+            if (!force && wokeOnce && now - lastWakeMillis < WAKE_INTERVAL_MILLIS) {
                 return;
             }
             wokeOnce = true;
             lastWakeMillis = now;
         }
         group.wake(id);
+    }
+
+    /**
+     * A control point subscribed to the renderer's events (or the output was switched to a group while one is subscribed):
+     * wake the connection to the server of the group once, now, so that the state it is told is the group's. Only this and the
+     * controller's own reads ({@link #getPercent}, {@link #isMuted}) wake; the check that a change event triggers
+     * ({@link #peekPercent}) never does, or the idle close of the link would bring it back every 30 seconds.
+     */
+    @Override
+    public void wakeNow() {
+        Setting setting = current();
+        if (setting.mode() == Mode.GROUP && setting.receiverId() != null) {
+            wake(setting.receiverId(), true);
+        }
     }
 
     @Override

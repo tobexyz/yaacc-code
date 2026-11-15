@@ -193,7 +193,44 @@ public final class SnapcastRendererOutput {
         /** The server did not answer (still pending or offline after the wait). */
         SERVER_UNREACHABLE,
         /** The server answered and the group is not there (any more). */
-        GROUP_GONE
+        GROUP_GONE,
+        /** Group mode and the type of the content is unknown (no type given, no known file extension). */
+        UNKNOWN_TYPE
+    }
+
+    /** What the content is, judged by its types. */
+    public enum Content {
+        /** Music: a group plays it. */
+        PLAYABLE,
+        /** Video, images or something that is not audio: a group plays music only. */
+        NOT_MUSIC,
+        /** No type is known for at least one item. */
+        UNKNOWN_TYPE
+    }
+
+    /**
+     * What the content is, from the types of its items (null or empty types are "unknown"): video or image, or a type that is
+     * not audio, is {@link Content#NOT_MUSIC} (a group plays music only; checked first); else an item without a type makes
+     * the content {@link Content#UNKNOWN_TYPE}; else {@link Content#PLAYABLE}. No items at all is unknown.
+     */
+    public static Content contentOf(java.util.List<String> mimeTypes) {
+        if (mimeTypes == null || mimeTypes.isEmpty()) {
+            return Content.UNKNOWN_TYPE;
+        }
+        boolean unknown = false;
+        for (String type : mimeTypes) {
+            if (type == null || type.trim().isEmpty()) {
+                unknown = true;
+            } else if (!type.trim().toLowerCase(java.util.Locale.ROOT).startsWith("audio/")) {
+                return Content.NOT_MUSIC;
+            }
+        }
+        return unknown ? Content.UNKNOWN_TYPE : Content.PLAYABLE;
+    }
+
+    /** True when a player made for {@code createdKey} is not for the output the setting says now (it was switched meanwhile). */
+    public static boolean isStale(String createdKey, Setting now) {
+        return createdKey == null || !createdKey.equals(outputKey(now));
     }
 
     /** The answer for one play. Immutable. */
@@ -227,21 +264,30 @@ public final class SnapcastRendererOutput {
         }
     }
 
+    /** As {@link #decide(Setting, Content, GroupFacts)} for a content that is music or not. */
+    public static Decision decide(Setting setting, boolean contentRefused, GroupFacts facts) {
+        return decide(setting, contentRefused ? Content.NOT_MUSIC : Content.PLAYABLE, facts);
+    }
+
     /**
      * The decision from the facts.
      *
-     * @param contentRefused the content has a video or image type (a group plays music only)
-     * @param facts          what the model says about the group; not looked at unless the mode is group with a group chosen
+     * @param content what the content is; refused in group mode unless it is music
+     * @param facts   what the model says about the group; not looked at unless the mode is group with a group chosen and the
+     *                content is music; a missing fact never plays (it counts as pending)
      */
-    public static Decision decide(Setting setting, boolean contentRefused, GroupFacts facts) {
+    public static Decision decide(Setting setting, Content content, GroupFacts facts) {
         if (setting == null || setting.mode == Mode.THIS_DEVICE) {
             return new Decision(Output.LOCAL, setting != null && setting.damaged ? Problem.DAMAGED_SETTING : Problem.NONE, null);
         }
         if (setting.receiverId == null) {
             return refused(Problem.NO_GROUP_CHOSEN);
         }
-        if (contentRefused) {
+        if (content == Content.NOT_MUSIC) {
             return refused(Problem.NOT_MUSIC);
+        }
+        if (content == Content.UNKNOWN_TYPE) {
+            return refused(Problem.UNKNOWN_TYPE);
         }
         GroupFacts known = facts == null ? GroupFacts.PENDING : facts;
         switch (known) {
@@ -306,15 +352,20 @@ public final class SnapcastRendererOutput {
         return facts == GroupFacts.PENDING || facts == GroupFacts.OFFLINE;
     }
 
+    /** As {@link #resolve(Setting, Content, Probe, Waiter, long)} for a content that is music or not. */
+    public static Decision resolve(Setting setting, boolean contentRefused, Probe probe, Waiter waiter, long maxWaitMillis) {
+        return resolve(setting, contentRefused ? Content.NOT_MUSIC : Content.PLAYABLE, probe, waiter, maxWaitMillis);
+    }
+
     /**
      * The decision for one play, with the wait for a connection that is coming up. The server is asked only in group mode
      * with a group chosen and music content: this device never touches the network here.
      */
-    public static Decision resolve(Setting setting, boolean contentRefused, Probe probe, Waiter waiter, long maxWaitMillis) {
-        if (setting == null || setting.mode != Mode.GROUP || setting.receiverId == null || contentRefused) {
-            return decide(setting, contentRefused, null);
+    public static Decision resolve(Setting setting, Content content, Probe probe, Waiter waiter, long maxWaitMillis) {
+        if (setting == null || setting.mode != Mode.GROUP || setting.receiverId == null || content != Content.PLAYABLE) {
+            return decide(setting, content, null);
         }
-        return decide(setting, false, awaitFacts(setting.receiverId, probe, waiter, maxWaitMillis));
+        return decide(setting, content, awaitFacts(setting.receiverId, probe, waiter, maxWaitMillis));
     }
 
     /**

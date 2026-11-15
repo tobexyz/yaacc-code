@@ -423,4 +423,5 @@
     <string name="renderer_group_unreachable">De server heeft niet geantwoord.</string>
     <string name="renderer_group_none">Deze server heeft geen groepen.</string>
     <string name="renderer_group_members">Leden: %1$d</string>
+    <string name="renderer_output_error_unknown_type">De renderer speelt naar een Snapcast-groep alleen muziek af, en het type van deze inhoud is onbekend (de controller gaf geen type en het adres heeft geen bekende bestandsextensie). Er is niets afgespeeld.</string>
 </resources>

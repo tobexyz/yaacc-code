@@ -135,7 +135,7 @@
     <string name="settings_snapcast_client_spike_open_title">Luistest Snapcast-client</string>
     <string name="settings_snapcast_client_spike_open_summary">Deze telefoon met een Snapcast-server verbinden en de synchronisatiewaarden bekijken</string>
     <string name="settings_renderer_output_title">Uitvoer</string>
-    <string name="settings_renderer_output_summary">Waar de mediaontvanger afspeelt wat andere apps hem sturen. Snapcast-groep: hij voedt alleen de groep, deze telefoon blijft stil; volume en dempen van de ontvanger zijn dan die van de groep. Geldt vanaf het volgende afspelen; een lopende weergave op de andere uitvoer wordt gestopt.</string>
+    <string name="settings_renderer_output_summary">Waar de mediaontvanger afspeelt wat andere apps hem sturen. Snapcast-groep: hij voedt alleen de groep, deze telefoon blijft stil; volume en dempen van de ontvanger zijn dan die van de groep. Geldt vanaf het volgende afspelen; een lopende weergave op de andere uitvoer wordt gestopt. Experimenteel: de audio wordt onversleuteld naar de server gestuurd. Nog niet op een apparaat getest.</string>
     <string name="settings_renderer_output_device">Dit apparaat</string>
     <string name="settings_renderer_output_group_option">Snapcast-groep</string>
     <string name="settings_renderer_output_group_title">Snapcast-groep</string>

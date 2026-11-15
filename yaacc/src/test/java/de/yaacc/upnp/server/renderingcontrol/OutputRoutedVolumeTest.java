@@ -44,6 +44,7 @@ import de.yaacc.multiroom.discovery.SnapcastEndpoint;
 public class OutputRoutedVolumeTest {
 
     private static final String ID = SnapcastGroupDevice.idOf(SnapcastEndpoint.parse("192.168.1.5:1705").toKey(), "g-1");
+    private static final String OTHER_ID = SnapcastGroupDevice.idOf(SnapcastEndpoint.parse("192.168.1.5:1705").toKey(), "g-2");
 
     private final Map<String, String> prefs = new HashMap<>();
     private final FakeLocal local = new FakeLocal();
@@ -333,5 +334,156 @@ public class OutputRoutedVolumeTest {
         assertEquals(30, volume.getPercent());
         prefs.put(SnapcastRendererOutput.KEY_OUTPUT, "device");
         assertEquals(42, volume.getPercent());
+    }
+
+    // ---- Fix Group 9b W3: the mute of this device, read back
+
+    @Test
+    public void thisDevicesMuteIsReadFromThePhoneAfterEverySet() {
+        assertFalse(volume.isMuted());
+        volume.setMuted(true);
+        assertTrue("the phone is muted and a controller must see it", volume.isMuted());
+        volume.setMuted(false);
+        assertFalse(volume.isMuted());
+
+        assertEquals("never the group", 0, group.reads);
+        assertTrue(group.sent.isEmpty());
+    }
+
+    @Test
+    public void aDamagedSettingReadsTheMuteOfThePhoneToo() {
+        prefs.put(SnapcastRendererOutput.KEY_OUTPUT, "group");
+        prefs.put(SnapcastRendererOutput.KEY_GROUP, "garbage");
+        group.level = new OutputRoutedVolume.Level(30, true);
+
+        volume.setMuted(true);
+        assertTrue(volume.isMuted());
+        volume.setMuted(false);
+
+        assertFalse("the phone's flag, not the group's (muted)", volume.isMuted());
+        assertEquals(0, group.reads);
+    }
+
+    @Test
+    public void inGroupModeTheMuteIsTheGroupsNotThePhones() {
+        groupMode();
+        local.muted = true;
+        group.level = new OutputRoutedVolume.Level(30, false);
+        assertFalse(volume.isMuted());
+
+        group.level = new OutputRoutedVolume.Level(30, true);
+        local.muted = false;
+
+        assertTrue(volume.isMuted());
+        assertEquals("the phone is not read in group mode", 0, local.calls);
+    }
+
+    @Test
+    public void noProblemIsEverReportedInThisDeviceMode() {
+        volume.setPercent(10);
+        volume.setMuted(true);
+        runQueue();
+        groupMode();
+        volume.setPercent(20); // queued for the group ...
+        prefs.put(SnapcastRendererOutput.KEY_OUTPUT, "device"); // ... and the output is the phone again before it runs
+        runQueue();
+
+        assertTrue("nothing to say: the phone's volume is the output", problems.isEmpty());
+        assertTrue("a value meant for the group is not applied to the group either", group.sent.isEmpty());
+    }
+
+    // ---- Fix Group 9b S3: the last known level belongs to one group
+
+    @Test
+    public void theLastKnownLevelIsForgottenWhenAnotherGroupIsChosen() {
+        groupMode();
+        group.level = new OutputRoutedVolume.Level(70, true);
+        assertEquals(70, volume.getPercent());
+
+        prefs.put(SnapcastRendererOutput.KEY_GROUP, OTHER_ID);
+        group.level = null;
+
+        assertEquals("the old group's level is not shown for the new one", 0, volume.getPercent());
+        assertFalse(volume.isMuted());
+    }
+
+    // ---- Fix Group 9b W4: only the controller's own reads and the first subscription wake the link
+
+    @Test
+    public void aPeekReadsTheModelAndNeverWakesTheLink() {
+        groupMode();
+        group.level = new OutputRoutedVolume.Level(64, true);
+
+        for (int i = 0; i < 5; i++) {
+            assertEquals(64, volume.peekPercent());
+            assertTrue(volume.peekMuted());
+            now += 60_000;
+        }
+
+        assertEquals("no wake from a read that the change event made", 0, group.wakes);
+        assertEquals(0, local.calls);
+        assertTrue(queue.isEmpty());
+    }
+
+    @Test
+    public void aPeekGivesTheLastKnownLevelWhileTheModelHasNone() {
+        groupMode();
+        group.level = new OutputRoutedVolume.Level(40, false);
+        assertEquals(40, volume.getPercent());
+        group.level = null;
+
+        assertEquals(40, volume.peekPercent());
+    }
+
+    @Test
+    public void thisDevicePeeksAtThePhone() {
+        local.percent = 33;
+        local.muted = true;
+
+        assertEquals(33, volume.peekPercent());
+        assertTrue(volume.peekMuted());
+        assertEquals(0, group.reads);
+        assertEquals(0, group.wakes);
+    }
+
+    @Test
+    public void theFirstSubscriptionWakesAtOnceAndTheNextReadWaitsTheInterval() {
+        groupMode();
+        volume.getPercent(); // wake 1
+        now += 1_000;
+
+        volume.wakeNow(); // a subscriber came: wake 2, whatever the interval says
+        volume.getPercent();
+
+        assertEquals(2, group.wakes);
+        now += OutputRoutedVolume.WAKE_INTERVAL_MILLIS + 1;
+        volume.getPercent();
+        assertEquals(3, group.wakes);
+    }
+
+    @Test
+    public void aSubscriptionOnThisDeviceWakesNothing() {
+        volume.wakeNow();
+
+        assertEquals(0, group.wakes);
+        prefs.put(SnapcastRendererOutput.KEY_OUTPUT, "group"); // no group chosen
+        volume.wakeNow();
+        assertEquals(0, group.wakes);
+    }
+
+    @Test
+    public void theIdleCloseOfALinkDoesNotBringItBackThroughTheChangeCallback() {
+        // the cycle of review W4: close -> change event -> check reads -> wake -> reconnect -> grace -> close ...
+        groupMode();
+        volume.wakeNow(); // the subscription
+        int wakesAtSubscription = group.wakes;
+
+        for (int cycle = 0; cycle < 10; cycle++) {
+            now += 31_000; // the grace is over, the link closed, the change event asks for a check
+            volume.peekPercent();
+            volume.peekMuted();
+        }
+
+        assertEquals(wakesAtSubscription, group.wakes);
     }
 }

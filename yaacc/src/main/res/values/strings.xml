@@ -428,4 +428,5 @@
     <string name="renderer_group_unreachable">The server did not answer.</string>
     <string name="renderer_group_none">This server has no groups.</string>
     <string name="renderer_group_members">Members: %1$d</string>
+    <string name="renderer_output_error_unknown_type">The renderer plays only music into a Snapcast group, and the type of this content is unknown (the controller gave no type and the address has no known file extension). Nothing was played.</string>
 </resources>

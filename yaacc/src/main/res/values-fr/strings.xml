@@ -427,4 +427,5 @@
     <string name="renderer_group_unreachable">Le serveur n\'a pas répondu.</string>
     <string name="renderer_group_none">Ce serveur n\'a aucun groupe.</string>
     <string name="renderer_group_members">Membres : %1$d</string>
+    <string name="renderer_output_error_unknown_type">Le moteur de rendu ne joue que de la musique vers un groupe Snapcast, et le type de ce contenu est inconnu (le contrôleur n\'a indiqué aucun type et l\'adresse n\'a pas d\'extension de fichier connue). Rien n\'a été lu.</string>
 </resources>
