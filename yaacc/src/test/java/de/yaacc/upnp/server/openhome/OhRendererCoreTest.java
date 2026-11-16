@@ -421,6 +421,90 @@ public class OhRendererCoreTest {
         assertEquals(1, core.queue().size());
     }
 
+    // ---- the standby state as the cards read and write it (task 12.13)
+
+    @Test
+    public void theStandbyStateIsTheOneTheActionReportsAndTheCardReads() {
+        assertFalse(core.isStandby());
+
+        product.soap("SetStandby", "Value", "1");
+        assertTrue("the action is the writer, the card reads what it wrote", core.isStandby());
+
+        product.soap("SetStandby", "Value", "0");
+        assertFalse(core.isStandby());
+    }
+
+    @Test
+    public void theCardGoesToStandbyTheWayTheSettingsSwitchDoes() {
+        assertTrue(ServiceHarness.succeeded(playlist.soap("Insert", "AfterId", "0", "Uri", "http://h/a.mp3", "Metadata", "")));
+        playback.calls.clear();
+
+        core.setStandby(true);
+
+        assertEquals("a control point reads the same value", "1", value(product.soap("Standby"), "Value"));
+        assertTrue("the playback stops, as for the action", playback.calls.contains("stop"));
+        assertEquals("the queue stays", 1, core.queue().size());
+
+        playback.calls.clear();
+        core.setStandby(false);
+
+        assertEquals("0", value(product.soap("Standby"), "Value"));
+        assertFalse(playback.calls.contains("stop"));
+    }
+
+    @Test
+    public void standbyListenersAreToldOfRealChangesFromEveryWayOfChangingIt() {
+        List<Boolean> seen = new ArrayList<>();
+        Runnable listener = () -> seen.add(core.isStandby());
+        core.addStandbyListener(listener);
+
+        product.soap("SetStandby", "Value", "1"); // the settings switch
+        core.setStandby(true); // the card, no change
+        core.setStandby(false); // the card
+        product.soap("SetStandby", "Value", "1");
+        playlist.soap("Play"); // a play wakes the device
+
+        assertEquals(java.util.Arrays.asList(true, false, true, false), seen);
+    }
+
+    @Test
+    public void aStandbyListenerThatWasRemovedIsNotToldAndTheSameOneTwiceIsToldOnce() {
+        int[] told = {0};
+        Runnable listener = () -> told[0]++;
+        core.addStandbyListener(listener);
+        core.addStandbyListener(listener);
+
+        core.setStandby(true);
+        assertEquals(1, told[0]);
+
+        core.removeStandbyListener(listener);
+        core.setStandby(false);
+        assertEquals(1, told[0]);
+    }
+
+    @Test
+    public void aStandbyListenerSurvivesTheServicesBeingBuiltAgain() throws Exception {
+        int[] told = {0};
+        core.addStandbyListener(() -> told[0]++);
+
+        core.buildServices(2000); // the device is built again now and then (network changes); this drops the service managers
+
+        core.setStandby(true);
+        assertEquals("the listener belongs to the screens, not to the service managers", 1, told[0]);
+    }
+
+    @Test
+    public void aListenerThatThrowsDoesNotUndoTheChange() {
+        core.addStandbyListener(() -> {
+            throw new IllegalStateException("broken screen");
+        });
+
+        core.setStandby(true);
+
+        assertTrue(core.isStandby());
+        assertEquals("1", value(product.soap("Standby"), "Value"));
+    }
+
     @Test
     public void awakeStaysAwakeWithoutStoppingAnything() {
         playback.calls.clear();

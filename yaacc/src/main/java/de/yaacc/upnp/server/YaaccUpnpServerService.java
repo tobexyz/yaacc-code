@@ -108,6 +108,7 @@ import de.yaacc.upnp.server.openhome.AndroidOpenHomeHost;
 import de.yaacc.upnp.server.openhome.AndroidOutputSources;
 import de.yaacc.upnp.server.openhome.OhRendererCore;
 import de.yaacc.upnp.server.openhome.OpenHomeRenderer;
+import de.yaacc.upnp.server.openhome.OwnOpenHomeStandby;
 import de.yaacc.upnp.server.renderingcontrol.RenderingControlServiceManager;
 import de.yaacc.upnp.server.renderingcontrol.YaaccAudioRenderingControlService;
 import de.yaacc.util.InterfaceResolutionHelper;
@@ -394,6 +395,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
         closeOutputSources();
         if (openHomeRenderer != null) {
+            OwnOpenHomeStandby.shared().detach(openHomeRenderer.core());
             openHomeRenderer.shutdown();
             openHomeRenderer = null;
         }
@@ -1033,6 +1035,8 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                 openHomeRenderer.start();
                 // the Snapcast groups as further sources of the Product service, another way into the output setting (task 12.5)
                 outputSources = AndroidOutputSources.start(getApplicationContext(), openHomeRenderer.core());
+                // the card of the own renderer shows and sets its standby state (task 12.13)
+                OwnOpenHomeStandby.shared().attach(openHomeRenderer.core());
             }
             return openHomeRenderer.core().buildServices(LOCK_TIMEOUT);
         } catch (ValidationException | RuntimeException e) {
@@ -1040,6 +1044,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             YaaccLogger.e(getClass().getName(), "OpenHome services not available", e);
             closeOutputSources();
             if (openHomeRenderer != null) {
+                OwnOpenHomeStandby.shared().detach(openHomeRenderer.core());
                 openHomeRenderer.shutdown();
                 openHomeRenderer = null;
             }

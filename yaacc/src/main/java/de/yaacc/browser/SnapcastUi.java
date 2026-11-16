@@ -29,6 +29,10 @@ import java.util.concurrent.Executors;
 import de.yaacc.R;
 import de.yaacc.multiroom.SnapcastHub;
 import de.yaacc.multiroom.SnapcastReceivers;
+import de.yaacc.multiroom.client.SnapcastClientIdentities;
+import de.yaacc.multiroom.client.SnapcastClientPower;
+import de.yaacc.multiroom.client.SnapcastClientPowerTexts;
+import de.yaacc.multiroom.client.SnapcastClientPowers;
 import de.yaacc.multiroom.client.SnapcastClientRuntime;
 import de.yaacc.multiroom.control.MonotonicClock;
 import de.yaacc.multiroom.ui.SnapcastClientRemoval;
@@ -70,14 +74,61 @@ public final class SnapcastUi {
                         }
                     },
                     // the client of this phone's own session is never removed from a server (task 12.8)
-                    SnapcastUi::ownClient);
+                    () -> ownClient(app));
         }
         return controls;
     }
 
-    /** The client of this phone's own Snapcast session (none while no session runs), which is never removed from a server. */
-    static SnapcastClientRemoval.Own ownClient() {
-        return SnapcastClientRemoval.ownOf(SnapcastClientRuntime.isActive(), SnapcastClientRuntime.clientId());
+    /**
+     * The client of this phone's own Snapcast session (none while no session runs), which is never removed from a server. Its id is the
+     * one id the phone gives every server (derived from the install secret, known without a session), so an entry of this install that
+     * is offline is recognised too: it may be removed while no session runs (a ghost), never while one does.
+     */
+    static SnapcastClientRemoval.Own ownClient(Context context) {
+        return SnapcastClientRemoval.ownOf(SnapcastClientRuntime.isActive(), SnapcastClientIdentities.ownId(context));
+    }
+
+    /** The phone's own client as the card's power button sees it ({@link SnapcastOwnPower}); the one {@link SnapcastClientPower}. */
+    static SnapcastOwnPower.Switch ownPower(Context context) {
+        final SnapcastClientPower power = SnapcastClientPowers.of(context);
+        return new SnapcastOwnPower.Switch() {
+            @Override
+            public boolean isPoweredOn() {
+                return power.isPoweredOn();
+            }
+
+            @Override
+            public SnapcastClientPower.Outcome setOn(boolean on) {
+                return power.setOn(on);
+            }
+        };
+    }
+
+    /**
+     * A tap on the power button of the phone's own client, on the card or in its row of the group sheet (tasks 12.4 part 2, 12.16): the
+     * one controller and the one toggle of every card, so a second tap is dropped and the card is busy meanwhile. A refusal of the
+     * start is a toast with its own reason (the option is off, no server, the system did not allow it), any other failure the text of
+     * the other kinds. Main thread.
+     *
+     * @param key    the receiver id of the group card (what the card is rebound by)
+     * @param onDone main thread, after the change ended; may be null
+     */
+    static void toggleOwnPower(final Context context, String key, final Runnable onDone) {
+        final Context app = context.getApplicationContext();
+        final java.util.concurrent.atomic.AtomicReference<SnapcastClientPower.Outcome> refusal = new java.util.concurrent.atomic.AtomicReference<>();
+        RendererPowerController.getShared().toggle(key, () -> SnapcastOwnPower.source(ownPower(app), refusal), outcome -> {
+            SnapcastClientPower.Outcome refused = refusal.get();
+            String reason = refused == null ? null : SnapcastClientPowerTexts.refusalText(app, refused);
+            int generic = RendererPowerLook.errorText(outcome.error());
+            if (reason != null) {
+                Toast.makeText(app, reason, Toast.LENGTH_LONG).show();
+            } else if (generic != 0) {
+                Toast.makeText(app, generic, Toast.LENGTH_LONG).show();
+            }
+            if (onDone != null) {
+                onDone.run();
+            }
+        });
     }
 
     /** The hardware volume keys of the app: they change the group volume through {@link #controls}. */
@@ -108,7 +159,8 @@ public final class SnapcastUi {
             // the server is no longer listed: the endpoint is still shown, it is in the id (security review S20)
             return SnapcastRowText.of(null, null, false, SnapcastRowText.endpointOf(receiverId), words);
         }
-        return SnapcastRowText.of(state.getGroup(), state.getStatus(), state.isOnline(), state.getEndpointText(), words);
+        // the counts are those of the members this server shows (a client known to several servers is shown once, task 12.12)
+        return SnapcastRowText.of(state.getVisibleGroup(), state.getVisibleStatus(), state.isOnline(), state.getEndpointText(), words);
     }
 
     private static Executor daemonExecutor(final String name) {

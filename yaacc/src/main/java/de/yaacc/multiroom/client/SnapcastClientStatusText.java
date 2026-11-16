@@ -146,6 +146,8 @@ public final class SnapcastClientStatusText {
                 return "no audio for 15 minutes, so the session was ended (the locks are only held while it plays)";
             case DISABLED:
                 return "the option was switched off";
+            case START_NOT_ALLOWED:
+                return "the system did not allow the start from the background (it is tried again when the app is opened)";
             default:
                 return "";
         }

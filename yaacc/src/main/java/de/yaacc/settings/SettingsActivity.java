@@ -17,6 +17,8 @@
  */
 package de.yaacc.settings;
 
+import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -40,6 +42,14 @@ public class SettingsActivity extends AppCompatActivity {
         boolean result = leftSettings;
         leftSettings = false;
         return result;
+    }
+
+    /**
+     * The intent that opens the settings scrolled to the section of the Snapcast client (the gear on the first page). The extra only
+     * names an entry; the fragment accepts the keys of {@link SnapcastSettingsTarget} and nothing else.
+     */
+    public static Intent snapcastClientIntent(Context context) {
+        return new Intent(context, SettingsActivity.class).putExtra(SnapcastSettingsTarget.EXTRA_SCROLL_TO, SnapcastSettingsTarget.SNAPCAST_CLIENT);
     }
 
     @Override

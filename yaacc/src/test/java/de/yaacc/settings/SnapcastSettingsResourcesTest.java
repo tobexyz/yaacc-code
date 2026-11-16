@@ -171,6 +171,71 @@ public class SnapcastSettingsResourcesTest {
     }
 
     @Test
+    public void thePlayOptionIsOnByDefaultInTheScreenAndInTheCodeUnderTheSameKey() throws Exception {
+        // issue 319 task 12.20: 'Play to Snapcast groups' is on by default; the client switch stays off
+        assertEquals(SnapcastSettings.KEY_PLAY, strings("values", "setting_strings.xml").get("settings_snapcast_play_experimental"));
+        String xml = read("src/main/res/xml/preference.xml");
+        int at = xml.indexOf("android:key=\"@string/settings_snapcast_play_experimental\"");
+        assertTrue("the preference is declared", at > 0);
+        String element = xml.substring(xml.lastIndexOf("<CheckBoxPreference", at), xml.indexOf("/>", at));
+        assertTrue(element, element.contains("android:defaultValue=\"" + SnapcastSettings.PLAY_DEFAULT + "\""));
+        assertTrue(SnapcastSettings.PLAY_DEFAULT);
+        int client = xml.indexOf("android:key=\"@string/settings_snapcast_client_spike\"");
+        assertTrue(client > 0);
+        String clientElement = xml.substring(xml.lastIndexOf("<CheckBoxPreference", client), xml.indexOf("/>", client));
+        assertTrue(clientElement, clientElement.contains("android:defaultValue=\"false\""));
+    }
+
+    @Test
+    public void noSnapcastTextCallsTheFeaturesExperimentalOrNotTestedInAnyLocale() throws Exception {
+        // issue 319 task 12.20: the wording is gone, the honest facts stay (see the next test)
+        String[] gone = {"xperiment", "xpérimental", "实验", "not tested", "noch nicht getestet", "noch nicht auf einem gerät getestet",
+                "auf einem gerät noch nicht getestet", "pas encore testé", "nog niet op een apparaat getest", "ainda não foi testado",
+                "ainda não testado", "尚未在设备上测试", "尚未在真实设备上测试", "aún no probado", "aún no se ha probado"};
+        for (String locale : LOCALES) {
+            for (String file : new String[]{"setting_strings.xml", "strings.xml"}) {
+                for (Map.Entry<String, String> entry : strings(locale, file).entrySet()) {
+                    String name = entry.getKey();
+                    boolean snapcast = name.contains("snapcast") || name.equals("settings_renderer_output_summary");
+                    // the key name itself is a value of a non-translatable string
+                    if (!snapcast || name.equals("settings_snapcast_play_experimental")) {
+                        continue;
+                    }
+                    for (String old : gone) {
+                        assertFalse(locale + "/" + name + " still says \"" + old + "\": " + entry.getValue(),
+                                entry.getValue().toLowerCase(java.util.Locale.ROOT).contains(old));
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    public void theHonestFactsOfTheSnapcastTextsStayInEveryLocale() throws Exception {
+        String[][] unencrypted = {{"values", "unencrypted"}, {"values-de", "unverschlüsselt"}, {"values-es", "sin cifrar"},
+                {"values-fr", "non chiffré", "sans chiffrement"}, {"values-nl", "onversleuteld"},
+                {"values-pt", "sem encriptação", "sem cifrar"}, {"values-zh", "未加密"}};
+        for (String[] row : unencrypted) {
+            Map<String, String> settings = strings(row[0], "setting_strings.xml");
+            for (String name : new String[]{"settings_snapcast_play_experimental_summary", "settings_snapcast_client_spike_summary",
+                    "settings_renderer_output_summary"}) {
+                boolean said = false;
+                for (int i = 1; i < row.length; i++) {
+                    said |= settings.get(name).contains(row[i]);
+                }
+                assertTrue(row[0] + " " + name + " says the audio is unencrypted: " + settings.get(name), said);
+            }
+        }
+        // the client note still says what the client does and what the server sees; its first word is no label any more
+        Map<String, String> english = strings("values", "strings.xml");
+        String note = english.get("snapcast_client_note");
+        assertTrue(note, note.startsWith("This phone plays as a Snapcast client"));
+        assertTrue(note, note.contains("not encrypted"));
+        assertTrue(note, note.contains("generated id"));
+        assertEquals("Snapcast", strings("values", "setting_strings.xml").get("settings_snapcast_category"));
+    }
+
+    @Test
     public void theServerListAndTheExplanationAreInTheSnapcastCategory() throws Exception {
         String xml = read("src/main/res/xml/preference.xml");
         int category = xml.indexOf("@string/settings_snapcast_category");

@@ -33,7 +33,9 @@ import de.yaacc.multiroom.control.SnapcastServerStatus;
  *   gone already);</li>
  *   <li>while a session of this phone's own client runs, or starts and its id is not known yet, the phone's own client is never
  *   removed, also not when it looks offline ({@link Verdict#OWN_CLIENT}, {@link Verdict#OWN_CLIENT_UNKNOWN}); the protection
- *   ends with the session;</li>
+ *   ends with the session. The own id is the one id the phone gives every server (task 12.11), known without a session, so an
+ *   <b>offline</b> entry of this install is a ghost: it may be removed while no session runs (it returns by itself with the next
+ *   session) and never while one does;</li>
  *   <li>a client that the fresh status shows as connected is never removed ({@link Verdict#CONNECTED}). This is our rule: the
  *   notes of the server say that the call only forgets the configuration of a disconnected client, but a server that refused
  *   would only tell us after the fact, and an older one may not.</li>

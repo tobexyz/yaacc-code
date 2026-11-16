@@ -50,6 +50,7 @@
     <string name="share_busy">Een ander gedeeld bestand wordt nog verwerkt. Probeer het zo meteen opnieuw.</string>
     <string name="share_unnamed_link">Gedeelde link</string>
     <string name="share_link_failed">De gedeelde link kon niet worden afgespeeld.</string>
+    <string name="share_link_needs_server">De gedeelde link is niet afgespeeld: de mediaproxy heeft de schakelaar \'UPnP-server\' nodig. Zet die aan of zet de proxy uit in de instellingen.</string>
     <string name="error_no_activity_found">Geen activiteit gevonden voor het spelen van mimetype \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Duur van het beeldverblijf</string>
     <string name="yaacc_menu_settings">YAACC-instellingen</string>
@@ -347,6 +348,10 @@
     <string name="snapcast_member_mute">%1$s dempen</string>
     <string name="snapcast_member_actions">Acties voor %1$s</string>
     <string name="snapcast_member_rename">Hernoemen</string>
+    <string name="snapcast_member_this_phone">Deze telefoon</string>
+    <string name="snapcast_member_this_phone_old">Deze telefoon, oude vermelding</string>
+    <string name="snapcast_member_server">Server</string>
+    <string name="snapcast_server_choose_title">Server van deze telefoon</string>
     <string name="snapcast_member_latency">Latentie</string>
     <string name="snapcast_rename_title">Client hernoemen</string>
     <string name="snapcast_rename_hint">Naam (leeg: hostnaam gebruiken)</string>
@@ -375,8 +380,8 @@
     <string name="snapcast_servers_discovery_copy">Rapport kopiëren</string>
     <string name="snapcast_servers_discovery_copied">Rapport naar het klembord gekopieerd</string>
     <string name="snapcast_servers_discovery_note">Het rapport toont de gevonden servers met hun adressen in uw netwerk, het telefoonmodel, en de status van wifi en zoeken. Bekijk het voordat u het ergens plakt. Zolang dit venster open is en Snapcast-servers zoeken aanstaat, wordt het netwerk doorzocht.</string>
-    <string name="snapcast_client_title">Snapcast-client (luistest)</string>
-    <string name="snapcast_client_note">Experimenteel. Deze telefoon speelt als Snapcast-client, zodat u de synchronisatie op het gehoor kunt controleren. Audio en besturing zijn niet versleuteld. De server en zijn controllers zien de naam van deze telefoon en een gegenereerde id.</string>
+    <string name="snapcast_client_title">Details van de Snapcast-client</string>
+    <string name="snapcast_client_note">Deze telefoon speelt als Snapcast-client. Audio en besturing zijn niet versleuteld. De server en zijn controllers zien de naam van deze telefoon en een gegenereerde id, die op alle servers hetzelfde is.</string>
     <string name="snapcast_client_host_hint">Serveradres, optioneel :poort (standaard 1704)</string>
     <string name="snapcast_client_latency_hint">Handmatige latentie in ms (positief speelt eerder)</string>
     <string name="snapcast_client_start">Starten</string>
@@ -405,12 +410,21 @@
     <string name="snapcast_client_move_group_failed">De server heeft het niet geaccepteerd</string>
     <string name="snapcast_client_move_group_changed">De groep van deze telefoon is intussen op de server veranderd: er is niets verplaatst</string>
     <string name="snapcast_client_move_group_none">Nog geen antwoord van de server</string>
-    <string name="snapcast_client_notification_title">Snapcast-client (test)</string>
+    <string name="snapcast_client_notification_title">Snapcast-client</string>
     <string name="snapcast_client_notification_connecting">Verbinden…</string>
     <string name="snapcast_client_notification_playing">Speelt</string>
     <string name="snapcast_client_notification_reconnecting">Verbinding verbroken, opnieuw proberen…</string>
     <string name="snapcast_client_warning_public">Dit adres staat niet in uw lokale netwerk. Audio en besturing zijn onderweg niet versleuteld of geauthenticeerd.</string>
     <string name="snapcast_client_busy">De vorige sessie wordt nog gestopt. Tik zo meteen opnieuw op Starten.</string>
+    <string name="snapcast_client_switch_label">Snapcast-client</string>
+    <string name="snapcast_client_switch_settings">Instellingen van de Snapcast-client</string>
+    <string name="snapcast_client_state_off">Uit</string>
+    <string name="snapcast_client_state_stopped">Gestopt</string>
+    <string name="snapcast_client_state_line">Snapcast-client: %1$s</string>
+    <string name="snapcast_client_refused_option_off">De Snapcast-client staat uit in de instellingen.</string>
+    <string name="snapcast_client_refused_no_server">Nog geen server bekend. Voeg er een toe onder Snapcast-servers in de instellingen of kies er een in de details van de Snapcast-client.</string>
+    <string name="snapcast_client_refused_bad_server">Het opgeslagen serveradres is niet geldig. Kies een server in de details van de Snapcast-client (instellingen).</string>
+    <string name="snapcast_client_refused_not_allowed">Het systeem stond de start niet toe. Het wordt opnieuw geprobeerd als de app wordt geopend.</string>
     <string name="renderer_output_damaged_note">De Snapcast-uitvoer van de renderer is beschadigd; er wordt op dit apparaat afgespeeld. Kies de groep opnieuw in de instellingen.</string>
     <string name="renderer_output_error_no_group">De renderer is ingesteld om naar een Snapcast-groep af te spelen, maar er is geen groep gekozen. Kies er een in de instellingen.</string>
     <string name="renderer_output_error_server_not_listed">De Snapcast-server van de groep van de renderer staat niet in de serverlijst. Voeg hem toe onder Snapcast-servers in de instellingen of kies een andere groep.</string>
@@ -429,6 +443,10 @@
     <string name="snapcast_client_delete_title">Client van de server verwijderen?</string>
     <string name="snapcast_client_delete_message">%1$s is offline. Dit verwijdert alleen de vermelding uit de lijst van de server. Een client die nog bestaat komt vanzelf terug als hij opnieuw verbinding maakt.</string>
     <string name="snapcast_client_delete_confirm">Verwijderen</string>
+    <string name="snapcast_legacy_delete_menu">Oude vermeldingen van deze telefoon verwijderen</string>
+    <string name="snapcast_legacy_delete_title">Oude vermeldingen van deze telefoon verwijderen?</string>
+    <string name="snapcast_legacy_delete_message">Oude offline vermeldingen van deze telefoon op deze server: %1$d. Alleen deze vermeldingen worden uit de lijst van de server verwijderd. De telefoon blijft werken met zijn huidige vermelding.</string>
+    <string name="snapcast_legacy_delete_confirm">Verwijderen</string>
     <string name="snapcast_remove_error_connected">De client is weer verbonden en is niet verwijderd.</string>
     <string name="snapcast_remove_error_own">De eigen client van deze telefoon wordt niet verwijderd zolang zijn sessie loopt of start.</string>
     <!-- The Snapcast groups as sources of the OpenHome renderer (task 12.5) -->

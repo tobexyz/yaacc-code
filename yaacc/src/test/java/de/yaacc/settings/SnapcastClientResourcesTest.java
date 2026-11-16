@@ -37,7 +37,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * The resources of the client spike: its texts exist in the seven locales with the same format arguments, the switch is
+ * The resources of the phone's Snapcast client (the option, its state and the details sheet): its texts exist in the seven locales with the same format arguments, the switch is
  * declared off by default under the key the code reads, and the manifest declares the foreground service with the
  * right type and no more permissions than it needs. Plain JVM: the files are read from the module directory.
  */
@@ -111,7 +111,7 @@ public class SnapcastClientResourcesTest {
     }
 
     @Test
-    public void theTestScreenEntryIsInTheSnapcastCategory() throws Exception {
+    public void theDetailsEntryIsInTheSnapcastCategory() throws Exception {
         String xml = read("src/main/res/xml/preference.xml");
         int category = xml.indexOf("@string/settings_snapcast_category");
         String block = xml.substring(category, xml.indexOf("</PreferenceCategory>", category));

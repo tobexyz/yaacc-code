@@ -262,4 +262,52 @@ public class SnapcastLinkChoicesTest {
         assertEquals(Arrays.asList("b", "a"), change.getRemoved());
         assertTrue(change.getAdded().isEmpty());
     }
+
+    // ---- task 12.12: the picker lists the clients this server shows, and a member that is not shown is never in a change
+
+    /** Server 1 has "b" (Hall, offline) in the group Living; server 2 has "b" connected, so server 1 does not show it. */
+    private static SnapcastServerStatus shownOnTheSheetsServer() {
+        de.yaacc.multiroom.discovery.SnapcastServerKey one = de.yaacc.multiroom.discovery.SnapcastEndpoint.parse("10.0.0.2").toKey();
+        de.yaacc.multiroom.discovery.SnapcastServerKey two = de.yaacc.multiroom.discovery.SnapcastEndpoint.parse("10.0.0.3").toKey();
+        SnapcastServerStatus here = server();
+        SnapcastServerStatus there = status(group("g9", "Elsewhere", "Default", client("b", "Hall", true, 50, false)));
+        return de.yaacc.multiroom.SnapcastMergedClients.of(Arrays.asList(
+                de.yaacc.multiroom.SnapcastMergedClients.Server.of(one, here, true),
+                de.yaacc.multiroom.SnapcastMergedClients.Server.of(two, there, true))).visible(one, here);
+    }
+
+    @Test
+    public void aClientThatAnotherServerShowsIsNotOfferedByThisSheet() {
+        List<SnapcastLinkChoices.Choice> list = SnapcastLinkChoices.of(shownOnTheSheetsServer(), "g1", WORDS);
+
+        assertEquals(Arrays.asList("c", "d", "e", "a"), ids(list)); // Hall (b) is not there; it is shown on the other server
+    }
+
+    @Test
+    public void theMemberThatIsNotShownIsNotPartOfTheChangeWhateverIsChecked() {
+        List<SnapcastLinkChoices.Choice> list = SnapcastLinkChoices.of(shownOnTheSheetsServer(), "g1", WORDS);
+
+        // the user adds Bed left; Kitchen, the one shown member, stays; the hidden one is not mentioned
+        SnapcastLinkChoices.Change change = SnapcastLinkChoices.changeOf(list, Arrays.asList("a", "c"));
+
+        assertEquals(Arrays.asList("c"), change.getAdded());
+        assertTrue(change.getRemoved().isEmpty());
+        assertTrue("unchecking everything removes nothing that is hidden",
+                SnapcastLinkChoices.changeOf(list, Collections.<String>emptyList()).getRemoved().isEmpty());
+    }
+
+    @Test
+    public void theLastShownMemberIsKeptEvenIfAHiddenOneIsAlsoInTheGroup() {
+        SnapcastServerStatus shown = shownOnTheSheetsServer();
+
+        SnapcastLinkChoices.Choice kitchen = null;
+        // g1 has Kitchen (a) and the hidden Hall (b): one shown member, so it is the last one the sheet can offer to leave
+        for (SnapcastLinkChoices.Choice choice : SnapcastLinkChoices.of(shown, "g1", WORDS)) {
+            if (choice.getClientId().equals("a")) {
+                kitchen = choice;
+            }
+        }
+        assertTrue(kitchen.isMember());
+        assertFalse("the sheet is conservative: the one shown member stays", kitchen.isEnabled());
+    }
 }

@@ -29,6 +29,8 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import java.util.Arrays;
+
 import de.yaacc.multiroom.control.SnapcastGroup;
 import de.yaacc.multiroom.control.SnapcastServerStatus;
 
@@ -306,5 +308,27 @@ public class SnapcastRowTextTest {
         assertEquals("", SnapcastRowText.endpointOf("uuid:1234"));
         assertEquals("", SnapcastRowText.endpointOf(null));
         assertEquals("", SnapcastRowText.endpointOf("snapcast:garbage"));
+    }
+
+    // ---- task 12.12: the counts are those of the members the server shows
+
+    @Test
+    public void theCountsAndTheVolumeAreThoseOfTheShownMembers() {
+        de.yaacc.multiroom.discovery.SnapcastServerKey one = de.yaacc.multiroom.discovery.SnapcastEndpoint.parse("10.0.0.2").toKey();
+        de.yaacc.multiroom.discovery.SnapcastServerKey two = de.yaacc.multiroom.discovery.SnapcastEndpoint.parse("10.0.0.3").toKey();
+        SnapcastGroup living = group("g1", "Living", "Default", client("a", "Kitchen", true, 40, false),
+                client("x", "Phone", false, 90, false), client("y", "Hall", false, 70, false));
+        SnapcastServerStatus here = status(living);
+        de.yaacc.multiroom.SnapcastMergedClients merged = de.yaacc.multiroom.SnapcastMergedClients.of(Arrays.asList(
+                de.yaacc.multiroom.SnapcastMergedClients.Server.of(one, here, true),
+                de.yaacc.multiroom.SnapcastMergedClients.Server.of(two,
+                        status(group("g2", "Other", "Default", client("x", "Phone", true, 90, false))), true)));
+
+        SnapcastRowText.Row full = SnapcastRowText.of(living, here, true, ENDPOINT, WORDS);
+        SnapcastRowText.Row shown = SnapcastRowText.of(merged.visible(one, living), merged.visible(one, here), true, ENDPOINT, WORDS);
+
+        assertTrue(full.getText(), full.getText().contains(WORDS.clientsConnected(1, 3)));
+        assertTrue(shown.getText(), shown.getText().contains(WORDS.clientsConnected(1, 2)));
+        assertEquals(40, shown.getVolume());
     }
 }

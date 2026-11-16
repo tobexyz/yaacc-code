@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import de.yaacc.openhome.OhError;
@@ -37,6 +38,7 @@ import de.yaacc.openhome.OhTransportState;
 import de.yaacc.openhome.OhUriPolicy;
 import de.yaacc.openhome.OhVolume;
 import de.yaacc.multiroom.SnapcastRendererSources;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * The OpenHome side of YAACC's renderer: the play queue, the state of the five services (Product, Playlist, Info, Time, Volume) and
@@ -47,7 +49,7 @@ import de.yaacc.multiroom.SnapcastRendererSources;
  * ids of a {@code ReadList}, the range of a volume. The events of the {@code IdArray} are delayed a little, so a burst of
  * {@code Insert}s is one event.
  */
-public final class OhRendererCore {
+public final class OhRendererCore implements OhStandby {
     /** How long the {@code IdArray} event waits for more edits. */
     public static final long ID_ARRAY_DELAY_MILLIS = 150;
     /** The most ids {@code ReadList} answers. */
@@ -162,6 +164,49 @@ public final class OhRendererCore {
         product.init("SourceName", OhSourceXml.PLAYLIST);
         product.init("SourceSystemName", OhSourceXml.PLAYLIST);
         product.init("SourceVisible", "true");
+    }
+
+    // ---- the standby state (task 12.13)
+
+    /** The screens that show the standby state; not the service managers, so building the services again does not drop them. */
+    private final CopyOnWriteArrayList<Runnable> standbyListeners = new CopyOnWriteArrayList<>();
+
+    @Override
+    public boolean isStandby() {
+        return "true".equals(product.get("Standby"));
+    }
+
+    /**
+     * The one writer of the {@code Standby} variable: the action {@code SetStandby} (the power switch of the OpenHome settings sheet,
+     * a control point), a play that wakes the device, and the power button of the card all come here. Standby stops the playback
+     * (the queue stays). The event goes to the subscribers, and the listeners hear of a real change.
+     */
+    @Override
+    public void setStandby(boolean standby) {
+        if (standby) {
+            playback.stop();
+        }
+        if (product.set("Standby", String.valueOf(standby))) {
+            for (Runnable listener : standbyListeners) {
+                try {
+                    listener.run();
+                } catch (RuntimeException broken) {
+                    YaaccLogger.w(getClass().getName(), "A standby listener failed (" + broken.getClass().getSimpleName() + ")");
+                }
+            }
+        }
+    }
+
+    @Override
+    public void addStandbyListener(Runnable listener) {
+        if (listener != null) {
+            standbyListeners.addIfAbsent(listener);
+        }
+    }
+
+    @Override
+    public void removeStandbyListener(Runnable listener) {
+        standbyListeners.remove(listener);
     }
 
     // ---- the sources of the Product service (task 12.5)
@@ -626,11 +671,7 @@ public final class OhRendererCore {
         // standby of a phone is an app state, not a power state: playback stops (the queue stays) and the device says it is in
         // standby until somebody wakes it or plays
         h.put("SetStandby", in -> {
-            boolean standby = bool(in.get("Value"));
-            if (standby) {
-                playback.stop();
-            }
-            product.set("Standby", String.valueOf(standby));
+            setStandby(bool(in.get("Value")));
             return null;
         });
         // the choices are against the list the controllers were told last (task 12.5)
@@ -663,7 +704,7 @@ public final class OhRendererCore {
 
     /** Playing, or choosing a track to play, wakes a device that is in standby (as devices do). */
     private void wake() {
-        product.set("Standby", "false");
+        setStandby(false);
     }
 
     private Map<String, OhActionHandler> volumeHandlers() {

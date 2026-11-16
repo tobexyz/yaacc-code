@@ -32,6 +32,12 @@ public final class SnapcastClientSpike {
     public static final boolean ENABLED_DEFAULT = false;
     /** Remembered between uses; plain text on the phone like the server list. */
     public static final String KEY_LAST_HOST = "snapcast_client_spike_host";
+    /**
+     * The server the phone's client uses: the one it was last connected to, written when a session first reaches the connected state,
+     * when the user chooses a server on the card of the client, and when the listen test starts with a typed address. Plain text on
+     * the phone like the server list; read through {@code SnapcastClientServerChoice} (validated, a damaged text is none).
+     */
+    public static final String KEY_LAST_SERVER = "snapcast_client_last_server";
     public static final String KEY_LAST_LATENCY = "snapcast_client_spike_latency_ms";
     /** The per-installation secret of the Hello id, see {@link SnapcastClientIdentity}. */
     public static final String KEY_SECRET = "snapcast_client_spike_secret";
@@ -39,6 +45,19 @@ public final class SnapcastClientSpike {
     /** Why and when the last session ended (written by the service, also when the whole app exits); read by the dialog. */
     public static final String KEY_LAST_ENDING = "snapcast_client_spike_last_ending";
     public static final String KEY_LAST_ENDING_AT = "snapcast_client_spike_last_ending_at";
+    /**
+     * Whether the user has seen the last ending (a boolean, true when missing). The service writes false with every ending; the
+     * switch, the checkbox or the dialog write true when they show it. An ending that is a failure and unseen keeps the restore at the
+     * start of the app from trying again blindly ({@link SnapcastClientRestore}).
+     */
+    public static final String KEY_LAST_ENDING_SEEN = "snapcast_client_spike_last_ending_seen";
+    /**
+     * The one persisted state "the Snapcast client is switched on" (task 12C): set by the switch on the first page, the checkbox
+     * of the settings and the Start/Stop of the listen test, read by the restore at the start of the app. Also the name of its string
+     * resource; a boolean, off by default.
+     */
+    public static final String KEY_SWITCHED_ON = "settings_snapcast_client_switched_on";
+    public static final boolean SWITCHED_ON_DEFAULT = false;
     public static final String KEY_LAST_WRITE_AHEAD = "snapcast_client_spike_write_ahead_ms";
     /** The "FLAC stall guard" check box of the test screen (default on). */
     public static final String KEY_LAST_FLAC_GUARD = "snapcast_client_spike_flac_guard";
@@ -184,6 +203,18 @@ public final class SnapcastClientSpike {
         }
     }
 
+    /** @return whether the client is switched on (the state that is restored); off for no source, a missing value or a value that can not be read */
+    public static boolean isSwitchedOn(de.yaacc.multiroom.SnapcastSettings.BooleanSource source) {
+        if (source == null) {
+            return SWITCHED_ON_DEFAULT;
+        }
+        try {
+            return source.getBoolean(KEY_SWITCHED_ON, SWITCHED_ON_DEFAULT);
+        } catch (RuntimeException damaged) {
+            return SWITCHED_ON_DEFAULT;
+        }
+    }
+
     public static Locality localityOf(SnapcastEndpoint endpoint) {
         java.net.InetAddress address = endpoint.getAddress();
         if (address == null) {
@@ -204,5 +235,69 @@ public final class SnapcastClientSpike {
      */
     public static String helloHostName(java.net.InetAddress resolved, String phoneName) {
         return de.yaacc.multiroom.discovery.SnapcastAddressFilter.isAccepted(resolved) ? phoneName : "YAACC";
+    }
+
+    /** The longest version text of the Hello (the server shows it in its client list). */
+    static final int HELLO_VERSION_MAX = 40;
+    private static final int APP_VERSION_MAX = 20;
+    private static final String GENERIC_PROGRAM = "YAACC";
+
+    /**
+     * The {@code Version} of the Hello: the name of the YAACC server of this phone and the app version ("Yaacc 6.1.0"), so
+     * that an operator sees what the client is. For a public address it is the generic "YAACC" and the app version, the
+     * same privacy rule as {@link #helloHostName}: the name the user gave the server stays on the phone. The name is
+     * cleaned (letters, digits and printable ASCII only; no control, format or separator characters and none of
+     * {@code < > & " ` \}; blanks collapsed), an empty or unusable one becomes "YAACC", and the whole text has at most
+     * {@value #HELLO_VERSION_MAX} characters: the name is cut, the app version is kept.
+     */
+    public static String helloVersion(String serverName, String appVersion, boolean publicAddress) {
+        String name = publicAddress ? GENERIC_PROGRAM : cleanHelloName(serverName);
+        if (name.isEmpty()) {
+            name = GENERIC_PROGRAM;
+        }
+        String version = cleanAppVersion(appVersion);
+        int room = version.isEmpty() ? HELLO_VERSION_MAX : HELLO_VERSION_MAX - 1 - version.length();
+        if (name.length() > room) {
+            name = name.substring(0, room).trim();
+        }
+        return version.isEmpty() ? name : name + " " + version;
+    }
+
+    private static String cleanHelloName(String text) {
+        if (text == null) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder();
+        boolean pendingSpace = false;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == ' ') {
+                pendingSpace = out.length() > 0;
+                continue;
+            }
+            boolean printableAscii = c > 0x20 && c < 0x7f && "<>&\"`\\".indexOf(c) < 0;
+            if (printableAscii || (c > 0x7f && Character.isLetterOrDigit(c))) {
+                if (pendingSpace) {
+                    out.append(' ');
+                    pendingSpace = false;
+                }
+                out.append(c);
+            }
+        }
+        return out.toString();
+    }
+
+    private static String cleanAppVersion(String text) {
+        if (text == null) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < text.length() && out.length() < APP_VERSION_MAX; i++) {
+            char c = text.charAt(i);
+            if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || ".-+_".indexOf(c) >= 0) {
+                out.append(c);
+            }
+        }
+        return out.toString();
     }
 }

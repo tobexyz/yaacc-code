@@ -505,6 +505,9 @@ public final class SnapcastFeedController {
             output = outputs.open(peer, ensured.getPort(), () -> execute(() -> outputFailed(generation)));
         } catch (IOException | RuntimeException cannotConnect) {
             output = null;
+            // the toast is the same for every cause: the log names the kind of failure and the stream's port (a closed port
+            // is a firewall on the server, see the troubleshooting in docs/index.md), never the address or the message text
+            listener.onLog("connect failed: " + cannotConnect.getClass().getSimpleName() + " (port " + ensured.getPort() + ")");
             return FeedError.of(FeedError.Kind.CONNECT_FAILED);
         }
         return null;

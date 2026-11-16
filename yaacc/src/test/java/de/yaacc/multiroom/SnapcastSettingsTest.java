@@ -92,4 +92,48 @@ public class SnapcastSettingsTest {
         assertFalse(SnapcastSettings.isDiscoveryKey("settings_snapcast_play_experimental"));
         assertFalse(SnapcastSettings.isDiscoveryKey(null));
     }
+
+    // ---- 'Play to Snapcast groups' (issue 319 task 12.20): on by default, a stored choice is kept
+
+    @Test
+    public void thePlayOptionIsOnByDefault() {
+        assertTrue(SnapcastSettings.PLAY_DEFAULT);
+        assertTrue(SnapcastSettings.isPlayEnabled((key, defaultValue) -> defaultValue));
+        assertEquals("settings_snapcast_play_experimental", SnapcastSettings.KEY_PLAY);
+    }
+
+    @Test
+    public void anInstallThatNeverSetThePlayKeyGetsOnAndAStoredOffIsKept() {
+        java.util.Map<String, Boolean> stored = new java.util.HashMap<>();
+        SnapcastSettings.BooleanSource preferences = (key, defaultValue) -> stored.containsKey(key) ? stored.get(key) : defaultValue;
+
+        assertTrue("never set: on", SnapcastSettings.isPlayEnabled(preferences));
+        stored.put(SnapcastSettings.KEY_PLAY, false);
+        assertFalse("the user switched it off: it stays off", SnapcastSettings.isPlayEnabled(preferences));
+        stored.put(SnapcastSettings.KEY_PLAY, true);
+        assertTrue(SnapcastSettings.isPlayEnabled(preferences));
+    }
+
+    @Test
+    public void thePlayOptionIsReadFromItsKeyWithTheDefaultOn() {
+        final String[] asked = new String[1];
+        final boolean[] askedDefault = new boolean[1];
+
+        SnapcastSettings.isPlayEnabled((key, defaultValue) -> {
+            asked[0] = key;
+            askedDefault[0] = defaultValue;
+            return defaultValue;
+        });
+
+        assertEquals("settings_snapcast_play_experimental", asked[0]);
+        assertTrue(askedDefault[0]);
+    }
+
+    @Test
+    public void aDamagedOrMissingPlaySourceCountsAsOff() {
+        assertFalse(SnapcastSettings.isPlayEnabled(null));
+        assertFalse(SnapcastSettings.isPlayEnabled((key, defaultValue) -> {
+            throw new ClassCastException("not a boolean");
+        }));
+    }
 }

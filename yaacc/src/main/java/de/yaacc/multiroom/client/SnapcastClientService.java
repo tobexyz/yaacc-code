@@ -48,11 +48,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import de.yaacc.BuildConfig;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.multiroom.control.SocketTransport;
+import de.yaacc.multiroom.discovery.SnapcastAddressFilter;
 import de.yaacc.multiroom.discovery.SnapcastResolver;
-import de.yaacc.multiroom.discovery.SnapcastServerKey;
 import de.yaacc.multiroom.protocol.HelloMessage;
 import de.yaacc.multiroom.protocol.ServerSettingsMessage;
 import de.yaacc.multiroom.protocol.SnapcastConnection;
@@ -63,15 +64,16 @@ import de.yaacc.util.NotificationId;
  * The phone as a Snapcast client, for the listen test (task 8.1): a foreground service of type {@code mediaPlayback}
  * that owns the {@link SnapcastConnection}, the {@link SnapcastClientEngine} and the output while a session runs.
  *
- * <p><b>Lifetime.</b> It is started by the spike screen (never by the system: {@code START_NOT_STICKY}, not exported) and
- * lives only while a session is on. A wake lock (partial, with a safety timeout of 8 hours, renewed while the session runs)
+ * <p><b>Lifetime.</b> It is started by the app (the spike screen, the switch on the first page, the checkbox of the settings, the
+ * restore at the start of the app; all through {@link SnapcastClientPower}). The system never restarts it
+ * ({@code START_NOT_STICKY}, not exported) and it lives only while a session is on. A wake lock (partial, with a safety timeout of 8 hours, renewed while the session runs)
  * and a Wi-Fi lock are taken at the start and released at <b>every</b> end: the stop button, an error of the connection or of the engine, the
  * watchdog, and {@code onDestroy}. The notification is the standard one with a Stop action. No listener socket is
  * opened; the phone connects out to the one server the user typed in, by an address resolved once.
  *
  * <p><b>Disclosure.</b> The Hello carries the name of the phone as the UPnP server announces it, the program name, the
- * generic words "Android" and "unknown", and an id derived per server from a secret of this installation
- * ({@link SnapcastClientIdentity}); the MAC is the fixed placeholder. Nothing from the server is written to the log.
+ * generic words "Android" and "unknown", and an id derived from a secret of this installation
+ * ({@link SnapcastClientIdentity}): the same id for every server; the MAC is the fixed placeholder. Nothing from the server is written to the log.
  */
 public final class SnapcastClientService extends Service {
 
@@ -103,6 +105,8 @@ public final class SnapcastClientService extends Service {
     private SessionPowerPolicy powerPolicy; // main thread only
     private SnapcastClientRuntime.Phase lastPhaseShown;
     private volatile Integer pendingLatencyMs;
+    private volatile String serverText; // the server of this session as the start named it (validated by beginSession)
+    private final AtomicBoolean serverRemembered = new AtomicBoolean();
     private volatile int writeAheadMs = SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS;
     private volatile boolean flacGuard = true;
 
@@ -153,6 +157,12 @@ public final class SnapcastClientService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        SnapcastClientRuntime.serviceCreated();
     }
 
     @Override
@@ -211,9 +221,27 @@ public final class SnapcastClientService extends Service {
             flacGuard = intent.getBooleanExtra(EXTRA_FLAC_GUARD, true);
             beginSession(intent.getStringExtra(EXTRA_HOST), intent.getIntExtra(EXTRA_LATENCY_MS, 0));
         } catch (RuntimeException unexpected) {
-            endSession(SnapcastClientRuntime.Ending.SERVICE_ERROR);
+            // Android 12 and newer: startForeground may be refused when the start came from the background (the restore at the start
+            // of the app); that is no failure of a session, the app tries once more when a screen starts
+            endSession(SnapcastClientPower.isBackgroundStartRefusal(unexpected) ? SnapcastClientRuntime.Ending.START_NOT_ALLOWED
+                    : SnapcastClientRuntime.Ending.SERVICE_ERROR);
         }
         return START_NOT_STICKY;
+    }
+
+    /**
+     * The first time a session reaches the connected state the server is remembered as the one the client was last connected to (task
+     * 12.10: the default of the next start). Once per session; the text is the one the start validated; nothing is logged.
+     */
+    private void rememberServer() {
+        String text = serverText;
+        if (text != null && serverRemembered.compareAndSet(false, true)) {
+            try {
+                PreferenceManager.getDefaultSharedPreferences(this).edit().putString(SnapcastClientSpike.KEY_LAST_SERVER, text).apply();
+            } catch (RuntimeException ignored) {
+                // a courtesy: the session goes on
+            }
+        }
     }
 
     private static int clampLatency(int value) {
@@ -235,6 +263,7 @@ public final class SnapcastClientService extends Service {
             endSession(SnapcastClientRuntime.Ending.BAD_ADDRESS);
             return;
         }
+        serverText = hostText.trim();
         acquireLocks();
         powerPolicy = new SessionPowerPolicy(SystemClock.elapsedRealtime());
         main.postDelayed(watchdog, WATCHDOG_INTERVAL_MS);
@@ -255,10 +284,10 @@ public final class SnapcastClientService extends Service {
     private void connect(SnapcastClientSpike.Request request) {
         try {
             InetAddress address = SnapcastResolver.system().resolve(request.getEndpoint());
-            String serverKey = SnapcastServerKey.of(request.getEndpoint()).asString();
-            HelloMessage hello = HelloMessage.create(SnapcastClientIdentity.deriveId(installSecret(), serverKey),
+            HelloMessage hello = HelloMessage.create(SnapcastClientIdentity.deriveId(installSecret()),
                     SnapcastClientSpike.helloHostName(address, phoneName()),
-                    "YAACC", "Android", "unknown", "spike");
+                    "YAACC", "Android", "unknown", SnapcastClientSpike.helloVersion(phoneName(), BuildConfig.VERSION_NAME,
+                            !SnapcastAddressFilter.isAccepted(address)));
             ClientSession session = ClientSession.assemble(new SocketTransport(address, request.getEndpoint().getPort()), hello,
                     request.getLatencyMs(), AudioTrackSink::new, new DefaultDecoderFactory(new AndroidDecoderFactory()),
                     SystemClock::elapsedRealtimeNanos, SnapcastClientSpike.engineConfig(writeAheadMs, flacGuard),
@@ -304,6 +333,7 @@ public final class SnapcastClientService extends Service {
             main.post(() -> {
                 if (!ended.get()) {
                     SnapcastClientRuntime.phaseWhileActive(SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
+                    rememberServer();
                 }
             });
         } catch (IOException unresolved) {
@@ -394,6 +424,7 @@ public final class SnapcastClientService extends Service {
             main.post(() -> {
                 if (!ended.get()) {
                     SnapcastClientRuntime.phaseWhileActive(SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
+                    rememberServer();
                     refreshNotification();
                 }
             });
@@ -498,7 +529,9 @@ public final class SnapcastClientService extends Service {
         try {
             PreferenceManager.getDefaultSharedPreferences(this).edit()
                     .putString(SnapcastClientSpike.KEY_LAST_ENDING, ending.name())
-                    .putLong(SnapcastClientSpike.KEY_LAST_ENDING_AT, System.currentTimeMillis()).apply();
+                    .putLong(SnapcastClientSpike.KEY_LAST_ENDING_AT, System.currentTimeMillis())
+                    .putBoolean(SnapcastClientSpike.KEY_LAST_ENDING_SEEN, false) // unseen until the switch or the dialog showed it
+                    .apply();
             EngineHost h = host;
             if (h != null) {
                 h.traceEnding(ending.ordinal());
@@ -576,6 +609,7 @@ public final class SnapcastClientService extends Service {
         if (worker != null) {
             worker.shutdownNow();
         }
+        SnapcastClientRuntime.serviceDestroyed(); // a restart on another server waits for this
         super.onDestroy();
     }
 

@@ -84,8 +84,11 @@ public class SnapcastClientServiceOrderGuardTest {
         assertTrue(timer.contains("AutoCloseRule.reasonToStay("));
         assertTrue(timer.contains("SnapcastClientRuntime.isActive()"));
         assertTrue(timer.contains("instanceof SnapcastPlayer"));
-        assertTrue(timer.contains("snapcastFeedActive("));
-        assertTrue(timer.contains("snapcastClientSessionActive("));
+        // the facts are built by IdleFacts.of(master, receiver, proxy, players, snapcast client, snapcast feed, autostart)
+        assertTrue(timer.contains("IdleFacts.of("));
+        assertTrue(timer.contains("feedActive"));
+        assertTrue(code("de/yaacc/browser/IdleFacts.java").contains(".snapcastClientSessionActive(snapcastClientActive)"));
+        assertTrue(code("de/yaacc/browser/IdleFacts.java").contains(".snapcastFeedActive(snapcastFeedActive)"));
     }
 
     @Test

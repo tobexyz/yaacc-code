@@ -24,14 +24,18 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 
 /**
- * The id the phone gives a snapserver in its Hello. It is <b>derived per server</b> from a random secret of this
- * installation and the key of the server, so two servers can not tell they talk to the same phone, and it is never the
- * hardware id (Android does not give one, and the design forbids it). Group 9 replaces the secret with the YAACC device
- * UDN; the derivation stays. The server and every controller of it see the id.
+ * The id the phone gives a snapserver in its Hello (the client id every server and every controller of it shows). It is derived from
+ * a random secret of this installation <b>only</b>: the same id for every server, also a public address (the owner's decision, task
+ * 12.11), so the app can recognise its own client in the status of a server without a session and without knowing which server it
+ * was connected to. It is never the hardware id (Android does not give one, and the design forbids it), and it is a one-way function
+ * of the secret: the server learns that two of its clients are the same phone, and that two servers saw the same phone, nothing else.
+ * Earlier builds derived the id per server (secret and endpoint text); an entry they left on a server is a ghost once, which
+ * "Remove from server" clears. Group 9's idea of replacing the secret with the YAACC device UDN was not taken.
  */
 public final class SnapcastClientIdentity {
 
     private static final String PREFIX = "yaacc-";
+    private static final String DOMAIN = "snapcast-client-id";
     private static final char[] HEX = "0123456789abcdef".toCharArray();
 
     private SnapcastClientIdentity() {
@@ -59,20 +63,28 @@ public final class SnapcastClientIdentity {
     }
 
     /**
-     * @param secret    the secret of this installation
-     * @param serverKey the canonical text of the server's endpoint
-     * @return {@code yaacc-} and 16 hexadecimal characters: a one-way function of both
+     * @param secret the secret of this installation ({@link #isSecret})
+     * @return {@code yaacc-} and 16 hexadecimal characters: a one-way function of the secret and nothing else
      */
-    public static String deriveId(String secret, String serverKey) {
+    public static String deriveId(String secret) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             digest.update(secret.getBytes(StandardCharsets.UTF_8));
             digest.update((byte) 0);
-            digest.update(serverKey.getBytes(StandardCharsets.UTF_8));
+            digest.update(DOMAIN.getBytes(StandardCharsets.UTF_8)); // a fixed label, so the id is not the plain hash of the secret
             return PREFIX + hex(digest.digest(), 8);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 is part of every Java runtime", e);
         }
+    }
+
+    /**
+     * The id for a stored secret, for the code that only wants to recognise the app's own client.
+     *
+     * @return the id, or null when there is no valid secret (the app never started a client: no entry of it can exist on a server)
+     */
+    public static String idOfSecret(String secretOrNull) {
+        return isSecret(secretOrNull) ? deriveId(secretOrNull) : null;
     }
 
     private static String hex(byte[] bytes, int count) {

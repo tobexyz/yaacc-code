@@ -50,6 +50,7 @@
     <string name="share_busy">Another shared file is still being processed. Try again in a moment.</string>
     <string name="share_unnamed_link">Shared link</string>
     <string name="share_link_failed">Could not play the shared link.</string>
+    <string name="share_link_needs_server">The shared link was not played: the media proxy needs the \'UPnP server\' switch to be on. Switch it on or turn the proxy off in the settings.</string>
     <string name="error_no_activity_found">No activity found for playing mimetype \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Picture stay duration</string>
     <string name="image_viewer_settings_duration_key" translatable="false">image_viewer_settings_duration_key</string>
@@ -352,6 +353,10 @@
     <string name="snapcast_member_mute">Mute %1$s</string>
     <string name="snapcast_member_actions">Actions for %1$s</string>
     <string name="snapcast_member_rename">Rename</string>
+    <string name="snapcast_member_this_phone">This phone</string>
+    <string name="snapcast_member_this_phone_old">This phone, old entry</string>
+    <string name="snapcast_member_server">Server</string>
+    <string name="snapcast_server_choose_title">Server of this phone</string>
     <string name="snapcast_member_latency">Latency</string>
     <string name="snapcast_rename_title">Rename client</string>
     <string name="snapcast_rename_hint">Name (empty: use the host name)</string>
@@ -380,8 +385,8 @@
     <string name="snapcast_servers_discovery_copy">Copy report</string>
     <string name="snapcast_servers_discovery_copied">Report copied to the clipboard</string>
     <string name="snapcast_servers_discovery_note">The report lists the servers found with their addresses on your network, your phone model, and the state of the Wi-Fi and of the search. Look at it before you paste it somewhere. While this window is open and Find Snapcast servers is on, the network is searched.</string>
-    <string name="snapcast_client_title">Snapcast client (listen test)</string>
-    <string name="snapcast_client_note">Experimental. This phone plays as a Snapcast client so that you can check the sync by ear. Audio and control are not encrypted. The server and its controllers see the name of this phone and a generated id.</string>
+    <string name="snapcast_client_title">Snapcast client details</string>
+    <string name="snapcast_client_note">This phone plays as a Snapcast client. Audio and control are not encrypted. The server and its controllers see the name of this phone and a generated id, which is the same on all servers.</string>
     <string name="snapcast_client_host_hint">Server address, optional :port (default 1704)</string>
     <string name="snapcast_client_latency_hint">Manual latency in ms (positive plays earlier)</string>
     <string name="snapcast_client_start">Start</string>
@@ -410,12 +415,21 @@
     <string name="snapcast_client_move_group_failed">The server did not accept it</string>
     <string name="snapcast_client_move_group_changed">The group of this phone changed on the server meanwhile: nothing was moved</string>
     <string name="snapcast_client_move_group_none">No server answer yet</string>
-    <string name="snapcast_client_notification_title">Snapcast client (test)</string>
+    <string name="snapcast_client_notification_title">Snapcast client</string>
     <string name="snapcast_client_notification_connecting">Connecting…</string>
     <string name="snapcast_client_notification_playing">Playing</string>
     <string name="snapcast_client_notification_reconnecting">Connection lost, trying again…</string>
     <string name="snapcast_client_warning_public">This address is not on your local network. Audio and control are not encrypted or authenticated on the way there.</string>
     <string name="snapcast_client_busy">The previous session is still stopping. Tap Start again in a moment.</string>
+    <string name="snapcast_client_switch_label">Snapcast client</string>
+    <string name="snapcast_client_switch_settings">Snapcast client settings</string>
+    <string name="snapcast_client_state_off">Off</string>
+    <string name="snapcast_client_state_stopped">Stopped</string>
+    <string name="snapcast_client_state_line">Snapcast client: %1$s</string>
+    <string name="snapcast_client_refused_option_off">The Snapcast client is switched off in the settings.</string>
+    <string name="snapcast_client_refused_no_server">No server known yet. Add one under Snapcast servers in the settings, or choose one in the Snapcast client details.</string>
+    <string name="snapcast_client_refused_bad_server">The saved server address is not valid. Choose a server in the Snapcast client details (settings).</string>
+    <string name="snapcast_client_refused_not_allowed">The system did not allow the start. It is tried again when the app is opened.</string>
     <string name="renderer_output_damaged_note">The Snapcast output of the renderer is damaged; playing on this device. Choose the group again in the settings.</string>
     <string name="renderer_output_error_no_group">The renderer is set to play into a Snapcast group, but no group is chosen. Choose one in the settings.</string>
     <string name="renderer_output_error_server_not_listed">The Snapcast server of the renderer\'s group is not in the server list. Add it under Snapcast servers in the settings, or choose another group.</string>
@@ -434,6 +448,10 @@
     <string name="snapcast_client_delete_title">Remove client from the server?</string>
     <string name="snapcast_client_delete_message">%1$s is offline. This only removes its entry from the server\'s list. A client that is still around comes back by itself when it connects again.</string>
     <string name="snapcast_client_delete_confirm">Remove</string>
+    <string name="snapcast_legacy_delete_menu">Remove old entries of this phone</string>
+    <string name="snapcast_legacy_delete_title">Remove old entries of this phone?</string>
+    <string name="snapcast_legacy_delete_message">Old offline entries of this phone on this server: %1$d. Only these entries are removed from the server\'s list. The phone keeps working under its current entry.</string>
+    <string name="snapcast_legacy_delete_confirm">Remove</string>
     <string name="snapcast_remove_error_connected">The client has connected again and was not removed.</string>
     <string name="snapcast_remove_error_own">This phone\'s own client is not removed while its session runs or starts.</string>
     <!-- The Snapcast groups as sources of the OpenHome renderer (task 12.5) -->

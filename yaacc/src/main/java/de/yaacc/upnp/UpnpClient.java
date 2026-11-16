@@ -106,6 +106,7 @@ import de.yaacc.player.YaaccMediaRouteProvider;
 import de.yaacc.share.HttpLinkTarget;
 import de.yaacc.share.LinkContentType;
 import de.yaacc.share.LinkTargetPolicy;
+import de.yaacc.share.ProxyAvailability;
 import de.yaacc.share.ReadinessWait;
 import de.yaacc.share.SharedContentPolicy;
 import de.yaacc.share.ShareLimits;
@@ -2118,10 +2119,16 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             return null;
         }
         final String title = "shared with ♥ by yaacc";
+        // The proxy is used only when its checkbox AND the master switch "UPnP Server" are on; with the checkbox
+        // ticked and the master switch off no server of the app serves the link, so it is refused (task 12.21).
+        final ProxyAvailability.Decision decision = linkProxyDecision();
+        if (decision == ProxyAvailability.Decision.REFUSE_NO_SERVER) {
+            YaaccLogger.w(getClass().getName(), "A shared link was refused: the media proxy needs the UPnP Server switched on");
+            return null;
+        }
         // only http(s) links are proxied; the link is kept in the in-memory share registry
         // (random key, receiver addresses, expiry), never in the preferences
-        final boolean proxy = this.getPreferences().getBoolean(
-                getContext().getString(R.string.settings_local_server_proxy_chkbx), false);
+        final boolean proxy = decision == ProxyAvailability.Decision.USE_PROXY;
         final Set<String> ownAddresses = ShareAddressResolver.ownAddresses(getContext());
         if (proxy && !LinkTargetPolicy.isAllowedTarget(link, ownAddresses)) {
             // the phone would fetch its own or a link-local service for the receivers: play nothing
@@ -2165,6 +2172,19 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             getShareRegistry().remove(shareKey);
         }
         return item;
+    }
+
+    /**
+     * How a shared link is handed to the receivers, from the preferences: the media proxy checkbox AND the master switch
+     * "UPnP Server" (see {@link ProxyAvailability}). The caller may ask this before building an item to tell the user why a
+     * link is refused.
+     */
+    public ProxyAvailability.Decision linkProxyDecision() {
+        boolean masterOn = getPreferences().getBoolean(
+                getContext().getString(R.string.settings_local_server_chkbx), false);
+        boolean proxyTicked = getPreferences().getBoolean(
+                getContext().getString(R.string.settings_local_server_proxy_chkbx), false);
+        return ProxyAvailability.decide(masterOn, proxyTicked);
     }
 
     /**

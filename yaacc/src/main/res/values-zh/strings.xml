@@ -50,6 +50,7 @@
     <string name="share_busy">另一个分享的文件仍在处理中，请稍后再试。</string>
     <string name="share_unnamed_link">分享的链接</string>
     <string name="share_link_failed">无法播放分享的链接。</string>
+    <string name="share_link_needs_server">未播放分享的链接：媒体代理需要打开“UPnP 服务器”开关。请打开该开关，或在设置中关闭代理。</string>
     <string name="error_no_activity_found">未找到播放 mimetype \'%1$s\' 的活动</string>
     <string name="image_viewer_settings_duration">图片停留时长</string>
     <string name="yaacc_menu_settings">YAACC 设置</string>
@@ -343,6 +344,10 @@
     <string name="snapcast_member_mute">将 %1$s 静音</string>
     <string name="snapcast_member_actions">%1$s 的操作</string>
     <string name="snapcast_member_rename">重命名</string>
+    <string name="snapcast_member_this_phone">本手机</string>
+    <string name="snapcast_member_this_phone_old">本手机，旧条目</string>
+    <string name="snapcast_member_server">服务器</string>
+    <string name="snapcast_server_choose_title">本手机使用的服务器</string>
     <string name="snapcast_member_latency">延迟</string>
     <string name="snapcast_rename_title">重命名客户端</string>
     <string name="snapcast_rename_hint">名称（留空：使用主机名）</string>
@@ -371,8 +376,8 @@
     <string name="snapcast_servers_discovery_copy">复制报告</string>
     <string name="snapcast_servers_discovery_copied">报告已复制到剪贴板</string>
     <string name="snapcast_servers_discovery_note">报告列出在你的网络中找到的服务器及其地址、手机型号，以及 Wi-Fi 和搜索的状态。粘贴到别处之前请先查看。在此窗口打开且“查找 Snapcast 服务器”开启期间，会搜索网络。</string>
-    <string name="snapcast_client_title">Snapcast 客户端（试听测试）</string>
-    <string name="snapcast_client_note">实验性功能。本手机作为 Snapcast 客户端播放，以便你用耳朵检查同步。音频和控制均未加密。服务器及其控制端会看到本手机的名称和一个生成的标识。</string>
+    <string name="snapcast_client_title">Snapcast 客户端详情</string>
+    <string name="snapcast_client_note">本手机作为 Snapcast 客户端播放。音频和控制均未加密。服务器及其控制端会看到本手机的名称和一个生成的标识，该标识在所有服务器上相同。</string>
     <string name="snapcast_client_host_hint">服务器地址，可选 :端口（默认 1704）</string>
     <string name="snapcast_client_latency_hint">手动延迟（毫秒，正值提前播放）</string>
     <string name="snapcast_client_start">开始</string>
@@ -401,12 +406,21 @@
     <string name="snapcast_client_move_group_failed">服务器未接受</string>
     <string name="snapcast_client_move_group_changed">本手机的分组在服务器上已发生变化：未移动任何内容</string>
     <string name="snapcast_client_move_group_none">服务器尚未回应</string>
-    <string name="snapcast_client_notification_title">Snapcast 客户端（测试）</string>
+    <string name="snapcast_client_notification_title">Snapcast 客户端</string>
     <string name="snapcast_client_notification_connecting">正在连接…</string>
     <string name="snapcast_client_notification_playing">正在播放</string>
     <string name="snapcast_client_notification_reconnecting">连接已断开，正在重试…</string>
     <string name="snapcast_client_warning_public">此地址不在你的本地网络中。音频和控制在传输途中未加密也未经身份验证。</string>
     <string name="snapcast_client_busy">上一个会话仍在停止中。请稍后再点按“开始”。</string>
+    <string name="snapcast_client_switch_label">Snapcast 客户端</string>
+    <string name="snapcast_client_switch_settings">Snapcast 客户端设置</string>
+    <string name="snapcast_client_state_off">已关闭</string>
+    <string name="snapcast_client_state_stopped">已停止</string>
+    <string name="snapcast_client_state_line">Snapcast 客户端：%1$s</string>
+    <string name="snapcast_client_refused_option_off">Snapcast 客户端在设置中已关闭。</string>
+    <string name="snapcast_client_refused_no_server">尚无已知服务器。请在设置的 Snapcast 服务器中添加一个，或在 Snapcast 客户端详情中选择一个。</string>
+    <string name="snapcast_client_refused_bad_server">已保存的服务器地址无效。请在 Snapcast 客户端详情（设置）中选择服务器。</string>
+    <string name="snapcast_client_refused_not_allowed">系统不允许启动。打开应用时会再试一次。</string>
     <string name="renderer_output_damaged_note">渲染器的 Snapcast 输出设置已损坏，正在此设备上播放。请在设置中重新选择该组。</string>
     <string name="renderer_output_error_no_group">渲染器已设为向 Snapcast 组播放，但尚未选择组。请在设置中选择一个。</string>
     <string name="renderer_output_error_server_not_listed">渲染器所选组所在的 Snapcast 服务器不在服务器列表中。请在设置的 Snapcast 服务器中添加它，或选择其他组。</string>
@@ -425,6 +439,10 @@
     <string name="snapcast_client_delete_title">要从服务器移除该客户端吗？</string>
     <string name="snapcast_client_delete_message">%1$s 已离线。这只会从服务器的列表中移除它的条目。仍然存在的客户端在重新连接时会自行回来。</string>
     <string name="snapcast_client_delete_confirm">移除</string>
+    <string name="snapcast_legacy_delete_menu">移除本手机的旧条目</string>
+    <string name="snapcast_legacy_delete_title">要移除本手机的旧条目吗？</string>
+    <string name="snapcast_legacy_delete_message">本手机在此服务器上的离线旧条目：%1$d。只会从服务器的列表中移除这些条目。本手机会继续使用其当前条目。</string>
+    <string name="snapcast_legacy_delete_confirm">移除</string>
     <string name="snapcast_remove_error_connected">该客户端已重新连接，未被移除。</string>
     <string name="snapcast_remove_error_own">本手机自己的客户端在其会话运行或启动期间不会被移除。</string>
     <!-- The Snapcast groups as sources of the OpenHome renderer (task 12.5) -->

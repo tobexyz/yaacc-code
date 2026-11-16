@@ -161,8 +161,9 @@ public class AutostartGuardTest {
     @Test
     public void theIdleCheckReadsTheAutostartSettingIntoTheFacts() throws Exception {
         String exitIfIdle = body(code("browser/BackgroundIdleTimer.java"), "private static void exitIfIdle(");
-        assertTrue(exitIfIdle.contains(".autostartEnabled(preferences.getBoolean("));
+        assertTrue(exitIfIdle.contains("IdleFacts.of("));
         assertTrue(exitIfIdle.contains("settings_local_server_autostart_chkbx"));
+        assertInOrder(exitIfIdle, "settings_local_server_autostart_chkbx", "AutoCloseRule.reasonToStay(facts)");
         assertInOrder(exitIfIdle, "AutoCloseRule.reasonToStay(facts)", "Idle in background, exiting", "Idle in background, staying open: ");
     }
 
