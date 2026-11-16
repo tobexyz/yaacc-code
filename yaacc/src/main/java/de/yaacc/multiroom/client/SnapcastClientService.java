@@ -48,9 +48,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import de.yaacc.BuildConfig;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.multiroom.control.SocketTransport;
+import de.yaacc.multiroom.discovery.SnapcastAddressFilter;
 import de.yaacc.multiroom.discovery.SnapcastResolver;
 import de.yaacc.multiroom.protocol.HelloMessage;
 import de.yaacc.multiroom.protocol.ServerSettingsMessage;
@@ -284,7 +286,8 @@ public final class SnapcastClientService extends Service {
             InetAddress address = SnapcastResolver.system().resolve(request.getEndpoint());
             HelloMessage hello = HelloMessage.create(SnapcastClientIdentity.deriveId(installSecret()),
                     SnapcastClientSpike.helloHostName(address, phoneName()),
-                    "YAACC", "Android", "unknown", "spike");
+                    "YAACC", "Android", "unknown", SnapcastClientSpike.helloVersion(phoneName(), BuildConfig.VERSION_NAME,
+                            !SnapcastAddressFilter.isAccepted(address)));
             ClientSession session = ClientSession.assemble(new SocketTransport(address, request.getEndpoint().getPort()), hello,
                     request.getLatencyMs(), AudioTrackSink::new, new DefaultDecoderFactory(new AndroidDecoderFactory()),
                     SystemClock::elapsedRealtimeNanos, SnapcastClientSpike.engineConfig(writeAheadMs, flacGuard),

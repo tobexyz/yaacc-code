@@ -21,6 +21,7 @@ package de.yaacc.multiroom.client;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -129,6 +130,53 @@ public class SnapcastClientSpikeTest {
         }
         assertEquals("YAACC", SnapcastClientSpike.helloHostName(java.net.InetAddress.getByName("::ffff:8.8.8.8"), "x"));
         assertEquals("x", SnapcastClientSpike.helloHostName(java.net.InetAddress.getByName("127.0.0.1"), "x"));
+    }
+
+    @Test
+    public void theVersionOfTheHelloIsTheServerNameAndTheAppVersion() {
+        String[][] cases = {
+                // name, app version, public address, expected
+                {"Anna's phone", "6.1.0", "false", "Anna's phone 6.1.0"},
+                {"Yaacc", "6.1.0", "false", "Yaacc 6.1.0"},
+                {null, "6.1.0", "false", "YAACC 6.1.0"},
+                {"", "6.1.0", "false", "YAACC 6.1.0"},
+                {"   ", "6.1.0", "false", "YAACC 6.1.0"},
+                {"Wohnzimmer Küche", "6.1.0-beta.2", "false", "Wohnzimmer Küche 6.1.0-beta.2"},
+                {"a\r\nb\u0000c\u007fd\u202ee", "6.1.0", "false", "abcde 6.1.0"},
+                {"<b>x</b> \"q\" a&b `c` \\d", "6.1.0", "false", "bx/b q ab c d 6.1.0"},
+                {"\u0001\u0002\u202e\u2028", "6.1.0", "false", "YAACC 6.1.0"},
+                {"a   b \t c", "6.1.0", "false", "a b c 6.1.0"},
+                {"Anna's phone", "6.1.0", "true", "YAACC 6.1.0"},
+                {null, "6.1.0", "true", "YAACC 6.1.0"},
+                {"Yaacc", "6.1.0", "true", "YAACC 6.1.0"},
+                {"Anna's phone", null, "false", "Anna's phone"},
+                {"Anna's phone", "", "false", "Anna's phone"},
+                {"Anna's phone", null, "true", "YAACC"},
+                {"Anna's phone", "6.1.0\n<x>", "false", "Anna's phone 6.1.0x"},
+        };
+        for (String[] c : cases) {
+            assertEquals(java.util.Arrays.toString(c), c[3],
+                    SnapcastClientSpike.helloVersion(c[0], c[1], Boolean.parseBoolean(c[2])));
+        }
+    }
+
+    @Test
+    public void theVersionOfTheHelloIsAtMost40CharactersAndKeepsTheAppVersion() {
+        String tooLong = "A very long name of a server that goes on and on and on";
+        assertEquals("the name is cut, the version stays whole and no space is left at the cut",
+                "A very long name of a server that 6.1.0", SnapcastClientSpike.helloVersion(tooLong, "6.1.0", false));
+        String exact = "1234567890123456789012345678901234"; // 34 characters + space + "6.1.0" = 40
+        assertEquals(exact + " 6.1.0", SnapcastClientSpike.helloVersion(exact, "6.1.0", false));
+        assertEquals(exact + " 6.1.0", SnapcastClientSpike.helloVersion(exact + "x", "6.1.0", false));
+        assertEquals("x 6.1.0", SnapcastClientSpike.helloVersion("x", "6.1.0", false));
+        assertEquals("no version: the name alone is cut to 40", 40,
+                SnapcastClientSpike.helloVersion(tooLong, null, false).length());
+        // an absurd app version cannot push the result over the limit either
+        String absurd = "1.2.3-" + "z".repeat(80);
+        assertTrue(SnapcastClientSpike.helloVersion("x", absurd, false).length() <= 40);
+        assertTrue(SnapcastClientSpike.helloVersion(tooLong, absurd, false).length() <= 40);
+        assertTrue(SnapcastClientSpike.helloVersion(tooLong, absurd, true).length() <= 40);
+        assertEquals("YAACC", SnapcastClientSpike.helloVersion("   ", "", false));
     }
 
     @Test

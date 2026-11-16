@@ -211,6 +211,17 @@ public class SnapcastOwnClientGuardTest {
     }
 
     @Test
+    public void theHelloVersionIsTheServerNameAndTheAppVersionNotTheWordSpike() throws Exception {
+        String service = source("multiroom/client/SnapcastClientService.java");
+
+        assertTrue(service.contains("SnapcastClientSpike.helloVersion(phoneName(), BuildConfig.VERSION_NAME,"));
+        assertTrue("the privacy decision uses the resolved address, as the host name does",
+                service.contains("SnapcastAddressFilter.isAccepted(address)"));
+        assertFalse("no protocol value that says spike", service.contains("\"spike\""));
+        assertTrue("OS and Arch stay generic", service.contains("\"YAACC\", \"Android\", \"unknown\", "));
+    }
+
+    @Test
     public void theOwnIdIsReadWithoutCreatingAnythingAndNeverLogged() throws Exception {
         String identities = source("multiroom/client/SnapcastClientIdentities.java");
 
