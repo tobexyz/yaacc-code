@@ -140,7 +140,7 @@ public class SnapcastOwnClientGuardTest {
         String host = methodBody(powers, "public String host()");
 
         assertTrue(host.contains("currentServer(app)"));
-        assertFalse("not the address that the listen test saved", host.contains("KEY_LAST_HOST"));
+        assertFalse("not the address that the details sheet saved", host.contains("KEY_LAST_HOST"));
         String current = methodBody(powers, "public static SnapcastServerChoices.Choice currentServer(");
         assertTrue(current.contains("SnapcastClientServerChoice.resolve(") && current.contains("KEY_LAST_SERVER"));
         assertTrue("the known servers are the ones of the server list", methodBody(powers, "public static List<SnapcastServerChoices.Choice> knownServers(")
@@ -254,7 +254,7 @@ public class SnapcastOwnClientGuardTest {
 
     @Test
     public void theDisclosureTextSaysTheIdIsTheSameOnAllServers() throws Exception {
-        // a changed text must differ from the English original in the other locales, and the no-server reason no longer sends the user to the listen test only
+        // a changed text must differ from the English original in the other locales, and the no-server reason no longer sends the user to the details sheet only
         String english = read("src/main/res/values/strings.xml");
         assertTrue(english.contains("a generated id, which is the same on all servers"));
         for (String locale : LOCALES) {

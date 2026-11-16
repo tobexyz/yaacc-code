@@ -128,7 +128,7 @@ public class SnapcastClientSwitchGuardTest {
         assertTrue("the switch keeps its label as content description", text("res/layout/fragment_server_root.xml").contains(
                 "android:contentDescription=\"@string/snapcast_client_switch_label\""));
         assertTrue("a refused start is still a toast with its reason", body(bar, "private void toggled(boolean checked)").contains("Toast.makeText("));
-        // the listen test dialog shows the state and so the reason of a restore that failed
+        // the details sheet shows the state and so the reason of a restore that failed
         assertTrue(code("settings/SnapcastClientSpikeDialog.java").contains("SnapcastClientPowerTexts.stateText(context, state)"));
     }
 
@@ -208,7 +208,7 @@ public class SnapcastClientSwitchGuardTest {
         assertTrue(setUp.contains(".setOn("));
         assertTrue("a refusal is shown with its reason", setUp.contains("SnapcastClientPowerTexts."));
         assertTrue("shown only while the option is on, like the test screen entry", setUp.contains("setVisible("));
-        assertTrue("the listen test entry stays", setUp.contains("SnapcastClientSpikeDialog.show("));
+        assertTrue("the details entry stays", setUp.contains("SnapcastClientSpikeDialog.show("));
 
         assertTrue(body(fragment, "public void onCreatePreferences(").contains("scrollToRequestedSection()"));
         String scroll = body(fragment, "private void scrollToRequestedSection()");
@@ -221,7 +221,7 @@ public class SnapcastClientSwitchGuardTest {
         assertTrue(activity.contains("SnapcastSettingsTarget.EXTRA_SCROLL_TO"));
     }
 
-    // ---- the listen test dialog: Start and Stop are the same state ---------------------------------------------------
+    // ---- the details sheet: Start and Stop are the same state ---------------------------------------------------
 
     @Test
     public void theDialogStartsAndStopsThroughThePowerApiAndShowsTheSameState() throws Exception {

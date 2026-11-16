@@ -380,8 +380,8 @@
     <string name="snapcast_servers_discovery_copy">Bericht kopieren</string>
     <string name="snapcast_servers_discovery_copied">Bericht in die Zwischenablage kopiert</string>
     <string name="snapcast_servers_discovery_note">Der Bericht nennt die gefundenen Server mit ihren Adressen in Ihrem Netzwerk, Ihr Telefonmodell sowie den Zustand von WLAN und Suche. Sehen Sie ihn durch, bevor Sie ihn irgendwo einfügen. Solange dieses Fenster offen und Snapcast-Server suchen eingeschaltet ist, wird das Netzwerk durchsucht.</string>
-    <string name="snapcast_client_title">Snapcast-Client (Hörtest)</string>
-    <string name="snapcast_client_note">Dieses Telefon spielt als Snapcast-Client, damit Sie den Gleichlauf nach Gehör prüfen können. Audio und Steuerung sind nicht verschlüsselt. Der Server und seine Steuerprogramme sehen den Namen dieses Telefons und eine erzeugte Kennung, die auf allen Servern dieselbe ist.</string>
+    <string name="snapcast_client_title">Snapcast-Client-Details</string>
+    <string name="snapcast_client_note">Dieses Telefon spielt als Snapcast-Client. Audio und Steuerung sind nicht verschlüsselt. Der Server und seine Steuerprogramme sehen den Namen dieses Telefons und eine erzeugte Kennung, die auf allen Servern dieselbe ist.</string>
     <string name="snapcast_client_host_hint">Serveradresse, optional :Port (Standard 1704)</string>
     <string name="snapcast_client_latency_hint">Manuelle Latenz in ms (positiv spielt früher)</string>
     <string name="snapcast_client_start">Start</string>
@@ -410,7 +410,7 @@
     <string name="snapcast_client_move_group_failed">Der Server hat es nicht angenommen</string>
     <string name="snapcast_client_move_group_changed">Die Gruppe dieses Telefons hat sich inzwischen am Server geändert: nichts wurde verschoben</string>
     <string name="snapcast_client_move_group_none">Noch keine Antwort des Servers</string>
-    <string name="snapcast_client_notification_title">Snapcast-Client (Test)</string>
+    <string name="snapcast_client_notification_title">Snapcast-Client</string>
     <string name="snapcast_client_notification_connecting">Verbinde …</string>
     <string name="snapcast_client_notification_playing">Spielt</string>
     <string name="snapcast_client_notification_reconnecting">Verbindung verloren, neuer Versuch …</string>
@@ -422,8 +422,8 @@
     <string name="snapcast_client_state_stopped">Beendet</string>
     <string name="snapcast_client_state_line">Snapcast-Client: %1$s</string>
     <string name="snapcast_client_refused_option_off">Der Snapcast-Client ist in den Einstellungen ausgeschaltet.</string>
-    <string name="snapcast_client_refused_no_server">Noch kein Server bekannt. Fügen Sie unter Snapcast-Server in den Einstellungen einen hinzu oder wählen Sie einen im Snapcast-Client-Hörtest.</string>
-    <string name="snapcast_client_refused_bad_server">Die gespeicherte Serveradresse ist ungültig. Wählen Sie im Snapcast-Client-Hörtest (Einstellungen) einen Server.</string>
+    <string name="snapcast_client_refused_no_server">Noch kein Server bekannt. Fügen Sie unter Snapcast-Server in den Einstellungen einen hinzu oder wählen Sie einen in den Snapcast-Client-Details.</string>
+    <string name="snapcast_client_refused_bad_server">Die gespeicherte Serveradresse ist ungültig. Wählen Sie in den Snapcast-Client-Details (Einstellungen) einen Server.</string>
     <string name="snapcast_client_refused_not_allowed">Das System hat den Start nicht erlaubt. Er wird erneut versucht, wenn die App geöffnet wird.</string>
     <string name="renderer_output_damaged_note">Die Snapcast-Ausgabe des Renderers ist beschädigt; es wird auf diesem Gerät abgespielt. Wählen Sie die Gruppe in den Einstellungen erneut.</string>
     <string name="renderer_output_error_no_group">Der Renderer soll auf eine Snapcast-Gruppe spielen, aber es ist keine Gruppe gewählt. Wählen Sie in den Einstellungen eine aus.</string>

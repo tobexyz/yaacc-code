@@ -179,13 +179,13 @@
     <string name="settings_snapcast_about_summary">YAACC plays into an existing Snapcast server; it needs one reachable on your network.</string>
     <string name="settings_snapcast_discovery" translatable="false">settings_snapcast_discovery</string>
     <string name="settings_snapcast_servers" translatable="false">settings_snapcast_servers</string>
-    <string name="settings_snapcast_client_spike_title">Snapcast client spike (listen test)</string>
-    <string name="settings_snapcast_client_spike_summary">Shows a test screen where this phone plays as a Snapcast client, to check the sync by ear. Off by default. Audio and control are sent unencrypted.</string>
-    <string name="settings_snapcast_client_spike_open_title">Snapcast client listen test</string>
-    <string name="settings_snapcast_client_spike_open_summary">Connect this phone to a Snapcast server and see the sync numbers</string>
-    <string name="settings_snapcast_client_switched_on_title">Snapcast client</string>
-    <string name="settings_snapcast_client_switched_on_summary_on">On: this phone plays as a Snapcast client and starts again when the app starts, also after a restart of the phone if \"autostart server on boot\" is ticked.</string>
-    <string name="settings_snapcast_client_switched_on_summary_off">Off: this phone is not a Snapcast client.</string>
+    <string name="settings_snapcast_client_spike_title">Snapcast client</string>
+    <string name="settings_snapcast_client_spike_summary">Lets this phone act as a Snapcast client: adds the Snapcast client switch to the first page and its card. Off by default. Audio and control are sent unencrypted.</string>
+    <string name="settings_snapcast_client_spike_open_title">Snapcast client details</string>
+    <string name="settings_snapcast_client_spike_open_summary">Shows the connection state, the sync values and the event trace of this client, for troubleshooting.</string>
+    <string name="settings_snapcast_client_switched_on_title">Connected to the Snapcast server</string>
+    <string name="settings_snapcast_client_switched_on_summary_on">This phone is connected to a Snapcast server and plays as a client.</string>
+    <string name="settings_snapcast_client_switched_on_summary_off">This phone is not connected to a Snapcast server.</string>
     <string name="settings_snapcast_client_switched_on" translatable="false">settings_snapcast_client_switched_on</string>
     <string name="settings_snapcast_client_spike" translatable="false">settings_snapcast_client_spike</string>
     <string name="settings_snapcast_client_spike_open" translatable="false">settings_snapcast_client_spike_open</string>
