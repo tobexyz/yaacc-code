@@ -43,6 +43,7 @@ import de.yaacc.multiroom.client.SnapcastClientRuntime;
 import de.yaacc.multiroom.client.SnapcastClientService;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NetworkInterfaceManager;
+import de.yaacc.upnp.server.ServerAutostart;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -80,6 +81,16 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                 if (newValue instanceof String) {
                     YaaccLogger.setLogLevel((String) newValue);
                 }
+                return true;
+            });
+        }
+
+        // The boot receiver follows this setting (also applied at every start of the app, see Yaacc.onCreate). The listener runs
+        // before the value is stored, so the new value is used.
+        androidx.preference.CheckBoxPreference autostart = findPreference(getString(R.string.settings_local_server_autostart_chkbx));
+        if (autostart != null) {
+            autostart.setOnPreferenceChangeListener((preference, newValue) -> {
+                ServerAutostart.applySetting(requireContext().getApplicationContext(), Boolean.TRUE.equals(newValue));
                 return true;
             });
         }
@@ -132,6 +143,47 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             SnapcastRendererGroupDialog.show(requireContext(), () -> updateRendererGroupSummary(group));
             return true;
         });
+    }
+
+    // The output can also be chosen as a source of the OpenHome renderer (task 12.5): while this screen is shown it follows such a
+    // change, so that both always show the same state. Kept in a field: the preferences hold their listeners weakly.
+    private final SharedPreferences.OnSharedPreferenceChangeListener rendererOutputListener = (preferences, key) -> {
+        if (SnapcastRendererOutput.KEY_OUTPUT.equals(key) || SnapcastRendererOutput.KEY_GROUP.equals(key)) {
+            android.app.Activity activity = getActivity();
+            if (activity != null) {
+                activity.runOnUiThread(this::showRendererOutputAsStored);
+            }
+        }
+    };
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        PreferenceManager.getDefaultSharedPreferences(requireContext()).registerOnSharedPreferenceChangeListener(rendererOutputListener);
+    }
+
+    @Override
+    public void onStop() {
+        PreferenceManager.getDefaultSharedPreferences(requireContext()).unregisterOnSharedPreferenceChangeListener(rendererOutputListener);
+        super.onStop();
+    }
+
+    /** Makes the list, the chooser's visibility and its summary show what is stored now (somebody else changed it). */
+    private void showRendererOutputAsStored() {
+        if (!isAdded() || getContext() == null) {
+            return;
+        }
+        final ListPreference output = findPreference(getString(R.string.settings_renderer_output));
+        final androidx.preference.Preference group = findPreference(getString(R.string.settings_renderer_output_group));
+        if (output == null || group == null) {
+            return;
+        }
+        String stored = PreferenceManager.getDefaultSharedPreferences(requireContext())
+                .getString(SnapcastRendererOutput.KEY_OUTPUT, SnapcastRendererOutput.VALUE_DEVICE);
+        output.setValue(SnapcastRendererOutput.VALUE_GROUP.equals(stored) ? SnapcastRendererOutput.VALUE_GROUP
+                : SnapcastRendererOutput.VALUE_DEVICE); // an unknown value shows as this device, as the renderer reads it (damaged)
+        group.setVisible(SnapcastRendererOutput.VALUE_GROUP.equals(output.getValue()));
+        updateRendererGroupSummary(group);
     }
 
     private void updateRendererGroupSummary(androidx.preference.Preference group) {

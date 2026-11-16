@@ -91,8 +91,8 @@
     <string name="settings_local_server_serve_video_on">servir video está habilitado</string>
     <string name="settings_local_server_name">nombre de red para el servidor local</string>
     <string name="settings_local_server_autostart_title">servidor de inicio automático al arrancar</string>
-    <string name="settings_local_server_autostart_deactivated">El servidor no se inicia después del arranque.</string>
-    <string name="settings_local_server_autostart_activated">El servidor se iniciará después del arranque.</string>
+    <string name="settings_local_server_autostart_deactivated">No se inicia nada después del arranque; la aplicación se cierra sola cuando está inactiva.</string>
+    <string name="settings_local_server_autostart_activated">Los servicios activados se inician después del arranque; la aplicación no se cierra automáticamente.</string>
     <string name="settings_sending_upnp_alive_interval">enviando notificaciones activas UPnP</string>
     <string name="settings_category_playing">comportamiento de reproducción multimedia</string>
     <string name="settings_replay_title">Repetir en los reproductores nuevos</string>

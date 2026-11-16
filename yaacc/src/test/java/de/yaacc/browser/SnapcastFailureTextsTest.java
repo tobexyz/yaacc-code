@@ -48,7 +48,7 @@ public class SnapcastFailureTextsTest {
             assertNotEquals(kind.name(), 0, id);
             seen.add(id);
         }
-        assertEquals("seven kinds, seven texts", SnapcastControls.Failure.Kind.values().length, seen.size());
+        assertEquals("every kind has a text of its own", SnapcastControls.Failure.Kind.values().length, seen.size());
     }
 
     @Test
@@ -60,6 +60,9 @@ public class SnapcastFailureTextsTest {
         assertEquals(R.string.snapcast_feed_error_group_gone, SnapcastFailureTexts.textFor(SnapcastControls.Failure.Kind.GONE));
         assertEquals(R.string.snapcast_action_not_possible, SnapcastFailureTexts.textFor(SnapcastControls.Failure.Kind.NOT_POSSIBLE));
         assertEquals(R.string.snapcast_action_failed, SnapcastFailureTexts.textFor(SnapcastControls.Failure.Kind.FAILED));
+        // task 12.8: removing an offline client
+        assertEquals(R.string.snapcast_remove_error_connected, SnapcastFailureTexts.textFor(SnapcastControls.Failure.Kind.CLIENT_CONNECTED));
+        assertEquals(R.string.snapcast_remove_error_own, SnapcastFailureTexts.textFor(SnapcastControls.Failure.Kind.OWN_CLIENT));
     }
 
     @Test

@@ -243,6 +243,25 @@ public class SnapcastFeedSessionsTest {
         assertTrue("the link is let go after the release", link().closed);
     }
 
+    @Test
+    public void theExitCanSeeThatAFeedIsNotYetGivenBack() {
+        // task 12.9: the exit waits (bounded) while a controller is open, so the group gets its stream back before the process ends
+        assertEquals(0, sessions.openControllers());
+        SnapcastFeedController first = controller(new Events());
+        assertEquals(1, sessions.openControllers());
+
+        first.release();
+        awaitReleased();
+        long end = System.nanoTime() + 5_000_000_000L;
+        while (sessions.openControllers() > 0 && System.nanoTime() < end) {
+            Thread.yield();
+        }
+        assertEquals("the count goes down when the release has run", 0, sessions.openControllers());
+
+        first.release(); // a second release changes nothing
+        assertEquals(0, sessions.openControllers());
+    }
+
     /** The release runs on the controller's worker and ends by asking the receivers for a close after the grace. */
     private void awaitReleased() {
         long end = System.nanoTime() + 5_000_000_000L;

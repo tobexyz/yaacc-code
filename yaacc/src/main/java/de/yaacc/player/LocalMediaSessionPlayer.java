@@ -934,12 +934,10 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         markDestroyed(); // before anything is released: a retry of a stop is still scheduled maybe
 
         // Release notification manager on main thread
-        if (notificationManager != null) {
-            new Handler(Looper.getMainLooper()).post(() -> {
-                if (notificationManager != null) {
-                    notificationManager.setPlayer(null);
-                }
-            });
+        // captured here: the field is set to null below, before the posted runnable runs, so the runnable must not read the field
+        final PlayerNotificationManager managerToRelease = notificationManager;
+        if (managerToRelease != null) {
+            new Handler(Looper.getMainLooper()).post(() -> managerToRelease.setPlayer(null));
         }
 
         // Unregister MediaSession from service

@@ -420,4 +420,23 @@
     <string name="renderer_group_none">此服务器没有组。</string>
     <string name="renderer_group_members">成员：%1$d</string>
     <string name="renderer_output_error_unknown_type">渲染器只向 Snapcast 组播放音乐，而此内容的类型未知（控制端未给出类型，地址也没有已知的文件扩展名）。未播放任何内容。</string>
+    <!-- Removing an offline client from a Snapcast server (task 12.8) -->
+    <string name="snapcast_client_delete_menu">从服务器移除</string>
+    <string name="snapcast_client_delete_title">要从服务器移除该客户端吗？</string>
+    <string name="snapcast_client_delete_message">%1$s 已离线。这只会从服务器的列表中移除它的条目。仍然存在的客户端在重新连接时会自行回来。</string>
+    <string name="snapcast_client_delete_confirm">移除</string>
+    <string name="snapcast_remove_error_connected">该客户端已重新连接，未被移除。</string>
+    <string name="snapcast_remove_error_own">本手机自己的客户端在其会话运行或启动期间不会被移除。</string>
+    <!-- The Snapcast groups as sources of the OpenHome renderer (task 12.5) -->
+    <string name="renderer_source_unavailable">Snapcast 组（不可用）</string>
+    <string name="renderer_source_error_group_gone">某个控制器选择了已不可用的 Snapcast 组。渲染器的输出保持不变。</string>
+    <string name="renderer_source_error_not_saved">无法更改渲染器的输出。它保持不变。</string>
+    <!-- Power button of the renderer cards (task 12.4) -->
+    <string name="power_button_description">电源：%1$s</string>
+    <string name="power_state_on">已开机</string>
+    <string name="power_state_standby">待机</string>
+    <string name="power_state_unknown">状态未知</string>
+    <string name="power_error_unreachable">设备没有响应。电源状态未更改。</string>
+    <string name="power_error_unknown_state">设备没有说明是否已开机。电源状态未更改。</string>
+    <string name="power_error_refused">设备没有接受电源更改。</string>
 </resources>

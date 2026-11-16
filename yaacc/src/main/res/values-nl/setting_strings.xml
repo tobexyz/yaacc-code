@@ -91,8 +91,8 @@
     <string name="settings_local_server_serve_video_on">video weergeven is ingeschakeld</string>
     <string name="settings_local_server_name">netwerknaam voor lokale server</string>
     <string name="settings_local_server_autostart_title">autostart-server bij het opstarten</string>
-    <string name="settings_local_server_autostart_deactivated">server start niet op na het opstarten</string>
-    <string name="settings_local_server_autostart_activated">server start na het opstarten</string>
+    <string name="settings_local_server_autostart_deactivated">er start niets na het opstarten; de app sluit zichzelf bij inactiviteit</string>
+    <string name="settings_local_server_autostart_activated">de ingeschakelde diensten starten na het opstarten; de app wordt dan nooit automatisch gesloten</string>
     <string name="settings_sending_upnp_alive_interval">UPnP-livemeldingen verzenden</string>
     <string name="settings_category_playing">gedrag bij het afspelen van media</string>
     <string name="settings_replay_title">Herhalen voor nieuwe spelers</string>

@@ -91,6 +91,11 @@ final class MonitorSubscriptions<L, D> {
         return true;
     }
 
+    /** The generation of now: what a poll that starts now is tagged with, and what {@link #deliver} needs for a change of our own. */
+    int generation() {
+        return generation;
+    }
+
     /** Whether a poll or result tagged with this generation is still wanted. */
     boolean isCurrent(int pollGeneration) {
         return pollGeneration == generation;

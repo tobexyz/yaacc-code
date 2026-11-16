@@ -17,17 +17,22 @@
  */
 package de.yaacc.browser;
 
-import android.Manifest;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.view.MenuItem;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -52,90 +57,81 @@ final class BrowserActivitySupport {
     private BrowserActivitySupport() {
     }
 
-    //https://developer.android.com/about/versions/14/changes/partial-photo-video-access
-    private static String[] getPermissions() {
-        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            return new String[]{
-                    Manifest.permission.INTERNET,
-                    Manifest.permission.ACCESS_WIFI_STATE,
-                    Manifest.permission.ACCESS_NETWORK_STATE,
-                    Manifest.permission.CHANGE_WIFI_STATE,
-                    Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                    Manifest.permission.RECEIVE_BOOT_COMPLETED,
-                    Manifest.permission.WAKE_LOCK,
-                    Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    Manifest.permission.READ_MEDIA_AUDIO,
-                    Manifest.permission.READ_MEDIA_IMAGES,
-                    Manifest.permission.READ_MEDIA_VIDEO,
-                    Manifest.permission.MANAGE_EXTERNAL_STORAGE,
-                    Manifest.permission.POST_NOTIFICATIONS
+    // What was asked before and whether the battery prompt was shown: a file of its own, it is no setting.
+    private static final String PROMPTS_FILE = "yaacc_prompts";
+    private static final String KEY_ASKED_PERMISSIONS = "asked_permissions";
+    private static final String KEY_BATTERY_ASKED = "battery_optimisation_asked";
+    // at most once per process: the second activity or a rotation does not ask again
+    private static boolean permissionsAskedInThisProcess;
+    private static boolean batteryAskedInThisProcess;
 
-            };
-        } else if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            return new String[]{
-                    Manifest.permission.INTERNET,
-                    Manifest.permission.ACCESS_WIFI_STATE,
-                    Manifest.permission.ACCESS_NETWORK_STATE,
-                    Manifest.permission.CHANGE_WIFI_STATE,
-                    Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                    Manifest.permission.READ_EXTERNAL_STORAGE,
-                    Manifest.permission.RECEIVE_BOOT_COMPLETED,
-                    Manifest.permission.WAKE_LOCK,
-                    Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                    Manifest.permission.MANAGE_EXTERNAL_STORAGE
-            };
-        }
-        return new String[]{
-                Manifest.permission.INTERNET,
-                Manifest.permission.ACCESS_WIFI_STATE,
-                Manifest.permission.ACCESS_NETWORK_STATE,
-                Manifest.permission.CHANGE_WIFI_STATE,
-                Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
-                Manifest.permission.READ_EXTERNAL_STORAGE,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                Manifest.permission.RECEIVE_BOOT_COMPLETED,
-                Manifest.permission.WAKE_LOCK,
-                Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
-
-        };
-
+    private static SharedPreferences prompts(Context context) {
+        return context.getApplicationContext().getSharedPreferences(PROMPTS_FILE, Context.MODE_PRIVATE);
     }
 
-    private static boolean checkIfAlreadyhavePermission(Activity activity) {
-        for (String permission : getPermissions()) {
-            int permissionState = ContextCompat.checkSelfPermission(activity, permission);
-            if (permissionState == PackageManager.PERMISSION_DENIED) {
-                return false;
+    private static Set<String> grantedAmong(Context context, List<String> permissions) {
+        Set<String> granted = new HashSet<>();
+        for (String permission : permissions) {
+            if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
+                granted.add(permission);
             }
         }
-        return true;
+        return granted;
     }
 
-    /** Asks for the runtime permissions that are missing; the result is not handled (as before). */
+    /**
+     * Asks for the runtime permissions that this Android version can grant and that are missing, once: what was asked before is not
+     * asked again, a decline is final until the user asks from {@link #requestPermissionsOnUserAction}, and a start asks at most once
+     * per process (task 12.3, {@link PermissionRequestPlan}). The result is not handled (as before).
+     */
     static void requestMissingPermissions(Activity activity) {
-        if (!checkIfAlreadyhavePermission(activity)) {
-            ActivityCompat.requestPermissions(activity, getPermissions(), PERMISSION_REQUEST_CODE);
-        } else {
-            YaaccLogger.d(activity.getClass().getName(), "All permissions granted");
+        SharedPreferences memory = prompts(activity);
+        int sdk = Build.VERSION.SDK_INT;
+        Set<String> granted = grantedAmong(activity, PermissionRequestPlan.requestable(sdk));
+        Set<String> asked = new HashSet<>(memory.getStringSet(KEY_ASKED_PERMISSIONS, Collections.<String>emptySet()));
+        List<String> plan = PermissionRequestPlan.atStart(sdk, granted, asked, permissionsAskedInThisProcess);
+        if (plan.isEmpty()) {
+            YaaccLogger.d(activity.getClass().getName(), "No permission to ask for");
+            return;
+        }
+        permissionsAskedInThisProcess = true;
+        asked.addAll(plan);
+        // written before the dialog: a missing permission that was asked is taken as declined at the next start
+        memory.edit().putStringSet(KEY_ASKED_PERMISSIONS, asked).apply();
+        ActivityCompat.requestPermissions(activity, plan.toArray(new String[0]), PERMISSION_REQUEST_CODE);
+    }
+
+    /**
+     * Asks again for the missing permissions that this Android version can grant: for an action of the user (a settings entry) or a
+     * feature that needs them. Earlier answers do not count; the system may still show nothing for a permission the user declined
+     * twice.
+     */
+    static void requestPermissionsOnUserAction(Activity activity) {
+        int sdk = Build.VERSION.SDK_INT;
+        List<String> plan = PermissionRequestPlan.onUserAction(sdk, grantedAmong(activity, PermissionRequestPlan.requestable(sdk)));
+        if (!plan.isEmpty()) {
+            ActivityCompat.requestPermissions(activity, plan.toArray(new String[0]), PERMISSION_REQUEST_CODE);
         }
     }
 
     /**
-     * Opens the "ignore battery optimizations" request on every call; if the app is already
-     * exempt, an empty intent is started and the resulting exception is swallowed (as before).
+     * Opens the "ignore battery optimizations" request once: not at every start, not again after a decline, and not when the app is
+     * already exempt (task 12.3, {@link PermissionRequestPlan#shouldAskBatteryOptimisation}). The old code opened it at every start
+     * of every activity while the app was not exempt, and started an empty intent when it was.
      */
     // The server and the players must keep running with the screen off: the exemption is the app's core need.
     @android.annotation.SuppressLint("BatteryLife")
     static void checkBatteryOptimizationEnabled(Activity activity) {
-        Intent intent = new Intent();
         String packageName = activity.getPackageName();
         PowerManager pm = (PowerManager) activity.getSystemService(Context.POWER_SERVICE);
-        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-            intent.setAction(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-            intent.setData(Uri.parse("package:" + packageName));
+        SharedPreferences memory = prompts(activity);
+        if (!PermissionRequestPlan.shouldAskBatteryOptimisation(pm.isIgnoringBatteryOptimizations(packageName),
+                memory.getBoolean(KEY_BATTERY_ASKED, false), batteryAskedInThisProcess)) {
+            return;
         }
+        batteryAskedInThisProcess = true;
+        memory.edit().putBoolean(KEY_BATTERY_ASKED, true).apply();
+        Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + packageName));
         try {
             activity.startActivity(intent);
         } catch (ActivityNotFoundException ex) {

@@ -175,12 +175,48 @@ public final class SnapcastHub implements SnapcastGroupSource {
         return preferences.getString(context.getString(R.string.settings_local_server_name_key), "Yaacc");
     }
 
+    /** The app-wide hub if it exists already, else null (the exit must not create it just to ask). */
+    public static synchronized SnapcastHub peekShared() {
+        return shared;
+    }
+
+    /** How many feed controllers are not yet released and ended (the exit waits for them, bounded, so the groups get their streams back). */
+    public int openFeedControllers() {
+        return feeds.openControllers();
+    }
+
     /** The app-wide hub. */
     public static synchronized SnapcastHub getShared(Context context) {
         if (shared == null) {
             shared = new SnapcastHub(context);
+            for (java.util.function.Consumer<SnapcastHub> listener : createdListeners) {
+                try {
+                    listener.accept(shared);
+                } catch (RuntimeException ignored) {
+                    // one listener's failure must not stop the others, nor the caller that only wanted the hub
+                }
+            }
         }
         return shared;
+    }
+
+    // told once when the hub is made (task 12.5: the OpenHome renderer's source list follows the groups, and the hub may be made after it)
+    private static final java.util.concurrent.CopyOnWriteArrayList<java.util.function.Consumer<SnapcastHub>> createdListeners =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    /**
+     * Calls the listener now with the hub if it exists, and once when it is made if not. The listener must be quick and must not
+     * call {@link #getShared}; it is called with the hub class locked.
+     */
+    public static synchronized void whenCreated(java.util.function.Consumer<SnapcastHub> listener) {
+        createdListeners.add(listener);
+        if (shared != null) {
+            listener.accept(shared);
+        }
+    }
+
+    public static void forgetWhenCreated(java.util.function.Consumer<SnapcastHub> listener) {
+        createdListeners.remove(listener);
     }
 
     /** The manual servers (for the settings): the list is read again at every page start. */

@@ -172,7 +172,7 @@
 
         <receiver
             android:name=".upnp.server.ServerAutostart"
-            android:enabled="true"
+            android:enabled="false"
             android:exported="true"
             android:label="YAACC ServerAutoStart">
             <intent-filter>

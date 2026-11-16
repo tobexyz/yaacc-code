@@ -1440,6 +1440,7 @@ public abstract class AbstractPlayer implements Player, ServiceConnection {
     @Override
     public void onDestroy() {
         stop();
+        cancelTimer(); // a pending alarm of the next-item timer must not outlive the player (or the process: the exit)
         closeShares();
         cancelNotification();
         items.clear();

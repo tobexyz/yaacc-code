@@ -429,4 +429,23 @@
     <string name="renderer_group_none">This server has no groups.</string>
     <string name="renderer_group_members">Members: %1$d</string>
     <string name="renderer_output_error_unknown_type">The renderer plays only music into a Snapcast group, and the type of this content is unknown (the controller gave no type and the address has no known file extension). Nothing was played.</string>
+    <!-- Removing an offline client from a Snapcast server (task 12.8) -->
+    <string name="snapcast_client_delete_menu">Remove from server</string>
+    <string name="snapcast_client_delete_title">Remove client from the server?</string>
+    <string name="snapcast_client_delete_message">%1$s is offline. This only removes its entry from the server\'s list. A client that is still around comes back by itself when it connects again.</string>
+    <string name="snapcast_client_delete_confirm">Remove</string>
+    <string name="snapcast_remove_error_connected">The client has connected again and was not removed.</string>
+    <string name="snapcast_remove_error_own">This phone\'s own client is not removed while its session runs or starts.</string>
+    <!-- The Snapcast groups as sources of the OpenHome renderer (task 12.5) -->
+    <string name="renderer_source_unavailable">Snapcast group (not available)</string>
+    <string name="renderer_source_error_group_gone">A controller chose a Snapcast group that is not available any more. The renderer\'s output stays as it was.</string>
+    <string name="renderer_source_error_not_saved">The output of the renderer could not be changed. It stays as it was.</string>
+    <!-- Power button of the renderer cards (task 12.4) -->
+    <string name="power_button_description">Power: %1$s</string>
+    <string name="power_state_on">On</string>
+    <string name="power_state_standby">Standby</string>
+    <string name="power_state_unknown">State unknown</string>
+    <string name="power_error_unreachable">The device does not answer. Its power was not changed.</string>
+    <string name="power_error_unknown_state">The device does not say whether it is on. Its power was not changed.</string>
+    <string name="power_error_refused">The device did not accept the power change.</string>
 </resources>

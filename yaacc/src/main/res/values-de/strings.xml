@@ -424,4 +424,23 @@
     <string name="renderer_group_none">Dieser Server hat keine Gruppen.</string>
     <string name="renderer_group_members">Mitglieder: %1$d</string>
     <string name="renderer_output_error_unknown_type">Der Renderer spielt in eine Snapcast-Gruppe nur Musik, und der Typ dieses Inhalts ist unbekannt (die Steuerung hat keinen Typ angegeben, und die Adresse hat keine bekannte Dateiendung). Es wurde nichts abgespielt.</string>
+    <!-- Removing an offline client from a Snapcast server (task 12.8) -->
+    <string name="snapcast_client_delete_menu">Vom Server entfernen</string>
+    <string name="snapcast_client_delete_title">Client vom Server entfernen?</string>
+    <string name="snapcast_client_delete_message">%1$s ist offline. Das entfernt nur den Eintrag aus der Liste des Servers. Ein Client, den es noch gibt, kommt von selbst wieder, sobald er sich erneut verbindet.</string>
+    <string name="snapcast_client_delete_confirm">Entfernen</string>
+    <string name="snapcast_remove_error_connected">Der Client ist wieder verbunden und wurde nicht entfernt.</string>
+    <string name="snapcast_remove_error_own">Der eigene Client dieses Telefons wird nicht entfernt, solange seine Sitzung läuft oder startet.</string>
+    <!-- The Snapcast groups as sources of the OpenHome renderer (task 12.5) -->
+    <string name="renderer_source_unavailable">Snapcast-Gruppe (nicht verfügbar)</string>
+    <string name="renderer_source_error_group_gone">Eine Steuerung hat eine Snapcast-Gruppe gewählt, die nicht mehr verfügbar ist. Die Ausgabe des Renderers bleibt unverändert.</string>
+    <string name="renderer_source_error_not_saved">Die Ausgabe des Renderers konnte nicht geändert werden. Sie bleibt unverändert.</string>
+    <!-- Power button of the renderer cards (task 12.4) -->
+    <string name="power_button_description">Ein/Aus: %1$s</string>
+    <string name="power_state_on">An</string>
+    <string name="power_state_standby">Standby</string>
+    <string name="power_state_unknown">Zustand unbekannt</string>
+    <string name="power_error_unreachable">Das Gerät antwortet nicht. Sein Ein/Aus-Zustand wurde nicht geändert.</string>
+    <string name="power_error_unknown_state">Das Gerät meldet nicht, ob es an ist. Sein Ein/Aus-Zustand wurde nicht geändert.</string>
+    <string name="power_error_refused">Das Gerät hat die Änderung des Ein/Aus-Zustands nicht angenommen.</string>
 </resources>

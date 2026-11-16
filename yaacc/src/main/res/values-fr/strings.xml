@@ -428,4 +428,23 @@
     <string name="renderer_group_none">Ce serveur n\'a aucun groupe.</string>
     <string name="renderer_group_members">Membres : %1$d</string>
     <string name="renderer_output_error_unknown_type">Le moteur de rendu ne joue que de la musique vers un groupe Snapcast, et le type de ce contenu est inconnu (le contrôleur n\'a indiqué aucun type et l\'adresse n\'a pas d\'extension de fichier connue). Rien n\'a été lu.</string>
+    <!-- Removing an offline client from a Snapcast server (task 12.8) -->
+    <string name="snapcast_client_delete_menu">Retirer du serveur</string>
+    <string name="snapcast_client_delete_title">Retirer le client du serveur ?</string>
+    <string name="snapcast_client_delete_message">%1$s est hors ligne. Cela retire seulement son entrée de la liste du serveur. Un client qui existe encore revient de lui-même lorsqu\'il se reconnecte.</string>
+    <string name="snapcast_client_delete_confirm">Retirer</string>
+    <string name="snapcast_remove_error_connected">Le client s\'est reconnecté et n\'a pas été retiré.</string>
+    <string name="snapcast_remove_error_own">Le client propre de ce téléphone n\'est pas retiré tant que sa session est en cours ou démarre.</string>
+    <!-- The Snapcast groups as sources of the OpenHome renderer (task 12.5) -->
+    <string name="renderer_source_unavailable">Groupe Snapcast (indisponible)</string>
+    <string name="renderer_source_error_group_gone">Un contrôleur a choisi un groupe Snapcast qui n\'est plus disponible. La sortie du moteur de rendu reste inchangée.</string>
+    <string name="renderer_source_error_not_saved">La sortie du moteur de rendu n\'a pas pu être modifiée. Elle reste inchangée.</string>
+    <!-- Power button of the renderer cards (task 12.4) -->
+    <string name="power_button_description">Alimentation : %1$s</string>
+    <string name="power_state_on">Allumé</string>
+    <string name="power_state_standby">En veille</string>
+    <string name="power_state_unknown">État inconnu</string>
+    <string name="power_error_unreachable">L\'appareil ne répond pas. Son alimentation n\'a pas été modifiée.</string>
+    <string name="power_error_unknown_state">L\'appareil n\'indique pas s\'il est allumé. Son alimentation n\'a pas été modifiée.</string>
+    <string name="power_error_refused">L\'appareil n\'a pas accepté le changement d\'alimentation.</string>
 </resources>

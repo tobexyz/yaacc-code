@@ -52,6 +52,14 @@ public final class BackgroundIdleTimer {
     private BackgroundIdleTimer() {
     }
 
+    /**
+     * Call once from {@code Application.onCreate}: a process created without a screen (boot, restart) gets the idle timer too; the
+     * first {@link #browserStarted} cancels it.
+     */
+    public static void processStarted(Context context) {
+        counterFor(context).onProcessStarted();
+    }
+
     /** Call from {@code onStart} of a browser activity. */
     public static void browserStarted(Context context) {
         counterFor(context).onBrowserStarted();
@@ -89,7 +97,8 @@ public final class BackgroundIdleTimer {
                 .rendererEnabled(preferences.getBoolean(appContext.getString(R.string.settings_local_server_receiver_chkbx), false))
                 .proxyEnabled(preferences.getBoolean(appContext.getString(R.string.settings_local_server_proxy_chkbx), false))
                 .snapcastClientSessionActive(SnapcastClientRuntime.isActive())
-                .snapcastFeedActive(feedActive);
+                .snapcastFeedActive(feedActive)
+                .autostartEnabled(preferences.getBoolean(appContext.getString(R.string.settings_local_server_autostart_chkbx), false));
         AutoCloseRule.Keep keep = AutoCloseRule.reasonToStay(facts);
         if (keep == AutoCloseRule.Keep.NONE) {
             YaaccLogger.d(BackgroundIdleTimer.class.getName(), "Idle in background, exiting");

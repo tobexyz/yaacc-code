@@ -52,6 +52,10 @@ final class SnapcastFailureTexts {
                 return R.string.snapcast_feed_error_group_gone;
             case NOT_POSSIBLE:
                 return R.string.snapcast_action_not_possible;
+            case CLIENT_CONNECTED:
+                return R.string.snapcast_remove_error_connected;
+            case OWN_CLIENT:
+                return R.string.snapcast_remove_error_own;
             case FAILED:
             default:
                 return R.string.snapcast_action_failed;

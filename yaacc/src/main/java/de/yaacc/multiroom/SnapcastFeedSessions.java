@@ -20,6 +20,8 @@ package de.yaacc.multiroom;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import de.yaacc.multiroom.control.RetryScheduler;
 import de.yaacc.multiroom.discovery.SnapcastServerKey;
@@ -46,6 +48,8 @@ public final class SnapcastFeedSessions {
     private final RetryScheduler scheduler;
     private final FeedOutputFactory outputs;
     private final FeedSlots slots = new FeedSlots();
+    // controllers made and not yet ended (their release ran): the exit waits for them
+    private final AtomicInteger open = new AtomicInteger();
 
     public SnapcastFeedSessions(SnapcastReceivers receivers, SnapcastStreams.MarkerStore markerStore,
                                 RetryScheduler scheduler, FeedOutputFactory outputs) {
@@ -88,6 +92,7 @@ public final class SnapcastFeedSessions {
             return thread;
         });
         final SessionFeedServer server = new SessionFeedServer(receivers, key);
+        final AtomicBoolean ended = new AtomicBoolean();
         SnapcastFeedController controller = new SnapcastFeedController(
                 new LinkBoundStreams(server, phoneName, markerStore), server, outputs,
                 slots.slotFor(key.asString()), group.getGroupId(), FeedClock.SYSTEM, scheduler, worker, listener,
@@ -97,9 +102,18 @@ public final class SnapcastFeedSessions {
                     receivers.release(key);
                     worker.shutdown();
                     volumeWorker.shutdownNow(); // a gesture that is still running is interrupted
+                    if (ended.compareAndSet(false, true)) {
+                        open.decrementAndGet();
+                    }
                 });
         server.attach(controller);
         receivers.retain(key);
+        open.incrementAndGet();
         return controller;
+    }
+
+    /** The controllers that were made and whose release has not finished (a release gives the group its stream back). */
+    public int openControllers() {
+        return open.get();
     }
 }

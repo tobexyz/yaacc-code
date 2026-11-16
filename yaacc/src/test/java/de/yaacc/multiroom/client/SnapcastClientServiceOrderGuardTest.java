@@ -90,9 +90,14 @@ public class SnapcastClientServiceOrderGuardTest {
 
     @Test
     public void theAppWritesTheEndingOfTheClientBeforeItEnds() throws Exception {
-        String exit = body(code("de/yaacc/Yaacc.java"), "public void exit(");
-        int record = exit.indexOf("recordSnapcastClientEnding();");
-        int end = exit.indexOf("Runtime.getRuntime().exit(0)");
-        assertTrue(record >= 0 && end > record);
+        // since task 12.2 the exit is a sequence of steps; the ending is written by a step before the services stop and the process ends
+        String yaacc = code("de/yaacc/Yaacc.java");
+        String exit = body(yaacc, "public void exit(");
+        int record = exit.indexOf("ExitSequence.STEP_SNAPCAST_NOTE, this::recordSnapcastClientEnding");
+        assertTrue("the ending is written by a step of the exit", record >= 0);
+        assertTrue("before the players and the services",
+                record < exit.indexOf("exitPlayersThenContinue()"));
+        assertTrue(yaacc.indexOf("ExitSequence.STEP_SNAPCAST_NOTE") < yaacc.indexOf("ExitSequence.STEP_SERVICES"));
+        assertTrue(yaacc.indexOf("ExitSequence.STEP_SERVICES") < yaacc.indexOf("Runtime.getRuntime().exit(0)"));
     }
 }

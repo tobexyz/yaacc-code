@@ -38,11 +38,12 @@ import de.yaacc.yxc.YxcMonitor;
 
 /**
  * Connects a screen that shows receiver rows to {@link YxcMonitor}: subscribes with the receivers on screen
- * and tells the screen, on the main thread, which row to rebind. A screen starts it when it comes to the front
+ * and tells the screen, on the main thread, which row to rebind. Also to {@link OpenHomePowerMonitor} (the standby state of OpenHome
+ * devices, task 12.4), which asks for the same rebind of a row. A screen starts it when it comes to the front
  * and stops it when it goes; the monitor itself keeps its event source for a while after the last stop, so
  * switching between the Receiver tab and the sheet does not reopen it.
  */
-final class YxcRowFeed implements YxcMonitor.Listener, YxcGroupController.BusyListener {
+final class YxcRowFeed implements YxcMonitor.Listener, YxcGroupController.BusyListener, OpenHomePowerMonitor.Listener {
 
     /** The screen's side: rebind the row of this device (UDN as the row binder uses it). */
     interface Rows {
@@ -63,16 +64,29 @@ final class YxcRowFeed implements YxcMonitor.Listener, YxcGroupController.BusyLi
         running = true;
         YxcGroupController.getShared().addBusyListener(this);
         YxcMonitor.getShared().subscribe(this, descriptorUrls(devices));
+        // the standby state of OpenHome devices (task 12.4): the same rebind of a row as a MusicCast power event
+        OpenHomePowerMonitor.getShared().subscribe(this, devices);
     }
 
     void stop() {
         running = false;
         YxcGroupController.getShared().removeBusyListener(this);
         YxcMonitor.getShared().unsubscribe(this);
+        OpenHomePowerMonitor.getShared().unsubscribe(this);
     }
 
     @Override
     public void onStateChanged(String udn, YxcDeviceState state) {
+        enqueue(udn);
+    }
+
+    /** The standby state of an OpenHome device changed (main thread). */
+    @Override
+    public void onPowerChanged(String udn) {
+        enqueue(udn);
+    }
+
+    private void enqueue(String udn) {
         synchronized (pending) {
             boolean idle = pending.isEmpty();
             pending.add(udn);
