@@ -352,6 +352,7 @@
     <string name="snapcast_member_actions">Actions pour %1$s</string>
     <string name="snapcast_member_rename">Renommer</string>
     <string name="snapcast_member_this_phone">Ce téléphone</string>
+    <string name="snapcast_member_this_phone_old">Ce téléphone, ancienne entrée</string>
     <string name="snapcast_member_server">Serveur</string>
     <string name="snapcast_server_choose_title">Serveur de ce téléphone</string>
     <string name="snapcast_member_latency">Latence</string>
@@ -445,6 +446,10 @@
     <string name="snapcast_client_delete_title">Retirer le client du serveur ?</string>
     <string name="snapcast_client_delete_message">%1$s est hors ligne. Cela retire seulement son entrée de la liste du serveur. Un client qui existe encore revient de lui-même lorsqu\'il se reconnecte.</string>
     <string name="snapcast_client_delete_confirm">Retirer</string>
+    <string name="snapcast_legacy_delete_menu">Retirer les anciennes entrées de ce téléphone</string>
+    <string name="snapcast_legacy_delete_title">Retirer les anciennes entrées de ce téléphone ?</string>
+    <string name="snapcast_legacy_delete_message">Anciennes entrées hors ligne de ce téléphone sur ce serveur : %1$d. Seules ces entrées sont retirées de la liste du serveur. Le téléphone continue de fonctionner avec son entrée actuelle.</string>
+    <string name="snapcast_legacy_delete_confirm">Retirer</string>
     <string name="snapcast_remove_error_connected">Le client s\'est reconnecté et n\'a pas été retiré.</string>
     <string name="snapcast_remove_error_own">Le client propre de ce téléphone n\'est pas retiré tant que sa session est en cours ou démarre.</string>
     <!-- The Snapcast groups as sources of the OpenHome renderer (task 12.5) -->

@@ -18,6 +18,7 @@
  */
 package de.yaacc.multiroom.ui;
 
+import de.yaacc.multiroom.client.SnapcastOwnIds;
 import de.yaacc.multiroom.control.SnapcastGroup;
 
 /**
@@ -48,5 +49,26 @@ public final class SnapcastOwnClient {
             return false;
         }
         return isOwn(group.getClients().get(0).getId(), ownId);
+    }
+
+    /**
+     * @return true when the id is the current id or one of this install's legacy ids (task 12.19): an entry of this phone, whether it is
+     * the one it uses now or an old per-server entry that earlier builds left on a server. Other installs' ids are not.
+     */
+    public static boolean isOwnOrLegacy(String clientIdFromStatus, SnapcastOwnIds ids) {
+        return ids != null && ids.isOwn(clientIdFromStatus);
+    }
+
+    /** @return true for an old per-server entry of this install (not for the current id): the row says "old entry" */
+    public static boolean isLegacy(String clientIdFromStatus, SnapcastOwnIds ids) {
+        return ids != null && ids.isLegacy(clientIdFromStatus);
+    }
+
+    /** As {@link #cardOffersPower(SnapcastGroup, String)} for the current id and the legacy ids: the first member is the phone's. */
+    public static boolean cardOffersPowerForIds(SnapcastGroup group, SnapcastOwnIds ids) {
+        if (group == null || group.getClients().isEmpty()) {
+            return false;
+        }
+        return isOwnOrLegacy(group.getClients().get(0).getId(), ids);
     }
 }

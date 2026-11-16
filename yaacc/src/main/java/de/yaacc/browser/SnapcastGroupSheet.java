@@ -52,7 +52,6 @@ import de.yaacc.multiroom.SnapcastGroupDevice;
 import de.yaacc.multiroom.SnapcastHub;
 import de.yaacc.multiroom.SnapcastMarkerStore;
 import de.yaacc.multiroom.SnapcastReceivers;
-import de.yaacc.multiroom.client.SnapcastClientIdentities;
 import de.yaacc.multiroom.client.SnapcastClientPower;
 import de.yaacc.multiroom.client.SnapcastClientPowerTexts;
 import de.yaacc.multiroom.client.SnapcastClientPowers;
@@ -63,6 +62,7 @@ import de.yaacc.multiroom.discovery.SnapcastServerKey;
 import de.yaacc.multiroom.ui.SnapcastClientRemoval;
 import de.yaacc.multiroom.ui.SnapcastControls;
 import de.yaacc.multiroom.ui.SnapcastInputs;
+import de.yaacc.multiroom.ui.SnapcastLegacyCleanup;
 import de.yaacc.multiroom.ui.SnapcastMemberRows;
 import de.yaacc.multiroom.ui.SnapcastRowText;
 import de.yaacc.multiroom.ui.SnapcastServerChoices;
@@ -185,9 +185,10 @@ final class SnapcastGroupSheet {
         SnapcastRowText.Row row = state == null
                 ? SnapcastRowText.of(null, null, false, serverKey.asString(), rowWords)
                 : SnapcastRowText.of(group, state.getVisibleStatus(), state.isOnline(), state.getEndpointText(), rowWords);
-        // the phone's own client is recognised by its one client id (task 12.11), connected or offline
+        // the phone's own client is recognised by its one client id (task 12.11), connected or offline, and so are the old per-server
+        // entries of this install (task 12.19)
         List<SnapcastMemberRows.Member> members = group == null ? new ArrayList<SnapcastMemberRows.Member>()
-                : SnapcastMemberRows.of(group, SnapcastUi.memberWords(context), SnapcastClientIdentities.ownId(context));
+                : SnapcastMemberRows.ofIds(group, SnapcastUi.memberWords(context), receivers.ownIds());
         String groupName = group == null ? fallbackTitle : groupTitle(group);
         // the power of the own row follows the session, which the model of the server shows only a moment later
         Object signature = Arrays.asList(row, members, groupName, SnapcastClientPowers.of(context).isPoweredOn(),
@@ -396,7 +397,8 @@ final class SnapcastGroupSheet {
         more.setEnabled(online);
         more.setOnClickListener(v -> showMemberMenu(v, member));
         actions.addView(more);
-        String label = member.isOwn() ? member.getName() + " (" + context.getString(R.string.snapcast_member_this_phone) + ")" : member.getName();
+        String label = member.isOwn() ? member.getName() + " (" + context.getString(member.isLegacy()
+                ? R.string.snapcast_member_this_phone_old : R.string.snapcast_member_this_phone) + ")" : member.getName();
         if (!member.isConnected()) {
             label = label + " (" + context.getString(R.string.snapcast_offline) + ")";
         }
@@ -448,6 +450,11 @@ final class SnapcastGroupSheet {
         // the server of the phone's own client (task 12.10): only on its own row
         if (member.isOwn()) {
             menu.getMenu().add(0, 4, 3, R.string.snapcast_member_server);
+            // the old per-server entries of this install (task 12.19): offered only while the FULL status of this server has some that
+            // are offline (the lists hide them)
+            if (!legacyEntries().isEmpty()) {
+                menu.getMenu().add(0, 5, 4, R.string.snapcast_legacy_delete_menu);
+            }
         }
         menu.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
@@ -462,6 +469,9 @@ final class SnapcastGroupSheet {
                     return true;
                 case 4:
                     showServerChoice();
+                    return true;
+                case 5:
+                    showDeleteLegacy();
                     return true;
                 default:
                     return false;
@@ -493,6 +503,37 @@ final class SnapcastGroupSheet {
                     String reason = SnapcastClientPowerTexts.refusalText(context, outcome);
                     if (reason != null) {
                         Toast.makeText(context, reason, Toast.LENGTH_LONG).show();
+                    }
+                    lastRendered = null;
+                    scheduleRender();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /**
+     * The offline old entries of this phone on this server, from the FULL status of the server ({@code getStatus()}, not the visible
+     * one: the lists have merged exactly these entries away). Display and decision only; the delete decides again from a fresh status.
+     */
+    private List<String> legacyEntries() {
+        SnapcastReceivers.GroupState state = receivers.stateOf(receiverId);
+        return SnapcastLegacyCleanup.removable(state == null ? null : state.getStatus(), receivers.ownIds());
+    }
+
+    /** The confirmation of the removal of the old entries: it says how many and that only entries of this server go. */
+    private void showDeleteLegacy() {
+        final int count = legacyEntries().size();
+        if (count == 0) {
+            return;
+        }
+        openDialog = new AlertDialog.Builder(context)
+                .setTitle(R.string.snapcast_legacy_delete_title)
+                .setMessage(context.getString(R.string.snapcast_legacy_delete_message, count))
+                .setPositiveButton(R.string.snapcast_legacy_delete_confirm, (d, which) -> {
+                    // read again at the tap: what went away or came back since the dialog opened is not asked for; every id still goes
+                    // through the removal rules (fresh status, offline only, never the own session, one call per id with the rate limit)
+                    for (String id : legacyEntries()) {
+                        controls.deleteOfflineClient(serverKey, id);
                     }
                     lastRendered = null;
                     scheduleRender();

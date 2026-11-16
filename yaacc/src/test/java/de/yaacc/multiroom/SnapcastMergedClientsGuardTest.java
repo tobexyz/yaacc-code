@@ -68,7 +68,7 @@ public class SnapcastMergedClientsGuardTest {
         assertTrue("the link picker lists only the clients this server shows",
                 main("browser/SnapcastLinkSheet").contains("SnapcastLinkChoices.of(state.getVisibleStatus(), groupId,"));
         assertTrue("the power button belongs to the card whose first shown member is the phone",
-                main("browser/SnapcastRowBinder").contains("SnapcastOwnClient.cardOffersPower(state == null ? null : state.getVisibleGroup()"));
+                main("browser/SnapcastRowBinder").contains("SnapcastOwnClient.cardOffersPowerForIds(state == null ? null : state.getVisibleGroup()"));
         String receivers = main("multiroom/SnapcastReceivers");
         assertTrue("the cards and their titles", methodBody(receivers, "public List<SnapcastGroupDevice> groups()").contains("merged.visible("));
         assertTrue(methodBody(receivers, "public GroupState stateOf(").contains("merged.visible("));

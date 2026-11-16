@@ -71,7 +71,9 @@ public class SnapcastClientRemovalWiringTest {
 
         assertTrue(menu.contains("SnapcastClientRemoval.offered(member.isConnected(), member.getClientId(), SnapcastUi.ownClient(context))"));
         assertTrue(menu.contains("showDeleteOffline(member)"));
-        assertEquals("the delete is called in one place: the confirmation", 1, sheet.split("deleteOfflineClient\\(", -1).length - 1);
+        assertEquals("the delete is called in two places: the confirmation of one entry and the one of the old entries of the phone (task 12.19)", 2,
+                sheet.split("deleteOfflineClient\\(", -1).length - 1);
+        assertTrue("the second one is inside the confirmation of the old entries", methodBody(sheet, "private void showDeleteLegacy(").contains("deleteOfflineClient("));
         String confirm = methodBody(sheet, "private void showDeleteOffline(");
         assertTrue(confirm.contains("setPositiveButton(R.string.snapcast_client_delete_confirm"));
         assertTrue(confirm.contains("deleteOfflineClient(serverKey, clientId)"));

@@ -24,7 +24,6 @@ import android.os.Looper;
 import android.view.View;
 import android.widget.CompoundButton;
 import android.widget.ImageButton;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.material.switchmaterial.SwitchMaterial;
@@ -36,11 +35,12 @@ import de.yaacc.multiroom.client.SnapcastClientPowers;
 import de.yaacc.settings.SettingsActivity;
 
 /**
- * The row of the phone's own Snapcast client at the bottom of the first page (task 12.17): a switch like the one of the UPnP server,
- * the state in words, and a gear that opens the Snapcast client section of the settings. Thin Android glue; the state, the start and
- * the stop are in {@link SnapcastClientPower}, the words in {@link SnapcastClientPowerTexts}. The row is shown only when the option
- * is on and a server is saved ({@link SnapcastClientPower#offered()}). While the page is started the state text follows the session
- * (a poll of one second on the main thread, removed with the page).
+ * The row of the phone's own Snapcast client at the bottom of the first page (task 12.17): label, switch and gear like the one of the
+ * UPnP server, with <b>no subtitle</b> (task 12.19, the owner). The state in words, with the reason of a session that ended, is the
+ * state description of the switch (what TalkBack reads after its label); the listen test dialog shows the same text. The gear opens the Snapcast client section of the settings. Thin Android glue; the state, the start and the stop are in
+ * {@link SnapcastClientPower}, the words in {@link SnapcastClientPowerTexts}. The row is shown only when the option is on and a server
+ * is known ({@link SnapcastClientPower#offered()}). While the page is started the state follows the session (a poll of one second on
+ * the main thread, removed with the page).
  */
 final class SnapcastClientSwitchBar {
 
@@ -49,7 +49,6 @@ final class SnapcastClientSwitchBar {
     private final Context context;
     private final View row;
     private final SwitchMaterial toggle;
-    private final TextView stateText;
     private final Handler main = new Handler(Looper.getMainLooper());
     private boolean started;
 
@@ -79,7 +78,6 @@ final class SnapcastClientSwitchBar {
         this.context = context;
         this.row = row;
         this.toggle = row.findViewById(R.id.serverListSnapcastClientEnabled);
-        this.stateText = row.findViewById(R.id.serverListSnapcastClientState);
         ImageButton gear = row.findViewById(R.id.serverListSnapcastClientSettings);
         gear.setOnClickListener(v -> v.getContext().startActivity(SettingsActivity.snapcastClientIntent(v.getContext())));
         toggle.setOnCheckedChangeListener(onToggled);
@@ -98,7 +96,7 @@ final class SnapcastClientSwitchBar {
         main.removeCallbacks(refresh);
     }
 
-    /** Shows or hides the row and sets the switch and the state text from the current state. */
+    /** Shows or hides the row and sets the switch and its state description from the current state. */
     void bind() {
         SnapcastClientPower power = SnapcastClientPowers.of(context);
         boolean offered = power.offered();
@@ -111,11 +109,11 @@ final class SnapcastClientSwitchBar {
         toggle.setOnCheckedChangeListener(null);
         toggle.setChecked(power.isOn());
         toggle.setOnCheckedChangeListener(onToggled);
-        String text = SnapcastClientPowerTexts.stateText(context, state);
-        stateText.setText(text);
-        androidx.core.view.ViewCompat.setStateDescription(toggle, text); // what TalkBack reads with the switch
+        // the row has no visible state text: the state in words, with the reason of a session that ended ("Stopped: <reason>", also a restore
+        // that failed at the start), is the state description of the switch, which TalkBack reads with its label (the content description)
+        androidx.core.view.ViewCompat.setStateDescription(toggle, SnapcastClientPowerTexts.stateText(context, state));
         if (state.shown == SnapcastClientPower.Shown.STOPPED && state.unseenFailure) {
-            power.markEndingSeen(); // it is on the screen now
+            power.markEndingSeen(); // the row had it for the screen reader; the listen test dialog shows it as text
         }
     }
 

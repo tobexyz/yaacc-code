@@ -353,6 +353,7 @@
     <string name="snapcast_member_actions">Actions for %1$s</string>
     <string name="snapcast_member_rename">Rename</string>
     <string name="snapcast_member_this_phone">This phone</string>
+    <string name="snapcast_member_this_phone_old">This phone, old entry</string>
     <string name="snapcast_member_server">Server</string>
     <string name="snapcast_server_choose_title">Server of this phone</string>
     <string name="snapcast_member_latency">Latency</string>
@@ -446,6 +447,10 @@
     <string name="snapcast_client_delete_title">Remove client from the server?</string>
     <string name="snapcast_client_delete_message">%1$s is offline. This only removes its entry from the server\'s list. A client that is still around comes back by itself when it connects again.</string>
     <string name="snapcast_client_delete_confirm">Remove</string>
+    <string name="snapcast_legacy_delete_menu">Remove old entries of this phone</string>
+    <string name="snapcast_legacy_delete_title">Remove old entries of this phone?</string>
+    <string name="snapcast_legacy_delete_message">Old offline entries of this phone on this server: %1$d. Only these entries are removed from the server\'s list. The phone keeps working under its current entry.</string>
+    <string name="snapcast_legacy_delete_confirm">Remove</string>
     <string name="snapcast_remove_error_connected">The client has connected again and was not removed.</string>
     <string name="snapcast_remove_error_own">This phone\'s own client is not removed while its session runs or starts.</string>
     <!-- The Snapcast groups as sources of the OpenHome renderer (task 12.5) -->

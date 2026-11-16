@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import de.yaacc.multiroom.client.SnapcastOwnIds;
 import de.yaacc.multiroom.control.SnapcastClient;
 import de.yaacc.multiroom.control.SnapcastGroup;
 import de.yaacc.multiroom.control.SnapcastServerStatus;
@@ -47,6 +48,10 @@ import de.yaacc.multiroom.discovery.SnapcastServerKey;
  *   <li>connected on <b>two or more</b> servers at once (it should not happen: a client has one connection): shown on all of them,
  *   nothing is hidden among live entries; offline copies on yet other servers are hidden.</li>
  * </ul>
+ * <b>The phone is one client</b> (task 12.19): with {@link #of(List, SnapcastOwnIds)} the old per-server ids of this install count as
+ * the current id. The phone is shown <b>once</b> (connected wins, else the last seen, a tie goes to the current id), and every other
+ * copy of it, also one on the SAME server, is hidden; so the card of an old entry that was alone in its group is gone, and the others
+ * keep their title from their first shown member. Entries of other installs are ordinary clients.
  *
  * <p><b>Display only.</b> {@link #visible(SnapcastServerKey, SnapcastGroup)} and {@link #visible(SnapcastServerKey,
  * SnapcastServerStatus)} give what the lists show: the card (title from the first shown member), the member rows, the counts "x of
@@ -91,13 +96,17 @@ public final class SnapcastMergedClients {
     /** One copy of a client id on one server. */
     private static final class Copy {
         final SnapcastServerKey key;
+        final String id;
         final boolean connected;
         final long lastSeenMicros;
+        final boolean current;
 
-        Copy(SnapcastServerKey key, boolean connected, long lastSeenMicros) {
+        Copy(SnapcastServerKey key, String id, boolean connected, long lastSeenMicros, boolean current) {
             this.key = key;
+            this.id = id;
             this.connected = connected;
             this.lastSeenMicros = lastSeenMicros;
+            this.current = current;
         }
     }
 
@@ -105,8 +114,21 @@ public final class SnapcastMergedClients {
      * @param servers every known server in the known order (the first one wins a tie); a server without a status is skipped
      */
     public static SnapcastMergedClients of(List<Server> servers) {
-        if (servers == null || servers.size() < 2) {
-            return NONE; // one server: nothing to merge
+        return of(servers, SnapcastOwnIds.none());
+    }
+
+    /**
+     * As {@link #of(List)}, and the phone is one client (task 12.19): its legacy ids count as its current id, so the phone is shown
+     * <b>once</b> (connected wins, else the last seen; a tie goes to the current id, then to the known order) and every other copy is
+     * hidden, also on the same server. The ids of other installs are ordinary clients.
+     *
+     * @param ownIds the phone's ids; null or none merges nothing of the phone
+     */
+    public static SnapcastMergedClients of(List<Server> servers, SnapcastOwnIds ownIds) {
+        SnapcastOwnIds own = ownIds == null ? SnapcastOwnIds.none() : ownIds;
+        boolean mergesOwn = !own.legacy().isEmpty();
+        if (servers == null || (servers.size() < 2 && !mergesOwn)) {
+            return NONE; // one server: nothing to merge, but for the old entries of the phone
         }
         Map<String, List<Copy>> copies = new LinkedHashMap<>();
         Set<SnapcastServerKey> seen = new HashSet<>();
@@ -116,12 +138,14 @@ public final class SnapcastMergedClients {
             }
             for (SnapcastGroup group : server.status.getGroups()) {
                 for (SnapcastClient client : group.getClients()) {
-                    List<Copy> list = copies.get(client.getId());
+                    String canonical = own.canonical(client.getId());
+                    List<Copy> list = copies.get(canonical);
                     if (list == null) {
                         list = new ArrayList<>(2);
-                        copies.put(client.getId(), list);
+                        copies.put(canonical, list);
                     }
-                    list.add(new Copy(server.key, server.online && client.isConnected(), client.getLastSeenMicros()));
+                    list.add(new Copy(server.key, client.getId(), server.online && client.isConnected(), client.getLastSeenMicros(),
+                            !own.isLegacy(client.getId())));
                 }
             }
         }
@@ -131,33 +155,65 @@ public final class SnapcastMergedClients {
             if (list.size() < 2) {
                 continue;
             }
-            Set<SnapcastServerKey> shownOn = new HashSet<>();
+            boolean phone = own.isCurrent(entry.getKey());
+            List<Copy> shownCopies = phone ? Collections.singletonList(shownCopyOfThePhone(list)) : shownOn(list);
             for (Copy copy : list) {
-                if (copy.connected) {
-                    shownOn.add(copy.key);
-                }
-            }
-            if (shownOn.isEmpty()) {
-                Copy last = list.get(0); // the first of the known order wins a tie: only a strictly later one replaces it
-                for (Copy copy : list) {
-                    if (copy.lastSeenMicros > last.lastSeenMicros) {
-                        last = copy;
-                    }
-                }
-                shownOn.add(last.key);
-            }
-            for (Copy copy : list) {
-                if (!shownOn.contains(copy.key)) {
+                if (!shownCopies.contains(copy)) {
                     Set<String> ids = hidden.get(copy.key);
                     if (ids == null) {
                         ids = new HashSet<>();
                         hidden.put(copy.key, ids);
                     }
-                    ids.add(entry.getKey());
+                    ids.add(copy.id);
                 }
             }
         }
         return hidden.isEmpty() ? NONE : new SnapcastMergedClients(hidden);
+    }
+
+    /**
+     * An ordinary client: every connected copy is shown, or the one that was seen last when none is connected (the first of the known
+     * order on a tie).
+     */
+    private static List<Copy> shownOn(List<Copy> list) {
+        List<Copy> shown = new ArrayList<>(2);
+        for (Copy copy : list) {
+            if (copy.connected) {
+                shown.add(copy);
+            }
+        }
+        if (shown.isEmpty()) {
+            Copy last = list.get(0); // the first of the known order wins a tie: only a strictly later one replaces it
+            for (Copy copy : list) {
+                if (copy.lastSeenMicros > last.lastSeenMicros) {
+                    last = copy;
+                }
+            }
+            shown.add(last);
+        }
+        return shown;
+    }
+
+    /**
+     * The phone: exactly one copy, also among connected ones (a client has one connection, so a second "connected" entry is an old
+     * leftover). Connected beats offline, then the later {@code lastSeen}, then the current id over a legacy id, then the known order.
+     */
+    private static Copy shownCopyOfThePhone(List<Copy> list) {
+        Copy best = list.get(0);
+        for (Copy copy : list) {
+            if (copy.connected != best.connected) {
+                if (copy.connected) {
+                    best = copy;
+                }
+            } else if (copy.lastSeenMicros != best.lastSeenMicros) {
+                if (copy.lastSeenMicros > best.lastSeenMicros) {
+                    best = copy;
+                }
+            } else if (copy.current && !best.current) {
+                best = copy;
+            }
+        }
+        return best;
     }
 
     /** @return true when the lists do not show this client of this server (it is shown on another server) */

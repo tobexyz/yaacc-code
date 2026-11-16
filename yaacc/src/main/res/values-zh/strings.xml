@@ -344,6 +344,7 @@
     <string name="snapcast_member_actions">%1$s 的操作</string>
     <string name="snapcast_member_rename">重命名</string>
     <string name="snapcast_member_this_phone">本手机</string>
+    <string name="snapcast_member_this_phone_old">本手机，旧条目</string>
     <string name="snapcast_member_server">服务器</string>
     <string name="snapcast_server_choose_title">本手机使用的服务器</string>
     <string name="snapcast_member_latency">延迟</string>
@@ -437,6 +438,10 @@
     <string name="snapcast_client_delete_title">要从服务器移除该客户端吗？</string>
     <string name="snapcast_client_delete_message">%1$s 已离线。这只会从服务器的列表中移除它的条目。仍然存在的客户端在重新连接时会自行回来。</string>
     <string name="snapcast_client_delete_confirm">移除</string>
+    <string name="snapcast_legacy_delete_menu">移除本手机的旧条目</string>
+    <string name="snapcast_legacy_delete_title">要移除本手机的旧条目吗？</string>
+    <string name="snapcast_legacy_delete_message">本手机在此服务器上的离线旧条目：%1$d。只会从服务器的列表中移除这些条目。本手机会继续使用其当前条目。</string>
+    <string name="snapcast_legacy_delete_confirm">移除</string>
     <string name="snapcast_remove_error_connected">该客户端已重新连接，未被移除。</string>
     <string name="snapcast_remove_error_own">本手机自己的客户端在其会话运行或启动期间不会被移除。</string>
     <!-- The Snapcast groups as sources of the OpenHome renderer (task 12.5) -->

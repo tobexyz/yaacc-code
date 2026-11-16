@@ -80,8 +80,8 @@ public class SnapcastOwnClientGuardTest {
         String binder = source("browser/SnapcastRowBinder.java");
         String bind = methodBody(binder, "void bindPower(");
 
-        assertTrue("the rule decides", bind.contains("SnapcastOwnClient.cardOffersPower("));
-        assertTrue("with the app's one client id, known without a session", bind.contains("SnapcastClientIdentities.ownId(context)"));
+        assertTrue("the rule decides", bind.contains("SnapcastOwnClient.cardOffersPowerForIds("));
+        assertTrue("with the app's client ids (the current one and the old ones of this install), known without a session", bind.contains("receivers().ownIds()"));
         assertTrue(bind.contains("SnapcastOwnPower.of(own, own &&"));
         assertTrue("the same button, look and tap as the other kinds", bind.contains("RendererPowerButton.bind("));
         assertTrue("busy while a change runs", bind.contains("RendererPowerController.getShared().isBusy(id)"));
@@ -117,7 +117,7 @@ public class SnapcastOwnClientGuardTest {
     public void theSheetGivesTheToggleAndTheServerMenuToTheOwnRowOnly() throws Exception {
         String sheet = source("browser/SnapcastGroupSheet.java");
 
-        assertTrue("the members are marked by the own client id", sheet.contains("SnapcastMemberRows.of(group, SnapcastUi.memberWords(context), SnapcastClientIdentities.ownId(context))"));
+        assertTrue("the members are marked by the own client ids", sheet.contains("SnapcastMemberRows.ofIds(group, SnapcastUi.memberWords(context), receivers.ownIds())"));
         String row = methodBody(sheet, "private View memberRow(");
         assertTrue(row.contains("if (member.isOwn())") && row.contains("ownPowerButton(member)"));
         assertTrue("labelled", row.contains("R.string.snapcast_member_this_phone"));

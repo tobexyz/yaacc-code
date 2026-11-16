@@ -38,7 +38,8 @@
         android:background="?attr/colorOutlineVariant"
         android:importantForAccessibility="no" />
 
-    <!-- The Snapcast client of this phone (task 12C): a switch like the UPnP server one, its state, and a gear that opens its settings.
+    <!-- The Snapcast client of this phone (task 12C): label, switch and gear like the UPnP server row, no subtitle (task 12.19; the state is the
+         state description of the switch). The gear opens its settings.
          Hidden until ServerListFragment decides (the option is on and a server is saved). -->
     <LinearLayout
         android:id="@+id/serverListSnapcastClientRow"
@@ -50,33 +51,17 @@
         android:paddingEnd="2dp"
         android:visibility="gone">
 
-        <LinearLayout
+        <TextView
+            android:id="@+id/serverListSnapcastClientLabel"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/serverListSnapcastClientLabel"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:focusable="false"
-                android:maxLines="1"
-                android:text="@string/snapcast_client_switch_label"
-                android:textAppearance="@android:style/TextAppearance.Material.Medium"
-                android:textColor="?attr/colorOnSurface" />
-
-            <TextView
-                android:id="@+id/serverListSnapcastClientState"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:focusable="false"
-                android:maxLines="2"
-                android:textAppearance="@android:style/TextAppearance.Material.Small"
-                android:textColor="?attr/colorOnSurface" />
-        </LinearLayout>
+            android:ellipsize="end"
+            android:focusable="false"
+            android:maxLines="1"
+            android:text="@string/snapcast_client_switch_label"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            android:textColor="?attr/colorOnSurface" />
 
         <com.google.android.material.switchmaterial.SwitchMaterial
             android:id="@+id/serverListSnapcastClientEnabled"

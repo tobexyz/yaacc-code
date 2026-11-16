@@ -88,7 +88,7 @@ public class SnapcastClientSwitchGuardTest {
     public void theFirstPageHasTheSnapcastRowNextToTheUpnpServerToggle() throws Exception {
         String xml = text("res/layout/fragment_server_root.xml");
 
-        for (String id : new String[]{"serverListSnapcastClientRow", "serverListSnapcastClientLabel", "serverListSnapcastClientState",
+        for (String id : new String[]{"serverListSnapcastClientRow", "serverListSnapcastClientLabel",
                 "serverListSnapcastClientEnabled", "serverListSnapcastClientSettings"}) {
             assertTrue(id, xml.contains("@+id/" + id));
         }
@@ -97,6 +97,39 @@ public class SnapcastClientSwitchGuardTest {
         Matcher row = Pattern.compile("<LinearLayout[^>]*?@\\+id/serverListSnapcastClientRow[^>]*?>", Pattern.DOTALL).matcher(xml);
         assertTrue(row.find());
         assertTrue("hidden by default", row.group().contains("android:visibility=\"gone\""));
+    }
+
+    @Test
+    public void theRowHasNoSubtitleOnlyLabelSwitchAndGearLikeTheUpnpServerRow() throws Exception {
+        // task 12.19 (the owner: "the switch in the bottom does not need a subtitle")
+        String xml = text("res/layout/fragment_server_root.xml");
+        String snapcast = xml.substring(xml.indexOf("@+id/serverListSnapcastClientRow"),
+                xml.lastIndexOf("<LinearLayout", xml.indexOf("@+id/serverListLocalServerLabel")));
+
+        assertFalse("no state line under the label", xml.contains("serverListSnapcastClientState"));
+        assertEquals("the row holds the label, the switch and the gear and nothing else", 1, count(snapcast, "<TextView"));
+        assertEquals(1, count(snapcast, "<com.google.android.material.switchmaterial.SwitchMaterial"));
+        assertEquals(1, count(snapcast, "<ImageButton"));
+        assertFalse("no vertical wrapper of label and subtitle", snapcast.contains("android:orientation=\"vertical\""));
+        Matcher label = Pattern.compile("<TextView[^>]*?@\\+id/serverListSnapcastClientLabel[^>]*?/>", Pattern.DOTALL).matcher(snapcast);
+        assertTrue(label.find());
+        assertTrue("the label takes the width like the UPnP server label", label.group().contains("android:layout_width=\"0dp\"")
+                && label.group().contains("android:layout_weight=\"1\"") && label.group().contains("android:maxLines=\"1\""));
+    }
+
+    @Test
+    public void theStateIsKeptForTheScreenReaderAndTheDialogNotAsVisibleText() throws Exception {
+        String bar = code("browser/SnapcastClientSwitchBar.java");
+
+        assertFalse("no text view for the state", bar.contains("TextView") || bar.contains("stateText.") || bar.contains("serverListSnapcastClientState"));
+        assertFalse("nothing writes a visible text on the row", bar.contains(".setText("));
+        assertTrue("the state in words (with the reason of an ending) is the state description of the switch",
+                bar.contains("setStateDescription(toggle, SnapcastClientPowerTexts.stateText(context, state))"));
+        assertTrue("the switch keeps its label as content description", text("res/layout/fragment_server_root.xml").contains(
+                "android:contentDescription=\"@string/snapcast_client_switch_label\""));
+        assertTrue("a refused start is still a toast with its reason", body(bar, "private void toggled(boolean checked)").contains("Toast.makeText("));
+        // the listen test dialog shows the state and so the reason of a restore that failed
+        assertTrue(code("settings/SnapcastClientSpikeDialog.java").contains("SnapcastClientPowerTexts.stateText(context, state)"));
     }
 
     @Test

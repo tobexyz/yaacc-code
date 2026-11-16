@@ -33,7 +33,6 @@ import de.yaacc.R;
 import de.yaacc.multiroom.SnapcastGroupDevice;
 import de.yaacc.multiroom.SnapcastHub;
 import de.yaacc.multiroom.SnapcastReceivers;
-import de.yaacc.multiroom.client.SnapcastClientIdentities;
 import de.yaacc.multiroom.client.SnapcastClientPowers;
 import de.yaacc.multiroom.control.SnapcastDisplayText;
 import de.yaacc.multiroom.ui.SnapcastControls;
@@ -186,7 +185,7 @@ final class SnapcastRowBinder {
         }
         final String id = idOf(device);
         SnapcastReceivers.GroupState state = receivers().stateOf(id);
-        boolean own = SnapcastOwnClient.cardOffersPower(state == null ? null : state.getVisibleGroup(), SnapcastClientIdentities.ownId(context));
+        boolean own = SnapcastOwnClient.cardOffersPowerForIds(state == null ? null : state.getVisibleGroup(), receivers().ownIds());
         RendererPower power = SnapcastOwnPower.of(own, own && SnapcastClientPowers.of(context).isPoweredOn());
         RendererPowerButton.bind(context, views.power, cleanName(String.valueOf(device.getDetails().getFriendlyName())), power,
                 RendererPowerController.getShared().isBusy(id), () -> {

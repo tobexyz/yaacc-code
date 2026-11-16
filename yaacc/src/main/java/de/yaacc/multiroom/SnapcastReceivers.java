@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 
+import de.yaacc.multiroom.client.SnapcastOwnIds;
 import de.yaacc.multiroom.control.RetryScheduler;
 import de.yaacc.multiroom.control.SnapcastGroup;
 import de.yaacc.multiroom.control.SnapcastServerStatus;
@@ -78,6 +79,14 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
         SnapcastServerLink open(SnapcastEndpoint endpoint);
     }
 
+    /**
+     * The phone's own client ids (task 12.19): the current id and the legacy per-server ids of this install, for the servers that are
+     * known now. Called with the receivers' lock held for the merge of the lists: it must be quick and must not call back.
+     */
+    public interface OwnIdsSource {
+        SnapcastOwnIds of(List<SnapcastEndpoint> servers);
+    }
+
     /** Told when the groups (or the offline state of one) may have changed; any thread, no lock held. */
     public interface ChangeListener {
         void onGroupsChanged();
@@ -102,6 +111,7 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
     private final CopyOnWriteArrayList<ChangeListener> listeners = new CopyOnWriteArrayList<>();
     // the last device made for each group id (guarded by lock); see deviceLocked
     private final Map<String, SnapcastGroupDevice> cache = new HashMap<>();
+    private volatile OwnIdsSource ownIdsSource = servers -> SnapcastOwnIds.none();
     private int visible;
     private long closeGeneration;
     private boolean tickRunning;
@@ -114,6 +124,32 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
         this.labels = labels;
         this.closeGraceMillis = closeGraceMillis;
         directory.addListener(this::onServersChanged);
+    }
+
+    /** Where the phone's own client ids come from; without one nothing of the phone is merged (null clears it). */
+    public void setOwnIdsSource(OwnIdsSource source) {
+        ownIdsSource = source == null ? servers -> SnapcastOwnIds.none() : source;
+    }
+
+    /**
+     * The phone's own client ids for the servers that are listed now: the current id and this install's legacy ids. For the code that
+     * labels the phone's row and decides the cleanup of old entries; none when the install has no secret.
+     */
+    public SnapcastOwnIds ownIds() {
+        return ownIdsOf(directory.snapshot());
+    }
+
+    private SnapcastOwnIds ownIdsOf(List<SnapcastDirectory.Entry> entries) {
+        List<SnapcastEndpoint> endpoints = new ArrayList<>(entries.size());
+        for (SnapcastDirectory.Entry entry : entries) {
+            endpoints.add(entry.getKey().getEndpoint());
+        }
+        try {
+            SnapcastOwnIds ids = ownIdsSource.of(endpoints);
+            return ids == null ? SnapcastOwnIds.none() : ids;
+        } catch (RuntimeException failed) {
+            return SnapcastOwnIds.none(); // a damaged store must not take the lists down
+        }
     }
 
     public void addChangeListener(ChangeListener listener) {
@@ -539,7 +575,7 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
             servers.add(SnapcastMergedClients.Server.of(entry.getKey(), view == null ? null : view.status,
                     view != null && view.online));
         }
-        return SnapcastMergedClients.of(servers);
+        return SnapcastMergedClients.of(servers, ownIdsOf(entries));
     }
 
     @Override

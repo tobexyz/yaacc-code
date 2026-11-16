@@ -33,6 +33,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import de.yaacc.R;
+import de.yaacc.multiroom.client.SnapcastClientIdentities;
 import de.yaacc.multiroom.control.MonotonicClock;
 import de.yaacc.multiroom.control.RetryScheduler;
 import de.yaacc.multiroom.control.SnapcastRpc;
@@ -107,6 +108,8 @@ public final class SnapcastHub implements SnapcastGroupSource {
                 () -> new SnapcastGroupDevice.Labels(this.context.getString(R.string.snapcast_group),
                         this.context.getString(R.string.snapcast_offline)),
                 CLOSE_GRACE_MILLIS);
+        // the phone's own client ids, the current one and the old per-server ones of this install (task 12.19), for the merge of the lists
+        this.receivers.setOwnIdsSource(servers -> SnapcastClientIdentities.ownIds(this.context, servers));
         this.feeds = new SnapcastFeedSessions(receivers, SnapcastMarkerStore.forContext(this.context), scheduler,
                 PcmFeederOutput.FACTORY);
         directory.setManualServers(manualServers.list());

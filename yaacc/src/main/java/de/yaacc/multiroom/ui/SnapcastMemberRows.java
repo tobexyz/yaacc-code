@@ -27,6 +27,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
+import de.yaacc.multiroom.client.SnapcastOwnIds;
 import de.yaacc.multiroom.control.SnapcastClient;
 import de.yaacc.multiroom.control.SnapcastDisplayText;
 import de.yaacc.multiroom.control.SnapcastGroup;
@@ -62,8 +63,10 @@ public final class SnapcastMemberRows {
         private final boolean muted;
         private final int latencyMs;
         private final boolean own;
+        private final boolean legacy;
 
-        Member(String clientId, String name, boolean connected, int volume, boolean muted, int latencyMs, boolean own) {
+        Member(String clientId, String name, boolean connected, int volume, boolean muted, int latencyMs, boolean own, boolean legacy) {
+            this.legacy = legacy;
             this.clientId = clientId;
             this.name = name;
             this.connected = connected;
@@ -109,6 +112,11 @@ public final class SnapcastMemberRows {
             return own;
         }
 
+        /** The row is an old per-server entry of this install (task 12.19): the phone, but not under its current id. */
+        public boolean isLegacy() {
+            return legacy;
+        }
+
         @Override
         public boolean equals(Object other) {
             if (this == other) {
@@ -118,13 +126,13 @@ public final class SnapcastMemberRows {
                 return false;
             }
             Member that = (Member) other;
-            return connected == that.connected && volume == that.volume && muted == that.muted && own == that.own
+            return connected == that.connected && volume == that.volume && muted == that.muted && own == that.own && legacy == that.legacy
                     && latencyMs == that.latencyMs && clientId.equals(that.clientId) && name.equals(that.name);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(clientId, name, connected, volume, muted, latencyMs, own);
+            return Objects.hash(clientId, name, connected, volume, muted, latencyMs, own, legacy);
         }
 
         /** Numbers only: the name and the id are the server's. */
@@ -148,6 +156,18 @@ public final class SnapcastMemberRows {
      * @return the rows of the group's members in the order described above; empty for a group without members
      */
     public static List<Member> of(SnapcastGroup group, Words words, String ownClientId) {
+        return build(group, words, SnapcastOwnIds.of(ownClientId, null));
+    }
+
+    /**
+     * As {@link #of(SnapcastGroup, Words, String)} for the current id and the legacy ids of this install (task 12.19): a member with
+     * a legacy id is marked as the phone's own and as an old entry ({@link Member#isLegacy}).
+     */
+    public static List<Member> ofIds(SnapcastGroup group, Words words, SnapcastOwnIds ids) {
+        return build(group, words, ids);
+    }
+
+    private static List<Member> build(SnapcastGroup group, Words words, SnapcastOwnIds ids) {
         List<SnapcastClient> clients = new ArrayList<>(group.getClients());
         final String unnamed = words.unnamedClient();
         final List<String> base = new ArrayList<>();
@@ -179,7 +199,7 @@ public final class SnapcastMemberRows {
         for (int position = 0; position < order.size(); position++) {
             SnapcastClient client = clients.get(order.get(position));
             rows.add(new Member(client.getId(), names.get(position), client.isConnected(), client.getVolume().getPercent(),
-                    client.getVolume().isMuted(), client.getLatencyMs(), SnapcastOwnClient.isOwn(client.getId(), ownClientId)));
+                    client.getVolume().isMuted(), client.getLatencyMs(), SnapcastOwnClient.isOwnOrLegacy(client.getId(), ids), SnapcastOwnClient.isLegacy(client.getId(), ids)));
         }
         return rows;
     }

@@ -28,6 +28,7 @@ import org.junit.Test;
 
 import java.util.List;
 
+import de.yaacc.multiroom.client.SnapcastOwnIds;
 import de.yaacc.multiroom.control.SnapcastGroup;
 
 /**
@@ -167,5 +168,62 @@ public class SnapcastOwnClientTest {
 
         assertEquals(SnapcastClientRemoval.Verdict.OWN_CLIENT_UNKNOWN, SnapcastClientRemoval.decide(statusWithOwnOffline(), "a", unknown));
         assertFalse(SnapcastClientRemoval.offered(false, "a", unknown));
+    }
+
+    // ---- task 12.19: the legacy ids of this install are the phone too ---------------------------------------------------
+
+    private static final String LEGACY = "yaacc-1111111111111111";
+    private static final SnapcastOwnIds IDS = SnapcastOwnIds.of(OWN, java.util.Arrays.asList(LEGACY));
+
+    @Test
+    public void aLegacyIdIsOwnAndLegacyAndTheCurrentOneIsOwnButNotLegacy() {
+        assertTrue(SnapcastOwnClient.isOwnOrLegacy(OWN, IDS));
+        assertTrue(SnapcastOwnClient.isOwnOrLegacy(LEGACY, IDS));
+        assertTrue(SnapcastOwnClient.isLegacy(LEGACY, IDS));
+        assertFalse(SnapcastOwnClient.isLegacy(OWN, IDS));
+    }
+
+    @Test
+    public void anotherInstallOrNothingIsNeitherOwnNorLegacy() {
+        for (String other : new String[]{"yaacc-bbbbbbbbbbbbbbbb", "", null, "00:11:22:33:44:55"}) {
+            assertFalse(String.valueOf(other), SnapcastOwnClient.isOwnOrLegacy(other, IDS));
+            assertFalse(String.valueOf(other), SnapcastOwnClient.isLegacy(other, IDS));
+        }
+        assertFalse(SnapcastOwnClient.isOwnOrLegacy(LEGACY, null));
+        assertFalse(SnapcastOwnClient.isOwnOrLegacy(LEGACY, SnapcastOwnIds.none()));
+        assertFalse(SnapcastOwnClient.isLegacy(LEGACY, null));
+    }
+
+    @Test
+    public void theMemberRowOfALegacyEntryIsThePhoneAndFlaggedAsAnOldEntry() {
+        SnapcastGroup group = group("g", "Ground", "Default",
+                client("a", "Kitchen", true, 35, false),
+                client(LEGACY, "Yaacc", false, 50, false),
+                client(OWN, "Yaacc", true, 50, false));
+
+        for (SnapcastMemberRows.Member member : SnapcastMemberRows.ofIds(group, () -> "Unnamed", IDS)) {
+            boolean phone = member.getClientId().equals(OWN) || member.getClientId().equals(LEGACY);
+            assertEquals(member.getClientId(), phone, member.isOwn());
+            assertEquals(member.getClientId(), member.getClientId().equals(LEGACY), member.isLegacy());
+        }
+    }
+
+    @Test
+    public void theOldFlagIsPartOfWhatMakesARowLookDifferent() {
+        SnapcastGroup group = group("g", "", "", client(LEGACY, "Yaacc", false, 50, false));
+
+        SnapcastMemberRows.Member old = SnapcastMemberRows.ofIds(group, () -> "Unnamed", IDS).get(0);
+        SnapcastMemberRows.Member plain = SnapcastMemberRows.ofIds(group, () -> "Unnamed", SnapcastOwnIds.none()).get(0);
+
+        assertFalse(old.equals(plain));
+    }
+
+    @Test
+    public void theCardOfAGroupWhoseFirstMemberIsALegacyEntryHasTheButtonToo() {
+        assertTrue(SnapcastOwnClient.cardOffersPowerForIds(group("g", "", "", client(LEGACY, "Yaacc", false, 50, false)), IDS));
+        assertFalse("not the first member", SnapcastOwnClient.cardOffersPowerForIds(
+                group("g", "", "", client("a", "Kitchen", true, 35, false), client(LEGACY, "Yaacc", false, 50, false)), IDS));
+        assertFalse(SnapcastOwnClient.cardOffersPowerForIds(group("g", "", "", client(LEGACY, "Yaacc", false, 50, false)), SnapcastOwnIds.none()));
+        assertFalse(SnapcastOwnClient.cardOffersPowerForIds(null, IDS));
     }
 }

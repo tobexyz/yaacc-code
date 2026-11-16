@@ -23,6 +23,10 @@ import android.content.SharedPreferences;
 
 import androidx.preference.PreferenceManager;
 
+import java.util.List;
+
+import de.yaacc.multiroom.discovery.SnapcastEndpoint;
+
 /**
  * The app's own Snapcast client id for the code that only wants to recognise it (task 12.11): read from the install secret that the
  * service made at its first start, with no session and no server involved. Reading never creates the secret: without one the app has
@@ -41,6 +45,40 @@ public final class SnapcastClientIdentities {
             return SnapcastClientIdentity.idOfSecret(preferences.getString(SnapcastClientSpike.KEY_SECRET, null));
         } catch (RuntimeException damaged) {
             return null;
+        }
+    }
+
+    // the last answer: the ids are 3 hashes per known server, and the lists ask for them with every redraw
+    private static String memoKey;
+    private static SnapcastOwnIds memo;
+
+    /**
+     * The phone's current id and the legacy per-server ids of this install (task 12.19) for the given known servers and the address that
+     * the listen test saved last. Needs the install secret; without one (this install never started a client) nothing is own. Never
+     * creates the secret, never logs an id.
+     */
+    public static synchronized SnapcastOwnIds ownIds(Context context, List<SnapcastEndpoint> servers) {
+        try {
+            SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+            String secret = preferences.getString(SnapcastClientSpike.KEY_SECRET, null);
+            if (!SnapcastClientIdentity.isSecret(secret)) {
+                return SnapcastOwnIds.none();
+            }
+            String lastHost = preferences.getString(SnapcastClientSpike.KEY_LAST_HOST, "");
+            StringBuilder key = new StringBuilder(secret).append('|').append(lastHost);
+            if (servers != null) {
+                for (SnapcastEndpoint server : servers) {
+                    key.append('|').append(server == null ? "" : server.toString());
+                }
+            }
+            String wanted = key.toString();
+            if (memo == null || !wanted.equals(memoKey)) {
+                memo = SnapcastOwnIds.of(SnapcastClientIdentity.deriveId(secret), SnapcastLegacyClientIds.of(secret, servers, lastHost));
+                memoKey = wanted;
+            }
+            return memo;
+        } catch (RuntimeException damaged) {
+            return SnapcastOwnIds.none();
         }
     }
 }

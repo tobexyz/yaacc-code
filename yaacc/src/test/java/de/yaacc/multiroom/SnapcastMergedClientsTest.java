@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import de.yaacc.multiroom.client.SnapcastOwnIds;
 import de.yaacc.multiroom.control.SnapcastClient;
 import de.yaacc.multiroom.control.SnapcastGroup;
 import de.yaacc.multiroom.control.SnapcastServerInfo;
@@ -324,5 +325,159 @@ public class SnapcastMergedClientsTest {
         SnapcastMergedClients merged = merged(up(A, original), up(B, group("g2", client("x", true, 1))));
 
         assertEquals("a", merged.visible(A, original).getClients().get(0).getId());
+    }
+
+    // ---- task 12.19: the legacy ids of this install are the same phone as the current id ------------------------------------
+
+    private static final String NEW = "yaacc-aaaaaaaaaaaaaaaa";
+    private static final String OLD1 = "yaacc-1111111111111111";
+    private static final String OLD2 = "yaacc-2222222222222222";
+    private static final String OTHER_INSTALL = "yaacc-bbbbbbbbbbbbbbbb";
+    private static final SnapcastOwnIds IDS = SnapcastOwnIds.of(NEW, Arrays.asList(OLD1, OLD2));
+
+    private static SnapcastMergedClients mergedOwn(SnapcastMergedClients.Server... servers) {
+        return SnapcastMergedClients.of(Arrays.asList(servers), IDS);
+    }
+
+    @Test
+    public void aLegacyEntryOnTheSameServerNextToTheCurrentOneIsHiddenAndThePhoneIsShownOnce() {
+        // the owner's screenshot: the phone's current entry (offline) and its old per-server entry on the one server
+        SnapcastGroup own = group("g1", client(NEW, false, 900));
+        SnapcastGroup old = group("g2", client(OLD1, false, 100), client("a", true, 1), client("b", true, 1));
+        SnapcastMergedClients merged = mergedOwn(up(A, own, old));
+
+        assertFalse(merged.isHidden(A, NEW));
+        assertTrue(merged.isHidden(A, OLD1));
+        assertEquals("the card that held only the old entry has nothing to show with it but the others", Arrays.asList("a", "b"),
+                ids(merged.visible(A, old)));
+        assertEquals(Arrays.asList(NEW), ids(merged.visible(A, own)));
+    }
+
+    @Test
+    public void aGroupWhoseOnlyMemberIsAHiddenLegacyEntryHasNoCard() {
+        SnapcastGroup own = group("g1", client(NEW, false, 900));
+        SnapcastGroup ghost = group("g2", client(OLD1, false, 100));
+        SnapcastMergedClients merged = mergedOwn(up(A, own, ghost));
+
+        assertNull(merged.visible(A, ghost));
+        SnapcastServerStatus shown = merged.visible(A, status(own, ghost));
+        assertEquals(1, shown.getGroups().size());
+        assertEquals("g1", shown.getGroups().get(0).getId());
+    }
+
+    @Test
+    public void aLegacyEntryOnAnotherServerIsHiddenWhenTheCurrentOneIsConnectedHere() {
+        SnapcastMergedClients merged = mergedOwn(
+                up(A, group("g1", client(OLD1, false, 900))),
+                up(B, group("g2", client(NEW, true, 1))));
+
+        assertTrue(merged.isHidden(A, OLD1));
+        assertFalse(merged.isHidden(B, NEW));
+    }
+
+    @Test
+    public void aConnectedLegacyEntryBeatsAnOfflineCurrentOneEvenOnAnotherServer() {
+        // an old build still running on the phone, or a client that kept the old id: connected wins
+        SnapcastMergedClients merged = mergedOwn(
+                up(A, group("g1", client(NEW, false, 900))),
+                up(B, group("g2", client(OLD1, true, 1))));
+
+        assertTrue(merged.isHidden(A, NEW));
+        assertFalse(merged.isHidden(B, OLD1));
+    }
+
+    @Test
+    public void offlineEverywhereTheEntryLastSeenIsShownAndEveryOtherCopyOfThePhoneIsHidden() {
+        SnapcastMergedClients merged = mergedOwn(
+                up(A, group("g1", client(OLD1, false, 100), client(OLD2, false, 300)), group("g1b", client(NEW, false, 200))),
+                up(B, group("g2", client("a", true, 1))));
+
+        assertTrue(merged.isHidden(A, OLD1));
+        assertFalse("the last seen copy is the one that is shown (as an old entry)", merged.isHidden(A, OLD2));
+        assertTrue(merged.isHidden(A, NEW));
+        assertFalse(merged.isHidden(B, "a"));
+    }
+
+    @Test
+    public void onATieOfTheLastSeenTheCurrentIdIsShown() {
+        SnapcastMergedClients merged = mergedOwn(up(A, group("g1", client(OLD1, false, 500), client(NEW, false, 500))));
+
+        assertFalse(merged.isHidden(A, NEW));
+        assertTrue(merged.isHidden(A, OLD1));
+    }
+
+    @Test
+    public void severalLegacyEntriesAndTheCurrentOneAreOnePhoneAcrossThreeServers() {
+        SnapcastMergedClients merged = mergedOwn(
+                up(A, group("g1", client(OLD1, false, 100))),
+                up(B, group("g2", client(OLD2, false, 100)), group("g2b", client(OLD1, false, 100))),
+                up(C, group("g3", client(NEW, true, 5))));
+
+        assertTrue(merged.isHidden(A, OLD1));
+        assertTrue(merged.isHidden(B, OLD2));
+        assertTrue(merged.isHidden(B, OLD1));
+        assertFalse(merged.isHidden(C, NEW));
+    }
+
+    @Test
+    public void aSingleServerIsMergedWhenTheOwnClientIsThereTwice() {
+        // the merge of foreign clients needs two servers, the merge of the phone does not (the old entry sits on the SAME server)
+        SnapcastGroup group = group("g1", client(NEW, true, 5), client(OLD1, false, 900));
+        SnapcastMergedClients merged = mergedOwn(up(A, group));
+
+        assertTrue(merged.isHidden(A, OLD1));
+        assertFalse(merged.isHidden(A, NEW));
+        assertEquals(Arrays.asList(NEW), ids(merged.visible(A, group)));
+    }
+
+    @Test
+    public void aServerWhoseConnectionIsDownDoesNotKeepAConnectedLegacyEntryAlive() {
+        // the stale "connected" of the unreachable server counts as offline, so the later last seen decides
+        SnapcastMergedClients merged = mergedOwn(
+                SnapcastMergedClients.Server.of(A, status(group("g1", client(OLD1, true, 100))), false),
+                up(B, group("g2", client(NEW, false, 500))));
+
+        assertTrue(merged.isHidden(A, OLD1));
+        assertFalse(merged.isHidden(B, NEW));
+    }
+
+    @Test
+    public void theEntriesOfAnotherInstallStayVisibleAndAreNotMergedWithThePhone() {
+        SnapcastMergedClients merged = mergedOwn(
+                up(A, group("g1", client(NEW, true, 5), client(OTHER_INSTALL, false, 100))),
+                up(B, group("g2", client(OTHER_INSTALL, false, 200))));
+
+        assertFalse(merged.isHidden(A, NEW));
+        assertFalse("another install's entry is a client like any other client", merged.isHidden(B, OTHER_INSTALL));
+        assertTrue("and the ordinary rule still applies to it: the older copy is a leftover", merged.isHidden(A, OTHER_INSTALL));
+    }
+
+    @Test
+    public void withoutOwnIdsTheMergeIsTheOldOne() {
+        SnapcastGroup group = group("g1", client(NEW, true, 5), client(OLD1, false, 900));
+
+        assertFalse(SnapcastMergedClients.of(Arrays.asList(up(A, group)), SnapcastOwnIds.none()).isHidden(A, OLD1));
+        assertFalse(SnapcastMergedClients.of(Arrays.asList(up(A, group)), null).isHidden(A, OLD1));
+        assertSame(group, SnapcastMergedClients.of(Arrays.asList(up(A, group)), SnapcastOwnIds.none()).visible(A, group));
+    }
+
+    @Test
+    public void whenNothingNeedsHidingTheVeryObjectsComeBackAlsoWithOwnIds() {
+        SnapcastGroup group = group("g1", client(NEW, true, 5), client("a", true, 1));
+        SnapcastServerStatus status = status(group);
+        SnapcastMergedClients merged = mergedOwn(SnapcastMergedClients.Server.of(A, status, true));
+
+        assertSame(group, merged.visible(A, group));
+        assertSame(status, merged.visible(A, status));
+    }
+
+    @Test
+    public void aLegacyEntryAloneOnItsServerIsShownAsThePhone() {
+        // the phone's only entry is an old one: it is the phone and it is shown (nothing to merge it with)
+        SnapcastGroup group = group("g1", client(OLD1, false, 100));
+        SnapcastMergedClients merged = mergedOwn(up(A, group));
+
+        assertFalse(merged.isHidden(A, OLD1));
+        assertSame(group, merged.visible(A, group));
     }
 }
