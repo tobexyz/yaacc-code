@@ -424,6 +424,6 @@ Notes are kept current as items are done (interruption safe). Tests first (red, 
 - **Verify**: full suite, assembleDebug, lintDebug at baseline.
 
 ## Group 10 (Phase B): Documentation
-- [ ] 10.1 Update documentation for Phase B | `README.md`, `docs/`, `CHANGELOG.md`
+- [x] 10.1 (done 2026-11-17, documentation only, no code, resource or test changed, no test run; see `decisions.md` 2026-11-17 "Task 10.1") Update documentation for Phase B | `README.md`, `docs/`, `CHANGELOG.md`
   - **Accept**: no stale references; requirements and limits (sync, doze) described.
   - **Verify**: the placeholder grep as in 6.1.

@@ -4,7 +4,7 @@ Title: May third-party apps show the Snapcast logo or icon?
 
 Hello, and thank you for Snapcast.
 
-YAACC (https://github.com/tobexyz/yaacc-code, GPL-3.0-or-later, an Android UPnP/DLNA controller) can control Snapcast groups and, as an experimental feature, play as a Snapcast client. In the app's receiver list the name "Snapcast" is shown as plain text, with a note that YAACC is not affiliated with or endorsed by the Snapcast project.
+YAACC (https://github.com/tobexyz/yaacc-code, GPL-3.0-or-later, an Android UPnP/DLNA controller) can control Snapcast groups and can play as a Snapcast client. In the app's receiver list the name "Snapcast" is shown as plain text, with a note that YAACC is not affiliated with or endorsed by the Snapcast project.
 
 We would like to show a small monochrome Snapcast icon next to or instead of that text, so that users recognise the entries. I looked in the repository and found the logo files in `doc/` (for example `snapcast_icon.svg` and `snapcast_plain_icon.svg`), the GPL-3.0 `LICENSE`, and `CONTRIBUTING.md`, but no statement about use of the logo, the name or trademarks.
 
