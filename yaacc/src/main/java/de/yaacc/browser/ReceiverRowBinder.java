@@ -55,11 +55,15 @@ import java.util.concurrent.Executors;
 
 import de.yaacc.R;
 import de.yaacc.browser.DeviceSessionGrouper.PlayerRef;
+import de.yaacc.multiroom.SnapcastGroupDevice;
+import de.yaacc.multiroom.ui.SnapcastRowText;
+import de.yaacc.multiroom.ui.SnapcastVolumeKeys;
 import de.yaacc.player.Player;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.callback.avtransport.Pause;
 import de.yaacc.upnp.callback.avtransport.Play;
 import de.yaacc.upnp.callback.avtransport.Stop;
+import de.yaacc.upnp.server.openhome.OwnOpenHomeStandby;
 import de.yaacc.upnp.server.http.HttpRequestSender;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.yxc.YxcDeviceState;
@@ -124,6 +128,7 @@ final class ReceiverRowBinder {
         final android.widget.Button yxcSrcBandDab;
         final ImageButton yxcSrcShuffle;
         final ImageButton yxcToggle;
+        final ImageButton power;
         final ImageButton yxcSettings;
         final ImageButton yxcPresets;
         final SeekBar yxcGroupVolume;
@@ -136,8 +141,11 @@ final class ReceiverRowBinder {
         final ImageButton btnPause;
         final ImageButton btnStop;
         final View itemContainer;
+        // the whole row: asked for the input focus (the hardware volume keys go to the Snapcast row that has it)
+        final View root;
 
         RowViews(@NonNull View itemView) {
+            root = itemView;
             icon = itemView.findViewById(R.id.browseReceiverDeviceItemIcon);
             albumArt = itemView.findViewById(R.id.browseReceiverDeviceItemAlbumArt);
             name = itemView.findViewById(R.id.browseReceiverDeviceItemName);
@@ -156,6 +164,7 @@ final class ReceiverRowBinder {
             yxcSrcBandDab = itemView.findViewById(R.id.yxc_src_band_dab);
             yxcSrcShuffle = itemView.findViewById(R.id.yxc_src_shuffle);
             yxcToggle = itemView.findViewById(R.id.yxc_btn_link);
+            power = itemView.findViewById(R.id.power_btn);
             yxcSettings = itemView.findViewById(R.id.yxc_btn_settings);
             yxcPresets = itemView.findViewById(R.id.yxc_btn_presets);
             yxcGroupVolume = itemView.findViewById(R.id.yxc_group_volume);
@@ -179,9 +188,13 @@ final class ReceiverRowBinder {
     // What the user is doing to the rows and when a receiver is read next; see ReceiverVolumeLiveUpdater.
     private final ReceiverStateRefreshPlan refreshPlan = new ReceiverStateRefreshPlan();
 
+    // the part of the rows that belong to a Snapcast group (see SnapcastRowBinder)
+    private final SnapcastRowBinder snapcastRows;
+
     ReceiverRowBinder(Context context, UpnpClient upnpClient) {
         this.context = context;
         this.upnpClient = upnpClient;
+        this.snapcastRows = new SnapcastRowBinder(context, this);
     }
 
     /**
@@ -260,19 +273,26 @@ final class ReceiverRowBinder {
             holder.checkBox.setOnClickListener((it) -> {
                 boolean checked = ((CheckBox) it).isChecked();
                 if (!checked) {
-                    YaaccLogger.d(getClass().getName(), "isNotChecked:" + device.getDisplayString());
+                    YaaccLogger.d(getClass().getName(), "isNotChecked:" + logName(device));
                     upnpClient.removeReceiverDevice(device);
                 } else {
-                    YaaccLogger.d(getClass().getName(), "isChecked:" + device.getDisplayString());
+                    YaaccLogger.d(getClass().getName(), "isChecked:" + logName(device));
                     upnpClient.addReceiverDevice(device);
                 }
                 selectionListener.onSelectionChanged(device, checked);
             });
             holder.checkBox.setChecked(selected);
         }
-        wireVolumeAndMute(holder, device, deviceId);
-        new DeviceVolumeStateLoadTask(holder, this, upnpClient).execute(device);
-        new DeviceMuteStateLoadTask(holder, this, upnpClient).execute(device);
+        if (device instanceof SnapcastGroupDevice) {
+            // the slider and the box are the group's volume and mute on the server (a model in memory, no UPnP read)
+            snapcastRows.bind(holder, (SnapcastGroupDevice) device);
+        } else {
+            // a recycled card may have been a Snapcast row, whose mute symbol is described for it
+            SnapcastMuteToggle.clear(holder.mute);
+            wireVolumeAndMute(holder, device, deviceId);
+            new DeviceVolumeStateLoadTask(holder, this, upnpClient).execute(device);
+            new DeviceMuteStateLoadTask(holder, this, upnpClient).execute(device);
+        }
 
         // Wire up playback controls
         holder.btnPlay.setOnClickListener(v -> executeAction(device, ACTION_PLAY));
@@ -316,8 +336,13 @@ final class ReceiverRowBinder {
      */
     void bindStatus(RowViews holder, Device<?, ?, ?> device) {
         String deviceId = device.getIdentity().getUdn().getIdentifierString();
-        bindGroupState(holder, deviceId);
-        bindSourceControls(holder, device, deviceId);
+        if (device instanceof SnapcastGroupDevice) {
+            snapcastRows.show(holder, (SnapcastGroupDevice) device);
+        } else {
+            bindGroupState(holder, deviceId);
+            bindSourceControls(holder, device, deviceId);
+        }
+        bindPower(holder, device, deviceId);
         Player player = primaryPlayer(device);
         RendererStatus status = statusMap.get(device);
         if (status != null) {
@@ -379,6 +404,95 @@ final class ReceiverRowBinder {
                 holder.statusBadge.setVisibility(View.GONE);
             }
         }
+    }
+
+    /**
+     * The power button (task 12.4): MusicCast first (its state is kept live by the device's own events), then OpenHome (the standby
+     * state read by {@link OpenHomePowerMonitor}); a device that offers neither and the phone's own card have none. A Snapcast group
+     * card has one only when the phone's own Snapcast client is its first member ({@link SnapcastRowBinder#bindPower}, the client's own
+     * {@link RendererPower} and toggle source). The card of the app's own OpenHome renderer (a local device that offers OpenHome while
+     * the renderer runs) has one that shows and sets the renderer's standby, the state of the power switch in its OpenHome settings
+     * ({@link OwnOpenHomePower}); the dummy "this phone" card has none. Busy while a change of this device runs, also while a group change of a MusicCast
+     * device does.
+     */
+    private void bindPower(RowViews holder, Device<?, ?, ?> device, final String udn) {
+        if (holder.power == null) {
+            return;
+        }
+        if (device instanceof SnapcastGroupDevice) {
+            // only the card of the phone's own Snapcast client has a button; the Snapcast binder decides (tasks 12.4 part 2, 12.16)
+            snapcastRows.bindPower(holder, (SnapcastGroupDevice) device);
+            return;
+        }
+        RendererPower power = RendererPower.unsupported();
+        final boolean[] musicCast = {false};
+        if (!(device instanceof SnapcastGroupDevice) && !isLocalDevice(device)) {
+            power = MusicCastPower.of(YxcMonitor.getShared().getState(udn));
+            if (power.isSupported()) {
+                musicCast[0] = true;
+            } else if (OpenHomePower.offeredBy(device)) {
+                power = OpenHomePower.of(true, OpenHomePowerMonitor.getShared().standbyOf(udn));
+            }
+        }
+        // the app's own OpenHome renderer (task 12.13): its standby is the one the settings sheet's power switch shows and writes
+        final boolean own = OwnOpenHomePower.offered(device instanceof LocalDevice,
+                device instanceof LocalDevice && de.yaacc.player.OpenHomeChoice.offersOpenHome(device),
+                OwnOpenHomeStandby.shared().isAttached());
+        if (own) {
+            power = OwnOpenHomePower.of(own, OwnOpenHomeStandby.shared().standby());
+        }
+        boolean busy = RendererPowerController.getShared().isBusy(udn) || YxcGroupController.getShared().isBusy(udn);
+        final boolean viaMusicCast = musicCast[0];
+        RendererPowerButton.bind(context, holder.power, YxcRowText.clean(String.valueOf(device.getDetails().getFriendlyName())), power, busy,
+                () -> RendererPowerController.getShared().toggle(udn,
+                        () -> own ? OwnOpenHomePower.source(OwnOpenHomePower.app()) : powerSource(device, udn, viaMusicCast), outcome -> {
+                    if (own) {
+                        return; // the renderer tells the row itself (OwnOpenHomeStandby), the same way as when the settings switch changes it
+                    }
+                    if (viaMusicCast) {
+                        YxcMonitor.getShared().refreshNow(udn); // its events follow; the read makes sure
+                    } else {
+                        OpenHomePowerMonitor.getShared().applyOutcome(udn, outcome.state());
+                    }
+                    int text = RendererPowerLook.errorText(outcome.error());
+                    if (text != 0) {
+                        Toast.makeText(context, text, Toast.LENGTH_LONG).show();
+                    }
+                }));
+    }
+
+    /** The calls of a device's power: its MusicCast zone, or its OpenHome Product service. Runs on the worker of the controller. */
+    private RendererPowerToggle.Source powerSource(Device<?, ?, ?> device, String udn, boolean musicCast) {
+        if (musicCast) {
+            de.yaacc.yxc.YxcClient client = YxcMonitor.getShared().newClient(udn);
+            return client == null ? RendererPowerToggle.unreachable() : MusicCastPower.source(client);
+        }
+        return OpenHomePower.source(new de.yaacc.openhome.OhRemote(
+                new de.yaacc.upnp.callback.openhome.ClingOhControl(device, upnpClient.getHttpRequestSender())));
+    }
+
+    /** Shows a group's volume, mute state and text in a bound row (the poll of the live volume calls this). */
+    void showSnapcast(RowViews views, SnapcastGroupDevice device) {
+        snapcastRows.show(views, device);
+    }
+
+    /**
+     * A hardware volume key for the Snapcast group row that has the focus or was touched last (11.4).
+     *
+     * @return true when the key was taken
+     */
+    boolean snapcastVolumeKey(Map<Device<?, ?, ?>, RowViews> visible, SnapcastVolumeKeys.Direction direction) {
+        return snapcastRows.onVolumeKey(visible, direction);
+    }
+
+    /** The host (tab, sheet) is no longer on screen: the volume keys are the system's again. */
+    void forgetSnapcastKeyFocus() {
+        snapcastRows.forgetKeyFocus();
+    }
+
+    /** How a group's row looks now; the host compares it with the last one to see whether the row needs a new look. */
+    SnapcastRowText.Row snapcastRowOf(SnapcastGroupDevice device) {
+        return snapcastRows.rowOf(device);
     }
 
     /**
@@ -702,6 +816,8 @@ final class ReceiverRowBinder {
         }
         boolean available = state != null && state.isReachable();
         holder.yxcSettings.setVisibility(available ? View.VISIBLE : View.GONE);
+        // a recycled holder may have been a Snapcast group row, whose button says something else
+        holder.yxcSettings.setContentDescription(context.getString(R.string.yxc_action_settings));
         holder.yxcSettings.setOnClickListener(available ? v -> {
             if (settingsDialog != null && settingsDialog.isShowing()) {
                 return;
@@ -1086,6 +1202,7 @@ final class ReceiverRowBinder {
         if (linkDialog != null && linkDialog.isShowing()) {
             linkDialog.dismiss();
         }
+        snapcastRows.shutdown();
     }
 
     /**
@@ -1105,6 +1222,14 @@ final class ReceiverRowBinder {
         }
         PlayerRef primary = DeviceSessionGrouper.primarySession(deviceId, refs);
         return primary == null ? null : playersById.get(primary.playerId());
+    }
+
+    /**
+     * What a debug line may say about a receiver: its display string, except for a Snapcast group, whose display string is
+     * cleaned text of the server (or a host name): nothing of it goes to a log (security review S45).
+     */
+    static String logName(Device<?, ?, ?> device) {
+        return device instanceof SnapcastGroupDevice ? "Snapcast group" : device.getDisplayString();
     }
 
     /** This phone's volume: the dummy device of the local row and yaacc's own renderer; both are {@code SystemVolume}. */
@@ -1164,6 +1289,9 @@ final class ReceiverRowBinder {
     }
 
     private void executeAction(Device<?, ?, ?> device, String action) {
+        if (device instanceof SnapcastGroupDevice) {
+            snapcastRows.touched((SnapcastGroupDevice) device); // the hardware volume keys go to this group from now on
+        }
         // a device that plays a source of its own (net radio, tuner) and nothing from yaacc: the buttons act on that source
         if (!isLocalDevice(device)) {
             String udn = device.getIdentity().getUdn().getIdentifierString();
@@ -1177,8 +1305,8 @@ final class ReceiverRowBinder {
                 return; // never the UPnP call: the source would not do what the button says
             }
         }
-        // Handle local device differently
-        if (isLocalDevice(device)) {
+        // The phone, and a Snapcast group (it has no UPnP service): through the player
+        if (isLocalDevice(device) || device instanceof SnapcastGroupDevice) {
             Player player = primaryPlayer(device);
             if (player == null) return;
 

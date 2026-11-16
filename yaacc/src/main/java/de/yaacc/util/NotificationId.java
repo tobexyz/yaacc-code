@@ -32,7 +32,9 @@ public enum NotificationId {
     FILE_DOWNLOADER(7),
     PLAYER_SERVICE(8),
     BACKGROUND_MUSIC_SERVICE(9),
-    YAACC(10);
+    YAACC(10),
+    SNAPCAST_CLIENT(11),
+    SNAPCAST_CLIENT_ENDED(12);
 
 
     private final int id;

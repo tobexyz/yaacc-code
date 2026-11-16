@@ -105,13 +105,17 @@ import de.yaacc.upnp.server.media.SystemAudioCaptureService;
 import de.yaacc.upnp.callback.openhome.ClingOhControl;
 import de.yaacc.upnp.server.openhome.AndroidOhThreads;
 import de.yaacc.upnp.server.openhome.AndroidOpenHomeHost;
+import de.yaacc.upnp.server.openhome.AndroidOutputSources;
 import de.yaacc.upnp.server.openhome.OhRendererCore;
 import de.yaacc.upnp.server.openhome.OpenHomeRenderer;
+import de.yaacc.upnp.server.openhome.OwnOpenHomeStandby;
 import de.yaacc.upnp.server.renderingcontrol.RenderingControlServiceManager;
 import de.yaacc.upnp.server.renderingcontrol.YaaccAudioRenderingControlService;
 import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.SAFCacheManager;
+import de.yaacc.util.ExitRestartGuard;
+import de.yaacc.util.ExitRestartGuards;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -134,6 +138,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
 
     /** The OpenHome renderer; created with the first device, lives as long as this service. */
     private OpenHomeRenderer openHomeRenderer;
+    private AndroidOutputSources outputSources;
 
     public static int PORT = 49157;
     public static ServiceType[] EXCLUSIVE_SERVER_TYPES = new ServiceType[]{
@@ -291,6 +296,13 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
      */
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // The system restarts a sticky service with no intent after its process ended. Right after an explicit exit that is not the
+        // user starting the app (task 12.2): stop at once, before the notification is shown or anything is built.
+        if (intent == null && ExitRestartGuards.of(this).decide(ExitRestartGuard.StartReason.SYSTEM_RESTART) == ExitRestartGuard.Decision.STOP_SELF) {
+            YaaccLogger.i(getClass().getName(), "Restarted by the system right after an exit, stopping");
+            ExitRestartGuards.stopRestartedService(this, NotificationId.UPNP_SERVER.getId());
+            return START_NOT_STICKY;
+        }
         YaaccLogger.i(getClass().getName(), "YaaccUpnpServerService onStartCommand called");
         long start = System.currentTimeMillis();
         if (registry == null) {
@@ -381,12 +393,17 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             registry.removeDevice(localDevice);
             localDevice = null;
         }
+        closeOutputSources();
         if (openHomeRenderer != null) {
+            OwnOpenHomeStandby.shared().detach(openHomeRenderer.core());
             openHomeRenderer.shutdown();
             openHomeRenderer = null;
         }
 
-        networkDeviceListener.disable();
+        // a service that stopped itself right after an exit never built its listener
+        if (networkDeviceListener != null) {
+            networkDeviceListener.disable();
+        }
         if (httpServer != null) {
             httpServer.initiateShutdown();
             try {
@@ -1016,16 +1033,30 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
                         new OhRendererCore.Details("yaacc.de", "https://www.yaacc.de", "YAACC", name, name),
                         OPENHOME_PROTOCOL_INFO);
                 openHomeRenderer.start();
+                // the Snapcast groups as further sources of the Product service, another way into the output setting (task 12.5)
+                outputSources = AndroidOutputSources.start(getApplicationContext(), openHomeRenderer.core());
+                // the card of the own renderer shows and sets its standby state (task 12.13)
+                OwnOpenHomeStandby.shared().attach(openHomeRenderer.core());
             }
             return openHomeRenderer.core().buildServices(LOCK_TIMEOUT);
         } catch (ValidationException | RuntimeException e) {
             // OpenHome is an addition: without it the renderer still works with AVTransport
             YaaccLogger.e(getClass().getName(), "OpenHome services not available", e);
+            closeOutputSources();
             if (openHomeRenderer != null) {
+                OwnOpenHomeStandby.shared().detach(openHomeRenderer.core());
                 openHomeRenderer.shutdown();
                 openHomeRenderer = null;
             }
             return new ArrayList<>();
+        }
+    }
+
+    /** Stops the source list of the OpenHome renderer following the output setting and the groups (task 12.5). */
+    private void closeOutputSources() {
+        if (outputSources != null) {
+            outputSources.close();
+            outputSources = null;
         }
     }
 

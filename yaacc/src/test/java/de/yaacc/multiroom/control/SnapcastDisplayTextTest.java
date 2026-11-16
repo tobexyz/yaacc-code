@@ -1,0 +1,278 @@
+/*
+ *
+ * Copyright (C) 2026 Tobias Schoene www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
+package de.yaacc.multiroom.control;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+import org.junit.Test;
+
+/** Text from the network is cleaned and cut for display; the cut never leaves half of a surrogate pair. */
+public class SnapcastDisplayTextTest {
+
+    private static final String EMOJI = new String(Character.toChars(0x1F3B5)); // two chars
+
+    @Test
+    public void controlCharactersAndBidiControlsBecomeQuestionMarks() {
+        assertEquals("a?b?c?d", SnapcastDisplayText.of("a\nb‮c\u0000d", 64));
+    }
+
+    @Test
+    public void nullIsEmpty() {
+        assertEquals("", SnapcastDisplayText.of(null, 10));
+    }
+
+    @Test
+    public void aShortTextIsKept() {
+        assertEquals("Living room", SnapcastDisplayText.of("Living room", 64));
+    }
+
+    @Test
+    public void theTextIsCutAtTheMaximum() {
+        assertEquals("abc", SnapcastDisplayText.of("abcdef", 3));
+    }
+
+    @Test
+    public void aCutBetweenTheHalvesOfAPairDropsTheWholePair() {
+        String cut = SnapcastDisplayText.of("ab" + EMOJI + "cd", 3);
+
+        assertEquals("ab", cut);
+        assertNoLoneSurrogate(cut);
+    }
+
+    @Test
+    public void aPairThatFitsIsKept() {
+        assertEquals("ab" + EMOJI, SnapcastDisplayText.of("ab" + EMOJI + "cd", 4));
+    }
+
+    @Test
+    public void aPairAtTheVeryEndOfAShortTextIsKept() {
+        assertEquals("a" + EMOJI, SnapcastDisplayText.of("a" + EMOJI, 64));
+    }
+
+    @Test
+    public void aMaximumOfOneCannotHoldAPair() {
+        assertEquals("", SnapcastDisplayText.of(EMOJI, 1));
+    }
+
+    @Test
+    public void noMaximumGivesAnEmptyText() {
+        assertEquals("", SnapcastDisplayText.of("abc", 0));
+        assertEquals("", SnapcastDisplayText.of("abc", -5));
+    }
+
+    @Test
+    public void everyCutOfARowOfPairsIsWellFormed() {
+        StringBuilder row = new StringBuilder();
+        for (int i = 0; i < 20; i++) {
+            row.append(EMOJI);
+        }
+        for (int max = 0; max <= 41; max++) {
+            String cut = SnapcastDisplayText.of(row.toString(), max);
+            assertNoLoneSurrogate(cut);
+            assertTrue(cut.length() <= max);
+        }
+    }
+
+    @Test
+    public void zeroWidthAndOtherInvisibleFormatCharactersAreReplaced() {
+        // a hostile server names its group like a legitimate one plus an invisible character (security review S15, S20)
+        assertEquals("a?b?c?d", SnapcastDisplayText.of("a\u200Bb\u200Cc\u200Dd", 64));
+        assertEquals("a?b?c?d?e?", SnapcastDisplayText.of("a\u2060b\u2061c\u2062d\u2063e\u2064", 64));
+        assertEquals("so?ft", SnapcastDisplayText.of("so\u00ADft", 64));
+        assertEquals("a?b", SnapcastDisplayText.of("a\u180Eb", 64));
+        assertEquals("a?b", SnapcastDisplayText.of("a\uFEFFb", 64));
+        assertEquals("a?b?c", SnapcastDisplayText.of("a\uFFFEb\uFFFFc", 64));
+        assertEquals("a?b", SnapcastDisplayText.of("a\uFFF9b", 64));
+    }
+
+    @Test
+    public void aNameWithAnInvisibleCharacterDoesNotLookLikeTheNameWithout() {
+        assertFalse(SnapcastDisplayText.of("Kitchen", 64).equals(SnapcastDisplayText.of("Kitchen\u200B", 64)));
+        assertEquals("Kitchen?", SnapcastDisplayText.of("Kitchen\u200B", 64));
+    }
+
+    @Test
+    public void textInOtherScriptsAndEmojiIsKept() {
+        assertEquals("Küche", SnapcastDisplayText.of("Küche", 64));
+        assertEquals("客厅", SnapcastDisplayText.of("客厅", 64));
+        assertEquals("Salón", SnapcastDisplayText.of("Salón", 64));
+        assertEquals("a" + EMOJI + "b", SnapcastDisplayText.of("a" + EMOJI + "b", 64));
+    }
+
+    @Test
+    public void unpairedSurrogatesAreReplaced() {
+        assertEquals("a?b", SnapcastDisplayText.of("a\uD800b", 64));
+        assertEquals("a?b", SnapcastDisplayText.of("a\uDC00b", 64));
+        assertEquals("ab?", SnapcastDisplayText.of("ab\uD83C", 64));
+        assertEquals("??", SnapcastDisplayText.of("\uDC00\uD800", 64));
+        assertNoLoneSurrogate(SnapcastDisplayText.of("\uD800\uD800" + EMOJI + "\uDC00", 64));
+    }
+
+    @Test
+    public void tagCharactersAreReplaced() {
+        // U+E0041 is a "tag letter A": invisible, used to hide text in a name
+        String tag = new String(Character.toChars(0xE0041));
+        assertEquals("a?b", SnapcastDisplayText.of("a" + tag + "b", 64));
+    }
+
+    @Test
+    public void theResultIsNeverLongerThanTheMaximumEvenWithManyReplacements() {
+        StringBuilder hostile = new StringBuilder();
+        for (int i = 0; i < 50; i++) {
+            hostile.append('\u200B').append(EMOJI).append('\uD800');
+        }
+        for (int max = 0; max <= 60; max++) {
+            String cleaned = SnapcastDisplayText.of(hostile.toString(), max);
+            assertTrue(cleaned.length() <= max);
+            assertNoLoneSurrogate(cleaned);
+        }
+    }
+
+    @Test
+    public void everyCodePointOfTheBasicPlaneGivesAWellFormedResult() {
+        for (int c = 0; c <= 0xFFFF; c++) {
+            String cleaned = SnapcastDisplayText.of("x" + (char) c + "y", 64);
+            assertNoLoneSurrogate(cleaned);
+            assertTrue(cleaned.length() == 3);
+        }
+    }
+
+    @Test
+    public void aReasonForAToastLosesFormatCharactersAndIsCutShort() {
+        assertEquals("tcp is nota allowed", SnapcastDisplayText.toastReason("tcp is not\u200Ba\u2060 allowed", 80));
+        assertEquals("", SnapcastDisplayText.toastReason("\u200B\u200C\uFEFF", 80));
+        assertEquals("", SnapcastDisplayText.toastReason(null, 80));
+        assertEquals("abc", SnapcastDisplayText.toastReason("abcdef", 3));
+        String cutInPair = SnapcastDisplayText.toastReason("ab" + EMOJI + "cd", 3);
+        assertEquals("ab" + EMOJI, cutInPair);
+    }
+
+    private static void assertNoLoneSurrogate(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (Character.isHighSurrogate(c)) {
+                assertTrue("lone high surrogate", i + 1 < text.length() && Character.isLowSurrogate(text.charAt(i + 1)));
+                i++;
+            } else {
+                assertFalse("lone low surrogate", Character.isLowSurrogate(c));
+            }
+        }
+    }
+
+    // ---- Group 11D, S66: the deprecated format characters and the letters that draw nothing
+
+    /** Code points that draw nothing (or nothing but a blank) and must not pass as part of a name. */
+    private static final int[] BLANK_LOOKING = {
+            0x2065, 0x206A, 0x206B, 0x206C, 0x206D, 0x206E, 0x206F, // the unassigned and deprecated format characters
+            0x115F, 0x1160, 0x3164, 0xFFA0,                         // the Hangul fillers (as DisplayName.clean)
+            0x2800,                                                 // Braille pattern blank
+            0x17B4, 0x17B5,                                         // Khmer inherent vowels
+            0x034F};                                                // combining grapheme joiner
+
+    @Test
+    public void everyBlankLookingCharacterOfTheTableIsReplaced() {
+        for (int c : BLANK_LOOKING) {
+            assertEquals(String.format("U+%04X", c), "a?b", SnapcastDisplayText.of("a" + (char) c + "b", 64));
+        }
+    }
+
+    @Test
+    public void aNameOfOnlyFillersIsNotBlankButQuestionMarks() {
+        assertEquals("???", SnapcastDisplayText.of("\u3164\u115F\u2800", 64));
+    }
+
+    @Test
+    public void theLettersNextToTheFillersAreKept() {
+        // U+1161 (a real Hangul vowel), U+3165 (a real compatibility letter), U+2801 (a Braille dot) and U+0301 draw something
+        assertEquals("a\u1161b", SnapcastDisplayText.of("a\u1161b", 64));
+        assertEquals("a\u3165b", SnapcastDisplayText.of("a\u3165b", 64));
+        assertEquals("a\u2801b", SnapcastDisplayText.of("a\u2801b", 64));
+        assertEquals("e\u0301", SnapcastDisplayText.of("e\u0301", 64));
+        assertEquals("\uAC00", SnapcastDisplayText.of("\uAC00", 64)); // a Hangul syllable
+    }
+
+    @Test
+    public void theBlankLookingCharactersAreAlsoLeftOutOfAToastReason() {
+        for (int c : BLANK_LOOKING) {
+            assertEquals(String.format("U+%04X", c), "ab", SnapcastDisplayText.toastReason("a" + (char) c + "b", 80));
+        }
+    }
+
+    // ---- S71: every format character, and a name of white space only
+
+    @Test
+    public void everyFormatCharacterOfTheBasicPlaneBecomesAQuestionMark() {
+        int checked = 0;
+        for (int c = 0; c <= 0xFFFF; c++) {
+            if (Character.isSurrogate((char) c) || Character.getType(c) != Character.FORMAT) {
+                continue;
+            }
+            assertEquals("U+" + Integer.toHexString(c), "a?b", SnapcastDisplayText.of("a" + (char) c + "b", 64));
+            checked++;
+        }
+        assertTrue("the platform has format characters in the basic plane: " + checked, checked >= 20);
+    }
+
+    @Test
+    public void formatCharactersTheOldListMissedAreCleanedNow() {
+        // Arabic number sign, Syriac abbreviation mark, Arabic end of ayah style marks, Mongolian vowel separator
+        for (int c : new int[]{0x0600, 0x0601, 0x06DD, 0x070F, 0x08E2, 0x180E}) {
+            assertEquals("U+" + Integer.toHexString(c), "x?y", SnapcastDisplayText.of("x" + new String(Character.toChars(c)) + "y", 64));
+        }
+    }
+
+    @Test
+    public void everyFormatCharacterOutsideTheBasicPlaneBecomesOneQuestionMark() {
+        int checked = 0;
+        for (int c = 0x10000; c <= 0x10FFFF; c++) {
+            if (Character.getType(c) != Character.FORMAT) {
+                continue;
+            }
+            assertEquals("U+" + Integer.toHexString(c), "a?b", SnapcastDisplayText.of("a" + new String(Character.toChars(c)) + "b", 64));
+            checked++;
+        }
+        assertTrue("the platform has format characters outside the basic plane: " + checked, checked >= 90);
+    }
+
+    @Test
+    public void realLettersAndEmojiAreNotTouchedByTheFormatRule() {
+        assertEquals("Küche 厨房 \uD83C\uDFB5", SnapcastDisplayText.of("Küche 厨房 \uD83C\uDFB5", 64));
+        assertEquals("Wohnzimmer", SnapcastDisplayText.of("Wohnzimmer", 64));
+    }
+
+    @Test
+    public void aNameOfWhiteSpaceOnlyIsEmpty() {
+        assertEquals("", SnapcastDisplayText.of("   ", 64));
+        assertEquals("", SnapcastDisplayText.of("\u00A0", 64));
+        assertEquals("", SnapcastDisplayText.of("\u3000\u2003\u2009\u202F\u205F\u1680 \u00A0", 64));
+    }
+
+    @Test
+    public void whiteSpaceInsideOrAroundARealNameIsKeptAsItWas() {
+        assertEquals(" Living room ", SnapcastDisplayText.of(" Living room ", 64));
+        assertEquals("a\u3000b", SnapcastDisplayText.of("a\u3000b", 64));
+    }
+
+    @Test
+    public void aNameThatIsOnlyFormatCharactersShowsQuestionMarksNotAnEmptyLookingName() {
+        assertEquals("??", SnapcastDisplayText.of("\u0600\u06DD", 64));
+    }
+}

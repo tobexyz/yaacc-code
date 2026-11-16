@@ -49,7 +49,9 @@ import de.yaacc.share.BoundedCall;
 import de.yaacc.share.DisplayName;
 import de.yaacc.share.LaunchNonces;
 import de.yaacc.share.PendingShare;
+import de.yaacc.share.PickContent;
 import de.yaacc.share.ProviderCallGate;
+import de.yaacc.share.ProxyAvailability;
 import de.yaacc.share.ReadinessWait;
 import de.yaacc.share.ShareLimits;
 import de.yaacc.share.ShareService;
@@ -337,8 +339,13 @@ public final class ShareIntentHandler {
     private void prepareAndPlayLink(String link, Set<String> chosen, Runnable afterStarted, Runnable finished) {
         PlayableItem item = null;
         boolean handedOver = false;
+        ProxyAvailability.Decision decision = null;
         try {
-            if (ReadinessWait.await(upnpClient::isPlayerServiceInitialized, playerServiceWaitMillis, pollMillis)) {
+            decision = upnpClient.linkProxyDecision();
+            if (decision == ProxyAvailability.Decision.REFUSE_NO_SERVER) {
+                // nothing serves the link: no network work, and the user is told what to switch on (task 12.21)
+                YaaccLogger.w(TAG, "The shared link was not played: the media proxy needs the UPnP Server switched on");
+            } else if (ReadinessWait.await(upnpClient::isPlayerServiceInitialized, playerServiceWaitMillis, pollMillis)) {
                 item = upnpClient.createPlayableItem(Uri.parse(link), chosen);
             } else {
                 YaaccLogger.w(TAG, "The player service did not come up, dropping the shared link");
@@ -348,7 +355,7 @@ public final class ShareIntentHandler {
             YaaccLogger.w(TAG, "Could not prepare shared content (" + e.getClass().getSimpleName() + ")");
         }
         if (item == null) {
-            toast(R.string.share_link_failed);
+            toast(linkRefusalText(decision));
         }
         final PlayableItem ready = item;
         try {
@@ -362,6 +369,12 @@ public final class ShareIntentHandler {
                 finished.run();
             }
         }
+    }
+
+    /** The text for a link that could not be played: names the switch when the media proxy has no server to serve it. */
+    static int linkRefusalText(ProxyAvailability.Decision decision) {
+        return decision == ProxyAvailability.Decision.REFUSE_NO_SERVER
+                ? R.string.share_link_needs_server : R.string.share_link_failed;
     }
 
     /**
@@ -602,6 +615,18 @@ public final class ShareIntentHandler {
     }
 
     /**
+     * What the waiting share is, for the receiver picker (11.2): a video or an image is not offered to a receiver that plays
+     * music only. Nothing is consumed. Everything is offered for an unknown token and for a link.
+     */
+    public PickContent pendingContent(String token) {
+        PendingShare.Data data = pendingShare.peek(token);
+        if (data == null || data.getKind() != PendingShare.Kind.FILE) {
+            return PickContent.UNKNOWN;
+        }
+        return PickContent.ofMimeTypes(java.util.Collections.singletonList(data.getMimeType()));
+    }
+
+    /**
      * The user picked receivers for the pending share. Takes the share (once: a wrong, stale or
      * second token does nothing), then on a worker opens the file, registers it for exactly these
      * receivers, waits for the local server and plays it. Every failure closes what was opened,
@@ -751,6 +776,11 @@ public final class ShareIntentHandler {
     /** Worker thread. Nothing here may throw or log the shared link. */
     private void prepareAndPlay(Uri uri) {
         try {
+            if (upnpClient.linkProxyDecision() == ProxyAvailability.Decision.REFUSE_NO_SERVER) {
+                YaaccLogger.w(TAG, "Shared link not played: the media proxy needs the UPnP Server switched on");
+                toast(R.string.share_link_needs_server);
+                return;
+            }
             if (upnpClient.getReceiverDevicesReadyCount() == 0) {
                 mainHandler.post(() -> Toast.makeText(appContext, "no receiver found using local device", Toast.LENGTH_LONG).show());
                 upnpClient.setReceiverDeviceIds(Set.of(UpnpClient.LOCAL_UID));

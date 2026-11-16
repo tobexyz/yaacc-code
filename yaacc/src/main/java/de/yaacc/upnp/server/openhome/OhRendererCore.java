@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import de.yaacc.openhome.OhError;
@@ -36,6 +37,8 @@ import de.yaacc.openhome.OhTrackList;
 import de.yaacc.openhome.OhTransportState;
 import de.yaacc.openhome.OhUriPolicy;
 import de.yaacc.openhome.OhVolume;
+import de.yaacc.multiroom.SnapcastRendererSources;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * The OpenHome side of YAACC's renderer: the play queue, the state of the five services (Product, Playlist, Info, Time, Volume) and
@@ -46,7 +49,7 @@ import de.yaacc.openhome.OhVolume;
  * ids of a {@code ReadList}, the range of a volume. The events of the {@code IdArray} are delayed a little, so a burst of
  * {@code Insert}s is one event.
  */
-public final class OhRendererCore {
+public final class OhRendererCore implements OhStandby {
     /** How long the {@code IdArray} event waits for more edits. */
     public static final long ID_ARRAY_DELAY_MILLIS = 150;
     /** The most ids {@code ReadList} answers. */
@@ -84,6 +87,12 @@ public final class OhRendererCore {
     /** The id of the channel set with {@code Radio.SetChannel} (0 for none) and a counter that changes with it. */
     private volatile long radioId;
     private final java.util.concurrent.atomic.AtomicLong radioToken = new java.util.concurrent.atomic.AtomicLong(1);
+    // the sources of the Product service: what the controllers were told last, and where the groups come from (task 12.5)
+    private static final SnapcastRendererSources.Snapshot DEFAULT_SOURCES = SnapcastRendererSources.build(null, null, null);
+    private final Object sourcesLock = new Object();
+    private SnapcastRendererSources.Snapshot sources = DEFAULT_SOURCES; // guarded by sourcesLock
+    private long sourceXmlChanges; // guarded by sourcesLock
+    private volatile OhSourceProvider sourceProvider;
     private final OhPlayback playback;
     private final Delayer delayer;
     private final AtomicBoolean idArrayPending = new AtomicBoolean();
@@ -155,6 +164,141 @@ public final class OhRendererCore {
         product.init("SourceName", OhSourceXml.PLAYLIST);
         product.init("SourceSystemName", OhSourceXml.PLAYLIST);
         product.init("SourceVisible", "true");
+    }
+
+    // ---- the standby state (task 12.13)
+
+    /** The screens that show the standby state; not the service managers, so building the services again does not drop them. */
+    private final CopyOnWriteArrayList<Runnable> standbyListeners = new CopyOnWriteArrayList<>();
+
+    @Override
+    public boolean isStandby() {
+        return "true".equals(product.get("Standby"));
+    }
+
+    /**
+     * The one writer of the {@code Standby} variable: the action {@code SetStandby} (the power switch of the OpenHome settings sheet,
+     * a control point), a play that wakes the device, and the power button of the card all come here. Standby stops the playback
+     * (the queue stays). The event goes to the subscribers, and the listeners hear of a real change.
+     */
+    @Override
+    public void setStandby(boolean standby) {
+        if (standby) {
+            playback.stop();
+        }
+        if (product.set("Standby", String.valueOf(standby))) {
+            for (Runnable listener : standbyListeners) {
+                try {
+                    listener.run();
+                } catch (RuntimeException broken) {
+                    YaaccLogger.w(getClass().getName(), "A standby listener failed (" + broken.getClass().getSimpleName() + ")");
+                }
+            }
+        }
+    }
+
+    @Override
+    public void addStandbyListener(Runnable listener) {
+        if (listener != null) {
+            standbyListeners.addIfAbsent(listener);
+        }
+    }
+
+    @Override
+    public void removeStandbyListener(Runnable listener) {
+        standbyListeners.remove(listener);
+    }
+
+    // ---- the sources of the Product service (task 12.5)
+
+    /**
+     * Gives the Product service its sources: this device and the Snapcast groups, and the place a choice goes to. Without a
+     * provider (the default) the renderer has the one source of before. The list is read again now.
+     */
+    public void setSourceProvider(OhSourceProvider provider) {
+        this.sourceProvider = provider;
+        refreshSources();
+    }
+
+    /**
+     * Reads the sources again and tells the controllers what changed: {@code SourceXml}, {@code SourceCount} and the change
+     * counter when the list is another, {@code SourceIndex} (and the current source's name) when only the current one is. A list that
+     * is the same sends nothing. Called when the groups change or the output setting is changed anywhere (the settings screen, a
+     * controller); a provider that fails leaves everything as it was. Any thread.
+     */
+    public void refreshSources() {
+        OhSourceProvider provider = sourceProvider;
+        synchronized (sourcesLock) {
+            SnapcastRendererSources.Snapshot next;
+            if (provider == null) {
+                next = DEFAULT_SOURCES;
+            } else {
+                try {
+                    next = provider.snapshot();
+                } catch (RuntimeException unreadable) {
+                    return;
+                }
+                if (next == null) {
+                    return;
+                }
+            }
+            if (next.equals(sources)) {
+                return;
+            }
+            boolean listChanged = !next.entries().equals(sources.entries());
+            sources = next;
+            SnapcastRendererSources.Entry current = next.current();
+            Map<String, String> changes = new LinkedHashMap<>();
+            if (listChanged) {
+                List<String[]> items = new ArrayList<>();
+                for (SnapcastRendererSources.Entry entry : next.entries()) {
+                    items.add(new String[]{entry.name(), entry.type(), entry.systemName()});
+                }
+                changes.put("SourceXml", OhSourceXml.list(items));
+                changes.put("SourceCount", String.valueOf(next.entries().size()));
+                changes.put("SourceXmlChangeCount", String.valueOf(++sourceXmlChanges));
+            }
+            changes.put("SourceIndex", String.valueOf(next.currentIndex()));
+            changes.put("SourceType", current.type());
+            changes.put("SourceName", current.name());
+            changes.put("SourceSystemName", current.systemName());
+            changes.put("SourceVisible", "true");
+            product.setAll(changes);
+        }
+    }
+
+    private SnapcastRendererSources.Snapshot sourcesNow() {
+        synchronized (sourcesLock) {
+            return sources;
+        }
+    }
+
+    /**
+     * A controller chooses a source of the list it was told. Without a provider only this device exists (index 0), as before.
+     * With one the choice goes to it, and the list is read again either way, so that the controller sees the real state after a
+     * refusal. A source that is not in the list, or a choice that is refused, is an invalid argument and changes nothing.
+     */
+    private void chooseSource(SnapcastRendererSources.Entry entry) {
+        if (entry == null) {
+            throw OhError.invalid("source");
+        }
+        OhSourceProvider provider = sourceProvider;
+        if (provider == null) {
+            if (entry.index() != 0) {
+                throw OhError.invalid("source");
+            }
+            return;
+        }
+        boolean accepted;
+        try {
+            accepted = provider.select(entry);
+        } catch (RuntimeException failed) {
+            accepted = false;
+        }
+        refreshSources();
+        if (!accepted) {
+            throw OhError.invalid("source");
+        }
     }
 
     public OhQueue queue() {
@@ -527,35 +671,31 @@ public final class OhRendererCore {
         // standby of a phone is an app state, not a power state: playback stops (the queue stays) and the device says it is in
         // standby until somebody wakes it or plays
         h.put("SetStandby", in -> {
-            boolean standby = bool(in.get("Value"));
-            if (standby) {
-                playback.stop();
-            }
-            product.set("Standby", String.valueOf(standby));
+            setStandby(bool(in.get("Value")));
             return null;
         });
+        // the choices are against the list the controllers were told last (task 12.5)
         h.put("SetSourceIndex", in -> {
-            if (number(in.get("Value")) != 0) {
-                throw OhError.invalid("source");
-            }
+            chooseSource(sourcesNow().byIndex(number(in.get("Value"))));
             return null;
         });
         h.put("SetSourceIndexByName", in -> {
-            requirePlaylistSource(in.get("Value"));
+            chooseSource(sourcesNow().byName(in.get("Value")));
             return null;
         });
         h.put("SetSourceBySystemName", in -> {
-            requirePlaylistSource(in.get("Value"));
+            chooseSource(sourcesNow().bySystemName(in.get("Value")));
             return null;
         });
         h.put("Source", in -> {
-            if (number(in.get("Index")) != 0) {
+            SnapcastRendererSources.Entry entry = sourcesNow().byIndex(number(in.get("Index")));
+            if (entry == null) {
                 throw OhError.invalid("source");
             }
             Map<String, String> out = new HashMap<>();
-            out.put("SystemName", OhSourceXml.PLAYLIST);
-            out.put("Type", OhSourceXml.PLAYLIST);
-            out.put("Name", OhSourceXml.PLAYLIST);
+            out.put("SystemName", entry.systemName());
+            out.put("Type", entry.type());
+            out.put("Name", entry.name());
             out.put("Visible", "true");
             return out;
         });
@@ -564,13 +704,7 @@ public final class OhRendererCore {
 
     /** Playing, or choosing a track to play, wakes a device that is in standby (as devices do). */
     private void wake() {
-        product.set("Standby", "false");
-    }
-
-    private static void requirePlaylistSource(String name) {
-        if (!OhSourceXml.PLAYLIST.equals(name)) {
-            throw OhError.invalid("source");
-        }
+        setStandby(false);
     }
 
     private Map<String, OhActionHandler> volumeHandlers() {

@@ -13,3 +13,14 @@ Copyright (c) 2012-15 OpenHome Ltd.
 
 OpenHome is a name of OpenHome Ltd.; YAACC is not affiliated with, authorized or endorsed by it. Linn and other product names that
 appear in the documentation are trademarks of their owners and are used to name the devices only.
+
+## Snapcast (test rig; no Snapcast code in the app)
+
+The Docker test rig in `tools/snapcast-rig/` builds the Snapcast server and client from the upstream repository <https://github.com/snapcast/snapcast>
+at a fixed commit (`SNAPCAST_COMMIT` in `tools/snapcast-rig/Dockerfile`) when you start it. Nothing of Snapcast is stored in this repository or shipped in
+the app: YAACC's Snapcast support (`de.yaacc.multiroom`: the control of a server, the feed of audio into a group and the phone's own client with its time sync) is its own
+code, written from Snapcast's published documentation and behaviour, and it talks to a Snapcast server over the network. The client uses no library for it: PCM is
+handled in Java and FLAC by the decoder of the phone's platform (`MediaCodec`). Snapcast is licensed under the GNU General Public License version 3 or, at your option, any later version; the license applies to the code the rig builds, not to YAACC.
+
+Snapcast is the name of an open source project of its authors; YAACC is not affiliated with, authorized or endorsed by the Snapcast project or its authors.
+The name is used only to say which servers YAACC works with.

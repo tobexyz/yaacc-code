@@ -126,11 +126,17 @@ public final class OhRemote {
      */
     public void prepare() throws OhControlException {
         wake();
-        OhSources.Source playlist = OhSources.findPlaylist(OhSources.parse(get(call(PRODUCT, "SourceXml"), "Value")));
+        List<OhSources.Source> sources = OhSources.parse(get(call(PRODUCT, "SourceXml"), "Value"));
+        OhSources.Source playlist = OhSources.findPlaylist(sources);
         if (playlist == null) {
             throw new OhControlException(OhError.INVALID_ARGS, "the device has no playlist source");
         }
-        if (number(get(call(PRODUCT, "SourceIndex"), "Value"), -1) != playlist.index) {
+        long current = number(get(call(PRODUCT, "SourceIndex"), "Value"), -1);
+        // A device can have several sources of the type Playlist (another YAACC lists its Snapcast groups that way, and the
+        // source is its output): one that is the current source already is kept, only another kind of source is left.
+        boolean onAPlaylist = current >= 0 && current < sources.size()
+                && OhSourceXml.PLAYLIST.equalsIgnoreCase(sources.get((int) current).type);
+        if (!onAPlaylist && current != playlist.index) {
             call(PRODUCT, "SetSourceIndex", "Value", String.valueOf(playlist.index));
         }
     }

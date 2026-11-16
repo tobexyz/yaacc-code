@@ -119,6 +119,41 @@
             android:key="@string/image_viewer_settings_duration_key"
             android:title="@string/image_viewer_settings_duration" />
     </PreferenceCategory>
+    <PreferenceCategory android:title="@string/settings_snapcast_category">
+        <Preference
+            android:selectable="false"
+            android:summary="@string/settings_snapcast_about_summary"
+            android:title="@string/settings_snapcast_about_title" />
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="@string/settings_snapcast_play_experimental"
+            android:summary="@string/settings_snapcast_play_experimental_summary"
+            android:title="@string/settings_snapcast_play_experimental_title" />
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="@string/settings_snapcast_discovery"
+            android:summary="@string/settings_snapcast_discovery_summary"
+            android:title="@string/settings_snapcast_discovery_title" />
+        <Preference
+            android:key="@string/settings_snapcast_servers"
+            android:summary="@string/settings_snapcast_servers_summary"
+            android:title="@string/settings_snapcast_servers_title" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="@string/settings_snapcast_client_spike"
+            android:summary="@string/settings_snapcast_client_spike_summary"
+            android:title="@string/settings_snapcast_client_spike_title" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="@string/settings_snapcast_client_switched_on"
+            android:summaryOff="@string/settings_snapcast_client_switched_on_summary_off"
+            android:summaryOn="@string/settings_snapcast_client_switched_on_summary_on"
+            android:title="@string/settings_snapcast_client_switched_on_title" />
+        <Preference
+            android:key="@string/settings_snapcast_client_spike_open"
+            android:summary="@string/settings_snapcast_client_spike_open_summary"
+            android:title="@string/settings_snapcast_client_spike_open_title" />
+    </PreferenceCategory>
     <PreferenceCategory android:title="@string/settings_upnp_server_title">
         <CheckBoxPreference
             android:key="@string/settings_local_server_chkbx"
@@ -126,7 +161,6 @@
             android:summaryOff="@string/settings_local_server_stopped"
             android:summaryOn="@string/settings_local_server_started" />
         <CheckBoxPreference
-            android:dependency="@string/settings_local_server_chkbx"
             android:title="@string/settings_local_server_autostart_title"
             android:key="@string/settings_local_server_autostart_chkbx"
             android:summaryOff="@string/settings_local_server_autostart_deactivated"
@@ -147,6 +181,17 @@
             android:title="@string/settings_local_server_receiver_title"
             android:summaryOff="@string/settings_local_server_receiver_off"
             android:summaryOn="@string/settings_local_server_receiver_on" />
+        <ListPreference
+            android:defaultValue="device"
+            android:dependency="@string/settings_local_server_receiver_chkbx"
+            android:key="@string/settings_renderer_output"
+            android:summary="@string/settings_renderer_output_summary"
+            android:title="@string/settings_renderer_output_title" />
+        <Preference
+            android:dependency="@string/settings_local_server_receiver_chkbx"
+            android:key="@string/settings_renderer_output_group"
+            android:persistent="false"
+            android:title="@string/settings_renderer_output_group_title" />
         <CheckBoxPreference
             android:key="@string/settings_local_server_provider_chkbx"
             android:title="@string/settings_local_server_provider_title"

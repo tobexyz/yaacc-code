@@ -68,9 +68,19 @@ public class ReceiverListFragment extends Fragment implements
         }
     });
 
+    // the Snapcast groups follow their servers while this tab is shown (connections open only between onResume and onPause)
+    private SnapcastLiveSource snapcastLive;
+
     @Override
     public void onResume() {
         super.onResume();
+        if (snapcastLive == null && getContext() != null) {
+            snapcastLive = SnapcastLiveSource.forApp(getContext().getApplicationContext(), new Handler(Looper.getMainLooper()),
+                    this::populateReceiverDeviceList);
+        }
+        if (snapcastLive != null) {
+            snapcastLive.start();
+        }
         Thread thread = new Thread(new Runnable() {
 
             @Override
@@ -108,6 +118,10 @@ public class ReceiverListFragment extends Fragment implements
         // Stop monitoring when fragment not visible
         RendererStatusMonitor.getShared().unsubscribe(statusListener);
         groupFeed.stop();
+        if (snapcastLive != null) {
+            snapcastLive.stop();
+            snapcastLive = null;
+        }
         stopLocalDevicePolling();
         if (bDeviceAdapter != null) {
             bDeviceAdapter.stopLiveVolume();

@@ -84,6 +84,8 @@ public class ServerListFragment extends Fragment implements
     // the running players as the third section (the mini-player rows); the header shows while a player exists
     private MiniPlayerBar playersBar;
     private SectionHeaderAdapter playersHeader;
+    // top-level layout only: the switch of the phone's own Snapcast client (task 12.17), null in the classic layout
+    private SnapcastClientSwitchBar snapcastBar;
 
 
     /**
@@ -125,10 +127,16 @@ public class ServerListFragment extends Fragment implements
         if (playersBar != null) {
             playersBar.bind();
         }
+        if (snapcastBar != null) {
+            snapcastBar.start();
+        }
     }
 
     @Override
     public void onStop() {
+        if (snapcastBar != null) {
+            snapcastBar.stop();
+        }
         if (playersBar != null) {
             playersBar.unbind();
         }
@@ -146,6 +154,10 @@ public class ServerListFragment extends Fragment implements
     public void onDestroyView() {
         // the display lambda holds this view hierarchy; the fragment instance can outlive it
         shutdownTimerDisplay = null;
+        if (snapcastBar != null) {
+            snapcastBar.stop();
+            snapcastBar = null;
+        }
         if (playersBar != null) {
             playersBar.unbind();
             playersBar = null;
@@ -171,11 +183,15 @@ public class ServerListFragment extends Fragment implements
         super.onDestroyView();
     }
 
+    /**
+     * The server list is the top of the app: back is not handled here, the activity puts the app in the background (task 12.1). The
+     * app is not closed by back; the exit button and the idle timer close it.
+     *
+     * @return false: not consumed
+     */
     public boolean onBackPressed() {
         YaaccLogger.d(ServerListFragment.class.getName(), "onBackPressed()");
-        ((Yaacc) requireActivity().getApplicationContext()).exit();
-        ServerListFragment.super.requireActivity().finish();
-        return true;
+        return false;
     }
 
     /**
@@ -323,6 +339,9 @@ public class ServerListFragment extends Fragment implements
         Thread thread = new Thread(this::populateDeviceList);
         thread.start();
         setLocalServerState(getView());
+        if (snapcastBar != null) {
+            snapcastBar.bind(); // the settings may have changed the option, the server or the state
+        }
     }
 
     private void init(Bundle savedInstanceState, View view) {
@@ -370,6 +389,7 @@ public class ServerListFragment extends Fragment implements
             });
             // started by onStart, which always follows the creation of the view
         }
+        snapcastBar = SnapcastClientSwitchBar.of(requireContext(), view);
         setLocalServerState(view);
         SwitchMaterial localServerEnabledSwitch = view.findViewById(R.id.serverListLocalServerEnabled);
         localServerEnabledSwitch.setOnClickListener((v -> {

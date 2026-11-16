@@ -91,8 +91,8 @@
     <string name="settings_local_server_serve_video_on">servir vídeo está ativado</string>
     <string name="settings_local_server_name">nome da rede para o servidor local</string>
     <string name="settings_local_server_autostart_title">iniciar o servidor automaticamente na inicialização</string>
-    <string name="settings_local_server_autostart_deactivated">o servidor não iniciará após a inicialização</string>
-    <string name="settings_local_server_autostart_activated">o servidor iniciará após a inicialização</string>
+    <string name="settings_local_server_autostart_deactivated">nada inicia após a inicialização; o aplicativo fecha sozinho quando está inativo</string>
+    <string name="settings_local_server_autostart_activated">os serviços ativados iniciam após a inicialização; o aplicativo não é fechado automaticamente</string>
     <string name="settings_sending_upnp_alive_interval">enviando notificações UPnP alive</string>
     <string name="settings_category_playing">comportamento de reprodução de mídia</string>
     <string name="settings_replay_title">Repetir nos novos reprodutores</string>
@@ -121,4 +121,29 @@
     <string name="settings_upnp_selected_interface_summary">Selecione a interface de rede específica para UPnP (vazio = deteção automática)</string>
     <string name="settings_upnp_selected_interface_none">Detecção automática (melhor esforço)</string>
     <string name="settings_upnp_selected_interface_blacklisted_warning">⚠️ A interface selecionada está na lista negra e pode não funcionar!</string>
+    <string name="settings_snapcast_category">Snapcast</string>
+    <string name="settings_snapcast_play_experimental_title">Reproduzir em grupos do Snapcast</string>
+    <string name="settings_snapcast_play_experimental_summary">A música do leitor é enviada para um servidor Snapcast para que um grupo a reproduza. O áudio é enviado sem encriptação para o servidor.</string>
+    <string name="settings_snapcast_discovery_title">Procurar servidores Snapcast</string>
+    <string name="settings_snapcast_discovery_summary">Procura servidores Snapcast na rede local; ativada por predefinição. Envia consultas mDNS pela rede e contacta todos os servidores que se anunciam aí. Os anúncios não são autenticados: qualquer dispositivo da rede pode anunciar um servidor. Desmarque a opção em redes em que não confia. Desativada: só são usados os servidores da lista abaixo.</string>
+    <string name="settings_snapcast_servers_title">Servidores Snapcast</string>
+    <string name="settings_snapcast_servers_summary">Adicionar servidores por endereço ou removê-los</string>
+    <string name="settings_snapcast_about_title">O que o Snapcast precisa</string>
+    <string name="settings_snapcast_about_summary">O YAACC reproduz num servidor Snapcast existente; precisa de um acessível na sua rede.</string>
+    <string name="settings_snapcast_client_spike_title">Cliente Snapcast</string>
+    <string name="settings_snapcast_client_spike_summary">Permite que este telefone funcione como cliente Snapcast: acrescenta à primeira página o interruptor do cliente Snapcast e o seu cartão. Desativado por predefinição. O áudio e o controlo são enviados sem cifrar.</string>
+    <string name="settings_snapcast_client_spike_open_title">Detalhes do cliente Snapcast</string>
+    <string name="settings_snapcast_client_spike_open_summary">Mostra o estado da ligação, os valores de sincronização e o registo de eventos deste cliente, para resolução de problemas.</string>
+    <string name="settings_snapcast_client_switched_on_title">Ligado ao servidor Snapcast</string>
+    <string name="settings_snapcast_client_switched_on_summary_on">Este telefone está ligado a um servidor Snapcast e reproduz como cliente.</string>
+    <string name="settings_snapcast_client_switched_on_summary_off">Este telefone não está ligado a um servidor Snapcast.</string>
+    <string name="settings_renderer_output_title">Saída</string>
+    <string name="settings_renderer_output_summary">O áudio é enviado sem encriptação para o servidor. Qualquer dispositivo que consiga alcançar o recetor pode alterar o volume e o silêncio de todo o grupo. Grupo Snapcast: só o grupo reproduz, este telemóvel fica em silêncio; volume e silêncio são os do grupo.</string>
+    <string name="settings_renderer_output_device">Este dispositivo</string>
+    <string name="settings_renderer_output_group_option">Grupo Snapcast</string>
+    <string name="settings_renderer_output_group_title">Grupo Snapcast</string>
+    <string name="settings_renderer_output_group_none">Nenhum grupo escolhido. Toque para escolher um servidor e um grupo.</string>
+    <string name="settings_renderer_output_group_server">Grupo no servidor %1$s. Toque para alterar.</string>
+    <string name="settings_renderer_output_group_named">%1$s no servidor %2$s. Toque para alterar.</string>
+    <string name="settings_renderer_output_group_damaged">O grupo guardado está danificado; o recetor reproduz neste dispositivo. Toque para escolher o grupo de novo.</string>
 </resources>

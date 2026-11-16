@@ -92,6 +92,10 @@ import de.yaacc.share.ShareLogRedactor;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.browser.Position;
+import de.yaacc.multiroom.SnapcastGroupDevice;
+import de.yaacc.multiroom.SnapcastGroupSource;
+import de.yaacc.multiroom.SnapcastHub;
+import de.yaacc.player.ContentTypes;
 import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlaylistTargets;
@@ -102,6 +106,7 @@ import de.yaacc.player.YaaccMediaRouteProvider;
 import de.yaacc.share.HttpLinkTarget;
 import de.yaacc.share.LinkContentType;
 import de.yaacc.share.LinkTargetPolicy;
+import de.yaacc.share.ProxyAvailability;
 import de.yaacc.share.ReadinessWait;
 import de.yaacc.share.SharedContentPolicy;
 import de.yaacc.share.ShareLimits;
@@ -122,6 +127,8 @@ import de.yaacc.upnp.registry.RegistryListener;
 import de.yaacc.upnp.server.NetworkDeviceListener;
 import de.yaacc.upnp.server.NetworkRecoveryListener;
 import de.yaacc.upnp.server.NetworkRecoveryNotifier;
+import de.yaacc.upnp.server.renderingcontrol.RendererVolume;
+import de.yaacc.upnp.server.renderingcontrol.RendererVolumes;
 import de.yaacc.upnp.server.renderingcontrol.SystemVolume;
 import de.yaacc.upnp.server.ResumeRefreshPolicy;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
@@ -163,6 +170,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
     private PlayerService playerService;
     private Device<?, ?, ?> localDummyDevice;
+    // The Snapcast groups: receivers that are not in Cling's registry (and never advertised). NONE until initialize().
+    private SnapcastGroupSource snapcastGroups = SnapcastGroupSource.NONE;
     private YaaccUpnpServerService yaaccUpnpServerService;
     private YaaccMediaRouteProvider mediaRouteProvider;
 
@@ -185,9 +194,21 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * @return true if initialization completes correctly
      */
     public boolean initialize(Context context) {
+        return attach(context) && bindServerService();
+    }
+
+    /**
+     * The first half of {@link #initialize}: takes the context and registers what needs no service. The application does only this
+     * when its process was created right after an explicit exit (task 12.2); {@link #bindServerService()} follows when the user
+     * starts the app.
+     *
+     * @return false without a context
+     */
+    public boolean attach(Context context) {
         if (context != null) {
             this.context = context;
             this.preferences = PreferenceManager.getDefaultSharedPreferences(context);
+            this.snapcastGroups = SnapcastHub.getShared(context);
             addPlayerListChangeListener(shareLifetimeListener);
 
             // Initialize MediaRouteProvider for UPnP devices
@@ -195,11 +216,16 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             androidx.mediarouter.media.MediaRouter.getInstance(context)
                     .addProvider(mediaRouteProvider);
 
-            // FIXME check if this is right: Context.BIND_AUTO_CREATE kills the
-            // service after closing the activity
-            return context.bindService(new Intent(context, YaaccUpnpServerService.class), this, Context.BIND_AUTO_CREATE);
+            return true;
         }
         return false;
+    }
+
+    /** The second half of {@link #initialize}: binds (and so creates) the server service. */
+    public boolean bindServerService() {
+        // FIXME check if this is right: Context.BIND_AUTO_CREATE kills the
+        // service after closing the activity
+        return context != null && context.bindService(new Intent(context, YaaccUpnpServerService.class), this, Context.BIND_AUTO_CREATE);
     }
 
     public boolean startService() {
@@ -534,7 +560,16 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Collections.reverse(result);
         result.add(getLocalDummyDevice());
         Collections.reverse(result);
+        // the Snapcast groups come after the registry's devices (they are sorted by name already); the local device stays first
+        for (SnapcastGroupDevice group : snapcastGroups.groups()) {
+            result.add(group);
+        }
         return result;
+    }
+
+    /** For tests: the source of the Snapcast groups. */
+    void setSnapcastGroups(SnapcastGroupSource groups) {
+        this.snapcastGroups = groups == null ? SnapcastGroupSource.NONE : groups;
     }
 
     private String lastDeviceSummary = "";
@@ -575,6 +610,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     public Device<?, ?, ?> getDevice(String identifier) {
         if (LOCAL_UID.equals(identifier)) {
             return getLocalDummyDevice();
+        }
+        if (SnapcastGroupDevice.isSnapcastId(identifier)) {
+            // a Snapcast group is never in Cling's registry: null when it is not known (any more)
+            return snapcastGroups.findGroup(identifier);
         }
         if (isInitialized()) {
             // Normalize UDN by stripping uuid: prefix if present
@@ -964,6 +1003,12 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return true;
     }
 
+    /** The type of the file extension of an address, null when it has none or the extension is not known. */
+    private static String mimeTypeOfAddress(String address) {
+        String extension = MimeTypeMap.getFileExtensionFromUrl(address);
+        return extension == null || extension.isEmpty() ? null : MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+    }
+
     /**
      * Returns all player instances initialized with the given transport object
      *
@@ -1019,6 +1064,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension);
             YaaccLogger.d(getClass().getName(), "fileextension from trackURI: " + ShareLogRedactor.redact(String.valueOf(fileExtension)));
         }
+        // one rule with getCurrentPlayers: the type of the description, else the one of the file extension
+        mimeType = ContentTypes.pick(mimeType, mimeTypeOfAddress(positionInfo.getTrackURI()));
         playableItem.setMimeType(mimeType);
         playableItem.setUri(Uri.parse(positionInfo.getTrackURI()));
         // FIXME Duration not supported in receiver yet
@@ -1041,7 +1088,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (!waitForPlayerServiceComeUp()) {
             return null;
         }
-        List<Player> players = playerService.createPlayerForLocalDevice(this, items);
+        // the OpenHome renderer indexes this list: no entry may disappear from it
+        List<Player> players = playerService.createPlayerForLocalQueue(this, items);
         return players.isEmpty() ? null : players.get(0);
     }
 
@@ -1125,7 +1173,6 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         PlayableItem playableItem = new PlayableItem();
         playableItem.setDuration(getDefaultDuration());
         playableItem.setTitle(positionInfo.getTrackURI());
-        String fileExtension = MimeTypeMap.getFileExtensionFromUrl(positionInfo.getTrackURI());
         if (metadata != null) {
             List<Item> metadataItems = metadata.getItems();
             for (Item item : metadataItems) {
@@ -1140,13 +1187,11 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
                 break;
             }
         }
-        if (mimeType.isEmpty()) {
-            mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(fileExtension);
-        }
+        mimeType = ContentTypes.pick(mimeType, mimeTypeOfAddress(positionInfo.getTrackURI()));
         playableItem.setMimeType(mimeType);
         playableItem.setUri(Uri.parse(positionInfo.getTrackURI()));
         YaaccLogger.d(getClass().getName(), "MimeType: " + playableItem.getMimeType());
-        return playerService.getCurrentPlayersOfType(playerService.getPlayerClassForMimeType(mimeType));
+        return playerService.getRendererPlayersOfType(this, playerService.getPlayerClassForMimeType(mimeType));
     }
 
     /**
@@ -1248,6 +1293,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         Editor prefEdit = preferences.edit();
         prefEdit.putStringSet(getContext().getString(R.string.settings_selected_receivers_title), receiverDeviceIds);
         prefEdit.apply();
+        // the servers of the selected Snapcast groups are remembered across a restart (and forgotten again)
+        snapcastGroups.selectionChanged(receiverDeviceIds);
     }
 
     /**
@@ -1264,7 +1311,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             Device<?, ?, ?> receiver = this.getDevice(id);
             if (receiver != null) {
                 result.add(receiver);
-            } else {
+            } else if (!snapcastGroups.isPending(id)) {
+                // a Snapcast group whose server is listed but has not delivered its status yet (a cold start) is not
+                // unknown: it stays selected, and is no receiver until the status arrives
                 unknowsIds.add(id);
             }
         }
@@ -1281,7 +1330,8 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
      * registry right now a few seconds to come back ({@link ReceiverAvailabilityPolicy}: three looks,
      * 2.5 s apart, a search before each wait). After a suspend the registry may have dropped the
      * renderer; {@link #getReceiverDevices()} would remove it from the stored selection for good.
-     * What is still missing after the last look is dropped as before.
+     * What is still missing after the last look is dropped as before. A pending Snapcast group (its server has not
+     * answered yet) is neither waited for nor dropped; its connection is woken once.
      * <p>
      * Waits, so worker threads only; on the main thread it does not wait.
      */
@@ -1289,6 +1339,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (isOnMainThread()) {
             return getReceiverDevices();
         }
+        // connects to the listed servers of the selected Snapcast groups, if any; does not block and is not waited for
+        // (see countMissingReceivers): a group whose server is silent must not cost a wait at every play
+        snapcastGroups.wake(getReceiverDeviceIds());
         int missingAtFirstLook = countMissingReceivers();
         int missing = receiverAvailabilityPolicy.await(this::countMissingReceivers, attempt -> {
             YaaccLogger.d(getClass().getName(), "Resume: " + countMissingReceivers() + " selected receiver(s) not in the registry, searching (look "
@@ -1304,10 +1357,16 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         return getReceiverDevices();
     }
 
+    /**
+     * How many selected receivers are not there. A Snapcast group that is pending (its server is listed but has not
+     * delivered a status) is not counted: a search of the registry cannot bring it back, and a server that never
+     * answers (switched off, unreachable) would otherwise cost the full wait at every play for ever. It is not a ready
+     * receiver either, so it is simply not played; {@code awaitReceiverDevices} wakes its connection once.
+     */
     private int countMissingReceivers() {
         int missing = 0;
         for (String id : getReceiverDeviceIds()) {
-            if (!LOCAL_UID.equals(id) && getDevice(id) == null) {
+            if (!LOCAL_UID.equals(id) && getDevice(id) == null && !snapcastGroups.isPending(id)) {
                 missing++;
             }
         }
@@ -1421,6 +1480,21 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     /**
+     * Lets go of the bindings to the server service and the player service. A service that is bound does not end when it is
+     * stopped, so the exit calls this after {@link #shutdown()} (task 12.2). One call ends both: the same connection object is
+     * registered for both.
+     */
+    public void unbindServices() {
+        try {
+            getContext().unbindService(this);
+        } catch (IllegalArgumentException notBound) {
+            YaaccLogger.d(getClass().getName(), "The services were not bound");
+        }
+        yaaccUpnpServerService = null;
+        playerService = null;
+    }
+
+    /**
      * Return the configured default duration
      *
      * @return the duration
@@ -1488,6 +1562,20 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         new SystemVolume(getContext()).setPercent(desired);
     }
 
+    /** The volume of the renderer: the system volume, or the volume of the Snapcast group while that is its output. */
+    RendererVolume rendererVolume() {
+        return RendererVolumes.forContext(getContext());
+    }
+
+    /**
+     * The volume a row of the app changes for a local receiver. YAACC's own renderer (the cling local device) follows the
+     * output setting like the control points that play to it (in group mode the slider is the group's: the phone's volume
+     * would do nothing audible); "this phone" (the dummy device that plays locally) is always the phone's volume.
+     */
+    RendererVolume volumeOf(Device<?, ?, ?> device) {
+        return device instanceof LocalDevice ? rendererVolume() : new SystemVolume(getContext());
+    }
+
     public void downloadItem(DIDLObject selectedDIDLObject) {
         new FileDownloader(this).execute(selectedDIDLObject);
     }
@@ -1524,6 +1612,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     public boolean getMute(Device<?, ?, ?> device) {
+        if (device instanceof LocalDevice || device instanceof LocalDummyDevice) {
+            return volumeOf(device).isMuted(); // this phone, or YAACC's own renderer by its output
+        }
         if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
                 && yxcVolume().handles(udnOf(device))) {
             Boolean muted = yxcVolume().readMute(udnOf(device));
@@ -1629,6 +1720,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     public void setMute(Device<?, ?, ?> device, boolean mute) {
+        if (device instanceof LocalDevice || device instanceof LocalDummyDevice) {
+            volumeOf(device).setMuted(mute);
+            return;
+        }
         if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
                 && yxcVolume().handles(udnOf(device))) {
             yxcVolume().setMute(udnOf(device), mute);
@@ -1690,6 +1785,9 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     public int getVolume(Device<?, ?, ?> device) {
+        if (device instanceof LocalDevice || device instanceof LocalDummyDevice) {
+            return volumeOf(device).getPercent();
+        }
         if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
                 && yxcVolume().handles(udnOf(device))) {
             return Math.max(0, yxcVolume().readPercent(udnOf(device)));
@@ -1785,6 +1883,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     }
 
     public void setVolume(Device<?, ?, ?> device, int volume) {
+        if (device instanceof LocalDevice || device instanceof LocalDummyDevice) {
+            volumeOf(device).setPercent(volume);
+            return;
+        }
         if (device != null && !(device instanceof LocalDevice) && !(device instanceof LocalDummyDevice)
                 && yxcVolume().handles(udnOf(device))) {
             yxcVolume().setPercent(udnOf(device), volume);
@@ -2017,10 +2119,16 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             return null;
         }
         final String title = "shared with ♥ by yaacc";
+        // The proxy is used only when its checkbox AND the master switch "UPnP Server" are on; with the checkbox
+        // ticked and the master switch off no server of the app serves the link, so it is refused (task 12.21).
+        final ProxyAvailability.Decision decision = linkProxyDecision();
+        if (decision == ProxyAvailability.Decision.REFUSE_NO_SERVER) {
+            YaaccLogger.w(getClass().getName(), "A shared link was refused: the media proxy needs the UPnP Server switched on");
+            return null;
+        }
         // only http(s) links are proxied; the link is kept in the in-memory share registry
         // (random key, receiver addresses, expiry), never in the preferences
-        final boolean proxy = this.getPreferences().getBoolean(
-                getContext().getString(R.string.settings_local_server_proxy_chkbx), false);
+        final boolean proxy = decision == ProxyAvailability.Decision.USE_PROXY;
         final Set<String> ownAddresses = ShareAddressResolver.ownAddresses(getContext());
         if (proxy && !LinkTargetPolicy.isAllowedTarget(link, ownAddresses)) {
             // the phone would fetch its own or a link-local service for the receivers: play nothing
@@ -2064,6 +2172,19 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             getShareRegistry().remove(shareKey);
         }
         return item;
+    }
+
+    /**
+     * How a shared link is handed to the receivers, from the preferences: the media proxy checkbox AND the master switch
+     * "UPnP Server" (see {@link ProxyAvailability}). The caller may ask this before building an item to tell the user why a
+     * link is refused.
+     */
+    public ProxyAvailability.Decision linkProxyDecision() {
+        boolean masterOn = getPreferences().getBoolean(
+                getContext().getString(R.string.settings_local_server_chkbx), false);
+        boolean proxyTicked = getPreferences().getBoolean(
+                getContext().getString(R.string.settings_local_server_proxy_chkbx), false);
+        return ProxyAvailability.decide(masterOn, proxyTicked);
     }
 
     /**

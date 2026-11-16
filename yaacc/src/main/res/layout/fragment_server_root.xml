@@ -38,6 +38,49 @@
         android:background="?attr/colorOutlineVariant"
         android:importantForAccessibility="no" />
 
+    <!-- The Snapcast client of this phone (task 12C): label, switch and gear like the UPnP server row, no subtitle (task 12.19; the state is the
+         state description of the switch). The gear opens its settings.
+         Hidden until ServerListFragment decides (the option is on and a server is saved). -->
+    <LinearLayout
+        android:id="@+id/serverListSnapcastClientRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingEnd="2dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/serverListSnapcastClientLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:focusable="false"
+            android:maxLines="1"
+            android:text="@string/snapcast_client_switch_label"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            android:textColor="?attr/colorOnSurface" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/serverListSnapcastClientEnabled"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="@string/snapcast_client_switch_label"
+            android:minHeight="48dp" />
+
+        <ImageButton
+            android:id="@+id/serverListSnapcastClientSettings"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/snapcast_client_switch_settings"
+            android:padding="8dp"
+            app:srcCompat="@drawable/ic_baseline_settings_42"
+            app:tint="?attr/colorControlNormal" />
+    </LinearLayout>
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

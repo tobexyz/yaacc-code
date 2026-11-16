@@ -80,6 +80,14 @@ public final class OpenHomeRenderer implements OhPlayback {
         void setPercent(int percent);
 
         void setMuted(boolean muted);
+
+        /**
+         * The renderer starts: if its volume lives on a server (the output is a Snapcast group), bring the connection up once.
+         * The poll below reads without waking anything, so an OpenHome renderer that stays on does not hold or retry a connection
+         * while nothing plays. Nothing for the system volume.
+         */
+        default void wakeNow() {
+        }
     }
 
     /** The threads of the renderer. */
@@ -156,6 +164,11 @@ public final class OpenHomeRenderer implements OhPlayback {
     public void start() {
         threads.lifecycle(() -> {
             if (stopPolling == null) {
+                try {
+                    volume.wakeNow(); // once: the poll below reads without waking a connection
+                } catch (RuntimeException e) {
+                    YaaccLogger.w(getClass().getName(), "OpenHome volume not woken", e);
+                }
                 stopPolling = threads.every(this::refreshNow, POLL_MILLIS);
                 refreshNow();
             }

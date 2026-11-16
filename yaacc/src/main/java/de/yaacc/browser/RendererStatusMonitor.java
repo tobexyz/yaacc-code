@@ -107,9 +107,20 @@ public class RendererStatusMonitor {
         return statusMap.get(device);
     }
 
+    /**
+     * Whether the monitor polls this receiver over UPnP. A Snapcast group has no AVTransport service: its state comes from the
+     * control connection to its server, so it is left out (no poll, no reschedule).
+     */
+    static boolean isPolled(Device device) {
+        return !(device instanceof de.yaacc.multiroom.SnapcastGroupDevice);
+    }
+
     private void pollDevice(Device device, int pollGeneration) {
         if (!subscriptions.isCurrent(pollGeneration)) {
             return; // monitoring stopped since this poll was scheduled
+        }
+        if (!isPolled(device)) {
+            return;
         }
         Service avTransport = device.findService(new UDAServiceId("AVTransport"));
         if (avTransport == null) {

@@ -103,7 +103,7 @@ final class ProxyShareResponder {
     }
 
     void respond(Message<HttpRequest, byte[]> request, ResponseTrigger responseTrigger,
-                 HttpContext httpContext, boolean head, List<String> pathSegments)
+                 HttpContext httpContext, boolean head, List<String> pathSegments, boolean masterOn)
             throws HttpException, IOException {
         // /proxy/<key>, or /proxy/<deviceId>/<key> from a renderer with server-side time range management
         String key = pathSegments.size() == 2 ? pathSegments.get(1)
@@ -114,6 +114,12 @@ final class ProxyShareResponder {
                 ? registry.lookup(key) : null;
         if (entry == null) {
             submitConstant(responseTrigger, httpContext, HttpStatus.SC_NOT_FOUND, NOT_FOUND_BODY);
+            return;
+        }
+        if (!ServerRequestGate.maySendShare(masterOn, entry.getKind())) {
+            // a proxied link (SSL offload) needs the UPnP Server switch; shared files do not (task 12.21)
+            YaaccLogger.w(getClass().getName(), "A proxied link was refused: the media proxy needs the UPnP Server switched on");
+            submitConstant(responseTrigger, httpContext, HttpStatus.SC_FORBIDDEN, FORBIDDEN_BODY);
             return;
         }
         String remote = remoteAddressOf(httpContext);

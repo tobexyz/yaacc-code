@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": -32603,
+    "data": "Stream with name 'YAACC test phone' already exists",
+    "message": "Internal error"
+  },
+  "id": 4,
+  "jsonrpc": "2.0"
+}

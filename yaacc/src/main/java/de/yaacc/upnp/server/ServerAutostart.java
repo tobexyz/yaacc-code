@@ -20,7 +20,9 @@ package de.yaacc.upnp.server;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.ComponentName;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
 import de.yaacc.util.YaaccLogger;
 
@@ -29,9 +31,30 @@ import androidx.preference.PreferenceManager;
 import de.yaacc.R;
 
 /**
+ * The boot receiver. It is switched by the setting "autostart on boot": the component is enabled when the setting is ticked and
+ * disabled otherwise ({@link #applySetting}), so no boot start happens unless the user ticked it. The process creation for the
+ * broadcast already runs the normal startup route ({@code Yaacc.onCreate}); the call of the service here is the fallback when that
+ * route's background start was refused.
+ *
  * @author Christoph Hähnel (eyeless)
  */
 public class ServerAutostart extends BroadcastReceiver {
+
+    /**
+     * Enables or disables this receiver to match the setting. Called when the application starts (so an installation that existed
+     * before has the right state) and when the setting changes. The app keeps running ({@code DONT_KILL_APP}).
+     */
+    public static void applySetting(Context context, boolean autostartTicked) {
+        try {
+            context.getPackageManager().setComponentEnabledSetting(
+                    new ComponentName(context, ServerAutostart.class),
+                    AutostartReceiverState.componentState(autostartTicked),
+                    PackageManager.DONT_KILL_APP);
+        } catch (RuntimeException e) {
+            // the setting stays stored; the state is applied again at the next start of the app
+            YaaccLogger.w(ServerAutostart.class.getName(), "Could not switch the boot receiver: " + e.getClass().getSimpleName());
+        }
+    }
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -42,7 +65,12 @@ public class ServerAutostart extends BroadcastReceiver {
                 context.getString(R.string.settings_local_server_autostart_chkbx), false) && "android.intent.action.BOOT_COMPLETED".equals(intent.getAction())) {
             YaaccLogger.d(this.getClass().toString(), "Starting YAACC server on device start");
             Intent serviceIntent = new Intent(context, YaaccUpnpServerService.class);
-            context.startForegroundService(serviceIntent);
+            try {
+                context.startForegroundService(serviceIntent);
+            } catch (IllegalStateException e) {
+                // a refused background start must not crash the receiver; the app startup route already started the service
+                YaaccLogger.w(this.getClass().getName(), "Boot start of the server service was refused: " + e.getClass().getSimpleName());
+            }
         } else {
             YaaccLogger.d(this.getClass().toString(), "Not starting YAACC server on device start");
         }

@@ -27,6 +27,7 @@ import android.support.v4.media.session.MediaSessionCompat;
 
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
+import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.Timeline;
@@ -64,6 +65,12 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     private volatile int nextItemIndex = PlayOrder.NONE;
     // True while applyPlayMode sets the modes of ExoPlayer: their callbacks are our own echo (main thread only)
     private boolean applyingPlayMode;
+    // Skip or stop when ExoPlayer can not read a track (synchronized: ExoPlayer's listener and the command thread use it)
+    private final TrackFailurePolicy failurePolicy = new TrackFailurePolicy();
+    // a stop after failures that could not be carried out (a command was still running); the next user action clears it
+    private volatile boolean stopOutstanding;
+    // set when the player is destroyed: a retry of a stop or a late error then does nothing (no toast for a player that is gone)
+    private volatile boolean destroyed;
 
     public LocalMediaSessionPlayer(UpnpClient upnpClient, String name, String shortName) {
         this(upnpClient);
@@ -133,6 +140,186 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         }
     }
 
+    // ---- a track that can not be read (11.12)
+
+    /**
+     * ExoPlayer could not read the track at {@code index} of the list (ExoPlayer's list is ours, same indexes): see
+     * {@link #trackFailed}. An index outside the list gives a track without a title.
+     */
+    void trackFailedAt(String errorCodeName, int index, boolean hasNext) {
+        trackFailed(errorCodeName, titleAt(index), index + 1, hasNext);
+    }
+
+    /**
+     * The title of the item at {@code index}, or null. The list can be edited from another thread (an OpenHome controller
+     * removes an item) between the size check and the read, and an entry can be null: a lost race must not crash the listener
+     * on the main thread, the toast then names the position instead.
+     */
+    private String titleAt(int index) {
+        try {
+            List<PlayableItem> items = getItems();
+            if (index < 0 || index >= items.size()) {
+                return null;
+            }
+            PlayableItem item = items.get(index);
+            return item == null ? null : item.getTitle();
+        } catch (RuntimeException lostRace) {
+            return null;
+        }
+    }
+
+    /**
+     * ExoPlayer could not read the current track: the track is skipped with a toast that names it and the next one starts;
+     * after three failures in a row, or when the last item fails, the player stops ({@link TrackFailurePolicy}). Main thread.
+     * Only the name of the error code is logged: a source error can carry an address.
+     *
+     * @param title  the title of the track, as the server gave it (cleaned for the toast here; an address is never shown)
+     * @param number the position of the track in the list, counted from one, 0 if not known: shown when the title is no use
+     */
+    void trackFailed(String errorCodeName, String title, int number, boolean hasNext) {
+        if (destroyed) {
+            return; // a late error of a player that is gone: nothing to skip, nothing to say
+        }
+        YaaccLogger.d(getClass().getName(), "ExoPlayer error: " + errorCodeName);
+        if (failurePolicy.onFailure(hasNext) == TrackFailurePolicy.Decision.SKIP) {
+            String shown = TrackToastText.title(title);
+            if ("?".equals(shown) && number > 0) {
+                shown = getContext().getString(R.string.player_track_number, number);
+            }
+            toast(getContext().getString(R.string.player_track_skipped, shown));
+            skipOnExoPlayer();
+        } else {
+            stopAfterFailures(errorCodeName);
+        }
+    }
+
+    /** A track plays: the count of failures in a row starts over. */
+    void trackStarted() {
+        failurePolicy.onTrackStarted();
+    }
+
+    /**
+     * Too many failures, or the last item failed: stops the player, and tells the user once it has stopped. The stop is retried
+     * while another command of the player runs ({@link #stopWhenFree}). The Snapcast player overrides it, its stop also closes
+     * the feed.
+     */
+    void stopAfterFailures(String errorCodeName) {
+        postToMain(() -> stopWhenFree(0, () -> toast(getContext().getString(R.string.player_stopped_after_errors))));
+    }
+
+    /**
+     * {@code stop()} is ignored while another command of the player runs; a stop after a failure would then be lost and
+     * the player would show "playing" with a player that is idle. So it is tried again a little later, a second at most.
+     */
+    void stopWhenFree(int attempt) {
+        stopWhenFree(attempt, null);
+    }
+
+    /** As {@link #stopWhenFree(int)}; {@code whenStopped} runs when a stop was accepted (not when it was ignored the last time). */
+    void stopWhenFree(int attempt, Runnable whenStopped) {
+        if (destroyed) {
+            return; // the retry outlived the player: no stop, no toast, no further retry
+        }
+        if (isProcessingCommand() && attempt < STOP_RETRIES) {
+            postToMainDelayed(() -> stopWhenFree(attempt + 1, whenStopped), STOP_RETRY_MILLIS);
+            return;
+        }
+        boolean busy = isProcessingCommand();
+        stop(); // clears the flag like every user action
+        if (busy) {
+            // the last try was ignored as well. Say so, and remember it until the user does something
+            YaaccLogger.d(getClass().getName(), "stop after a failure was not possible, a command was still running");
+            stopOutstanding = true;
+        } else if (whenStopped != null) {
+            whenStopped.run();
+        }
+    }
+
+    /** From now on retries and late errors of this player do nothing. */
+    void markDestroyed() {
+        destroyed = true;
+        stopOutstanding = false;
+    }
+
+    /** True when a stop after a failure could not be carried out; the next user action clears it. */
+    boolean isStopOutstanding() {
+        return stopOutstanding;
+    }
+
+    private static final int STOP_RETRIES = 20;
+    private static final long STOP_RETRY_MILLIS = 50L;
+
+    @Override
+    public void play() {
+        stopOutstanding = false;
+        super.play();
+    }
+
+    @Override
+    public void pause() {
+        stopOutstanding = false;
+        super.pause();
+    }
+
+    @Override
+    public void stop() {
+        stopOutstanding = false;
+        super.stop();
+    }
+
+    /**
+     * Moves ExoPlayer to the next item after an error and prepares it again; it plays on by itself when it was playing
+     * (the play-when-ready flag is not touched). Main thread; a test replaces it.
+     */
+    void skipOnExoPlayer() {
+        ExoPlayer player = exoPlayer;
+        if (player != null) {
+            player.seekToNextMediaItem();
+            player.prepare();
+        }
+    }
+
+    /** The list without its playlist files (11.11); says so when everything was filtered out of a non-empty list. */
+    private List<PlayableItem> playable(List<PlayableItem> items) {
+        List<PlayableItem> kept = PlayableCheck.withoutPlaylistFiles(items);
+        int dropped = items == null ? 0 : items.size() - kept.size();
+        if (dropped > 0) {
+            YaaccLogger.d(getClass().getName(), "Left out " + dropped + " playlist file(s) of the queue");
+            if (kept.isEmpty()) {
+                toast(getContext().getString(R.string.player_nothing_playable));
+            }
+        }
+        return kept;
+    }
+
+    private void toast(final String text) {
+        postToMain(() -> showToast(text));
+    }
+
+    /** A long toast; a test records the text instead. */
+    void showToast(String text) {
+        android.widget.Toast.makeText(getContext(), text, android.widget.Toast.LENGTH_LONG).show();
+    }
+
+    /** Runs on the main thread (a toast and ExoPlayer need it); a test runs the work at once. */
+    void postToMain(Runnable work) {
+        new Handler(Looper.getMainLooper()).post(work);
+    }
+
+    /** As {@link #postToMain}, after a delay; a test runs the work at once or collects it. */
+    void postToMainDelayed(Runnable work, long delayMillis) {
+        new Handler(Looper.getMainLooper()).postDelayed(work, delayMillis);
+    }
+
+    /**
+     * Builds the ExoPlayer of this player. A plain one here; a subclass that needs its own renderers (the Snapcast player
+     * taps the decoded audio) overrides this and returns a player built for it. Called once, on the thread that
+     * initializes the player, with the context of the player available; the result is used as ExoPlayer was before.
+     */
+    protected ExoPlayer createExoPlayer() {
+        return new ExoPlayer.Builder(getContext()).build();
+    }
+
     private void initializeExoPlayer() {
         if (exoPlayer != null) {
             return; // Already initialized
@@ -140,7 +327,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         YaaccLogger.d(getClass().getName(), "Initializing ExoPlayer");
         // Create ExoPlayer with audio attributes
         // A local reference: onDestroy (any thread) sets the field to null, also while this runs
-        final ExoPlayer player = new ExoPlayer.Builder(getContext()).build();
+        final ExoPlayer player = createExoPlayer();
         exoPlayer = player;
 
         androidx.media3.common.AudioAttributes audioAttributes =
@@ -158,12 +345,23 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
         player.addListener(new Player.Listener() {
             @Override
             public void onPlaybackStateChanged(int playbackState) {
+                if (playbackState == Player.STATE_READY) {
+                    trackStarted();
+                }
                 if (playbackState == Player.STATE_ENDED && RepeatPolicy.stopsAtEnd(getPlayMode())) {
                     // The end of the playlist without repeat: report STOPPED (the transport state of the media
                     // renderer), otherwise a controller waits for ever for the end of the song.
                     YaaccLogger.d(getClass().getName(), "End of the playlist reached, repeat is off: stopping");
                     new Handler(Looper.getMainLooper()).post(() -> LocalMediaSessionPlayer.this.stop());
                 }
+            }
+
+            @Override
+            public void onPlayerError(PlaybackException error) {
+                // only the name of the code is used: the message of a source error can hold an address
+                ExoPlayer current = exoPlayer;
+                trackFailedAt(error.getErrorCodeName(), current == null ? -1 : current.getCurrentMediaItemIndex(),
+                        current != null && current.hasNextMediaItem());
             }
 
             @Override
@@ -345,6 +543,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
 
     @Override
     public void setItems(PlayableItem... playableItems) {
+        // not filtered here: a caller may index this list (the OpenHome renderer keeps one id per entry); the queue builders of
+        // PlayerService leave playlist files out before, and an entry that can not be read is skipped by the failure policy
         super.setItems(playableItems);
         if (exoPlayer == null) {
             new Handler(Looper.getMainLooper()).post(this::initializeExoPlayer);
@@ -447,7 +647,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
      * our play order, which places the new items at random behind the current one, is installed again.
      */
     @Override
-    public void addItems(List<PlayableItem> playableItems) {
+    public void addItems(List<PlayableItem> incoming) {
+        final List<PlayableItem> playableItems = playable(incoming);
         int sizeBefore = getItems().size();
         super.addItems(playableItems);
         if (playableItems == null || playableItems.isEmpty()) {
@@ -514,6 +715,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
 
     @Override
     public void next() {
+        stopOutstanding = false;
+        failurePolicy.reset(); // the user's own choice of a track starts the count again
         // Let ExoPlayer handle next track
         if (exoPlayer != null) {
             new Handler(Looper.getMainLooper()).post(() -> {
@@ -528,6 +731,8 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
 
     @Override
     public void previous() {
+        stopOutstanding = false;
+        failurePolicy.reset();
         // Let ExoPlayer handle previous track
         if (exoPlayer != null) {
             new Handler(Looper.getMainLooper()).post(() -> {
@@ -582,6 +787,7 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
 
     @Override
     protected void stopItem(PlayableItem playableItem) {
+        failurePolicy.reset(); // the next start counts from zero (the command thread, hence the synchronized policy)
         new Handler(Looper.getMainLooper()).post(() -> {
             if (exoPlayer != null) {
                 exoPlayer.stop();
@@ -725,14 +931,13 @@ public class LocalMediaSessionPlayer extends AbstractPlayer {
     @Override
     public void onDestroy() {
         YaaccLogger.d(getClass().getName(), "onDestroy called");
+        markDestroyed(); // before anything is released: a retry of a stop is still scheduled maybe
 
         // Release notification manager on main thread
-        if (notificationManager != null) {
-            new Handler(Looper.getMainLooper()).post(() -> {
-                if (notificationManager != null) {
-                    notificationManager.setPlayer(null);
-                }
-            });
+        // captured here: the field is set to null below, before the posted runnable runs, so the runnable must not read the field
+        final PlayerNotificationManager managerToRelease = notificationManager;
+        if (managerToRelease != null) {
+            new Handler(Looper.getMainLooper()).post(() -> managerToRelease.setPlayer(null));
         }
 
         // Unregister MediaSession from service

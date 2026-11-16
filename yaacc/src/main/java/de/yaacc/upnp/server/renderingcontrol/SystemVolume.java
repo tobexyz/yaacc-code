@@ -35,7 +35,7 @@ import de.yaacc.util.YaaccLogger;
  * the system's volume broadcast. Changes made elsewhere (hardware keys, the system's panel) are not seen here;
  * {@link SystemVolumeBroadcastWatcher} catches those.
  */
-public class SystemVolume {
+public class SystemVolume implements RendererVolume {
 
     private static final CopyOnWriteArrayList<Runnable> CHANGE_LISTENERS = new CopyOnWriteArrayList<>();
 
@@ -58,12 +58,14 @@ public class SystemVolume {
     }
 
     /** @return true if the music stream is muted; false when the device has no audio manager */
+    @Override
     public boolean isMuted() {
         AudioManager audioManager = audioManager();
         return audioManager != null && audioManager.isStreamMute(AudioManager.STREAM_MUSIC);
     }
 
     /** @return the volume in the range of 0-100; 0 when the device has no audio manager */
+    @Override
     public int getPercent() {
         AudioManager audioManager = audioManager();
         if (audioManager == null) {
@@ -76,6 +78,7 @@ public class SystemVolume {
         return Math.round(audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) * 100f / maxVolume);
     }
 
+    @Override
     public void setMuted(boolean mute) {
         AudioManager audioManager = audioManager();
         if (audioManager != null) {
@@ -88,6 +91,7 @@ public class SystemVolume {
     /**
      * @param desired the volume in the range of 0-100, values outside of it are cut to it
      */
+    @Override
     public void setPercent(int desired) {
         int percent = Math.max(0, Math.min(100, desired));
         AudioManager audioManager = audioManager();

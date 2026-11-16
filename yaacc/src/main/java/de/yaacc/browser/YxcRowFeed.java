@@ -22,6 +22,7 @@ import android.os.Handler;
 import android.os.Looper;
 
 import org.fourthline.cling.model.meta.Device;
+import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.meta.RemoteDevice;
 
 import java.net.URL;
@@ -33,16 +34,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import de.yaacc.upnp.server.openhome.OwnOpenHomeStandby;
 import de.yaacc.yxc.YxcDeviceState;
 import de.yaacc.yxc.YxcMonitor;
 
 /**
  * Connects a screen that shows receiver rows to {@link YxcMonitor}: subscribes with the receivers on screen
- * and tells the screen, on the main thread, which row to rebind. A screen starts it when it comes to the front
+ * and tells the screen, on the main thread, which row to rebind. Also to {@link OpenHomePowerMonitor} (the standby state of OpenHome
+ * devices, task 12.4), which asks for the same rebind of a row. A screen starts it when it comes to the front
  * and stops it when it goes; the monitor itself keeps its event source for a while after the last stop, so
  * switching between the Receiver tab and the sheet does not reopen it.
  */
-final class YxcRowFeed implements YxcMonitor.Listener, YxcGroupController.BusyListener {
+final class YxcRowFeed implements YxcMonitor.Listener, YxcGroupController.BusyListener, OpenHomePowerMonitor.Listener,
+        OwnOpenHomeStandby.Listener {
 
     /** The screen's side: rebind the row of this device (UDN as the row binder uses it). */
     interface Rows {
@@ -54,6 +58,8 @@ final class YxcRowFeed implements YxcMonitor.Listener, YxcGroupController.BusyLi
     private volatile boolean running;
     // devices whose row is to be rebound; one post to the main thread serves all of them
     private final Set<String> pending = new LinkedHashSet<>();
+    // the local devices of the list (the app's own renderer among them), by UDN
+    private final Set<String> ownUdns = new LinkedHashSet<>();
 
     YxcRowFeed(Rows rows) {
         this.rows = rows;
@@ -61,18 +67,63 @@ final class YxcRowFeed implements YxcMonitor.Listener, YxcGroupController.BusyLi
 
     void start(Collection<Device<?, ?, ?>> devices) {
         running = true;
+        // the standby state of the app's own OpenHome renderer (task 12.13): pushed by the renderer, no polling; only while a list is shown
+        rememberOwnDevices(devices);
+        OwnOpenHomeStandby.shared().addListener(this);
         YxcGroupController.getShared().addBusyListener(this);
         YxcMonitor.getShared().subscribe(this, descriptorUrls(devices));
+        // the standby state of OpenHome devices (task 12.4): the same rebind of a row as a MusicCast power event
+        OpenHomePowerMonitor.getShared().subscribe(this, devices);
     }
 
     void stop() {
         running = false;
         YxcGroupController.getShared().removeBusyListener(this);
         YxcMonitor.getShared().unsubscribe(this);
+        OpenHomePowerMonitor.getShared().unsubscribe(this);
+        OwnOpenHomeStandby.shared().removeListener(this);
+        synchronized (ownUdns) {
+            ownUdns.clear();
+        }
+    }
+
+    private void rememberOwnDevices(Collection<Device<?, ?, ?>> devices) {
+        synchronized (ownUdns) {
+            ownUdns.clear();
+            if (devices != null) {
+                for (Device<?, ?, ?> device : devices) {
+                    if (device instanceof LocalDevice) {
+                        ownUdns.add(device.getIdentity().getUdn().getIdentifierString());
+                    }
+                }
+            }
+        }
+    }
+
+    /** The own OpenHome renderer went to standby, woke, came or went (any thread): its card is rebound. */
+    @Override
+    public void onOwnStandbyChanged() {
+        List<String> own;
+        synchronized (ownUdns) {
+            own = new ArrayList<>(ownUdns);
+        }
+        for (String udn : own) {
+            enqueue(udn);
+        }
     }
 
     @Override
     public void onStateChanged(String udn, YxcDeviceState state) {
+        enqueue(udn);
+    }
+
+    /** The standby state of an OpenHome device changed (main thread). */
+    @Override
+    public void onPowerChanged(String udn) {
+        enqueue(udn);
+    }
+
+    private void enqueue(String udn) {
         synchronized (pending) {
             boolean idle = pending.isEmpty();
             pending.add(udn);

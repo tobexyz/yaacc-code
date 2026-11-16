@@ -1,0 +1,1186 @@
+/*
+ *
+ * Copyright (C) 2026 Tobias Schoene www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
+package de.yaacc.multiroom.ui;
+
+import static de.yaacc.multiroom.ui.UiFixtures.client;
+import static de.yaacc.multiroom.ui.UiFixtures.group;
+import static de.yaacc.multiroom.ui.UiFixtures.status;
+import static de.yaacc.multiroom.ui.UiFixtures.stream;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
+import org.json.JSONObject;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+
+import de.yaacc.multiroom.SnapcastServerLink;
+import de.yaacc.multiroom.control.SnapcastCaller;
+import de.yaacc.multiroom.control.SnapcastException;
+import de.yaacc.multiroom.control.SnapcastModelUpdater;
+import de.yaacc.multiroom.control.SnapcastOperations;
+import de.yaacc.multiroom.control.SnapcastServerStatus;
+import de.yaacc.multiroom.discovery.SnapcastEndpoint;
+import de.yaacc.multiroom.discovery.SnapcastServerKey;
+
+/**
+ * The changes the Snapcast rows make on a server: they run off the calling thread, a quick series of slider values is
+ * coalesced to the latest one, the group volume moves the members relative to their levels at the start of the gesture,
+ * and a failure is reported once with a cleaned and short reason. A fake server link with a real
+ * {@link SnapcastOperations} and a recording caller. Plain JVM.
+ */
+public class SnapcastControlsTest {
+
+    private static final SnapcastServerKey KEY = SnapcastEndpoint.parse("192.168.1.5").toKey();
+    private static final String GROUP = "g1";
+
+    /** Records the calls and answers with an empty result (or a canned failure). */
+    private static class RecordingCaller implements SnapcastCaller {
+        final List<String> methods = new ArrayList<>();
+        final List<JSONObject> params = new ArrayList<>();
+        SnapcastException failure;
+        /** Fails only this method (the others work). */
+        String failOnly;
+        /** Called at the start of every call, before it is answered or fails (a call from inside a send). */
+        java.util.function.Consumer<String> onCall;
+        /** The members (ids) that a fresh {@code Server.GetStatus} reports for group g1; null: no such answer. */
+        String[] serverMembers;
+        /** The whole result of a fresh {@code Server.GetStatus}; null: see {@link #serverMembers}. */
+        String freshStatus;
+        /** The result of {@code Server.DeleteClient}. */
+        String deleteAnswer = "{\"server\":{\"groups\":[],\"streams\":[]}}";
+
+        @Override
+        public synchronized JSONObject call(String method, JSONObject callParams) throws SnapcastException {
+            methods.add(method);
+            if (onCall != null) {
+                java.util.function.Consumer<String> hook = onCall;
+                hook.accept(method);
+            }
+            try {
+                params.add(callParams == null ? null : new JSONObject(callParams.toString()));
+                if (failure != null && (failOnly == null || failOnly.equals(method))) {
+                    throw failure;
+                }
+                if ("Server.GetStatus".equals(method) && freshStatus != null) {
+                    return new JSONObject(freshStatus);
+                }
+                if ("Server.DeleteClient".equals(method)) {
+                    return new JSONObject(deleteAnswer);
+                }
+                if ("Server.GetStatus".equals(method) && serverMembers != null) {
+                    StringBuilder clients = new StringBuilder();
+                    for (String id : serverMembers) {
+                        clients.append(clients.length() == 0 ? "" : ",").append("{\"id\":\"").append(id)
+                                .append("\",\"connected\":true,\"config\":{\"name\":\"").append(id)
+                                .append("\",\"volume\":{\"percent\":40,\"muted\":false},\"latency\":0}}");
+                    }
+                    return new JSONObject("{\"server\":{\"groups\":[{\"id\":\"g1\",\"name\":\"Living\",\"muted\":false,"
+                            + "\"stream_id\":\"Default\",\"clients\":[" + clients + "]},{\"id\":\"g2\",\"name\":\"Other\","
+                            + "\"muted\":false,\"stream_id\":\"Default\",\"clients\":[{\"id\":\"d\",\"connected\":true,"
+                            + "\"config\":{\"name\":\"Desk\",\"volume\":{\"percent\":10,\"muted\":false},\"latency\":0}}]}],"
+                            + "\"streams\":[]}}");
+                }
+                if ("Group.SetClients".equals(method)) {
+                    return new JSONObject("{\"server\":{\"groups\":[],\"streams\":[]}}");
+                }
+                return new JSONObject();
+            } catch (org.json.JSONException e) {
+                throw new AssertionError(e);
+            }
+        }
+
+        synchronized int count(String method) {
+            int n = 0;
+            for (String m : methods) {
+                if (m.equals(method)) {
+                    n++;
+                }
+            }
+            return n;
+        }
+
+        synchronized JSONObject last(String method) {
+            for (int i = methods.size() - 1; i >= 0; i--) {
+                if (methods.get(i).equals(method)) {
+                    return params.get(i);
+                }
+            }
+            return null;
+        }
+
+        synchronized List<JSONObject> all(String method) {
+            List<JSONObject> result = new ArrayList<>();
+            for (int i = 0; i < methods.size(); i++) {
+                if (methods.get(i).equals(method)) {
+                    result.add(params.get(i));
+                }
+            }
+            return result;
+        }
+    }
+
+    /** A link whose model is kept up to date by our own calls, like the real session. */
+    private static class ModelLink implements SnapcastServerLink {
+        final AtomicLong updaterClock = new AtomicLong(0);
+        final SnapcastModelUpdater updater = new SnapcastModelUpdater(updaterClock::get, () -> { });
+        final SnapcastOperations operations;
+
+        ModelLink(RecordingCaller caller, SnapcastServerStatus status) {
+            updater.setStatus(status);
+            operations = new SnapcastOperations(caller, updater);
+        }
+
+        @Override
+        public SnapcastServerKey getKey() {
+            return KEY;
+        }
+
+        @Override
+        public SnapcastServerStatus getStatus() {
+            return updater.getStatus();
+        }
+
+        @Override
+        public boolean isOnline() {
+            return true;
+        }
+
+        @Override
+        public void addListener(Listener listener) {
+        }
+
+        @Override
+        public void removeListener(Listener listener) {
+        }
+
+        @Override
+        public SnapcastOperations getOperations() {
+            return operations;
+        }
+
+        @Override
+        public void start() {
+        }
+
+        @Override
+        public void retry() {
+        }
+
+        @Override
+        public void close() {
+        }
+    }
+
+    /** Collects tasks until the test runs them. */
+    private static final class QueueExecutor implements Executor {
+        final ArrayDeque<Runnable> tasks = new ArrayDeque<>();
+
+        @Override
+        public void execute(Runnable command) {
+            tasks.add(command);
+        }
+
+        void runAll() {
+            while (!tasks.isEmpty()) {
+                tasks.poll().run();
+            }
+        }
+    }
+
+    private final RecordingCaller caller = new RecordingCaller();
+    private final QueueExecutor actions = new QueueExecutor();
+    private final QueueExecutor volumes = new QueueExecutor();
+    private final AtomicLong now = new AtomicLong(1_000);
+    private final List<SnapcastControls.Action> failedActions = new ArrayList<>();
+    private final List<SnapcastControls.Failure> failures = new ArrayList<>();
+    private ModelLink link;
+    private SnapcastControls controls;
+
+    @Before
+    public void setUp() {
+        link = new ModelLink(caller, status(
+                Arrays.asList(
+                        group(GROUP, "Living", "Default",
+                                client("a", "Kitchen", true, 40, false),
+                                client("b", "Hall", true, 60, true),
+                                client("c", "Attic", false, 100, false)),
+                        group("g2", "Other", "Default", client("d", "Desk", true, 10, false))),
+                stream("Default", "idle"), stream("Radio", "idle")));
+        controls = new SnapcastControls(key -> KEY.equals(key) ? link : null, actions, volumes, () -> now.get(),
+                (action, failure) -> {
+                    failedActions.add(action);
+                    failures.add(failure);
+                });
+    }
+
+    private int volumeOf(String clientId) {
+        return link.getStatus().findClient(clientId).getVolume().getPercent();
+    }
+
+    // ---- group volume
+
+    @Test
+    public void nothingRunsOnTheCallingThread() {
+        controls.setGroupVolume(KEY, GROUP, 70);
+        controls.setGroupMuted(KEY, GROUP, true);
+
+        assertTrue("queued, not run", caller.methods.isEmpty());
+        assertEquals(1, volumes.tasks.size());
+        assertEquals(1, actions.tasks.size());
+    }
+
+    @Test
+    public void theGroupVolumeMovesTheConnectedMembersByTheSameNumberOfPoints() {
+        controls.beginGroupGesture(KEY, GROUP);
+        controls.setGroupVolume(KEY, GROUP, 60); // the average of 40 and 60 is 50
+        volumes.runAll();
+
+        assertEquals(50, volumeOf("a"));
+        assertEquals(70, volumeOf("b"));
+        assertEquals("a disconnected member is not touched", 100, volumeOf("c"));
+        assertEquals(2, caller.count("Client.SetVolume"));
+    }
+
+    @Test
+    public void aMutedMemberMovesWithTheGroupAndStaysMuted() {
+        controls.beginGroupGesture(KEY, GROUP);
+        controls.setGroupVolume(KEY, GROUP, 60);
+        volumes.runAll();
+
+        assertTrue(link.getStatus().findClient("b").getVolume().isMuted());
+    }
+
+    @Test
+    public void aSeriesOfValuesBecomesOneCallWithTheLatestValue() {
+        controls.beginGroupGesture(KEY, GROUP);
+        controls.setGroupVolume(KEY, GROUP, 52);
+        controls.setGroupVolume(KEY, GROUP, 55);
+        controls.setGroupVolume(KEY, GROUP, 60);
+
+        assertEquals("one task for the series", 1, volumes.tasks.size());
+        volumes.runAll();
+
+        assertEquals(2, caller.count("Client.SetVolume"));
+        assertEquals(50, volumeOf("a"));
+    }
+
+    @Test
+    public void dragBackRestoresTheLevelsOfTheStartOfTheGesture() {
+        controls.beginGroupGesture(KEY, GROUP);
+        controls.setGroupVolume(KEY, GROUP, 90);
+        volumes.runAll();
+        controls.setGroupVolume(KEY, GROUP, 50);
+        volumes.runAll();
+
+        assertEquals(40, volumeOf("a"));
+        assertEquals(60, volumeOf("b"));
+    }
+
+    @Test
+    public void aNewGestureStartsFromTheLevelsOfThatMoment() {
+        controls.beginGroupGesture(KEY, GROUP);
+        controls.setGroupVolume(KEY, GROUP, 60);
+        volumes.runAll();
+        controls.beginGroupGesture(KEY, GROUP);
+        controls.setGroupVolume(KEY, GROUP, 60);
+        volumes.runAll();
+
+        assertEquals("the second gesture changes nothing: it starts at 60", 50, volumeOf("a"));
+        assertEquals(70, volumeOf("b"));
+    }
+
+    @Test
+    public void withoutABeginAGapStartsANewGesture() {
+        controls.setGroupVolume(KEY, GROUP, 60);
+        volumes.runAll();
+        now.addAndGet(SnapcastControls.GESTURE_GAP_MILLIS + 1);
+        controls.setGroupVolume(KEY, GROUP, 70); // from the levels now (avg 60), +10
+        volumes.runAll();
+
+        assertEquals(60, volumeOf("a"));
+        assertEquals(80, volumeOf("b"));
+    }
+
+    @Test
+    public void callsCloserThanTheGapBelongToOneGesture() {
+        controls.setGroupVolume(KEY, GROUP, 60);
+        volumes.runAll();
+        now.addAndGet(100);
+        controls.setGroupVolume(KEY, GROUP, 40);
+        volumes.runAll();
+
+        assertEquals(30, volumeOf("a"));
+        assertEquals(50, volumeOf("b"));
+    }
+
+    @Test
+    public void aGroupThatVanishedIsReportedAsGoneAndNothingIsSent() {
+        controls.setGroupVolume(KEY, "nope", 60);
+        volumes.runAll();
+
+        assertEquals(0, caller.methods.size());
+        assertEquals(Collections.singletonList(SnapcastControls.Action.GROUP_VOLUME), failedActions);
+        assertEquals(SnapcastControls.Failure.Kind.GONE, failures.get(0).getKind());
+    }
+
+    // ---- group mute, stream
+
+    @Test
+    public void groupMuteIsSentToTheGroup() {
+        controls.setGroupMuted(KEY, GROUP, true);
+        actions.runAll();
+
+        assertEquals(GROUP, caller.last("Group.SetMute").optString("id"));
+        assertTrue(caller.last("Group.SetMute").optBoolean("mute"));
+        assertTrue(link.getStatus().findGroup(GROUP).isMuted());
+    }
+
+    @Test
+    public void theStreamOfAGroupIsSet() {
+        controls.setGroupStream(KEY, GROUP, "Radio");
+        actions.runAll();
+
+        assertEquals("Radio", caller.last("Group.SetStream").optString("stream_id"));
+        assertEquals("g1", caller.last("Group.SetStream").optString("id"));
+        assertEquals("Radio", link.getStatus().findGroup(GROUP).getStreamId());
+    }
+
+    // ---- clients
+
+    @Test
+    public void aClientSliderKeepsTheMuteFlagAndSendsTheLatestValueOnly() {
+        controls.setClientVolume(KEY, "b", 20);
+        controls.setClientVolume(KEY, "b", 25);
+        controls.setClientVolume(KEY, "b", 30);
+        volumes.runAll();
+
+        assertEquals(1, caller.count("Client.SetVolume"));
+        JSONObject sent = caller.last("Client.SetVolume");
+        assertEquals(30, sent.optJSONObject("volume").optInt("percent"));
+        assertTrue("b was muted and stays muted", sent.optJSONObject("volume").optBoolean("muted"));
+    }
+
+    @Test
+    public void twoClientsAreCoalescedSeparately() {
+        controls.setClientVolume(KEY, "a", 11);
+        controls.setClientVolume(KEY, "b", 22);
+        volumes.runAll();
+
+        assertEquals(11, volumeOf("a"));
+        assertEquals(22, volumeOf("b"));
+    }
+
+    @Test
+    public void clientMuteKeepsTheVolume() {
+        controls.setClientMuted(KEY, "a", true);
+        actions.runAll();
+
+        JSONObject volume = caller.last("Client.SetVolume").optJSONObject("volume");
+        assertEquals(40, volume.optInt("percent"));
+        assertTrue(volume.optBoolean("muted"));
+    }
+
+    @Test
+    public void latencyIsSent() {
+        controls.setClientLatency(KEY, "a", 250);
+        actions.runAll();
+
+        assertEquals(250, caller.last("Client.SetLatency").optInt("latency"));
+        assertEquals(250, link.getStatus().findClient("a").getLatencyMs());
+    }
+
+    @Test
+    public void theNewNameIsCleanedBeforeItIsSent() {
+        controls.renameClient(KEY, "a", "  Pantry\n\u200B ");
+        actions.runAll();
+
+        assertEquals("Pantry??", caller.last("Client.SetName").optString("name"));
+    }
+
+    @Test
+    public void anEmptyNameResetsTheName() {
+        controls.renameClient(KEY, "a", "   ");
+        actions.runAll();
+
+        assertEquals("", caller.last("Client.SetName").optString("name", "missing"));
+    }
+
+    // ---- 11.3: the link sheet changes the members in one call
+
+    private static SnapcastLinkChoices.Change change(List<String> added, List<String> removed) {
+        return new SnapcastLinkChoices.Change(added, removed);
+    }
+
+    @Test
+    public void aLinkChangeAddsAndRemovesInOneCallWithTheFullList() {
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Arrays.asList("b")));
+        actions.runAll();
+
+        assertEquals(1, caller.count("Group.SetClients"));
+        assertEquals("[\"a\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+        assertEquals(GROUP, caller.last("Group.SetClients").optString("id"));
+    }
+
+    /**
+     * Task 12.12, the safety rule: the lists hide a client that another server shows; a change from such a list must never drop it.
+     * "c" is an offline member of g1 here; server 2 has it connected, so the sheet does not show it.
+     */
+    private SnapcastLinkChoices.Change changeFromTheListsThatHideC(List<String> checked) {
+        SnapcastServerKey other = SnapcastEndpoint.parse("192.168.1.9").toKey();
+        de.yaacc.multiroom.SnapcastMergedClients merged = de.yaacc.multiroom.SnapcastMergedClients.of(Arrays.asList(
+                de.yaacc.multiroom.SnapcastMergedClients.Server.of(KEY, link.getStatus(), true),
+                de.yaacc.multiroom.SnapcastMergedClients.Server.of(other,
+                        status(group("gx", "Elsewhere", "Default", client("c", "Attic", true, 100, false))), true)));
+        List<SnapcastLinkChoices.Choice> shown = SnapcastLinkChoices.of(merged.visible(KEY, link.getStatus()), GROUP,
+                new SnapcastLinkChoices.Words() {
+                    @Override
+                    public String unnamedClient() {
+                        return "?";
+                    }
+
+                    @Override
+                    public String unnamedGroup() {
+                        return "?";
+                    }
+
+                    @Override
+                    public String inGroup(String client, String group) {
+                        return client;
+                    }
+
+                    @Override
+                    public String inGroupThatEnds(String client, String group) {
+                        return client;
+                    }
+
+                    @Override
+                    public String lastMember(String client) {
+                        return client;
+                    }
+
+                    @Override
+                    public String offline(String label) {
+                        return label;
+                    }
+                });
+        for (SnapcastLinkChoices.Choice choice : shown) {
+            assertFalse("the hidden member is not listed", choice.getClientId().equals("c"));
+        }
+        return SnapcastLinkChoices.changeOf(shown, checked);
+    }
+
+    @Test
+    public void aMemberThatTheListsHideStaysInTheGroupWhenAnotherClientIsLinked() {
+        caller.serverMembers = new String[]{"a", "b", "c"};
+
+        controls.changeMembers(KEY, GROUP, changeFromTheListsThatHideC(Arrays.asList("a", "b", "d")));
+        actions.runAll();
+
+        assertEquals("the request is the full membership of the server, the hidden id included",
+                "[\"a\",\"b\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    @Test
+    public void aMemberThatTheListsHideStaysInTheGroupWhenAnotherClientIsUnlinked() {
+        caller.serverMembers = new String[]{"a", "b", "c"};
+
+        controls.changeMembers(KEY, GROUP, changeFromTheListsThatHideC(Arrays.asList("a")));
+        actions.runAll();
+
+        assertEquals("[\"a\",\"c\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    @Test
+    public void aLinkChangeStartsFromTheMembersTheServerHasNow() {
+        caller.serverMembers = new String[]{"a", "b", "c", "e"}; // another controller added "e" behind the model
+
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Arrays.asList("b")));
+        actions.runAll();
+
+        assertEquals(1, caller.count("Server.GetStatus"));
+        assertEquals("the client that the sheet did not know is not dropped", "[\"a\",\"c\",\"e\",\"d\"]",
+                caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    @Test
+    public void aClientThatTheFreshStatusDoesNotKnowIsNotAdded() {
+        caller.serverMembers = new String[]{"a", "b", "c"}; // "ghost" left the server (deleted) after the sheet was opened
+
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d", "ghost"), Arrays.asList("b")));
+        actions.runAll();
+
+        assertEquals(1, caller.count("Group.SetClients"));
+        assertEquals("[\"a\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    @Test
+    public void aChangeThatOnlyAddsAnUnknownClientMakesNoCall() {
+        caller.serverMembers = new String[]{"a", "b", "c"};
+
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("ghost"), Collections.<String>emptyList()));
+        actions.runAll();
+
+        assertEquals(0, caller.count("Group.SetClients"));
+        assertTrue(failures.isEmpty());
+    }
+
+    @Test
+    public void anUnknownClientIsDroppedAlsoWhenTheCachedModelIsUsed() {
+        // no fresh read (the rate limit refused or it failed): the cached model decides, and it does not know "ghost" either
+        caller.failure = new SnapcastException(SnapcastException.Kind.TIMEOUT, 0, "slow", null, null);
+        caller.failOnly = "Server.GetStatus";
+
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d", "ghost"), Arrays.asList("b")));
+        actions.runAll();
+
+        assertEquals("[\"a\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    @Test
+    public void aLinkChangeThatLeavesNothingToDoMakesNoCall() {
+        caller.serverMembers = new String[]{"a", "c"}; // "b" left on its own, "c" is in already
+
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("c"), Arrays.asList("b")));
+        actions.runAll();
+
+        assertEquals(0, caller.count("Group.SetClients"));
+        assertTrue(failures.isEmpty());
+    }
+
+    @Test
+    public void anEmptyLinkChangeMakesNoCallAndNoReadEither() {
+        controls.changeMembers(KEY, GROUP, change(Collections.<String>emptyList(), Collections.<String>emptyList()));
+        actions.runAll();
+
+        assertEquals(0, caller.count("Group.SetClients"));
+        assertEquals(0, caller.count("Server.GetStatus"));
+        assertTrue(failures.isEmpty());
+    }
+
+    @Test
+    public void aLinkChangeThatWouldEmptyTheGroupIsRefusedAndTheUserIsTold() {
+        controls.changeMembers(KEY, "g2", change(Collections.<String>emptyList(), Arrays.asList("d")));
+        actions.runAll();
+
+        assertEquals(0, caller.count("Group.SetClients"));
+        assertEquals(SnapcastControls.Failure.Kind.NOT_POSSIBLE, failures.get(0).getKind());
+        assertEquals(SnapcastControls.Action.GROUP_CLIENTS, failedActions.get(0));
+    }
+
+    @Test
+    public void aLinkChangeForAGroupThatIsGoneSaysSo() {
+        controls.changeMembers(KEY, "nope", change(Arrays.asList("d"), Collections.<String>emptyList()));
+        actions.runAll();
+
+        assertEquals(0, caller.count("Group.SetClients"));
+        assertEquals(SnapcastControls.Failure.Kind.GONE, failures.get(0).getKind());
+    }
+
+    @Test
+    public void aLinkChangeIsAlwaysOffTheCallingThread() {
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Collections.<String>emptyList()));
+
+        assertTrue(caller.methods.isEmpty());
+        assertEquals(1, actions.tasks.size());
+    }
+
+    @Test
+    public void aLinkChangeIsACopyThatLaterEditsOfTheListsDoNotReach() {
+        List<String> added = new ArrayList<>(Arrays.asList("d"));
+        SnapcastLinkChoices.Change change = change(added, Collections.<String>emptyList());
+        added.add("zzz");
+
+        controls.changeMembers(KEY, GROUP, change);
+        actions.runAll();
+
+        assertEquals("[\"a\",\"b\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    // ---- failures
+
+    @Test
+    public void aServerWithoutALinkIsUnreachable() {
+        SnapcastControls none = new SnapcastControls(key -> null, actions, volumes, () -> now.get(),
+                (action, failure) -> failures.add(failure));
+        none.setGroupMuted(KEY, GROUP, true);
+        actions.runAll();
+
+        assertEquals(SnapcastControls.Failure.Kind.UNREACHABLE, failures.get(0).getKind());
+    }
+
+    @Test
+    public void aLinkWithoutOperationsIsUnreachable() {
+        SnapcastControls none = new SnapcastControls(key -> new ModelLink(caller, link.getStatus()) {
+            @Override
+            public SnapcastOperations getOperations() {
+                return null;
+            }
+        }, actions, volumes, () -> now.get(), (action, failure) -> failures.add(failure));
+        none.setClientLatency(KEY, "a", 5);
+        actions.runAll();
+
+        assertEquals(SnapcastControls.Failure.Kind.UNREACHABLE, failures.get(0).getKind());
+    }
+
+    @Test
+    public void aLostConnectionIsUnreachable() {
+        caller.failure = new SnapcastException(SnapcastException.Kind.NOT_CONNECTED, 0, "x", null, null);
+        controls.setClientLatency(KEY, "a", 5);
+        actions.runAll();
+
+        assertEquals(SnapcastControls.Failure.Kind.UNREACHABLE, failures.get(0).getKind());
+        assertEquals(SnapcastControls.Action.CLIENT_LATENCY, failedActions.get(0));
+    }
+
+    @Test
+    public void aTimeoutIsReportedAsATimeout() {
+        caller.failure = new SnapcastException(SnapcastException.Kind.TIMEOUT, 0, "slow", null, null);
+        controls.setGroupStream(KEY, GROUP, "Radio");
+        actions.runAll();
+
+        assertEquals(SnapcastControls.Failure.Kind.TIMEOUT, failures.get(0).getKind());
+    }
+
+    @Test
+    public void aLoginDemandIsReportedAsUnauthorized() {
+        caller.failure = new SnapcastException(SnapcastException.Kind.SERVER_ERROR, 401, "Unauthorized", null, null);
+        controls.setGroupMuted(KEY, GROUP, true);
+        actions.runAll();
+
+        assertEquals(SnapcastControls.Failure.Kind.UNAUTHORIZED, failures.get(0).getKind());
+    }
+
+    @Test
+    public void aServerErrorShowsOnlyACleanedAndShortenedReason() {
+        StringBuilder text = new StringBuilder("tcp\u200B sources \u2060are not allowed ");
+        for (int i = 0; i < 100; i++) {
+            text.append("blah ");
+        }
+        caller.failure = new SnapcastException(SnapcastException.Kind.SERVER_ERROR, -32603, "Internal error",
+                text.toString(), null);
+        controls.setGroupStream(KEY, GROUP, "Radio");
+        actions.runAll();
+
+        SnapcastControls.Failure failure = failures.get(0);
+        assertEquals(SnapcastControls.Failure.Kind.REJECTED, failure.getKind());
+        assertFalse(failure.getReason().contains("\u200B"));
+        assertFalse(failure.getReason().contains("\u2060"));
+        assertTrue(failure.getReason().length() <= 80);
+        assertTrue(failure.getReason(), failure.getReason().startsWith("Internal error: tcp sources are not allowed"));
+    }
+
+    @Test
+    public void otherFailuresCarryNoServerText() {
+        caller.failure = new SnapcastException(SnapcastException.Kind.MALFORMED, 0, "secret 10.0.0.1", null, null);
+        controls.setClientLatency(KEY, "a", 5);
+        actions.runAll();
+
+        assertEquals(SnapcastControls.Failure.Kind.FAILED, failures.get(0).getKind());
+        assertEquals("", failures.get(0).getReason());
+    }
+
+    @Test
+    public void aFailureDoesNotStopTheNextChange() {
+        caller.failure = new SnapcastException(SnapcastException.Kind.TIMEOUT, 0, "slow", null, null);
+        controls.setClientLatency(KEY, "a", 5);
+        actions.runAll();
+        caller.failure = null;
+        controls.setClientLatency(KEY, "a", 6);
+        actions.runAll();
+
+        assertEquals(1, failures.size());
+        assertEquals(6, link.getStatus().findClient("a").getLatencyMs());
+    }
+
+    @Test
+    public void aReporterThatThrowsDoesNotBreakTheWorker() {
+        SnapcastControls loud = new SnapcastControls(key -> null, actions, volumes, () -> now.get(), (action, failure) -> {
+            throw new IllegalStateException("boom");
+        });
+        loud.setGroupMuted(KEY, GROUP, true);
+        actions.runAll(); // must not throw
+        loud.setGroupMuted(KEY, GROUP, false);
+        actions.runAll();
+    }
+
+    @Test
+    public void aWrongArgumentIsReportedNotThrownOnTheWorker() {
+        controls.setClientLatency(KEY, "", 5);
+        controls.setGroupStream(KEY, GROUP, "");
+        actions.runAll(); // the library throws IllegalArgumentException for an empty id: it must not escape
+
+        assertEquals(2, failures.size());
+        assertEquals(SnapcastControls.Failure.Kind.FAILED, failures.get(0).getKind());
+    }
+
+    @Test
+    public void realThreadsRunTheChangeOffTheCallingThread() throws Exception {
+        ExecutorService worker = Executors.newSingleThreadExecutor();
+        try {
+            final CountDownLatch done = new CountDownLatch(1);
+            final Thread[] ran = new Thread[1];
+            RecordingCaller threadCaller = new RecordingCaller() {
+                @Override
+                public synchronized JSONObject call(String method, JSONObject callParams) throws SnapcastException {
+                    ran[0] = Thread.currentThread();
+                    done.countDown();
+                    return super.call(method, callParams);
+                }
+            };
+            ModelLink threaded = new ModelLink(threadCaller, link.getStatus());
+            SnapcastControls real = new SnapcastControls(key -> threaded, worker, worker, () -> now.get(),
+                    (action, failure) -> { });
+
+            real.setClientLatency(KEY, "a", 5);
+
+            assertTrue(done.await(5, TimeUnit.SECONDS));
+            assertNotNull(ran[0]);
+            assertFalse(Thread.currentThread() == ran[0]);
+        } finally {
+            worker.shutdownNow();
+        }
+    }
+
+    @Test
+    public void nothingIsRememberedAboutAFinishedGesture() {
+        controls.beginGroupGesture(KEY, GROUP);
+        controls.setGroupVolume(KEY, GROUP, 60);
+        volumes.runAll();
+
+        assertNull(controls.pendingVolumeFor(KEY, GROUP));
+        assertEquals(0, volumes.tasks.size());
+    }
+
+    // ---- a fresh status before a change of the members (security review S42)
+
+    @Test
+    public void linkingAClientUsesTheMembersTheServerHasNowNotTheCachedOnes() {
+        caller.serverMembers = new String[]{"a", "b", "c", "e"}; // another controller added "e" behind the model
+
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Collections.<String>emptyList()));
+        actions.runAll();
+
+        assertEquals(1, caller.count("Server.GetStatus"));
+        assertEquals("[\"a\",\"b\",\"c\",\"e\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    @Test
+    public void unlinkingAClientUsesTheMembersTheServerHasNow() {
+        caller.serverMembers = new String[]{"a", "b", "c", "e"};
+
+        controls.changeMembers(KEY, GROUP, change(Collections.<String>emptyList(), Arrays.asList("b")));
+        actions.runAll();
+
+        assertEquals("[\"a\",\"c\",\"e\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    @Test
+    public void aRemovalOfEveryoneWhoIsLeftIsStillRefused() {
+        caller.serverMembers = new String[]{"a", "c"}; // "b" left the group meanwhile
+
+        controls.changeMembers(KEY, GROUP, change(Collections.<String>emptyList(), Arrays.asList("a", "b", "c")));
+        actions.runAll();
+
+        assertEquals(0, caller.count("Group.SetClients"));
+        assertEquals(SnapcastControls.Failure.Kind.NOT_POSSIBLE, failures.get(0).getKind());
+    }
+
+    @Test
+    public void whenTheRateLimitRefusesTheReadTheCachedModelIsUsed() {
+        caller.serverMembers = new String[]{"a", "b", "c", "e"};
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Collections.<String>emptyList())); // takes the one read that the limit allows in this second
+        actions.runAll();
+        caller.methods.clear();
+        caller.params.clear();
+        link.updater.setStatus(status(Arrays.asList(
+                group(GROUP, "Living", "Default", client("a", "Kitchen", true, 40, false), client("b", "Hall", true, 60, true)),
+                group("g2", "Other", "Default", client("d", "Desk", true, 10, false))), stream("Default", "idle")));
+
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Collections.<String>emptyList()));
+        actions.runAll();
+
+        assertEquals("no second read inside the limit", 0, caller.count("Server.GetStatus"));
+        assertEquals("[\"a\",\"b\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    @Test
+    public void aReadThatFailsFallsBackToTheCachedModel() {
+        caller.failure = new SnapcastException(SnapcastException.Kind.TIMEOUT, 0, "slow", null, null);
+        caller.failOnly = "Server.GetStatus";
+
+        controls.changeMembers(KEY, GROUP, change(Collections.<String>emptyList(), Arrays.asList("b")));
+        actions.runAll();
+
+        assertEquals(1, caller.count("Server.GetStatus"));
+        assertEquals("[\"a\",\"c\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+        assertTrue("the failed read is no failure of the change", failures.isEmpty());
+    }
+
+    @Test
+    public void anAnswerThatIsNoStatusFallsBackToTheCachedModel() {
+        // the recording caller answers an empty object when no members are set: the library reports it as malformed
+        controls.changeMembers(KEY, GROUP, change(Arrays.asList("d"), Collections.<String>emptyList()));
+        actions.runAll();
+
+        assertEquals("[\"a\",\"b\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+        assertTrue(failures.isEmpty());
+    }
+
+    @Test
+    public void theOtherChangesDoNotReadTheStatus() {
+        caller.serverMembers = new String[]{"a"};
+
+        controls.setGroupMuted(KEY, GROUP, true);
+        controls.setClientLatency(KEY, "a", 5);
+        controls.setGroupStream(KEY, GROUP, "Radio");
+        actions.runAll();
+
+        assertEquals(0, caller.count("Server.GetStatus"));
+    }
+
+    // ---- Fix Group 9d W1: the mute of a group is coalesced like its volume
+
+    @Test
+    public void aFloodOfMuteChangesIsOneQueuedTaskAndTheLastWantedValueWins() {
+        for (int i = 0; i < 20_000; i++) {
+            controls.setGroupMuted(KEY, GROUP, i % 2 == 0); // the last one (19 999) is false
+        }
+
+        assertEquals("one task for the group, not one per call", 1, actions.tasks.size());
+        actions.runAll();
+
+        assertEquals("one call to the server", 1, caller.count("Group.SetMute"));
+        assertFalse("the last wanted value", link.getStatus().findGroup(GROUP).isMuted());
+    }
+
+    @Test
+    public void aFloodAfterARunQueuesOneMoreTaskAndSendsOnlyTheNewestValue() {
+        controls.setGroupMuted(KEY, GROUP, true);
+        actions.runAll();
+        assertTrue(link.getStatus().findGroup(GROUP).isMuted());
+
+        for (int i = 0; i < 5_000; i++) {
+            controls.setGroupMuted(KEY, GROUP, i % 2 == 1); // ends with true (4 999 is odd)
+        }
+        assertEquals(1, actions.tasks.size());
+        actions.runAll();
+
+        assertEquals(2, caller.count("Group.SetMute"));
+        assertTrue(link.getStatus().findGroup(GROUP).isMuted());
+    }
+
+    @Test
+    public void everyGroupHasItsOwnWantedMuteAndItsOwnTask() {
+        for (int i = 0; i < 100; i++) {
+            controls.setGroupMuted(KEY, GROUP, true);
+            controls.setGroupMuted(KEY, "g2", i % 2 == 1);
+        }
+
+        assertEquals(2, actions.tasks.size());
+        actions.runAll();
+
+        assertEquals(2, caller.count("Group.SetMute"));
+        assertTrue(link.getStatus().findGroup(GROUP).isMuted());
+        assertTrue(link.getStatus().findGroup("g2").isMuted());
+    }
+
+    @Test
+    public void aMuteFloodDoesNotQueueBehindItselfInFrontOfTheUsersOtherActions() {
+        for (int i = 0; i < 10_000; i++) {
+            controls.setGroupMuted(KEY, GROUP, i % 2 == 0);
+        }
+        controls.setGroupStream(KEY, GROUP, "Radio");
+
+        assertEquals("the mute is one task, the stream change the second", 2, actions.tasks.size());
+    }
+
+    @Test
+    public void aMuteThatCouldNotBeSentIsReportedOnceForTheWholeFlood() {
+        SnapcastControls none = new SnapcastControls(key -> null, actions, volumes, () -> now.get(),
+                (action, failure) -> {
+                    failedActions.add(action);
+                    failures.add(failure);
+                });
+        for (int i = 0; i < 1_000; i++) {
+            none.setGroupMuted(KEY, GROUP, i % 2 == 0);
+        }
+        actions.runAll();
+
+        assertEquals(1, failures.size());
+        assertEquals(SnapcastControls.Action.GROUP_MUTE, failedActions.get(0));
+    }
+
+    // ---- Fix Group 9e W7: the mute that arrives while the mute is being sent, and after a failed send
+
+    @Test
+    public void aMuteThatArrivesWhileTheMuteIsBeingSentIsSentAfterItAndTheNewestValueIsLast() {
+        final boolean[] once = {true};
+        caller.onCall = method -> {
+            if ("Group.SetMute".equals(method) && once[0]) {
+                once[0] = false;
+                controls.setGroupMuted(KEY, GROUP, false); // the controller's next SetMute, while this one is sent
+            }
+        };
+
+        controls.setGroupMuted(KEY, GROUP, true);
+        actions.runAll();
+
+        assertEquals("both were sent, the newer one second", 2, caller.count("Group.SetMute"));
+        List<JSONObject> sent = caller.all("Group.SetMute");
+        assertTrue(sent.get(0).optBoolean("mute"));
+        assertFalse(sent.get(1).optBoolean("mute"));
+        assertFalse(link.getStatus().findGroup(GROUP).isMuted());
+        assertNull("nothing is left waiting", controls.pendingMuteFor(KEY, GROUP));
+    }
+
+    @Test
+    public void aMuteAfterAFailedSendIsSentAndReportedOnceForTheFailureOnly() {
+        caller.failure = new SnapcastException(SnapcastException.Kind.NOT_CONNECTED, 0, "down", null, null);
+        caller.failOnly = "Group.SetMute";
+        controls.setGroupMuted(KEY, GROUP, true);
+        actions.runAll();
+        assertEquals(1, failures.size());
+
+        caller.failure = null;
+        controls.setGroupMuted(KEY, GROUP, false); // the first one failed: this one must not be swallowed
+        assertEquals("a task is queued again", 1, actions.tasks.size());
+        actions.runAll();
+
+        assertEquals(2, caller.count("Group.SetMute"));
+        assertFalse(caller.last("Group.SetMute").optBoolean("mute"));
+        assertEquals("only the failed one was reported", 1, failures.size());
+        assertNull(controls.pendingMuteFor(KEY, GROUP));
+    }
+
+    @Test
+    public void theWantedMuteIsKeptOnlyWhileItIsWaiting() {
+        assertNull(controls.pendingMuteFor(KEY, GROUP));
+        controls.setGroupMuted(KEY, GROUP, true);
+        assertEquals(Boolean.TRUE, controls.pendingMuteFor(KEY, GROUP));
+        controls.setGroupMuted(KEY, GROUP, false);
+        assertEquals("the latest wins", Boolean.FALSE, controls.pendingMuteFor(KEY, GROUP));
+
+        actions.runAll();
+
+        assertNull("sent: nothing is left in the map", controls.pendingMuteFor(KEY, GROUP));
+    }
+
+    // ---- removing an offline client from the server (task 12.8)
+
+    private static String freshServer(boolean cConnected, boolean aConnected) {
+        return "{\"server\":{\"groups\":[{\"id\":\"g1\",\"name\":\"Living\",\"muted\":false,\"stream_id\":\"Default\",\"clients\":["
+                + "{\"id\":\"a\",\"connected\":" + aConnected + ",\"config\":{\"name\":\"Kitchen\",\"volume\":{\"percent\":40,\"muted\":false},\"latency\":0}},"
+                + "{\"id\":\"c\",\"connected\":" + cConnected + ",\"config\":{\"name\":\"Attic\",\"volume\":{\"percent\":100,\"muted\":false},\"latency\":0}}"
+                + "]}],\"streams\":[]}}";
+    }
+
+    private SnapcastControls controlsWithOwn(SnapcastClientRemoval.Own own) {
+        return new SnapcastControls(key -> KEY.equals(key) ? link : null, actions, volumes, () -> now.get(),
+                (action, failure) -> {
+                    failedActions.add(action);
+                    failures.add(failure);
+                }, () -> own);
+    }
+
+    @Test
+    public void removingAClientRunsOffTheCallingThread() {
+        caller.freshStatus = freshServer(false, true);
+
+        controls.deleteOfflineClient(KEY, "c");
+
+        assertTrue("queued, not run", caller.methods.isEmpty());
+        assertEquals(1, actions.tasks.size());
+    }
+
+    @Test
+    public void anOfflineClientOfTheFreshStatusIsDeletedWithItsExactId() {
+        caller.freshStatus = freshServer(false, true);
+
+        controls.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+
+        assertEquals(Arrays.asList("Server.GetStatus", "Server.DeleteClient"), caller.methods);
+        assertEquals("c", caller.last("Server.DeleteClient").optString("id"));
+        assertTrue(failures.isEmpty());
+    }
+
+    @Test
+    public void theConnectedFlagOfTheFreshStatusDecidesNotTheModel() {
+        // the model (setUp) says that c is offline; the server says it has connected since
+        caller.freshStatus = freshServer(true, true);
+
+        controls.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+
+        assertEquals("nothing is deleted", 0, caller.count("Server.DeleteClient"));
+        assertEquals(1, failures.size());
+        assertEquals(SnapcastControls.Failure.Kind.CLIENT_CONNECTED, failures.get(0).getKind());
+        assertEquals(SnapcastControls.Action.CLIENT_REMOVE, failedActions.get(0));
+    }
+
+    @Test
+    public void aClientThatTheModelShowsConnectedButTheServerSaysIsOfflineMayGo() {
+        caller.freshStatus = freshServer(false, false);
+
+        controls.deleteOfflineClient(KEY, "a"); // the model of setUp has a connected
+        actions.runAll();
+
+        assertEquals(1, caller.count("Server.DeleteClient"));
+        assertEquals("a", caller.last("Server.DeleteClient").optString("id"));
+    }
+
+    @Test
+    public void theFreshReadIsMadeEvenWhenTheRateLimitOfTheModelWouldRefuseIt() {
+        caller.freshStatus = freshServer(true, true);
+        assertTrue("the grant of this second is used up", link.updater.tryGrantRead());
+
+        controls.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+
+        assertEquals("a real read, not the cached model (which says offline)", 1, caller.count("Server.GetStatus"));
+        assertEquals(0, caller.count("Server.DeleteClient"));
+    }
+
+    @Test
+    public void theClientThePhoneIsConnectedWithIsNotDeletedEvenIfTheStatusSaysOffline() {
+        caller.freshStatus = freshServer(false, true);
+        SnapcastControls own = controlsWithOwn(SnapcastClientRemoval.Own.session("c"));
+
+        own.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+
+        assertEquals(0, caller.count("Server.DeleteClient"));
+        assertEquals(SnapcastControls.Failure.Kind.OWN_CLIENT, failures.get(0).getKind());
+    }
+
+    @Test
+    public void whileTheOwnSessionStartsNothingIsDeleted() {
+        caller.freshStatus = freshServer(false, true);
+        SnapcastControls own = controlsWithOwn(SnapcastClientRemoval.Own.session(null));
+
+        own.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+
+        assertEquals(0, caller.count("Server.DeleteClient"));
+        assertEquals(SnapcastControls.Failure.Kind.OWN_CLIENT, failures.get(0).getKind());
+    }
+
+    @Test
+    public void aClientThatIsAlreadyGoneIsReportedAsGoneAndNothingIsSent() {
+        caller.freshStatus = freshServer(false, true);
+
+        controls.deleteOfflineClient(KEY, "zzz");
+        actions.runAll();
+
+        assertEquals(0, caller.count("Server.DeleteClient"));
+        assertEquals(SnapcastControls.Failure.Kind.GONE, failures.get(0).getKind());
+    }
+
+    @Test
+    public void twoTapsOnTheSameClientAreOneDelete() {
+        caller.freshStatus = freshServer(false, true);
+
+        controls.deleteOfflineClient(KEY, "c");
+        controls.deleteOfflineClient(KEY, "c");
+
+        assertEquals("coalesced while the first is waiting", 1, actions.tasks.size());
+        actions.runAll();
+        assertEquals(1, caller.count("Server.DeleteClient"));
+    }
+
+    @Test
+    public void aSecondDeleteOfTheSameClientRightAfterTheFirstIsDropped() {
+        caller.freshStatus = freshServer(false, true);
+
+        controls.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+        now.addAndGet(500);
+        controls.deleteOfflineClient(KEY, "c");
+
+        assertTrue("within the rate limit: no task", actions.tasks.isEmpty());
+        now.addAndGet(SnapcastControls.REMOVE_GAP_MILLIS);
+        controls.deleteOfflineClient(KEY, "c");
+        assertEquals("later it is allowed again", 1, actions.tasks.size());
+    }
+
+    @Test
+    public void theModelNoLongerHasTheClientAfterTheDelete() {
+        caller.freshStatus = freshServer(false, true);
+        caller.deleteAnswer = "{\"server\":{\"groups\":[{\"id\":\"g1\",\"name\":\"Living\",\"muted\":false,\"stream_id\":\"Default\","
+                + "\"clients\":[{\"id\":\"a\",\"connected\":true,\"config\":{\"name\":\"Kitchen\",\"volume\":{\"percent\":40,"
+                + "\"muted\":false},\"latency\":0}}]}],\"streams\":[]}}";
+
+        controls.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+
+        assertNull(link.getStatus().findClient("c"));
+        assertNotNull(link.getStatus().findClient("a"));
+    }
+
+    @Test
+    public void aRefusalOfTheServerIsReportedWithItsReason() {
+        caller.freshStatus = freshServer(false, true);
+        caller.failOnly = "Server.DeleteClient";
+        caller.failure = new SnapcastException(SnapcastException.Kind.SERVER_ERROR, -32603, "no way", null, null);
+
+        controls.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+
+        assertEquals(SnapcastControls.Failure.Kind.REJECTED, failures.get(0).getKind());
+    }
+
+    @Test
+    public void aServerThatIsNotConnectedIsUnreachableAndNothingIsSent() {
+        SnapcastServerKey other = SnapcastEndpoint.parse("192.168.1.9").toKey();
+
+        controls.deleteOfflineClient(other, "c");
+        actions.runAll();
+
+        assertEquals(SnapcastControls.Failure.Kind.UNREACHABLE, failures.get(0).getKind());
+        assertTrue(caller.methods.isEmpty());
+    }
+
+    @Test
+    public void aFailedFreshReadDeletesNothing() {
+        caller.freshStatus = freshServer(false, true);
+        caller.failOnly = "Server.GetStatus";
+        caller.failure = new SnapcastException(SnapcastException.Kind.TIMEOUT, 0, "t", null, null);
+
+        controls.deleteOfflineClient(KEY, "c");
+        actions.runAll();
+
+        assertEquals("the model is not good enough for a delete", 0, caller.count("Server.DeleteClient"));
+        assertEquals(SnapcastControls.Failure.Kind.TIMEOUT, failures.get(0).getKind());
+    }
+}

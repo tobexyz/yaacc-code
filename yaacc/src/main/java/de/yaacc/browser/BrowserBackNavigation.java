@@ -29,8 +29,8 @@ public final class BrowserBackNavigation {
         POP_FOLDER,
         /** Leave the server and show the server list. */
         SHOW_SERVERS,
-        /** Quit the app, as back on the classic Server tab does. */
-        EXIT
+        /** Put the app in the background, as every app does at its last back (it is not closed: the idle timer does that). */
+        TO_BACKGROUND
     }
 
     private BrowserBackNavigation() {
@@ -43,7 +43,7 @@ public final class BrowserBackNavigation {
      */
     public static Action decide(boolean onServerList, boolean contentAtRoot) {
         if (onServerList) {
-            return Action.EXIT;
+            return Action.TO_BACKGROUND;
         }
         return contentAtRoot ? Action.SHOW_SERVERS : Action.POP_FOLDER;
     }

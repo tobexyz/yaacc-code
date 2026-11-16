@@ -1,0 +1,179 @@
+/*
+ *
+ * Copyright (C) 2026 Tobias Schoene www.yaacc.de
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 3
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ */
+package de.yaacc.multiroom.protocol;
+
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.SocketTimeoutException;
+import java.util.Arrays;
+
+/**
+ * Reads frames from a stream (the socket of the connection). The size of a frame is checked against its cap right
+ * after the 26 byte header and before one byte of the body is read; the body buffer starts small and grows with the
+ * bytes that really arrive, so a header that promises 8 MiB and then stalls costs 64 KiB; a frame of a type that is not
+ * handled is read past in a small buffer.
+ *
+ * <p><b>Time.</b> The socket's read timeout bounds one read; this class adds a deadline for a whole frame, counted from
+ * its first byte, so a sender that drips a byte inside every read timeout still ends. A read timeout before the first
+ * byte of a frame is passed on as the {@link SocketTimeoutException} that it is (nothing was consumed, the caller may
+ * read again); inside a frame it is a TIMEOUT error, and with a {@link ReadTimeout} the receive timeout inside a frame is
+ * the time left of the deadline, not the (possibly short) timeout that was set for waiting. A clean end between two frames is an {@link EOFException}, an end
+ * inside a frame is TRUNCATED. One reader belongs to one thread.
+ */
+public final class FrameReader {
+
+    private static final int INITIAL_BODY = 64 * 1024;
+    private static final int SKIP_BUFFER = 4096;
+
+    /** Sets how long the next read of the stream may block (the socket's receive timeout). */
+    public interface ReadTimeout {
+        void set(int millis) throws IOException;
+    }
+
+    private final InputStream in;
+    private final MicroClock clock;
+    private final ReadTimeout timeout;
+    private final boolean clientSide;
+    private final int maxChunkBody;
+    private final long deadlineMicros;
+    private final byte[] headerBuffer = new byte[SnapcastProtocolLimits.HEADER_SIZE];
+    private byte[] skipBuffer;
+    private long frameStartMicros;
+    private boolean frameStarted;
+
+    /**
+     * @param messageDeadlineMillis how long a frame may take from its first byte to its last
+     */
+    public FrameReader(InputStream in, MicroClock clock, long messageDeadlineMillis) {
+        this(in, clock, messageDeadlineMillis, null);
+    }
+
+    /**
+     * @param timeout when given, it is called before every read after the first byte of a frame with the time that is
+     *                left of the message deadline: a stall inside a frame is then tolerated up to the deadline, whatever
+     *                receive timeout the caller set for the wait before the frame (that one may be short, for example
+     *                to wake up for a timer). The stall that exceeds it ends as TIMEOUT.
+     */
+    public FrameReader(InputStream in, MicroClock clock, long messageDeadlineMillis, ReadTimeout timeout) {
+        this(in, clock, messageDeadlineMillis, timeout, false, SnapcastProtocolLimits.MAX_BULK_BODY);
+    }
+
+    private FrameReader(InputStream in, MicroClock clock, long messageDeadlineMillis, ReadTimeout timeout,
+                        boolean clientSide, int maxChunkBody) {
+        this.clientSide = clientSide;
+        this.maxChunkBody = maxChunkBody;
+        this.in = in;
+        this.clock = clock;
+        this.deadlineMicros = messageDeadlineMillis * 1000L;
+        this.timeout = timeout;
+    }
+
+    /**
+     * A reader for the client side of a connection. A server sends neither a Hello nor a ClientInfo, so frames of those
+     * types are read past by size like unknown ones and never parsed (a flood of them costs a read, not a JSON parse),
+     * and a WireChunk larger than {@code maxChunkBytes} (the client's budget for chunks that wait; a real chunk is a few
+     * KB) is refused before its body is read.
+     */
+    public static FrameReader forClient(InputStream in, MicroClock clock, long messageDeadlineMillis, ReadTimeout timeout,
+                                        int maxChunkBytes) {
+        int cap = (int) Math.min(SnapcastProtocolLimits.MAX_BULK_BODY, Math.max(0L, (long) maxChunkBytes) + 12);
+        return new FrameReader(in, clock, messageDeadlineMillis, timeout, true, cap);
+    }
+
+    /**
+     * Reads the next frame.
+     *
+     * @throws SocketTimeoutException    when the read timed out before the first byte of a frame
+     * @throws EOFException              when the stream ended before the first byte of a frame
+     * @throws IOException               for any other failure of the stream
+     * @throws SnapcastProtocolException for a frame that is too large, too slow, cut short or wrong
+     */
+    public Frame read() throws IOException, SnapcastProtocolException {
+        frameStarted = false;
+        int have = 0;
+        while (have < headerBuffer.length) {
+            int count = readSome(headerBuffer, have, headerBuffer.length - have);
+            have += count;
+        }
+        MessageHeader header = MessageHeader.parse(headerBuffer, maxChunkBody);
+        int size = header.getSize();
+        MessageType type = MessageType.of(header.getType());
+        if (type == null || (clientSide && (type == MessageType.HELLO || type == MessageType.CLIENT_INFO))) {
+            skip(size);
+            return new Frame(header, null);
+        }
+        byte[] body = new byte[Math.min(size, INITIAL_BODY)];
+        have = 0;
+        while (have < size) {
+            if (have == body.length) {
+                body = Arrays.copyOf(body, (int) Math.min((long) size, body.length * 2L));
+            }
+            have += readSome(body, have, body.length - have);
+        }
+        return new Frame(header, SnapcastMessageCodec.decodeBody(header, body));
+    }
+
+    private void skip(int size) throws IOException, SnapcastProtocolException {
+        if (skipBuffer == null) {
+            skipBuffer = new byte[SKIP_BUFFER];
+        }
+        int left = size;
+        while (left > 0) {
+            left -= readSome(skipBuffer, 0, Math.min(skipBuffer.length, left));
+        }
+    }
+
+    /** One read of at least one byte, with the timeout, end of stream and deadline rules of this class. */
+    private int readSome(byte[] buffer, int offset, int length) throws IOException, SnapcastProtocolException {
+        if (frameStarted && timeout != null) {
+            long leftMicros = deadlineMicros - (clock.nowMicros() - frameStartMicros);
+            if (leftMicros <= 0) {
+                throw new SnapcastProtocolException(SnapcastProtocolException.Kind.DEADLINE, "message took too long");
+            }
+            timeout.set((int) Math.max(1, Math.min(Integer.MAX_VALUE, (leftMicros + 999) / 1000)));
+        }
+        int count;
+        try {
+            count = in.read(buffer, offset, length);
+        } catch (SocketTimeoutException e) {
+            if (!frameStarted) {
+                throw e;
+            }
+            throw new SnapcastProtocolException(SnapcastProtocolException.Kind.TIMEOUT, "read timed out inside a message");
+        }
+        if (count < 0) {
+            if (!frameStarted) {
+                throw new EOFException("connection closed");
+            }
+            throw new SnapcastProtocolException(SnapcastProtocolException.Kind.TRUNCATED, "connection closed inside a message");
+        }
+        if (count == 0) {
+            throw new IOException("no progress");
+        }
+        long now = clock.nowMicros();
+        if (!frameStarted) {
+            frameStarted = true;
+            frameStartMicros = now;
+        } else if (now - frameStartMicros > deadlineMicros) {
+            throw new SnapcastProtocolException(SnapcastProtocolException.Kind.DEADLINE, "message took too long");
+        }
+        return count;
+    }
+}

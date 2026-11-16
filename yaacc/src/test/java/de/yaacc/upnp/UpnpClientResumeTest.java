@@ -150,6 +150,99 @@ public class UpnpClientResumeTest {
         verify(editor).putStringSet(nullable(String.class), org.mockito.ArgumentMatchers.eq(new HashSet<>(Arrays.asList("a"))));
     }
 
+    // ---- a Snapcast group whose server has not delivered a status (pending) ----------------------
+
+    /** A source with pending groups; records the wakes. */
+    private static final class PendingGroups implements de.yaacc.multiroom.SnapcastGroupSource {
+        final Set<String> pending = new HashSet<>();
+        final List<java.util.Collection<String>> wakes = new ArrayList<>();
+
+        @Override
+        public List<de.yaacc.multiroom.SnapcastGroupDevice> groups() {
+            return java.util.Collections.emptyList();
+        }
+
+        @Override
+        public de.yaacc.multiroom.SnapcastGroupDevice findGroup(String receiverId) {
+            return null;
+        }
+
+        @Override
+        public void wake(java.util.Collection<String> receiverIds) {
+            wakes.add(new HashSet<>(receiverIds));
+        }
+
+        @Override
+        public boolean isPending(String receiverId) {
+            return pending.contains(receiverId);
+        }
+
+        @Override
+        public void selectionChanged(java.util.Collection<String> receiverIds) {
+            // not needed here
+        }
+    }
+
+    private static final String PENDING = "snapcast:192.168.1.5:1705:g-a";
+
+    @Test
+    public void aPendingSnapcastGroupIsNotWaitedForButItsServerIsWoken() {
+        PendingGroups groups = new PendingGroups();
+        groups.pending.add(PENDING);
+        client.setSnapcastGroups(groups);
+        selected(PENDING);
+
+        assertEquals("no receiver is ready", 0, client.awaitReceiverDevices().size());
+
+        assertTrue("no wait", sleeps.isEmpty());
+        assertEquals("no search", 0, searches.get());
+        assertEquals("the connection is started, once", 1, groups.wakes.size());
+        assertTrue(groups.wakes.get(0).contains(PENDING));
+        verify(editor, never()).putStringSet(nullable(String.class), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    public void aPendingGroupDoesNotMakeTheOtherReceiversWaitLonger() {
+        PendingGroups groups = new PendingGroups();
+        groups.pending.add(PENDING);
+        client.setSnapcastGroups(groups);
+        selected(PENDING, "a", "b");
+        registry.add("a");
+        cameBackWithTheSearch.add("b");
+
+        assertEquals("a and b are ready, the group is pending", 2, client.awaitReceiverDevices().size());
+
+        assertEquals("one wait for b, none more for the group", Arrays.asList(2500L), sleeps);
+        assertEquals(1, searches.get());
+        verify(editor, never()).putStringSet(nullable(String.class), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    public void aSnapcastGroupThatIsNeitherKnownNorPendingIsDroppedAsBefore() {
+        client.setSnapcastGroups(new PendingGroups());
+        selected(PENDING, "a");
+        registry.add("a");
+
+        assertEquals(1, client.awaitReceiverDevices().size());
+
+        verify(editor).putStringSet(nullable(String.class), org.mockito.ArgumentMatchers.eq(new HashSet<>(Arrays.asList("a"))));
+    }
+
+    @Test
+    public void repeatedPlaysWithAPendingGroupNeverSleep() {
+        PendingGroups groups = new PendingGroups();
+        groups.pending.add(PENDING);
+        client.setSnapcastGroups(groups);
+        selected(PENDING);
+
+        for (int play = 0; play < 5; play++) {
+            client.awaitReceiverDevices();
+        }
+
+        assertTrue(sleeps.isEmpty());
+        assertEquals(5, groups.wakes.size());
+    }
+
     @Test
     public void theMainThreadDoesNotWait() {
         selected("a");

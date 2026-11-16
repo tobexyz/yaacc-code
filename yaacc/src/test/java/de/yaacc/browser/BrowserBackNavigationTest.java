@@ -18,6 +18,7 @@
 package de.yaacc.browser;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 import org.junit.Test;
 
@@ -40,12 +41,20 @@ public class BrowserBackNavigationTest {
     }
 
     @Test
-    public void onTheServerListExitsTheApp() {
-        assertEquals(Action.EXIT, BrowserBackNavigation.decide(true, false));
+    public void onTheServerListTheAppGoesToTheBackgroundAndIsNotClosed() {
+        assertEquals(Action.TO_BACKGROUND, BrowserBackNavigation.decide(true, false));
     }
 
     @Test
     public void onTheServerListTheContentStateIsIgnored() {
-        assertEquals(Action.EXIT, BrowserBackNavigation.decide(true, true));
+        assertEquals(Action.TO_BACKGROUND, BrowserBackNavigation.decide(true, true));
+    }
+
+    @Test
+    public void thereIsNoActionThatQuitsTheApp() {
+        // task 12.1: the last back is the normal "put the app in the background"; closing is the idle timer's and the exit button's job
+        for (Action action : Action.values()) {
+            assertNotEquals("EXIT", action.name());
+        }
     }
 }
