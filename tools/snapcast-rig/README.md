@@ -2,8 +2,8 @@
 
 A throw-away Docker setup with one **snapserver** and two **snapclients** for
 developing and testing YAACC's Snapcast support (issue #319): the control
-library, discovery by address, the feed of audio into a group, and later the
-phone as a client.
+library, discovery by address, the feed of audio into a group, and the phone as
+a client.
 
 > **Local testing only.** The server has **no authentication** and the
 > containers are for development. Every port is published on `127.0.0.1` only.
@@ -60,7 +60,7 @@ between runs (its data directory is a tmpfs).
 
 | Host port (127.0.0.1) | Service |
 | --- | --- |
-| 1704 | stream protocol (snapclients; Phase B: the phone as a client) |
+| 1704 | stream protocol (snapclients, and the phone when it plays as a Snapcast client) |
 | 1705 | JSON-RPC 2.0 over TCP, newline-delimited: the control interface |
 | 4953-4962 | `tcp` stream sources created at runtime with `Stream.AddStream` |
 
@@ -185,7 +185,7 @@ Because the ports are loopback-only, the phone cannot reach them directly:
   ```
   and use `localhost` as the server address in the app.
 
-## Run the opt-in integration tests (later groups)
+## Run the opt-in integration tests
 
 The rig tests are skipped unless a rig host is given. With the rig running:
 
@@ -199,6 +199,11 @@ so CI needs no Docker; with it but without a running rig they fail with a
 connection error (they are attempted, not skipped), so a green run really
 talked to the rig. Tests expect exactly the layout of this rig: stream
 `Default`, clients `rig-host-1` and `rig-host-2#2`, ports as above.
+
+**Stop the rig before you run the whole unit test suite.** Several unit tests of the
+feed (`de.yaacc.multiroom.feed.*`) start a simulated snapserver on the real
+loopback ports 4953 to 4962 and fail when another process, such as this rig
+(which publishes `127.0.0.1:4953-4962`), already holds them.
 
 ## What the rig does not cover
 
