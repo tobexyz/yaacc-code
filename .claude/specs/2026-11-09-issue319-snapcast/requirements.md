@@ -2,7 +2,7 @@
 
 Issue (owner): support Snapcast as an audio target and as a place to control multi-room audio. Background and the research behind this spec: `notes.md` (same folder).
 
-Status: DRAFT for the owner's review. Nothing is implemented. Branch `feat/issue319`.
+Status (2026-11-17): Phase A (source and controls) and Phase B (the phone as a client) are implemented and tested on the owner's devices; the review and security review of Group 12 are postponed by the owner; see `tasks.md` for the open items. Branch `feat/issue319`. The text below is the original requirement set of 2026-11-09 and was not rewritten.
 
 ## Problem Statement
 YAACC plays music to UPnP/OpenHome/MusicCast receivers, but it cannot use a Snapcast multi-room system, which many self-hosters already run (Raspberry Pi and ESP32 clients, a snapserver on a home server). Snapcast has a good server and a large client ecosystem, but its own Android controller/client (Snapdroid) is not keeping up: the repository's last commit is from August 2024 and bundles Snapcast 0.29.0, while the server is at 0.35.0 (checked 2026-11-09, default branch). YAACC can offer both a controller and a speaker, with the UPnP-style control plane its users know.
