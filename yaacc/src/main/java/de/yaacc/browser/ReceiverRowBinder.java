@@ -63,6 +63,7 @@ import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.callback.avtransport.Pause;
 import de.yaacc.upnp.callback.avtransport.Play;
 import de.yaacc.upnp.callback.avtransport.Stop;
+import de.yaacc.upnp.server.openhome.OwnOpenHomeStandby;
 import de.yaacc.upnp.server.http.HttpRequestSender;
 import de.yaacc.util.ThemeHelper;
 import de.yaacc.yxc.YxcDeviceState;
@@ -409,7 +410,9 @@ final class ReceiverRowBinder {
      * The power button (task 12.4): MusicCast first (its state is kept live by the device's own events), then OpenHome (the standby
      * state read by {@link OpenHomePowerMonitor}); a device that offers neither and the phone's own card have none. A Snapcast group
      * card has one only when the phone's own Snapcast client is its first member ({@link SnapcastRowBinder#bindPower}, the client's own
-     * {@link RendererPower} and toggle source). Busy while a change of this device runs, also while a group change of a MusicCast
+     * {@link RendererPower} and toggle source). The card of the app's own OpenHome renderer (a local device that offers OpenHome while
+     * the renderer runs) has one that shows and sets the renderer's standby, the state of the power switch in its OpenHome settings
+     * ({@link OwnOpenHomePower}); the dummy "this phone" card has none. Busy while a change of this device runs, also while a group change of a MusicCast
      * device does.
      */
     private void bindPower(RowViews holder, Device<?, ?, ?> device, final String udn) {
@@ -431,10 +434,21 @@ final class ReceiverRowBinder {
                 power = OpenHomePower.of(true, OpenHomePowerMonitor.getShared().standbyOf(udn));
             }
         }
+        // the app's own OpenHome renderer (task 12.13): its standby is the one the settings sheet's power switch shows and writes
+        final boolean own = OwnOpenHomePower.offered(device instanceof LocalDevice,
+                device instanceof LocalDevice && de.yaacc.player.OpenHomeChoice.offersOpenHome(device),
+                OwnOpenHomeStandby.shared().isAttached());
+        if (own) {
+            power = OwnOpenHomePower.of(own, OwnOpenHomeStandby.shared().standby());
+        }
         boolean busy = RendererPowerController.getShared().isBusy(udn) || YxcGroupController.getShared().isBusy(udn);
         final boolean viaMusicCast = musicCast[0];
         RendererPowerButton.bind(context, holder.power, YxcRowText.clean(String.valueOf(device.getDetails().getFriendlyName())), power, busy,
-                () -> RendererPowerController.getShared().toggle(udn, () -> powerSource(device, udn, viaMusicCast), outcome -> {
+                () -> RendererPowerController.getShared().toggle(udn,
+                        () -> own ? OwnOpenHomePower.source(OwnOpenHomePower.app()) : powerSource(device, udn, viaMusicCast), outcome -> {
+                    if (own) {
+                        return; // the renderer tells the row itself (OwnOpenHomeStandby), the same way as when the settings switch changes it
+                    }
                     if (viaMusicCast) {
                         YxcMonitor.getShared().refreshNow(udn); // its events follow; the read makes sure
                     } else {

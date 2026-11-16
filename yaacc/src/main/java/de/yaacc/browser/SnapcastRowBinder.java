@@ -186,7 +186,7 @@ final class SnapcastRowBinder {
         }
         final String id = idOf(device);
         SnapcastReceivers.GroupState state = receivers().stateOf(id);
-        boolean own = SnapcastOwnClient.cardOffersPower(state == null ? null : state.getGroup(), SnapcastClientIdentities.ownId(context));
+        boolean own = SnapcastOwnClient.cardOffersPower(state == null ? null : state.getVisibleGroup(), SnapcastClientIdentities.ownId(context));
         RendererPower power = SnapcastOwnPower.of(own, own && SnapcastClientPowers.of(context).isPoweredOn());
         RendererPowerButton.bind(context, views.power, cleanName(String.valueOf(device.getDetails().getFriendlyName())), power,
                 RendererPowerController.getShared().isBusy(id), () -> {

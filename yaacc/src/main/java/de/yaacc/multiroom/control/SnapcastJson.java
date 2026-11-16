@@ -343,6 +343,38 @@ public final class SnapcastJson {
         return clamp(value(object, key), min, max, defaultValue);
     }
 
+    /**
+     * As {@link #integer} for a {@code long} range (a time): a number clamped into {@code min..max}, {@code defaultValue} for
+     * anything that is not a number.
+     */
+    static long longInRange(JSONObject object, String key, long min, long max, long defaultValue) {
+        Object value = value(object, key);
+        if (!(value instanceof Number)) {
+            return defaultValue;
+        }
+        if (value instanceof Integer || value instanceof Long || value instanceof Short || value instanceof Byte) {
+            return Math.max(min, Math.min(max, ((Number) value).longValue()));
+        }
+        if (value instanceof BigInteger) {
+            BigInteger big = (BigInteger) value;
+            if (big.bitLength() > 62) {
+                return big.signum() < 0 ? min : max;
+            }
+            return Math.max(min, Math.min(max, big.longValue()));
+        }
+        double number = ((Number) value).doubleValue();
+        if (Double.isNaN(number)) {
+            return defaultValue;
+        }
+        if (number <= min) {
+            return min;
+        }
+        if (number >= max) {
+            return max;
+        }
+        return Math.max(min, Math.min(max, Math.round(number)));
+    }
+
     static int clamp(Object value, int min, int max, int defaultValue) {
         if (!(value instanceof Number)) {
             return defaultValue;

@@ -179,10 +179,12 @@ final class SnapcastGroupSheet {
 
     private void render() {
         SnapcastReceivers.GroupState state = receivers.stateOf(receiverId);
-        SnapcastGroup group = state == null ? null : state.getGroup();
+        // the members this server shows: a client known to several servers is listed once (task 12.12). Display only: every change
+        // goes through SnapcastControls, which works on the full group of a fresh status.
+        SnapcastGroup group = state == null ? null : state.getVisibleGroup();
         SnapcastRowText.Row row = state == null
                 ? SnapcastRowText.of(null, null, false, serverKey.asString(), rowWords)
-                : SnapcastRowText.of(group, state.getStatus(), state.isOnline(), state.getEndpointText(), rowWords);
+                : SnapcastRowText.of(group, state.getVisibleStatus(), state.isOnline(), state.getEndpointText(), rowWords);
         // the phone's own client is recognised by its one client id (task 12.11), connected or offline
         List<SnapcastMemberRows.Member> members = group == null ? new ArrayList<SnapcastMemberRows.Member>()
                 : SnapcastMemberRows.of(group, SnapcastUi.memberWords(context), SnapcastClientIdentities.ownId(context));

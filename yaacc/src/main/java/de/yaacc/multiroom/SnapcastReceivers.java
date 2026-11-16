@@ -469,6 +469,8 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
         Set<String> seen = new HashSet<>();
         synchronized (lock) {
             SnapcastGroupDevice.Labels texts = labels.get();
+            // a client known to several servers is listed once (task 12.12): the card is made from the members that are visible
+            SnapcastMergedClients merged = mergedLocked(entries);
             servers:
             for (SnapcastDirectory.Entry entry : entries) {
                 View view = views.get(entry.getKey());
@@ -479,7 +481,11 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
                     if (result.size() >= MAX_GROUPS) {
                         break servers; // the rest would be cut anyway: do not build it
                     }
-                    SnapcastGroupDevice device = deviceLocked(entry.getKey(), group, !view.online, texts);
+                    SnapcastGroup shown = merged.visible(entry.getKey(), group);
+                    if (shown == null) {
+                        continue; // every member is shown on another server: no card here
+                    }
+                    SnapcastGroupDevice device = deviceLocked(entry.getKey(), shown, !view.online, texts);
                     if (device != null) {
                         result.add(device);
                         seen.add(device.getIdentity().getUdn().getIdentifierString());
@@ -522,19 +528,40 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
         return device;
     }
 
+    /**
+     * What the servers say about each client, as one view for the lists (task 12.12): the status of every listed server in the
+     * order of the directory, and whether its control connection is up. Display only; the control code reads the servers.
+     */
+    private SnapcastMergedClients mergedLocked(List<SnapcastDirectory.Entry> entries) {
+        List<SnapcastMergedClients.Server> servers = new ArrayList<>(entries.size());
+        for (SnapcastDirectory.Entry entry : entries) {
+            View view = views.get(entry.getKey());
+            servers.add(SnapcastMergedClients.Server.of(entry.getKey(), view == null ? null : view.status,
+                    view != null && view.online));
+        }
+        return SnapcastMergedClients.of(servers);
+    }
+
     @Override
     public SnapcastGroupDevice findGroup(String receiverId) {
         SnapcastGroupDevice.Id id = SnapcastGroupDevice.parseId(receiverId);
         if (id == null || directory.find(id.getServerKey()) == null) {
             return null;
         }
+        List<SnapcastDirectory.Entry> entries = directory.snapshot();
         synchronized (lock) {
             View view = views.get(id.getServerKey());
             if (view == null || view.status == null) {
                 return null;
             }
             SnapcastGroup group = view.status.findGroup(id.getGroupId());
-            return group == null ? null : deviceLocked(id.getServerKey(), group, !view.online, labels.get());
+            if (group == null) {
+                return null;
+            }
+            // the same view as the list, so that the list and a stored selection get the same device; a group whose members are all
+            // shown elsewhere is not listed but still exists on its server (a stored selection or output keeps working)
+            SnapcastGroup shown = mergedLocked(entries).visible(id.getServerKey(), group);
+            return deviceLocked(id.getServerKey(), shown == null ? group : shown, !view.online, labels.get());
         }
     }
 
@@ -549,14 +576,18 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
         private final SnapcastGroup group;
         private final SnapcastServerStatus status;
         private final boolean online;
+        private final SnapcastGroup visibleGroup;
+        private final SnapcastServerStatus visibleStatus;
 
         GroupState(SnapcastServerKey serverKey, String groupId, SnapcastGroup group, SnapcastServerStatus status,
-                   boolean online) {
+                   boolean online, SnapcastGroup visibleGroup, SnapcastServerStatus visibleStatus) {
             this.serverKey = serverKey;
             this.groupId = groupId;
             this.group = group;
             this.status = status;
             this.online = online;
+            this.visibleGroup = visibleGroup;
+            this.visibleStatus = visibleStatus;
         }
 
         public SnapcastServerKey getServerKey() {
@@ -575,6 +606,20 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
         /** The last status of the server (its streams, its other groups); null before the first answer. */
         public SnapcastServerStatus getStatus() {
             return status;
+        }
+
+        /**
+         * The group as the lists show it (task 12.12): without the members whose client is shown on another server. For the
+         * texts, counts and member rows only; <b>never for a change of the server</b>, which works on the full group of a fresh
+         * status. Null when the group is not in the status or every member is shown elsewhere.
+         */
+        public SnapcastGroup getVisibleGroup() {
+            return visibleGroup;
+        }
+
+        /** The status of the server as the lists show it: the groups of {@link #getVisibleGroup}. Null before the first answer. */
+        public SnapcastServerStatus getVisibleStatus() {
+            return visibleStatus;
         }
 
         /** True while the control connection is up. False: the values are the last known ones. */
@@ -598,11 +643,15 @@ public final class SnapcastReceivers implements SnapcastGroupSource {
         if (id == null || directory.find(id.getServerKey()) == null) {
             return null;
         }
+        List<SnapcastDirectory.Entry> entries = directory.snapshot();
         synchronized (lock) {
             View view = views.get(id.getServerKey());
             SnapcastServerStatus status = view == null ? null : view.status;
             SnapcastGroup group = status == null ? null : status.findGroup(id.getGroupId());
-            return new GroupState(id.getServerKey(), id.getGroupId(), group, status, view != null && view.online);
+            SnapcastMergedClients merged = mergedLocked(entries);
+            return new GroupState(id.getServerKey(), id.getGroupId(), group, status, view != null && view.online,
+                    group == null ? null : merged.visible(id.getServerKey(), group),
+                    status == null ? null : merged.visible(id.getServerKey(), status));
         }
     }
 

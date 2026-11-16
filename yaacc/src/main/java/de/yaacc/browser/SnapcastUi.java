@@ -159,7 +159,8 @@ public final class SnapcastUi {
             // the server is no longer listed: the endpoint is still shown, it is in the id (security review S20)
             return SnapcastRowText.of(null, null, false, SnapcastRowText.endpointOf(receiverId), words);
         }
-        return SnapcastRowText.of(state.getGroup(), state.getStatus(), state.isOnline(), state.getEndpointText(), words);
+        // the counts are those of the members this server shows (a client known to several servers is shown once, task 12.12)
+        return SnapcastRowText.of(state.getVisibleGroup(), state.getVisibleStatus(), state.isOnline(), state.getEndpointText(), words);
     }
 
     private static Executor daemonExecutor(final String name) {

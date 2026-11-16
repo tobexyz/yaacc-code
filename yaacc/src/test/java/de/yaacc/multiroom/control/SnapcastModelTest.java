@@ -549,4 +549,58 @@ public class SnapcastModelTest {
         assertEquals("host", new SnapcastClient("id", "", "host", true, volume, 0).getDisplayName());
         assertEquals("id", new SnapcastClient("id", "", "", true, volume, 0).getDisplayName());
     }
+
+    // ---- lastSeen (task 12.12): which server shows a client that is connected nowhere
+
+    private static SnapcastClient onlyClientOf(String clientJson) throws Exception {
+        String text = "{\"server\":{\"groups\":[{\"id\":\"g\",\"clients\":[" + clientJson + "]}],\"streams\":[]}}";
+        return SnapcastServerStatus.parseResult(text).getGroups().get(0).getClients().get(0);
+    }
+
+    @Test
+    public void lastSeenOfTheFixtureIsSecondsAndMicrosecondsInOneNumber() {
+        SnapcastServerStatus status = SnapcastFixtures.status("status_one_group.json");
+
+        assertEquals(1_700_000_001_123_456L, status.getGroups().get(0).getClients().get(0).getLastSeenMicros());
+        assertEquals(1_700_000_002_123_456L, status.getGroups().get(0).getClients().get(1).getLastSeenMicros());
+    }
+
+    @Test
+    public void aClientWithoutLastSeenHasZero() throws Exception {
+        assertEquals(0L, onlyClientOf("{\"id\":\"x\"}").getLastSeenMicros());
+        assertEquals(0L, new SnapcastClient("x", "", "", true, new SnapcastVolume(1, false), 0).getLastSeenMicros());
+    }
+
+    @Test
+    public void aLastSeenThatIsNotAnObjectOrNotNumbersCountsAsMissing() throws Exception {
+        assertEquals(0L, onlyClientOf("{\"id\":\"x\",\"lastSeen\":\"yesterday\"}").getLastSeenMicros());
+        assertEquals(0L, onlyClientOf("{\"id\":\"x\",\"lastSeen\":5}").getLastSeenMicros());
+        assertEquals(0L, onlyClientOf("{\"id\":\"x\",\"lastSeen\":{\"sec\":\"1\",\"usec\":\"2\"}}").getLastSeenMicros());
+        assertEquals(0L, onlyClientOf("{\"id\":\"x\",\"lastSeen\":{}}").getLastSeenMicros());
+    }
+
+    @Test
+    public void aMissingPartIsZeroAndOddNumbersAreKeptInRange() throws Exception {
+        assertEquals(5_000_000L, onlyClientOf("{\"id\":\"x\",\"lastSeen\":{\"sec\":5}}").getLastSeenMicros());
+        assertEquals(7L, onlyClientOf("{\"id\":\"x\",\"lastSeen\":{\"usec\":7}}").getLastSeenMicros());
+        assertEquals("a negative time is none", 0L, onlyClientOf("{\"id\":\"x\",\"lastSeen\":{\"sec\":-5,\"usec\":-1}}").getLastSeenMicros());
+        long huge = onlyClientOf("{\"id\":\"x\",\"lastSeen\":{\"sec\":1e300,\"usec\":99999999999}}").getLastSeenMicros();
+        assertTrue("a huge value is cut, it never overflows into a small or negative one", huge > 1_700_000_000_000_000L);
+        assertTrue(huge < Long.MAX_VALUE / 2);
+        long big = onlyClientOf("{\"id\":\"x\",\"lastSeen\":{\"sec\":123456789012345678901234567890}}").getLastSeenMicros();
+        assertTrue(big > 1_700_000_000_000_000L && big < Long.MAX_VALUE / 2);
+    }
+
+    @Test
+    public void everyChangeOfAClientKeepsItsLastSeenAndItIsPartOfTheEquality() {
+        SnapcastClient seen = new SnapcastClient("x", "n", "h", true, new SnapcastVolume(1, false), 2, 42L);
+
+        assertEquals(42L, seen.withName("m").getLastSeenMicros());
+        assertEquals(42L, seen.withConnected(false).getLastSeenMicros());
+        assertEquals(42L, seen.withVolume(new SnapcastVolume(9, true)).getLastSeenMicros());
+        assertEquals(42L, seen.withLatencyMs(5).getLastSeenMicros());
+        assertEquals(seen, new SnapcastClient("x", "n", "h", true, new SnapcastVolume(1, false), 2, 42L));
+        assertNotEquals(seen, new SnapcastClient("x", "n", "h", true, new SnapcastVolume(1, false), 2, 43L));
+        assertEquals(0L, new SnapcastClient("x", "n", "h", true, new SnapcastVolume(1, false), 2, -9L).getLastSeenMicros());
+    }
 }

@@ -68,7 +68,9 @@ final class SnapcastLinkSheet {
         }
         final SnapcastServerKey serverKey = id.getServerKey();
         final String groupId = id.getGroupId();
-        final List<SnapcastLinkChoices.Choice> choices = SnapcastLinkChoices.of(state.getStatus(), groupId,
+        // only the clients this server shows (task 12.12): never a client of another server, never an offline copy that another
+        // server shows. A member that is not listed is not in the change either; the control layer keeps it in the group.
+        final List<SnapcastLinkChoices.Choice> choices = SnapcastLinkChoices.of(state.getVisibleStatus(), groupId,
                 SnapcastUi.linkWords(context));
         List<YxcLinkSheet.Row> rows = new ArrayList<>();
         for (SnapcastLinkChoices.Choice choice : choices) {

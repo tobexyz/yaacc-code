@@ -1106,4 +1106,165 @@ public class SnapcastReceiversTest {
         assertTrue(link.closed);
         assertEquals("the one listener of the test, once; the receivers took theirs off before the close", 1, told[0]);
     }
+
+    // ---- task 12.12: a client known to several servers is listed once (a view; the servers keep everything)
+
+    private static SnapcastClient seen(String id, String name, boolean connected, long lastSeenMicros) {
+        return new SnapcastClient(id, name, "", connected, new SnapcastVolume(50, false), 0, lastSeenMicros);
+    }
+
+    private static SnapcastGroup groupOf(String id, String name, SnapcastClient... clients) {
+        return new SnapcastGroup(id, name, false, "Default", Arrays.asList(clients));
+    }
+
+    /** x is connected on server 2 and an offline leftover on server 3 (which has another client y in the same group). */
+    private void phoneOnTwoServers() throws Exception {
+        server(2);
+        server(3);
+        receivers.pageStarted();
+        linkOf(2).update(status(groupOf("g1", "Living", seen("x", "Phone", true, 100), seen("a", "Kitchen", true, 100))), true);
+        linkOf(3).update(status(groupOf("g2", "Other", seen("x", "Phone", false, 900), seen("y", "Desk", true, 100))), true);
+    }
+
+    @Test
+    public void theListShowsAClientOnTheServerWhereItIsConnectedAndCountsOnlyTheShownMembers() throws Exception {
+        phoneOnTwoServers();
+
+        List<SnapcastGroupDevice> groups = receivers.groups();
+
+        assertEquals(2, groups.size());
+        for (SnapcastGroupDevice device : groups) {
+            if (device.getGroupId().equals("g1")) {
+                assertEquals("x is shown here: x and a", 2, device.getClientCount());
+            } else {
+                assertEquals("x is shown on the other server: only y is left here", 1, device.getClientCount());
+            }
+        }
+    }
+
+    @Test
+    public void aGroupWhoseMembersAreAllShownElsewhereHasNoCardButStillExistsOnItsServer() throws Exception {
+        server(2);
+        server(3);
+        receivers.pageStarted();
+        linkOf(2).update(status(groupOf("g1", "Living", seen("x", "Phone", true, 100))), true);
+        linkOf(3).update(status(groupOf("g2", "Ghost group", seen("x", "Phone", false, 900))), true);
+        String hidden = SnapcastGroupDevice.idOf(key(3), "g2");
+
+        List<SnapcastGroupDevice> groups = receivers.groups();
+
+        assertEquals(1, groups.size());
+        assertEquals("g1", groups.get(0).getGroupId());
+        assertNotNull("a stored selection or output of it still resolves", receivers.findGroup(hidden));
+        SnapcastReceivers.GroupState state = receivers.stateOf(hidden);
+        assertNotNull(state.getGroup());
+        assertNull("the lists have nothing to show of it", state.getVisibleGroup());
+        assertEquals("the server's own group is untouched", 1, state.getGroup().getClients().size());
+        assertTrue(state.getVisibleStatus().getGroups().isEmpty());
+        assertNotNull("the status itself is still there", state.getStatus());
+    }
+
+    @Test
+    public void theStateGivesTheListsTheShownMembersAndTheControlsTheFullGroup() throws Exception {
+        phoneOnTwoServers();
+
+        SnapcastReceivers.GroupState state = receivers.stateOf(SnapcastGroupDevice.idOf(key(3), "g2"));
+
+        assertEquals(2, state.getGroup().getClients().size());
+        assertNotNull(state.getGroup().findClient("x"));
+        assertEquals(1, state.getVisibleGroup().getClients().size());
+        assertNull(state.getVisibleGroup().findClient("x"));
+        assertEquals(1, state.getVisibleStatus().getGroups().get(0).getClients().size());
+        assertEquals("the status the control code uses is the full one", 2,
+                state.getStatus().getGroups().get(0).getClients().size());
+    }
+
+    @Test
+    public void theSingleServerListIsUnchangedAndKeepsItsObjects() throws Exception {
+        server(2);
+        receivers.pageStarted();
+        SnapcastGroup group = groupOf("g1", "Living", seen("x", "Phone", false, 1), seen("a", "Kitchen", true, 1));
+        linkOf(2).update(status(group), true);
+
+        SnapcastReceivers.GroupState state = receivers.stateOf(SnapcastGroupDevice.idOf(key(2), "g1"));
+
+        assertSame(state.getGroup(), state.getVisibleGroup());
+        assertSame(state.getStatus(), state.getVisibleStatus());
+        assertEquals(1, receivers.groups().size());
+        assertEquals(2, receivers.groups().get(0).getClientCount());
+    }
+
+    @Test
+    public void theCardKeepsItsIdentityWhileTheFilterHidesAMember() throws Exception {
+        phoneOnTwoServers();
+
+        List<SnapcastGroupDevice> first = receivers.groups();
+        List<SnapcastGroupDevice> second = receivers.groups();
+
+        assertEquals(first.size(), second.size());
+        for (int i = 0; i < first.size(); i++) {
+            assertSame("the lists compare devices by identity", first.get(i), second.get(i));
+        }
+        assertSame("a stored selection resolves to the card of the list", first.get(0).getGroupId().equals("g2") ? first.get(0) : first.get(1),
+                receivers.findGroup(SnapcastGroupDevice.idOf(key(3), "g2")));
+    }
+
+    @Test
+    public void theTitleOfACardComesFromItsFirstShownMember() throws Exception {
+        server(2);
+        server(3);
+        receivers.pageStarted();
+        linkOf(2).update(status(groupOf("g1", "", seen("x", "Phone", true, 100))), true);
+        linkOf(3).update(status(groupOf("g2", "", seen("x", "Phone", false, 900), seen("y", "Desk", true, 100))), true);
+
+        String title = null;
+        for (SnapcastGroupDevice device : receivers.groups()) {
+            if (device.getGroupId().equals("g2")) {
+                title = device.getDisplayString();
+            }
+        }
+
+        assertEquals("Desk (Snapcast)", title);
+    }
+
+    @Test
+    public void whenAClientMovesTheListFollowsAtOnce() throws Exception {
+        phoneOnTwoServers();
+        for (SnapcastGroupDevice device : receivers.groups()) {
+            assertEquals(device.getGroupId().equals("g1") ? 2 : 1, device.getClientCount());
+        }
+
+        // x goes offline on server 2 (last seen 500) and server 3 saw it later (900): server 3 shows it now
+        linkOf(2).update(status(groupOf("g1", "Living", seen("x", "Phone", false, 500), seen("a", "Kitchen", true, 100))), true);
+
+        for (SnapcastGroupDevice device : receivers.groups()) {
+            assertEquals(device.getGroupId().equals("g1") ? 1 : 2, device.getClientCount());
+        }
+    }
+
+    @Test
+    public void aServerThatIsNotReachableDoesNotHoldAClientThatIsConnectedElsewhere() throws Exception {
+        phoneOnTwoServers();
+        // server 3 now says x is connected (as it last was) but its connection is down; server 2 still has it connected
+        linkOf(3).update(status(groupOf("g2", "Other", seen("x", "Phone", true, 900), seen("y", "Desk", true, 100))), false);
+
+        SnapcastReceivers.GroupState state = receivers.stateOf(SnapcastGroupDevice.idOf(key(3), "g2"));
+
+        assertNull(state.getVisibleGroup().findClient("x"));
+        assertNotNull(state.getGroup().findClient("x"));
+    }
+
+    @Test
+    public void aTieOfTheLastSeenGoesToTheFirstServerOfTheDirectory() throws Exception {
+        server(3);
+        server(2);
+        receivers.pageStarted();
+        linkOf(2).update(status(groupOf("g1", "A", seen("x", "Phone", false, 500), seen("a", "Kitchen", true, 1))), true);
+        linkOf(3).update(status(groupOf("g2", "B", seen("x", "Phone", false, 500), seen("y", "Desk", true, 1))), true);
+
+        for (SnapcastGroupDevice device : receivers.groups()) {
+            assertEquals("the directory sorts by key: 10.0.0.2 is first and shows x", device.getGroupId().equals("g1") ? 2 : 1,
+                    device.getClientCount());
+        }
+    }
 }

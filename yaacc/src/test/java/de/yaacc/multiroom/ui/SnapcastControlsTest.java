@@ -452,6 +452,75 @@ public class SnapcastControlsTest {
         assertEquals(GROUP, caller.last("Group.SetClients").optString("id"));
     }
 
+    /**
+     * Task 12.12, the safety rule: the lists hide a client that another server shows; a change from such a list must never drop it.
+     * "c" is an offline member of g1 here; server 2 has it connected, so the sheet does not show it.
+     */
+    private SnapcastLinkChoices.Change changeFromTheListsThatHideC(List<String> checked) {
+        SnapcastServerKey other = SnapcastEndpoint.parse("192.168.1.9").toKey();
+        de.yaacc.multiroom.SnapcastMergedClients merged = de.yaacc.multiroom.SnapcastMergedClients.of(Arrays.asList(
+                de.yaacc.multiroom.SnapcastMergedClients.Server.of(KEY, link.getStatus(), true),
+                de.yaacc.multiroom.SnapcastMergedClients.Server.of(other,
+                        status(group("gx", "Elsewhere", "Default", client("c", "Attic", true, 100, false))), true)));
+        List<SnapcastLinkChoices.Choice> shown = SnapcastLinkChoices.of(merged.visible(KEY, link.getStatus()), GROUP,
+                new SnapcastLinkChoices.Words() {
+                    @Override
+                    public String unnamedClient() {
+                        return "?";
+                    }
+
+                    @Override
+                    public String unnamedGroup() {
+                        return "?";
+                    }
+
+                    @Override
+                    public String inGroup(String client, String group) {
+                        return client;
+                    }
+
+                    @Override
+                    public String inGroupThatEnds(String client, String group) {
+                        return client;
+                    }
+
+                    @Override
+                    public String lastMember(String client) {
+                        return client;
+                    }
+
+                    @Override
+                    public String offline(String label) {
+                        return label;
+                    }
+                });
+        for (SnapcastLinkChoices.Choice choice : shown) {
+            assertFalse("the hidden member is not listed", choice.getClientId().equals("c"));
+        }
+        return SnapcastLinkChoices.changeOf(shown, checked);
+    }
+
+    @Test
+    public void aMemberThatTheListsHideStaysInTheGroupWhenAnotherClientIsLinked() {
+        caller.serverMembers = new String[]{"a", "b", "c"};
+
+        controls.changeMembers(KEY, GROUP, changeFromTheListsThatHideC(Arrays.asList("a", "b", "d")));
+        actions.runAll();
+
+        assertEquals("the request is the full membership of the server, the hidden id included",
+                "[\"a\",\"b\",\"c\",\"d\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
+    @Test
+    public void aMemberThatTheListsHideStaysInTheGroupWhenAnotherClientIsUnlinked() {
+        caller.serverMembers = new String[]{"a", "b", "c"};
+
+        controls.changeMembers(KEY, GROUP, changeFromTheListsThatHideC(Arrays.asList("a")));
+        actions.runAll();
+
+        assertEquals("[\"a\",\"c\"]", caller.last("Group.SetClients").optJSONArray("clients").toString());
+    }
+
     @Test
     public void aLinkChangeStartsFromTheMembersTheServerHasNow() {
         caller.serverMembers = new String[]{"a", "b", "c", "e"}; // another controller added "e" behind the model
