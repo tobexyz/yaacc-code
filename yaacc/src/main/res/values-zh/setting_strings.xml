@@ -121,9 +121,9 @@
     <string name="settings_upnp_selected_interface_summary">选择用于 UPnP 的特定网络接口（留空 = 自动检测）</string>
     <string name="settings_upnp_selected_interface_none">"  自动检测（尽力而为）"</string>
     <string name="settings_upnp_selected_interface_blacklisted_warning">⚠️ 所选接口已被列入黑名单，若要使用该接口，请将其从列表中移除!</string>
-    <string name="settings_snapcast_category">Snapcast（实验性）</string>
+    <string name="settings_snapcast_category">Snapcast</string>
     <string name="settings_snapcast_play_experimental_title">向 Snapcast 组播放</string>
-    <string name="settings_snapcast_play_experimental_summary">实验性功能：播放器的音乐会发送到 Snapcast 服务器，由某个组播放。音频以未加密方式发送到服务器。尚未在设备上测试。</string>
+    <string name="settings_snapcast_play_experimental_summary">播放器的音乐会发送到 Snapcast 服务器，由某个组播放。音频以未加密方式发送到服务器。</string>
     <string name="settings_snapcast_discovery_title">查找 Snapcast 服务器</string>
     <string name="settings_snapcast_discovery_summary">在本地网络中搜索 Snapcast 服务器，默认开启。它会通过网络发送 mDNS 查询，并连接网络中所有主动声明自己的服务器。这些声明未经身份验证：网络中的任何设备都可以声明一个服务器。在你不信任的网络上请取消勾选。关闭时：只使用下方列出的服务器。</string>
     <string name="settings_snapcast_servers_title">Snapcast 服务器</string>
@@ -131,14 +131,14 @@
     <string name="settings_snapcast_about_title">Snapcast 的要求</string>
     <string name="settings_snapcast_about_summary">YAACC 向现有的 Snapcast 服务器播放；你的网络中需要有一台可访问的服务器。</string>
     <string name="settings_snapcast_client_spike_title">Snapcast 客户端试验（试听测试）</string>
-    <string name="settings_snapcast_client_spike_summary">实验性功能：显示一个测试界面，本手机作为 Snapcast 客户端播放，用耳朵检查同步。默认关闭。音频和控制未加密传输。尚未在真实设备上测试。</string>
+    <string name="settings_snapcast_client_spike_summary">显示一个测试界面，本手机作为 Snapcast 客户端播放，用耳朵检查同步。默认关闭。音频和控制未加密传输。</string>
     <string name="settings_snapcast_client_spike_open_title">Snapcast 客户端试听测试</string>
     <string name="settings_snapcast_client_spike_open_summary">将本手机连接到 Snapcast 服务器并查看同步数据</string>
     <string name="settings_snapcast_client_switched_on_title">Snapcast 客户端</string>
     <string name="settings_snapcast_client_switched_on_summary_on">已开启：本手机作为 Snapcast 客户端播放，并在应用启动时再次启动；如果勾选了“开机时自动启动服务器”，手机重启后也会如此。</string>
     <string name="settings_snapcast_client_switched_on_summary_off">已关闭：本手机不是 Snapcast 客户端。</string>
     <string name="settings_renderer_output_title">输出</string>
-    <string name="settings_renderer_output_summary">实验性功能：音频以未加密方式发送到服务器。尚未在设备上测试。任何能访问该接收器的设备都可以更改整个组的音量和静音。Snapcast 组：只有该组播放，本手机保持静音；音量和静音即该组的音量和静音。</string>
+    <string name="settings_renderer_output_summary">音频以未加密方式发送到服务器。任何能访问该接收器的设备都可以更改整个组的音量和静音。Snapcast 组：只有该组播放，本手机保持静音；音量和静音即该组的音量和静音。</string>
     <string name="settings_renderer_output_device">此设备</string>
     <string name="settings_renderer_output_group_option">Snapcast 组</string>
     <string name="settings_renderer_output_group_title">Snapcast 组</string>

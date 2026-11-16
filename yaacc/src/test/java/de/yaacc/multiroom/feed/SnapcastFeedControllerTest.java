@@ -263,10 +263,14 @@ public class SnapcastFeedControllerTest {
     private final class FakeOutputs implements FeedOutputFactory {
         final List<FakeOutput> opened = new ArrayList<>();
         IOException failure;
+        RuntimeException runtimeFailure;
 
         @Override
         public FeedOutput open(InetAddress address, int port, Runnable onFailed) throws IOException {
             calls.add("open");
+            if (runtimeFailure != null) {
+                throw runtimeFailure;
+            }
             if (failure != null) {
                 throw failure;
             }
@@ -618,6 +622,52 @@ public class SnapcastFeedControllerTest {
         assertEquals(FeedError.Kind.CONNECT_FAILED, answer.failures.get(0).getKind());
         assertEquals(1, streams.releaseCalls);
         assertNothingLeftRunning(controller);
+    }
+
+    @Test
+    public void aRefusedConnectionIsLoggedWithTheClassOfTheFailureAndThePortAndStillIsConnectFailed() {
+        // the owner's case (2026-11-16): the server's firewall blocked the stream port; the toast is the same for every cause,
+        // so the debug log names the class and the port of the stream (never the address or the text of the exception)
+        outputs.failure = new java.net.ConnectException("Connection refused to 127.0.0.1 secret-text");
+        Answer answer = new Answer();
+        SnapcastFeedController controller = controller();
+
+        controller.start(answer);
+
+        assertEquals(FeedError.Kind.CONNECT_FAILED, answer.failures.get(0).getKind());
+        assertTrue(events.log.toString(), events.log.contains("connect failed: ConnectException (port 4955)"));
+        for (String line : events.log) {
+            assertFalse(line, line.contains("secret-text"));
+            assertFalse(line, line.contains("127."));
+            assertFalse(line, line.contains(PEER.getHostAddress()));
+        }
+        assertNothingLeftRunning(controller);
+    }
+
+    @Test
+    public void aTimeoutOnTheStreamPortIsLoggedWithItsClassAndTheStreamsPort() {
+        streams.ensureResult = ready(4961);
+        outputs.failure = new java.net.SocketTimeoutException("connect timed out");
+        Answer answer = new Answer();
+        SnapcastFeedController controller = controller();
+
+        controller.start(answer);
+
+        assertEquals(FeedError.Kind.CONNECT_FAILED, answer.failures.get(0).getKind());
+        assertTrue(events.log.toString(), events.log.contains("connect failed: SocketTimeoutException (port 4961)"));
+        assertFalse(events.log.toString(), events.log.toString().contains("timed out"));
+    }
+
+    @Test
+    public void anUnexpectedRuntimeFailureOfTheConnectIsLoggedWithItsClassToo() {
+        outputs.runtimeFailure = new IllegalStateException("closed");
+        Answer answer = new Answer();
+        SnapcastFeedController controller = controller();
+
+        controller.start(answer);
+
+        assertEquals(FeedError.Kind.CONNECT_FAILED, answer.failures.get(0).getKind());
+        assertTrue(events.log.toString(), events.log.contains("connect failed: IllegalStateException (port 4955)"));
     }
 
     @Test

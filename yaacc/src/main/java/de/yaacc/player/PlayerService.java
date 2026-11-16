@@ -53,6 +53,7 @@ import de.yaacc.browser.BrowserLauncher;
 import de.yaacc.multiroom.SnapcastGroupDevice;
 import de.yaacc.multiroom.SnapcastHub;
 import de.yaacc.multiroom.SnapcastReceivers;
+import de.yaacc.multiroom.SnapcastSettings;
 import de.yaacc.multiroom.SnapcastRendererOutput;
 import de.yaacc.share.ContentDuration;
 import de.yaacc.share.PickedQueue;
@@ -885,8 +886,8 @@ public class PlayerService extends MediaSessionService {
     }
 
     /**
-     * Whether the experimental option "Play to Snapcast groups" is on (off by default). Read at every call, so that
-     * switching it takes effect at the next play. False when the preferences can not be read.
+     * Whether the option "Play to Snapcast groups" is on (on by default, a stored choice is kept: {@link SnapcastSettings}).
+     * Read at every call, so that switching it takes effect at the next play. False when the preferences can not be read.
      */
     boolean snapcastPlayEnabled(UpnpClient upnpClient) {
         android.content.Context context = upnpClient == null ? null : upnpClient.getContext();
@@ -894,7 +895,7 @@ public class PlayerService extends MediaSessionService {
             return false;
         }
         android.content.SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        return preferences != null && preferences.getBoolean(context.getString(R.string.settings_snapcast_play_experimental), false);
+        return SnapcastSettings.isPlayEnabled(preferences == null ? null : preferences::getBoolean);
     }
 
     /**

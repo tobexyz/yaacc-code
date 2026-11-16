@@ -167,9 +167,9 @@
     <string name="settings_duration_format_key" translatable="false">settings_duration_format_key</string>
     <string name="settings_local_server_if_filter_names">interfaces blacklisted for obtaining IP addresses</string>
     <string name="settings_local_server_title">local server configuration</string>
-    <string name="settings_snapcast_category">Snapcast (experimental)</string>
+    <string name="settings_snapcast_category">Snapcast</string>
     <string name="settings_snapcast_play_experimental_title">Play to Snapcast groups</string>
-    <string name="settings_snapcast_play_experimental_summary">Experimental: music from the player is sent to a Snapcast server so that a group plays it. The audio is sent unencrypted to the server. Not tested on a device yet.</string>
+    <string name="settings_snapcast_play_experimental_summary">Music from the player is sent to a Snapcast server so that a group plays it. The audio is sent unencrypted to the server.</string>
     <string name="settings_snapcast_play_experimental" translatable="false">settings_snapcast_play_experimental</string>
     <string name="settings_snapcast_discovery_title">Find Snapcast servers</string>
     <string name="settings_snapcast_discovery_summary">Searches the local network for Snapcast servers; on by default. It sends mDNS queries on the network and contacts every server that announces itself there. Announcements are not authenticated: any device on the network can announce a server. Clear the checkbox on networks you do not trust. Off: only the servers listed below are used.</string>
@@ -180,7 +180,7 @@
     <string name="settings_snapcast_discovery" translatable="false">settings_snapcast_discovery</string>
     <string name="settings_snapcast_servers" translatable="false">settings_snapcast_servers</string>
     <string name="settings_snapcast_client_spike_title">Snapcast client spike (listen test)</string>
-    <string name="settings_snapcast_client_spike_summary">Experimental: shows a test screen where this phone plays as a Snapcast client, to check the sync by ear. Off by default. Audio and control are sent unencrypted. Not tested on a device yet.</string>
+    <string name="settings_snapcast_client_spike_summary">Shows a test screen where this phone plays as a Snapcast client, to check the sync by ear. Off by default. Audio and control are sent unencrypted.</string>
     <string name="settings_snapcast_client_spike_open_title">Snapcast client listen test</string>
     <string name="settings_snapcast_client_spike_open_summary">Connect this phone to a Snapcast server and see the sync numbers</string>
     <string name="settings_snapcast_client_switched_on_title">Snapcast client</string>
@@ -190,7 +190,7 @@
     <string name="settings_snapcast_client_spike" translatable="false">settings_snapcast_client_spike</string>
     <string name="settings_snapcast_client_spike_open" translatable="false">settings_snapcast_client_spike_open</string>
     <string name="settings_renderer_output_title">Output</string>
-    <string name="settings_renderer_output_summary">Experimental: the audio is sent unencrypted to the server. Not tested on a device yet. Any device that can reach the receiver can change the volume and mute of the whole group. Snapcast group: only the group plays, this phone stays silent; volume and mute are the group\'s.</string>
+    <string name="settings_renderer_output_summary">The audio is sent unencrypted to the server. Any device that can reach the receiver can change the volume and mute of the whole group. Snapcast group: only the group plays, this phone stays silent; volume and mute are the group\'s.</string>
     <string name="settings_renderer_output_device">This device</string>
     <string name="settings_renderer_output_group_option">Snapcast group</string>
     <string name="settings_renderer_output_group_title">Snapcast group</string>

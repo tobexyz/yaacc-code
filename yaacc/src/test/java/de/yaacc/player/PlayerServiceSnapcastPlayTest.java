@@ -59,7 +59,7 @@ import de.yaacc.share.QueueItems;
 import de.yaacc.upnp.UpnpClient;
 
 /**
- * Playing to a Snapcast group is wired behind the experimental option: with it off the group gets no player and the
+ * Playing to a Snapcast group is wired behind the option "Play to Snapcast groups" (on by default since task 12.20): with it off the group gets no player and the
  * user hears "not available yet" once (the behavior of before, see PlayerServiceSnapcastGuardTest); with it on a
  * music queue gets a Snapcast player per group, straight from the phone (no share), and video or images are refused
  * once with their own text. Plain JVM: the player factory and the toasts are seams of the service.
@@ -116,29 +116,28 @@ public class PlayerServiceSnapcastPlayTest {
     }
 
     @Test
-    public void theOptionIsReadFromThePreferenceWithOffAsDefault() {
+    public void theOptionIsReadFromThePreferenceWithOnAsDefault() {
         Context context = mock(Context.class);
         SharedPreferences preferences = mock(SharedPreferences.class);
-        when(context.getString(de.yaacc.R.string.settings_snapcast_play_experimental)).thenReturn("settings_snapcast_play_experimental");
         when(context.getSharedPreferences(anyString(), org.mockito.ArgumentMatchers.anyInt())).thenReturn(preferences);
         when(client.getContext()).thenReturn(context);
-        when(preferences.getBoolean("settings_snapcast_play_experimental", false)).thenReturn(false, true);
+        when(preferences.getBoolean("settings_snapcast_play_experimental", true)).thenReturn(false, true);
         PlayerService plain = new PlayerService();
 
         assertFalse(plain.snapcastPlayEnabled(client));
         assertTrue("read again at every call", plain.snapcastPlayEnabled(client));
-        verify(preferences, times(2)).getBoolean("settings_snapcast_play_experimental", false);
+        verify(preferences, times(2)).getBoolean("settings_snapcast_play_experimental", true);
     }
 
     @Test
-    public void thePreferenceIsDeclaredOffByDefaultInTheSettingsScreen() throws Exception {
+    public void thePreferenceIsDeclaredOnByDefaultInTheSettingsScreen() throws Exception {
         String xml = new String(Files.readAllBytes(new File("src/main/res/xml/preference.xml").toPath()), StandardCharsets.UTF_8);
         int at = xml.indexOf("android:key=\"@string/settings_snapcast_play_experimental\"");
         assertTrue(at > 0);
         int start = xml.lastIndexOf("<CheckBoxPreference", at);
         int end = xml.indexOf("/>", at);
         String element = xml.substring(start, end);
-        assertTrue(element, element.contains("android:defaultValue=\"false\""));
+        assertTrue(element, element.contains("android:defaultValue=\"true\""));
         assertTrue(element, element.contains("@string/settings_snapcast_play_experimental_summary"));
         assertTrue(element, element.contains("@string/settings_snapcast_play_experimental_title"));
         assertEquals("a category with a clear name", 1, xml.split("@string/settings_snapcast_category", -1).length - 1);
@@ -157,8 +156,9 @@ public class PlayerServiceSnapcastPlayTest {
         String english = new String(Files.readAllBytes(new File("src/main/res/values/setting_strings.xml").toPath()), StandardCharsets.UTF_8);
         assertTrue(english.contains("<string name=\"settings_snapcast_play_experimental\" translatable=\"false\">settings_snapcast_play_experimental</string>"));
         assertTrue(english.contains("unencrypted"));
-        assertTrue(english.contains("Not tested on a device yet"));
-        assertTrue(english.contains("Snapcast (experimental)"));
+        assertFalse(english.contains("Not tested on a device yet"));
+        assertFalse(english.contains("Snapcast (experimental)"));
+        assertTrue(english.contains("<string name=\"settings_snapcast_category\">Snapcast</string>"));
     }
 
     // ---- the option off: as before

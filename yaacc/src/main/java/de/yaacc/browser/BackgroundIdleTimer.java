@@ -91,14 +91,15 @@ public final class BackgroundIdleTimer {
         boolean playersActive = client != null && !client.getCurrentPlayers().isEmpty();
         // a player that feeds a Snapcast group is also a player; it is asked on its own so that the rule does not depend on it
         boolean feedActive = client != null && client.getCurrentPlayers().stream().anyMatch(p -> p instanceof SnapcastPlayer);
-        AutoCloseRule.Facts facts = new AutoCloseRule.Facts()
-                .playersActive(playersActive)
-                .serverEnabled(preferences.getBoolean(appContext.getString(R.string.settings_local_server_chkbx), false))
-                .rendererEnabled(preferences.getBoolean(appContext.getString(R.string.settings_local_server_receiver_chkbx), false))
-                .proxyEnabled(preferences.getBoolean(appContext.getString(R.string.settings_local_server_proxy_chkbx), false))
-                .snapcastClientSessionActive(SnapcastClientRuntime.isActive())
-                .snapcastFeedActive(feedActive)
-                .autostartEnabled(preferences.getBoolean(appContext.getString(R.string.settings_local_server_autostart_chkbx), false));
+        // the renderer and proxy checkboxes count only with the master switch ("UPnP Server"), see IdleFacts
+        AutoCloseRule.Facts facts = IdleFacts.of(
+                preferences.getBoolean(appContext.getString(R.string.settings_local_server_chkbx), false),
+                preferences.getBoolean(appContext.getString(R.string.settings_local_server_receiver_chkbx), false),
+                preferences.getBoolean(appContext.getString(R.string.settings_local_server_proxy_chkbx), false),
+                playersActive,
+                SnapcastClientRuntime.isActive(),
+                feedActive,
+                preferences.getBoolean(appContext.getString(R.string.settings_local_server_autostart_chkbx), false));
         AutoCloseRule.Keep keep = AutoCloseRule.reasonToStay(facts);
         if (keep == AutoCloseRule.Keep.NONE) {
             YaaccLogger.d(BackgroundIdleTimer.class.getName(), "Idle in background, exiting");

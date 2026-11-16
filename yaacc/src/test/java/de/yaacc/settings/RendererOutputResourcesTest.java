@@ -207,20 +207,26 @@ public class RendererOutputResourcesTest {
     }
 
     @Test
-    public void theSummaryOfTheOutputSaysTheAudioIsUnencryptedAndExperimentalInEveryLocale() throws Exception {
-        // Fix Group 9b W2: choosing the group starts the same feed as the experimental option, so the same disclosure is there
+    public void theSummaryOfTheOutputSaysTheAudioIsUnencryptedInEveryLocale() throws Exception {
+        // Fix Group 9b W2: choosing the group starts the same feed as the play option, so the same disclosure is there; since
+        // 2026-11-16 (issue 319 task 12.20) the wording "experimental" / "not tested on a device yet" is gone, the facts stay
         String[][] words = {
-                {"values", "Experimental", "unencrypted", "Not tested on a device yet"},
-                {"values-de", "Experimentell", "unverschlüsselt", "noch nicht getestet"},
-                {"values-es", "Experimental", "sin cifrar", "Aún no se ha probado"},
-                {"values-fr", "Expérimental", "non chiffré", "Pas encore testé"},
-                {"values-nl", "Experimenteel", "onversleuteld", "Nog niet op een apparaat getest"},
-                {"values-pt", "Experimental", "sem encriptação", "Ainda não foi testado"},
-                {"values-zh", "实验性功能", "未加密", "尚未在设备上测试"}};
+                {"values", "unencrypted"},
+                {"values-de", "unverschlüsselt"},
+                {"values-es", "sin cifrar"},
+                {"values-fr", "non chiffré"},
+                {"values-nl", "onversleuteld"},
+                {"values-pt", "sem encriptação"},
+                {"values-zh", "未加密"}};
+        String[] gone = {"xperiment", "xpérimental", "实验", "Not tested", "not tested", "noch nicht getestet", "Aún no se ha probado",
+                "Pas encore testé", "Nog niet op een apparaat getest", "Ainda não foi testado", "尚未在设备上测试"};
         for (String[] row : words) {
             String text = strings(row[0], "setting_strings.xml").get("settings_renderer_output_summary");
             for (int i = 1; i < row.length; i++) {
                 assertTrue(row[0] + " summary lacks \"" + row[i] + "\": " + text, text.contains(row[i]));
+            }
+            for (String old : gone) {
+                assertFalse(row[0] + " summary still says \"" + old + "\": " + text, text.contains(old));
             }
         }
     }
@@ -245,8 +251,8 @@ public class RendererOutputResourcesTest {
             assertTrue(file + " describes the output", start >= 0);
             String entry = text.substring(start, Math.min(text.length(), start + 2500));
             assertTrue(file + " says unencrypted: " + entry, entry.contains("unencrypted"));
-            assertTrue(file + " says it is not tested on a device", entry.contains("not tested on a device") || entry.contains("Not tested on a device")
-                    || entry.contains("not tested on a device yet"));
+            assertFalse(file + " no longer says it is not tested on a device: " + entry, entry.contains("ot tested on a device"));
+            assertFalse(file + " no longer calls it experimental: " + entry, entry.toLowerCase(java.util.Locale.ROOT).contains("experimental"));
         }
     }
 
@@ -273,16 +279,16 @@ public class RendererOutputResourcesTest {
     @Test
     public void theSummaryOfTheOutputIsShortEnoughForTheListLayoutInEveryLocale() throws Exception {
         // Fix Group 9e W8: a ListPreference shows at most 10 lines; on a narrow phone with a large font the last sentence of a
-        // long summary is cut off, so the three disclosures are in a short text, the unencrypted audio and the experiment first
+        // long summary is cut off, so the disclosures are in a short text, the unencrypted audio first
         final int limit = 330;
         String[][] disclosures = {
-                {"values", "unencrypted", "Not tested on a device yet", "Any device that can reach the receiver"},
-                {"values-de", "unverschlüsselt", "noch nicht getestet", "Jedes Gerät, das den Empfänger erreicht"},
-                {"values-es", "sin cifrar", "Aún no se ha probado", "Cualquier dispositivo que pueda llegar al receptor"},
-                {"values-fr", "non chiffré", "Pas encore testé", "Tout appareil qui peut joindre le récepteur"},
-                {"values-nl", "onversleuteld", "Nog niet op een apparaat getest", "Elk apparaat dat de ontvanger kan bereiken"},
-                {"values-pt", "sem encriptação", "Ainda não foi testado", "Qualquer dispositivo que consiga alcançar o recetor"},
-                {"values-zh", "未加密", "尚未在设备上测试", "任何能访问该接收器的设备"}};
+                {"values", "unencrypted", "Any device that can reach the receiver"},
+                {"values-de", "unverschlüsselt", "Jedes Gerät, das den Empfänger erreicht"},
+                {"values-es", "sin cifrar", "Cualquier dispositivo que pueda llegar al receptor"},
+                {"values-fr", "non chiffré", "Tout appareil qui peut joindre le récepteur"},
+                {"values-nl", "onversleuteld", "Elk apparaat dat de ontvanger kan bereiken"},
+                {"values-pt", "sem encriptação", "Qualquer dispositivo que consiga alcançar o recetor"},
+                {"values-zh", "未加密", "任何能访问该接收器的设备"}};
         for (String[] row : disclosures) {
             String text = strings(row[0], "setting_strings.xml").get("settings_renderer_output_summary").replace("\\'", "'");
             assertTrue(row[0] + " summary has " + text.length() + " characters: " + text, text.length() <= limit);
@@ -292,7 +298,7 @@ public class RendererOutputResourcesTest {
                 assertTrue(row[0] + " has " + row[k] + " too late (" + at + ")", at < limit - 60);
             }
             assertTrue(row[0] + ": the unencrypted audio is said before the exposure of the group",
-                    text.indexOf(row[1]) < text.indexOf(row[3]));
+                    text.indexOf(row[1]) < text.indexOf(row[2]));
         }
     }
 }

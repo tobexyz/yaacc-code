@@ -36,6 +36,10 @@ public final class SnapcastSettings {
     public static final String KEY_DISCOVERY = "settings_snapcast_discovery";
     /** The default of the discovery switch: on. */
     public static final boolean DISCOVERY_DEFAULT = true;
+    /** The key of the option "Play to Snapcast groups" in the default preferences (the name is historical: it was an experiment). */
+    public static final String KEY_PLAY = "settings_snapcast_play_experimental";
+    /** The default of the option "Play to Snapcast groups": on (issue 319 task 12.20; the owner's decision of 2026-11-16). An install that stored "off" keeps it. */
+    public static final boolean PLAY_DEFAULT = true;
     /** What a value that can not be read counts as: off (fail safe, nothing is scanned when the choice is unknown). */
     private static final boolean DISCOVERY_UNREADABLE = false;
 
@@ -56,6 +60,21 @@ public final class SnapcastSettings {
             return source.getBoolean(KEY_DISCOVERY, DISCOVERY_DEFAULT);
         } catch (RuntimeException damaged) {
             return DISCOVERY_UNREADABLE;
+        }
+    }
+
+    /**
+     * @return whether "Play to Snapcast groups" is on: the stored choice, {@link #PLAY_DEFAULT} if none; false for no source or a
+     * value that can not be read (the choice is unknown: nothing is sent to a server)
+     */
+    public static boolean isPlayEnabled(BooleanSource source) {
+        if (source == null) {
+            return false;
+        }
+        try {
+            return source.getBoolean(KEY_PLAY, PLAY_DEFAULT);
+        } catch (RuntimeException damaged) {
+            return false;
         }
     }
 
