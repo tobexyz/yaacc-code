@@ -74,10 +74,26 @@ public class ProxySwitchGuardTest {
     }
 
     @Test
-    public void theSharePathAnswers403WithTheMasterSwitchOffBeforeTheShareResponderIsReached() throws Exception {
+    public void theMasterSwitchIsHandedToTheShareResponderAndTheGateDecidesPerEntryKindAfterTheLookup() throws Exception {
         String handle = body(code("upnp/server/http/YaaccUpnpServerContentHttpHandler.java"), "public void handle(");
-        assertInOrder(handle, "settings_local_server_chkbx", "ServerRequestGate.mayServeShares(",
-                "createForbiddenResponse(", "new ProxyShareResponder(");
+        assertInOrder(handle, "settings_local_server_chkbx", "new ProxyShareResponder(", "masterOn");
+        assertFalse("the share path is not gated by the master switch alone: shared files must work without it",
+                handle.contains("ServerRequestGate.mayServeShares("));
+        String respond = body(code("upnp/server/http/ProxyShareResponder.java"), "void respond(");
+        assertInOrder(respond, "registry.lookup(key)", "ServerRequestGate.maySendShare(masterOn, entry.getKind())",
+                "SC_FORBIDDEN", "ProxyAccessPolicy.isAllowed(");
+    }
+
+    @Test
+    public void theHttpServerDoesNotLookAtTheMasterSwitchAndTheClientKeepsTheServiceBound() throws Exception {
+        // normal sharing (files and direct links) works without the master switch because the HTTP server of the service
+        // lives as long as the service: it is created by initialize() without reading the switch, and a service that is
+        // bound (BIND_AUTO_CREATE by the client, for the life of the process) does not end when LocalServerLifecycle stops it
+        String service = code("upnp/server/YaaccUpnpServerService.java");
+        assertFalse(body(service, "private void initialize()").contains("settings_local_server_chkbx"));
+        assertFalse(body(service, "private void createHttpServer()").contains("settings_local_server_chkbx"));
+        assertTrue(body(code("upnp/UpnpClient.java"), "public boolean bindServerService()").contains("BIND_AUTO_CREATE"));
+        assertTrue(code("upnp/server/LocalServerLifecycle.java").contains("stopService("));
     }
 
     @Test

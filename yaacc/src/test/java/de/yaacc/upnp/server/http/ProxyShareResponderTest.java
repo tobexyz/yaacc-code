@@ -61,6 +61,7 @@ import java.util.Set;
 
 import de.yaacc.Yaacc;
 import de.yaacc.share.ShareConcurrencyLimiter;
+import de.yaacc.share.HttpLinkTarget;
 import de.yaacc.share.ShareLimits;
 import de.yaacc.share.ShareRegistry;
 import de.yaacc.upnp.server.http.ProducerTestSupport.ArraySource;
@@ -86,6 +87,8 @@ public class ProxyShareResponderTest {
     private ArraySource source;
     private String key;
     private boolean restrict;
+    /** The master switch "UPnP Server": off by default, shared files must work without it (task 12.21). */
+    private boolean masterOn;
 
     /** What the fake server was told to send. */
     private static final class Sent {
@@ -106,6 +109,7 @@ public class ProxyShareResponderTest {
     @Before
     public void setUp() {
         restrict = true;
+        masterOn = false;
         registry = ShareRegistry.createDefault();
         Yaacc application = mock(Yaacc.class);
         when(application.getShareRegistry()).thenReturn(registry);
@@ -164,7 +168,7 @@ public class ProxyShareResponderTest {
         }
         List<Sent> sent = new ArrayList<>();
         responder.respond(new Message<HttpRequest, byte[]>(head, new byte[0]), recordingTrigger(sent),
-                contextFrom(remote), "HEAD".equals(method), segments);
+                contextFrom(remote), "HEAD".equals(method), segments, masterOn);
         assertEquals("exactly one answer", 1, sent.size());
         return sent.get(0);
     }
@@ -358,7 +362,7 @@ public class ProxyShareResponderTest {
 
         try {
             responder.respond(new Message<HttpRequest, byte[]>(new BasicHttpRequest("GET", "/proxy/" + key),
-                    new byte[0]), failing, contextFrom(RECEIVER), false, List.of("proxy", key));
+                    new byte[0]), failing, contextFrom(RECEIVER), false, List.of("proxy", key), masterOn);
             fail("the failure is passed on");
         } catch (IOException expected) {
             assertEquals("no lease may leak", 0, active());
@@ -403,7 +407,7 @@ public class ProxyShareResponderTest {
         List<Sent> sent = new ArrayList<>();
 
         responder.respond(new Message<HttpRequest, byte[]>(new BasicHttpRequest("GET", "/proxy/" + key),
-                new byte[0]), recordingTrigger(sent), noEndpoint, false, List.of("proxy", key));
+                new byte[0]), recordingTrigger(sent), noEndpoint, false, List.of("proxy", key), masterOn);
 
         assertEquals(403, sent.get(0).code());
     }
@@ -434,5 +438,35 @@ public class ProxyShareResponderTest {
         assertEquals("application/octet-stream", ProxyShareResponder.localFileContentType("text/html").getMimeType());
         assertEquals("application/octet-stream", ProxyShareResponder.localFileContentType("image/*").getMimeType());
         assertEquals("application/octet-stream", ProxyShareResponder.localFileContentType(null).getMimeType());
+    }
+
+    @Test
+    public void aSharedFileIsServedWithTheMasterSwitchOff() throws Exception {
+        masterOn = false;
+
+        Sent sent = get(RECEIVER, null);
+
+        assertEquals(200, sent.code());
+    }
+
+    @Test
+    public void aProxiedLinkIsRefusedWith403WhenTheMasterSwitchIsOffAndNothingIsFetched() throws Exception {
+        masterOn = false;
+        String link = registry.register(new ShareRegistry.Entry(ShareRegistry.Kind.HTTP_LINK,
+                HttpLinkTarget.of("http://media.example.org/a.mp3"), "audio/mpeg",
+                Set.of(RECEIVER), ShareLimits.IDLE_GRACE_MILLIS, ShareLimits.ABSOLUTE_MAX_MILLIS));
+        assertNotNull(link);
+
+        Sent sent = request("GET", RECEIVER, List.of("proxy", link), null);
+
+        assertEquals(403, sent.code());
+        assertEquals("<html><body>Access denied</body></html>", sent.bodyText());
+    }
+
+    @Test
+    public void anUnknownKeyIsStillNotFoundWithTheMasterSwitchOff() throws Exception {
+        masterOn = false;
+
+        assertEquals(404, request("GET", RECEIVER, List.of("proxy", "ZZZZZZZZZZZZZZZZZZZZZZ"), null).code());
     }
 }

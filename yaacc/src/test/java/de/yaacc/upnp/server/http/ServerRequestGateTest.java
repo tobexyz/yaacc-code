@@ -22,17 +22,32 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import de.yaacc.share.ShareRegistry;
+
 /**
  * Table test for {@link ServerRequestGate} (task 12.21): the HTTP server of the local service is started at every process
- * creation (discovery), so with the master switch "UPnP Server" off it can still listen. Then the share path and the content
- * paths must refuse (403). With the master switch on nothing changes: the sub-switches decide as before. Plain JVM.
+ * creation (discovery), so with the master switch "UPnP Server" off it can still listen. Then the proxied links (the SSL offload) and the
+ * content paths of the media server must refuse (403); shared files and anything else that is not a proxied link keep
+ * being served: normal sharing works without the master switch. With the master switch on nothing changes: the sub-switches decide as before. Plain JVM.
  */
 public class ServerRequestGateTest {
 
     @Test
-    public void theSharePathIsServedOnlyWithTheMasterSwitchOn() {
-        assertTrue(ServerRequestGate.mayServeShares(true));
-        assertFalse(ServerRequestGate.mayServeShares(false));
+    public void aSharedFileIsServedWhateverTheMasterSwitchSays() {
+        assertTrue(ServerRequestGate.maySendShare(true, ShareRegistry.Kind.LOCAL_FILE));
+        assertTrue(ServerRequestGate.maySendShare(false, ShareRegistry.Kind.LOCAL_FILE));
+    }
+
+    @Test
+    public void aProxiedLinkIsServedOnlyWithTheMasterSwitchOn() {
+        assertTrue(ServerRequestGate.maySendShare(true, ShareRegistry.Kind.HTTP_LINK));
+        assertFalse(ServerRequestGate.maySendShare(false, ShareRegistry.Kind.HTTP_LINK));
+    }
+
+    @Test
+    public void anEntryWithoutAKindIsNeverServed() {
+        assertFalse(ServerRequestGate.maySendShare(true, null));
+        assertFalse(ServerRequestGate.maySendShare(false, null));
     }
 
     @Test

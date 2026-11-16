@@ -159,19 +159,16 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             responseTrigger.submitResponse(responseBuilder.build(), context);
             return;
         }
-        // The HTTP server is started with the service at every process creation (discovery), also with the
-        // master switch "UPnP Server" off: then nothing but /health is answered (task 12.21).
+        // The HTTP server is started with the service at every process creation (discovery), also with the master switch
+        // "UPnP Server" off. Normal sharing (files, direct links) works without the switch; the paths that need it are checked
+        // below (task 12.21): the proxied links in the responder (per entry kind) and the content paths of the media server.
         boolean masterOn = preferences.getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false);
         if (!pathSegments.isEmpty() && YaaccUpnpServerService.PROXY_PATH.equals(pathSegments.get(0))) {
-            if (!ServerRequestGate.mayServeShares(masterOn)) {
-                createForbiddenResponse(responseTrigger, context, responseBuilder);
-                return;
-            }
             // The shares of the in-memory registry. Answered before the provider/proxy gate below: a share is
             // protected by its random key, its expiry and (setting) the receiver addresses, not by the proxy
-            // preference; the master switch is the one switch that must be on.
+            // preference.
             new ProxyShareResponder(getContext(), preferences).respond(request, responseTrigger, context,
-                    requestMethod.equals("HEAD"), pathSegments);
+                    requestMethod.equals("HEAD"), pathSegments, masterOn);
             return;
         }
         if (pathSegments.size() < 2 || pathSegments.size() > 3) {
