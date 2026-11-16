@@ -39,6 +39,19 @@ public final class SnapcastClientSpike {
     /** Why and when the last session ended (written by the service, also when the whole app exits); read by the dialog. */
     public static final String KEY_LAST_ENDING = "snapcast_client_spike_last_ending";
     public static final String KEY_LAST_ENDING_AT = "snapcast_client_spike_last_ending_at";
+    /**
+     * Whether the user has seen the last ending (a boolean, true when missing). The service writes false with every ending; the
+     * switch, the checkbox or the dialog write true when they show it. An ending that is a failure and unseen keeps the restore at the
+     * start of the app from trying again blindly ({@link SnapcastClientRestore}).
+     */
+    public static final String KEY_LAST_ENDING_SEEN = "snapcast_client_spike_last_ending_seen";
+    /**
+     * The one persisted state "the Snapcast client is switched on" (task 12C): set by the switch on the first page, the checkbox
+     * of the settings and the Start/Stop of the listen test, read by the restore at the start of the app. Also the name of its string
+     * resource; a boolean, off by default.
+     */
+    public static final String KEY_SWITCHED_ON = "settings_snapcast_client_switched_on";
+    public static final boolean SWITCHED_ON_DEFAULT = false;
     public static final String KEY_LAST_WRITE_AHEAD = "snapcast_client_spike_write_ahead_ms";
     /** The "FLAC stall guard" check box of the test screen (default on). */
     public static final String KEY_LAST_FLAC_GUARD = "snapcast_client_spike_flac_guard";
@@ -181,6 +194,18 @@ public final class SnapcastClientSpike {
             return source.getBoolean(KEY_ENABLED, ENABLED_DEFAULT);
         } catch (RuntimeException damaged) {
             return ENABLED_DEFAULT;
+        }
+    }
+
+    /** @return whether the client is switched on (the state that is restored); off for no source, a missing value or a value that can not be read */
+    public static boolean isSwitchedOn(de.yaacc.multiroom.SnapcastSettings.BooleanSource source) {
+        if (source == null) {
+            return SWITCHED_ON_DEFAULT;
+        }
+        try {
+            return source.getBoolean(KEY_SWITCHED_ON, SWITCHED_ON_DEFAULT);
+        } catch (RuntimeException damaged) {
+            return SWITCHED_ON_DEFAULT;
         }
     }
 

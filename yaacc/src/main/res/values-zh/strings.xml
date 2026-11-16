@@ -407,6 +407,15 @@
     <string name="snapcast_client_notification_reconnecting">连接已断开，正在重试…</string>
     <string name="snapcast_client_warning_public">此地址不在你的本地网络中。音频和控制在传输途中未加密也未经身份验证。</string>
     <string name="snapcast_client_busy">上一个会话仍在停止中。请稍后再点按“开始”。</string>
+    <string name="snapcast_client_switch_label">Snapcast 客户端</string>
+    <string name="snapcast_client_switch_settings">Snapcast 客户端设置</string>
+    <string name="snapcast_client_state_off">已关闭</string>
+    <string name="snapcast_client_state_stopped">已停止</string>
+    <string name="snapcast_client_state_line">Snapcast 客户端：%1$s</string>
+    <string name="snapcast_client_refused_option_off">Snapcast 客户端在设置中已关闭。</string>
+    <string name="snapcast_client_refused_no_server">尚未设置服务器。请在 Snapcast 客户端试听测试（设置）中选择一个。</string>
+    <string name="snapcast_client_refused_bad_server">已保存的服务器地址无效。请在 Snapcast 客户端试听测试（设置）中选择服务器。</string>
+    <string name="snapcast_client_refused_not_allowed">系统不允许启动。打开应用时会再试一次。</string>
     <string name="renderer_output_damaged_note">渲染器的 Snapcast 输出设置已损坏，正在此设备上播放。请在设置中重新选择该组。</string>
     <string name="renderer_output_error_no_group">渲染器已设为向 Snapcast 组播放，但尚未选择组。请在设置中选择一个。</string>
     <string name="renderer_output_error_server_not_listed">渲染器所选组所在的 Snapcast 服务器不在服务器列表中。请在设置的 Snapcast 服务器中添加它，或选择其他组。</string>

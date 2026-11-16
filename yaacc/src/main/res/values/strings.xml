@@ -416,6 +416,15 @@
     <string name="snapcast_client_notification_reconnecting">Connection lost, trying again…</string>
     <string name="snapcast_client_warning_public">This address is not on your local network. Audio and control are not encrypted or authenticated on the way there.</string>
     <string name="snapcast_client_busy">The previous session is still stopping. Tap Start again in a moment.</string>
+    <string name="snapcast_client_switch_label">Snapcast client</string>
+    <string name="snapcast_client_switch_settings">Snapcast client settings</string>
+    <string name="snapcast_client_state_off">Off</string>
+    <string name="snapcast_client_state_stopped">Stopped</string>
+    <string name="snapcast_client_state_line">Snapcast client: %1$s</string>
+    <string name="snapcast_client_refused_option_off">The Snapcast client is switched off in the settings.</string>
+    <string name="snapcast_client_refused_no_server">No server yet. Choose one in the Snapcast client listen test (settings).</string>
+    <string name="snapcast_client_refused_bad_server">The saved server address is not valid. Choose a server in the Snapcast client listen test (settings).</string>
+    <string name="snapcast_client_refused_not_allowed">The system did not allow the start. It is tried again when the app is opened.</string>
     <string name="renderer_output_damaged_note">The Snapcast output of the renderer is damaged; playing on this device. Choose the group again in the settings.</string>
     <string name="renderer_output_error_no_group">The renderer is set to play into a Snapcast group, but no group is chosen. Choose one in the settings.</string>
     <string name="renderer_output_error_server_not_listed">The Snapcast server of the renderer\'s group is not in the server list. Add it under Snapcast servers in the settings, or choose another group.</string>

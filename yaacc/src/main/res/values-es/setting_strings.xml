@@ -134,6 +134,9 @@
     <string name="settings_snapcast_client_spike_summary">Experimental: muestra una pantalla de prueba donde este teléfono reproduce como cliente Snapcast para comprobar la sincronización de oído. Desactivado por defecto. El audio y el control se envían sin cifrar. Aún no probado en un dispositivo.</string>
     <string name="settings_snapcast_client_spike_open_title">Prueba de escucha del cliente Snapcast</string>
     <string name="settings_snapcast_client_spike_open_summary">Conectar este teléfono a un servidor Snapcast y ver los valores de sincronización</string>
+    <string name="settings_snapcast_client_switched_on_title">Cliente Snapcast</string>
+    <string name="settings_snapcast_client_switched_on_summary_on">Activado: este teléfono reproduce como cliente Snapcast y vuelve a iniciarse al arrancar la aplicación, también tras reiniciar el teléfono si \"servidor de inicio automático al arrancar\" está marcado.</string>
+    <string name="settings_snapcast_client_switched_on_summary_off">Desactivado: este teléfono no es un cliente Snapcast.</string>
     <string name="settings_renderer_output_title">Salida</string>
     <string name="settings_renderer_output_summary">Experimental: el audio se envía sin cifrar al servidor. Aún no se ha probado en un dispositivo. Cualquier dispositivo que pueda llegar al receptor puede cambiar el volumen y el silencio de todo el grupo. Grupo Snapcast: solo suena el grupo, este teléfono calla; volumen y silencio son los del grupo.</string>
     <string name="settings_renderer_output_device">Este dispositivo</string>

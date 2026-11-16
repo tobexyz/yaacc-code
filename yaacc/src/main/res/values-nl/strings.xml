@@ -411,6 +411,15 @@
     <string name="snapcast_client_notification_reconnecting">Verbinding verbroken, opnieuw proberen…</string>
     <string name="snapcast_client_warning_public">Dit adres staat niet in uw lokale netwerk. Audio en besturing zijn onderweg niet versleuteld of geauthenticeerd.</string>
     <string name="snapcast_client_busy">De vorige sessie wordt nog gestopt. Tik zo meteen opnieuw op Starten.</string>
+    <string name="snapcast_client_switch_label">Snapcast-client</string>
+    <string name="snapcast_client_switch_settings">Instellingen van de Snapcast-client</string>
+    <string name="snapcast_client_state_off">Uit</string>
+    <string name="snapcast_client_state_stopped">Gestopt</string>
+    <string name="snapcast_client_state_line">Snapcast-client: %1$s</string>
+    <string name="snapcast_client_refused_option_off">De Snapcast-client staat uit in de instellingen.</string>
+    <string name="snapcast_client_refused_no_server">Nog geen server. Kies er een in de luistertest van de Snapcast-client (instellingen).</string>
+    <string name="snapcast_client_refused_bad_server">Het opgeslagen serveradres is niet geldig. Kies een server in de luistertest van de Snapcast-client (instellingen).</string>
+    <string name="snapcast_client_refused_not_allowed">Het systeem stond de start niet toe. Het wordt opnieuw geprobeerd als de app wordt geopend.</string>
     <string name="renderer_output_damaged_note">De Snapcast-uitvoer van de renderer is beschadigd; er wordt op dit apparaat afgespeeld. Kies de groep opnieuw in de instellingen.</string>
     <string name="renderer_output_error_no_group">De renderer is ingesteld om naar een Snapcast-groep af te spelen, maar er is geen groep gekozen. Kies er een in de instellingen.</string>
     <string name="renderer_output_error_server_not_listed">De Snapcast-server van de groep van de renderer staat niet in de serverlijst. Voeg hem toe onder Snapcast-servers in de instellingen of kies een andere groep.</string>

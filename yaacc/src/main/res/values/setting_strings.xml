@@ -183,6 +183,10 @@
     <string name="settings_snapcast_client_spike_summary">Experimental: shows a test screen where this phone plays as a Snapcast client, to check the sync by ear. Off by default. Audio and control are sent unencrypted. Not tested on a device yet.</string>
     <string name="settings_snapcast_client_spike_open_title">Snapcast client listen test</string>
     <string name="settings_snapcast_client_spike_open_summary">Connect this phone to a Snapcast server and see the sync numbers</string>
+    <string name="settings_snapcast_client_switched_on_title">Snapcast client</string>
+    <string name="settings_snapcast_client_switched_on_summary_on">On: this phone plays as a Snapcast client and starts again when the app starts, also after a restart of the phone if \"autostart server on boot\" is ticked.</string>
+    <string name="settings_snapcast_client_switched_on_summary_off">Off: this phone is not a Snapcast client.</string>
+    <string name="settings_snapcast_client_switched_on" translatable="false">settings_snapcast_client_switched_on</string>
     <string name="settings_snapcast_client_spike" translatable="false">settings_snapcast_client_spike</string>
     <string name="settings_snapcast_client_spike_open" translatable="false">settings_snapcast_client_spike_open</string>
     <string name="settings_renderer_output_title">Output</string>

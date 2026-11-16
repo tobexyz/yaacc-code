@@ -39,6 +39,9 @@ import java.util.List;
 import de.yaacc.R;
 import de.yaacc.multiroom.SnapcastHub;
 import de.yaacc.multiroom.SnapcastRendererOutput;
+import de.yaacc.multiroom.client.SnapcastClientPower;
+import de.yaacc.multiroom.client.SnapcastClientPowerTexts;
+import de.yaacc.multiroom.client.SnapcastClientPowers;
 import de.yaacc.multiroom.client.SnapcastClientRuntime;
 import de.yaacc.multiroom.client.SnapcastClientService;
 import de.yaacc.upnp.UpnpClient;
@@ -105,6 +108,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
 
         setUpSnapcastClientSpike();
         setUpRendererOutput();
+        scrollToRequestedSection();
 
         // Populate renderer settings dynamically
         populateRendererSettings();
@@ -212,19 +216,51 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     }
 
     /**
-     * The experimental client spike: the entry that opens the test screen is visible only while the switch is on, and
-     * switching it off ends a running session.
+     * The gear on the first page opens the settings at the Snapcast client section: the intent names the entry, only the keys of
+     * {@link SnapcastSettingsTarget} are accepted. The list is not laid out yet, the library scrolls when it is.
+     */
+    private void scrollToRequestedSection() {
+        if (getActivity() == null || getActivity().getIntent() == null) {
+            return;
+        }
+        String key = SnapcastSettingsTarget.scrollKey(getActivity().getIntent().getStringExtra(SnapcastSettingsTarget.EXTRA_SCROLL_TO));
+        if (key != null && findPreference(key) != null) {
+            scrollToPreference(key);
+        }
+    }
+
+    /**
+     * The experimental client spike: the entries below the option (the checkbox "Snapcast client" and the test screen) are visible
+     * only while the option is on, and switching the option off ends a running session. The checkbox goes through the one power API
+     * of the client (the same state as the switch on the first page and the test screen).
      */
     private void setUpSnapcastClientSpike() {
         androidx.preference.CheckBoxPreference spike = findPreference(getString(R.string.settings_snapcast_client_spike));
+        androidx.preference.CheckBoxPreference switchedOn = findPreference(getString(R.string.settings_snapcast_client_switched_on));
         androidx.preference.Preference open = findPreference(getString(R.string.settings_snapcast_client_spike_open));
         if (spike == null || open == null) {
             return;
         }
         open.setVisible(spike.isChecked());
+        if (switchedOn != null) {
+            switchedOn.setVisible(spike.isChecked());
+            switchedOn.setChecked(SnapcastClientPowers.of(requireContext()).isOn());
+            switchedOn.setOnPreferenceChangeListener((preference, newValue) -> {
+                SnapcastClientPower.Outcome outcome = SnapcastClientPowers.of(requireContext()).setOn(Boolean.TRUE.equals(newValue));
+                String reason = SnapcastClientPowerTexts.refusalText(requireContext(), outcome);
+                if (reason != null) {
+                    // the state stays on (the intent); the reason is shown, the first page and the test screen show "stopped"
+                    android.widget.Toast.makeText(requireContext(), reason, android.widget.Toast.LENGTH_LONG).show();
+                }
+                return true;
+            });
+        }
         spike.setOnPreferenceChangeListener((preference, newValue) -> {
             boolean on = Boolean.TRUE.equals(newValue);
             open.setVisible(on);
+            if (switchedOn != null) {
+                switchedOn.setVisible(on);
+            }
             if (!on && SnapcastClientRuntime.isActive()) {
                 SnapcastClientService.stop(requireContext());
             }

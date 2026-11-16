@@ -411,6 +411,15 @@
     <string name="snapcast_client_notification_reconnecting">Verbindung verloren, neuer Versuch …</string>
     <string name="snapcast_client_warning_public">Diese Adresse liegt nicht in Ihrem lokalen Netzwerk. Audio und Steuerung sind auf dem Weg dorthin weder verschlüsselt noch authentifiziert.</string>
     <string name="snapcast_client_busy">Die vorherige Sitzung wird noch beendet. Tippen Sie gleich noch einmal auf Start.</string>
+    <string name="snapcast_client_switch_label">Snapcast-Client</string>
+    <string name="snapcast_client_switch_settings">Einstellungen des Snapcast-Clients</string>
+    <string name="snapcast_client_state_off">Aus</string>
+    <string name="snapcast_client_state_stopped">Beendet</string>
+    <string name="snapcast_client_state_line">Snapcast-Client: %1$s</string>
+    <string name="snapcast_client_refused_option_off">Der Snapcast-Client ist in den Einstellungen ausgeschaltet.</string>
+    <string name="snapcast_client_refused_no_server">Noch kein Server. Wählen Sie einen im Snapcast-Client-Hörtest (Einstellungen).</string>
+    <string name="snapcast_client_refused_bad_server">Die gespeicherte Serveradresse ist ungültig. Wählen Sie im Snapcast-Client-Hörtest (Einstellungen) einen Server.</string>
+    <string name="snapcast_client_refused_not_allowed">Das System hat den Start nicht erlaubt. Er wird erneut versucht, wenn die App geöffnet wird.</string>
     <string name="renderer_output_damaged_note">Die Snapcast-Ausgabe des Renderers ist beschädigt; es wird auf diesem Gerät abgespielt. Wählen Sie die Gruppe in den Einstellungen erneut.</string>
     <string name="renderer_output_error_no_group">Der Renderer soll auf eine Snapcast-Gruppe spielen, aber es ist keine Gruppe gewählt. Wählen Sie in den Einstellungen eine aus.</string>
     <string name="renderer_output_error_server_not_listed">Der Snapcast-Server der Renderer-Gruppe steht nicht in der Serverliste. Fügen Sie ihn in den Einstellungen unter Snapcast-Server hinzu oder wählen Sie eine andere Gruppe.</string>

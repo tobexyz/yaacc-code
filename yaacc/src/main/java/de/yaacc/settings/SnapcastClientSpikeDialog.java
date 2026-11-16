@@ -44,6 +44,9 @@ import java.util.concurrent.RejectedExecutionException;
 
 import de.yaacc.R;
 import de.yaacc.multiroom.SnapcastHub;
+import de.yaacc.multiroom.client.SnapcastClientPower;
+import de.yaacc.multiroom.client.SnapcastClientPowerTexts;
+import de.yaacc.multiroom.client.SnapcastClientPowers;
 import de.yaacc.multiroom.client.SnapcastClientRuntime;
 import de.yaacc.multiroom.client.SnapcastClientService;
 import de.yaacc.multiroom.client.SnapcastClientSpike;
@@ -78,6 +81,7 @@ final class SnapcastClientSpikeDialog {
     private final TextView summary;
     private final Button moveGroup;
     private final TextView lastEnding;
+    private final TextView stateLine;
     private final ExecutorService worker = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "snapcast-client-spike");
         thread.setDaemon(true);
@@ -100,6 +104,11 @@ final class SnapcastClientSpikeDialog {
             status.setText(SnapcastClientStatusText.of(view, System.currentTimeMillis()));
             summary.setText(SnapcastClientTraceReport.summary(view.engine, deviceDescription()));
             moveGroup.setEnabled(active && view.server != null && view.server.isClientFound());
+            SnapcastClientPower.State state = SnapcastClientPowers.of(context).state();
+            stateLine.setText(context.getString(R.string.snapcast_client_state_line, SnapcastClientPowerTexts.stateText(context, state)));
+            if (state.shown == SnapcastClientPower.Shown.STOPPED && state.unseenFailure) {
+                SnapcastClientPowers.of(context).markEndingSeen(); // it is on the screen now
+            }
             lastEnding.setText(de.yaacc.multiroom.client.SessionEndingText.of(
                     preferences.getString(SnapcastClientSpike.KEY_LAST_ENDING, null),
                     preferences.getLong(SnapcastClientSpike.KEY_LAST_ENDING_AT, 0), System.currentTimeMillis()));
@@ -185,7 +194,7 @@ final class SnapcastClientSpikeDialog {
         start.setOnClickListener(v -> onStart());
         stop = new Button(context);
         stop.setText(R.string.snapcast_client_stop);
-        stop.setOnClickListener(v -> SnapcastClientService.stop(context));
+        stop.setOnClickListener(v -> SnapcastClientPowers.of(context).setOn(false)); // clears the state like the switch does
         apply = new Button(context);
         apply.setText(R.string.snapcast_client_apply_latency);
         apply.setOnClickListener(v -> onApplyLatency());
@@ -212,6 +221,10 @@ final class SnapcastClientSpikeDialog {
         moveGroup.setOnClickListener(v -> onMoveGroup());
         moveGroup.setEnabled(false);
         root.addView(moveGroup);
+
+        stateLine = new TextView(context);
+        stateLine.setTextSize(12);
+        root.addView(stateLine);
 
         lastEnding = new TextView(context);
         lastEnding.setTextSize(11);
@@ -366,7 +379,12 @@ final class SnapcastClientSpikeDialog {
                 .putInt(SnapcastClientSpike.KEY_LAST_LATENCY, request.getLatencyMs())
                 .putInt(SnapcastClientSpike.KEY_LAST_WRITE_AHEAD, ahead)
                 .putBoolean(SnapcastClientSpike.KEY_LAST_FLAC_GUARD, flacGuard.isChecked()).apply();
-        SnapcastClientService.start(context, host.getText().toString().trim(), request.getLatencyMs(), ahead, flacGuard.isChecked());
+        // the values above are saved: the power API reads them back, re-checks the option and the server, sets the state and starts
+        SnapcastClientPower.Outcome outcome = SnapcastClientPowers.of(context).setOn(true);
+        String reason = SnapcastClientPowerTexts.refusalText(context, outcome);
+        if (reason != null) {
+            Toast.makeText(context, reason, Toast.LENGTH_LONG).show();
+        }
     }
 
     private void onApplyLatency() {

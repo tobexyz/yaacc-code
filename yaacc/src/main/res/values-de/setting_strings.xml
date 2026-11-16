@@ -134,6 +134,9 @@
     <string name="settings_snapcast_client_spike_summary">Experimentell: zeigt einen Testbildschirm, auf dem dieses Telefon als Snapcast-Client spielt, um den Gleichlauf nach Gehör zu prüfen. Standardmäßig aus. Audio und Steuerung werden unverschlüsselt übertragen. Noch nicht auf einem Gerät getestet.</string>
     <string name="settings_snapcast_client_spike_open_title">Snapcast-Client-Hörtest</string>
     <string name="settings_snapcast_client_spike_open_summary">Dieses Telefon mit einem Snapcast-Server verbinden und die Sync-Werte ansehen</string>
+    <string name="settings_snapcast_client_switched_on_title">Snapcast-Client</string>
+    <string name="settings_snapcast_client_switched_on_summary_on">An: Dieses Telefon spielt als Snapcast-Client und startet wieder, wenn die App startet, auch nach einem Neustart des Telefons, wenn „Autostart Server bei Gerätestart“ angehakt ist.</string>
+    <string name="settings_snapcast_client_switched_on_summary_off">Aus: Dieses Telefon ist kein Snapcast-Client.</string>
     <string name="settings_renderer_output_title">Ausgabe</string>
     <string name="settings_renderer_output_summary">Experimentell: Das Audio wird unverschlüsselt an den Server gesendet. Auf einem Gerät noch nicht getestet. Jedes Gerät, das den Empfänger erreicht, kann Lautstärke und Stumm der ganzen Gruppe ändern. Snapcast-Gruppe: Nur die Gruppe spielt, dieses Telefon bleibt still; Lautstärke und Stumm sind die der Gruppe.</string>
     <string name="settings_renderer_output_device">Dieses Gerät</string>

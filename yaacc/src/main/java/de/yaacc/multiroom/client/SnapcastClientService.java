@@ -63,8 +63,9 @@ import de.yaacc.util.NotificationId;
  * The phone as a Snapcast client, for the listen test (task 8.1): a foreground service of type {@code mediaPlayback}
  * that owns the {@link SnapcastConnection}, the {@link SnapcastClientEngine} and the output while a session runs.
  *
- * <p><b>Lifetime.</b> It is started by the spike screen (never by the system: {@code START_NOT_STICKY}, not exported) and
- * lives only while a session is on. A wake lock (partial, with a safety timeout of 8 hours, renewed while the session runs)
+ * <p><b>Lifetime.</b> It is started by the app (the spike screen, the switch on the first page, the checkbox of the settings, the
+ * restore at the start of the app; all through {@link SnapcastClientPower}). The system never restarts it
+ * ({@code START_NOT_STICKY}, not exported) and it lives only while a session is on. A wake lock (partial, with a safety timeout of 8 hours, renewed while the session runs)
  * and a Wi-Fi lock are taken at the start and released at <b>every</b> end: the stop button, an error of the connection or of the engine, the
  * watchdog, and {@code onDestroy}. The notification is the standard one with a Stop action. No listener socket is
  * opened; the phone connects out to the one server the user typed in, by an address resolved once.
@@ -211,7 +212,10 @@ public final class SnapcastClientService extends Service {
             flacGuard = intent.getBooleanExtra(EXTRA_FLAC_GUARD, true);
             beginSession(intent.getStringExtra(EXTRA_HOST), intent.getIntExtra(EXTRA_LATENCY_MS, 0));
         } catch (RuntimeException unexpected) {
-            endSession(SnapcastClientRuntime.Ending.SERVICE_ERROR);
+            // Android 12 and newer: startForeground may be refused when the start came from the background (the restore at the start
+            // of the app); that is no failure of a session, the app tries once more when a screen starts
+            endSession(SnapcastClientPower.isBackgroundStartRefusal(unexpected) ? SnapcastClientRuntime.Ending.START_NOT_ALLOWED
+                    : SnapcastClientRuntime.Ending.SERVICE_ERROR);
         }
         return START_NOT_STICKY;
     }
@@ -498,7 +502,9 @@ public final class SnapcastClientService extends Service {
         try {
             PreferenceManager.getDefaultSharedPreferences(this).edit()
                     .putString(SnapcastClientSpike.KEY_LAST_ENDING, ending.name())
-                    .putLong(SnapcastClientSpike.KEY_LAST_ENDING_AT, System.currentTimeMillis()).apply();
+                    .putLong(SnapcastClientSpike.KEY_LAST_ENDING_AT, System.currentTimeMillis())
+                    .putBoolean(SnapcastClientSpike.KEY_LAST_ENDING_SEEN, false) // unseen until the switch or the dialog showed it
+                    .apply();
             EngineHost h = host;
             if (h != null) {
                 h.traceEnding(ending.ordinal());

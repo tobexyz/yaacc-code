@@ -415,6 +415,15 @@
     <string name="snapcast_client_notification_reconnecting">Connexion perdue, nouvel essai…</string>
     <string name="snapcast_client_warning_public">Cette adresse n\'est pas sur votre réseau local. L\'audio et le contrôle ne sont ni chiffrés ni authentifiés sur le trajet.</string>
     <string name="snapcast_client_busy">La session précédente est encore en cours d\'arrêt. Touchez de nouveau Démarrer dans un instant.</string>
+    <string name="snapcast_client_switch_label">Client Snapcast</string>
+    <string name="snapcast_client_switch_settings">Réglages du client Snapcast</string>
+    <string name="snapcast_client_state_off">Désactivé</string>
+    <string name="snapcast_client_state_stopped">Arrêté</string>
+    <string name="snapcast_client_state_line">Client Snapcast : %1$s</string>
+    <string name="snapcast_client_refused_option_off">Le client Snapcast est désactivé dans les réglages.</string>
+    <string name="snapcast_client_refused_no_server">Pas encore de serveur. Choisissez-en un dans le test d\'écoute du client Snapcast (réglages).</string>
+    <string name="snapcast_client_refused_bad_server">L\'adresse du serveur enregistrée n\'est pas valide. Choisissez un serveur dans le test d\'écoute du client Snapcast (réglages).</string>
+    <string name="snapcast_client_refused_not_allowed">Le système n\'a pas autorisé le démarrage. Il sera réessayé à l\'ouverture de l\'application.</string>
     <string name="renderer_output_damaged_note">La sortie Snapcast du moteur de rendu est endommagée ; la lecture se fait sur cet appareil. Choisissez de nouveau le groupe dans les réglages.</string>
     <string name="renderer_output_error_no_group">Le moteur de rendu doit jouer vers un groupe Snapcast, mais aucun groupe n\'est choisi. Choisissez-en un dans les réglages.</string>
     <string name="renderer_output_error_server_not_listed">Le serveur Snapcast du groupe du moteur de rendu n\'est pas dans la liste des serveurs. Ajoutez-le sous Serveurs Snapcast dans les réglages, ou choisissez un autre groupe.</string>

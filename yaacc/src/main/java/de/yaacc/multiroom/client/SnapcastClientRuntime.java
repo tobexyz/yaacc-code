@@ -48,7 +48,12 @@ public final class SnapcastClientRuntime {
         /** The service was destroyed without a stop from the user (the system, or the app ending its services). */
         SYSTEM,
         /** The whole app ended: the exit action or the shutdown (sleep) timer of YAACC. */
-        APP_EXIT
+        APP_EXIT,
+        /**
+         * The system refused to start the foreground service from the background (Android 12 and newer). No failure of a session: the
+         * start is tried once more when a screen of the app starts. Last in the list: the trace stores the ordinal.
+         */
+        START_NOT_ALLOWED
     }
 
     /** An immutable view for the screen. */

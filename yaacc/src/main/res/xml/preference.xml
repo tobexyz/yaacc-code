@@ -143,6 +143,12 @@
             android:key="@string/settings_snapcast_client_spike"
             android:summary="@string/settings_snapcast_client_spike_summary"
             android:title="@string/settings_snapcast_client_spike_title" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="@string/settings_snapcast_client_switched_on"
+            android:summaryOff="@string/settings_snapcast_client_switched_on_summary_off"
+            android:summaryOn="@string/settings_snapcast_client_switched_on_summary_on"
+            android:title="@string/settings_snapcast_client_switched_on_title" />
         <Preference
             android:key="@string/settings_snapcast_client_spike_open"
             android:summary="@string/settings_snapcast_client_spike_open_summary"

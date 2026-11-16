@@ -415,6 +415,15 @@
     <string name="snapcast_client_notification_reconnecting">Ligação perdida, a tentar de novo…</string>
     <string name="snapcast_client_warning_public">Este endereço não está na sua rede local. O áudio e o controlo não estão cifrados nem autenticados pelo caminho.</string>
     <string name="snapcast_client_busy">A sessão anterior ainda está a terminar. Toque em Iniciar novamente dentro de instantes.</string>
+    <string name="snapcast_client_switch_label">Cliente Snapcast</string>
+    <string name="snapcast_client_switch_settings">Definições do cliente Snapcast</string>
+    <string name="snapcast_client_state_off">Desligado</string>
+    <string name="snapcast_client_state_stopped">Parado</string>
+    <string name="snapcast_client_state_line">Cliente Snapcast: %1$s</string>
+    <string name="snapcast_client_refused_option_off">O cliente Snapcast está desligado nas definições.</string>
+    <string name="snapcast_client_refused_no_server">Ainda não há servidor. Escolha um no teste de audição do cliente Snapcast (definições).</string>
+    <string name="snapcast_client_refused_bad_server">O endereço do servidor guardado não é válido. Escolha um servidor no teste de audição do cliente Snapcast (definições).</string>
+    <string name="snapcast_client_refused_not_allowed">O sistema não permitiu o arranque. Será tentado de novo quando a aplicação for aberta.</string>
     <string name="renderer_output_damaged_note">A saída Snapcast do renderizador está danificada; a reprodução é neste dispositivo. Escolha o grupo de novo nas definições.</string>
     <string name="renderer_output_error_no_group">O renderizador está definido para reproduzir num grupo do Snapcast, mas não há nenhum grupo escolhido. Escolha um nas definições.</string>
     <string name="renderer_output_error_server_not_listed">O servidor Snapcast do grupo do renderizador não está na lista de servidores. Adicione-o em Servidores Snapcast nas definições ou escolha outro grupo.</string>

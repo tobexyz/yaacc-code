@@ -52,6 +52,8 @@ import java.util.stream.Collectors;
 import de.yaacc.browser.BackgroundIdleTimer;
 import de.yaacc.browser.BrowserLauncher;
 import de.yaacc.multiroom.SnapcastHub;
+import de.yaacc.multiroom.client.SnapcastClientPowers;
+import de.yaacc.multiroom.client.SnapcastClientRestore;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlayerService;
 import java.io.File;
@@ -170,6 +172,10 @@ public class Yaacc extends Application {
             }
             upnpClient = new UpnpClient(this);
         }
+        // The phone's own Snapcast client comes back when it was switched on (also in a process that a reboot created: the autostart
+        // setting enables the boot receiver). Held back right after an exit; a start the system refuses is tried once more when a
+        // screen starts (userStarted). Never throws.
+        SnapcastClientPowers.restore(this, SnapcastClientRestore.Point.PROCESS_START, startDeferredAfterExit);
         // A process without a screen (boot, restart by the system) closes itself after the idle time like one whose last screen
         // went away; the first screen cancels it. The autostart setting and the running services are read when it fires.
         BackgroundIdleTimer.processStarted(this);
@@ -189,6 +195,8 @@ public class Yaacc extends Application {
             startService(new Intent(this, YaaccUpnpServerService.class));
             upnpClient.bindServerService();
         }
+        // the held-back start of the Snapcast client, or the one more try after a start that the system refused in the background
+        SnapcastClientPowers.restore(this, SnapcastClientRestore.Point.SCREEN_START, false);
     }
 
     /**
