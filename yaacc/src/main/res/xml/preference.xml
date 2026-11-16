@@ -155,7 +155,6 @@
             android:summaryOff="@string/settings_local_server_stopped"
             android:summaryOn="@string/settings_local_server_started" />
         <CheckBoxPreference
-            android:dependency="@string/settings_local_server_chkbx"
             android:title="@string/settings_local_server_autostart_title"
             android:key="@string/settings_local_server_autostart_chkbx"
             android:summaryOff="@string/settings_local_server_autostart_deactivated"

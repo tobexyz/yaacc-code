@@ -49,6 +49,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import de.yaacc.browser.BackgroundIdleTimer;
 import de.yaacc.browser.BrowserLauncher;
 import de.yaacc.multiroom.SnapcastHub;
 import de.yaacc.player.Player;
@@ -65,6 +66,7 @@ import de.yaacc.share.ShareLimits;
 import de.yaacc.share.ShareRegistry;
 import de.yaacc.share.UnclaimedShares;
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.upnp.server.ServerAutostart;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
 import de.yaacc.util.SAFCacheManager;
 import de.yaacc.util.ExitHandoff;
@@ -145,6 +147,9 @@ public class Yaacc extends Application {
         // Validate and cleanup SAF permissions on app startup
         SafPermissionManager.validateAndCleanupPermissions(this);
         removeLegacyProxyLinks(preferences);
+        // The boot receiver follows the setting "autostart on boot" (disabled in the manifest): synchronised here so that an
+        // installation that existed before has the right state after the first start of the app.
+        ServerAutostart.applySetting(this, preferences.getBoolean(getString(R.string.settings_local_server_autostart_chkbx), false));
         sweepIncomingCopies();
         startShareSweeper();
         registerActivityLifecycleCallbacks(new UserStartCallbacks());
@@ -156,9 +161,18 @@ public class Yaacc extends Application {
             upnpClient = new UpnpClient();
             upnpClient.attach(this); // no service is started or bound yet
         } else {
-            startService(new Intent(this, YaaccUpnpServerService.class));
+            try {
+                startService(new Intent(this, YaaccUpnpServerService.class));
+            } catch (IllegalStateException e) {
+                // a process created in the background (boot) may not start a service; the boot receiver's startForegroundService
+                // is the fallback, and the service starts with the first screen at the latest
+                YaaccLogger.w(getClass().getName(), "Start of the server service was refused: " + e.getClass().getSimpleName());
+            }
             upnpClient = new UpnpClient(this);
         }
+        // A process without a screen (boot, restart by the system) closes itself after the idle time like one whose last screen
+        // went away; the first screen cancels it. The autostart setting and the running services are read when it fires.
+        BackgroundIdleTimer.processStarted(this);
     }
 
     /**

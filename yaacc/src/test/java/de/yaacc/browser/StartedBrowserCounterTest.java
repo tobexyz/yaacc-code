@@ -200,4 +200,72 @@ public class StartedBrowserCounterTest {
 
         assertEquals(1, scheduler.scheduleCalls);
     }
+
+    // ---- 12.14: the timer is also armed when the process is created without a screen ----------------------------------
+
+    @Test
+    public void processStartWithoutAScreenArmsTheTimerWithTheTimeout() {
+        counter.onProcessStarted();
+
+        assertTrue(scheduler.isArmed());
+        assertEquals(TIMEOUT, scheduler.pendingDelay);
+        assertEquals(0, counter.startedCount());
+    }
+
+    @Test
+    public void theFirstBrowserStartCancelsTheTimerArmedAtProcessStart() {
+        counter.onProcessStarted();
+        counter.onBrowserStarted();
+
+        assertFalse(scheduler.isArmed());
+        assertEquals(1, counter.startedCount());
+    }
+
+    @Test
+    public void theLastBrowserStopArmsAgainAfterAProcessStart() {
+        counter.onProcessStarted();
+        counter.onBrowserStarted();
+        counter.onBrowserStopped();
+
+        assertTrue(scheduler.isArmed());
+        assertEquals(2, scheduler.scheduleCalls);
+    }
+
+    @Test
+    public void processStartWhileAScreenIsAlreadyStartedDoesNotArm() {
+        counter.onBrowserStarted();
+        counter.onProcessStarted();
+
+        assertFalse(scheduler.isArmed());
+        assertEquals(0, scheduler.scheduleCalls);
+    }
+
+    @Test
+    public void processStartTwiceNeverLeavesTwoPendingTasks() {
+        counter.onProcessStarted();
+        counter.onProcessStarted();
+
+        assertTrue(scheduler.isArmed());
+        assertEquals(2, scheduler.scheduleCalls);
+        assertEquals(1, scheduler.cancelCalls);
+    }
+
+    @Test
+    public void expiryAfterAProcessStartWithoutAScreenRunsTheIdleAction() {
+        counter.onProcessStarted();
+
+        scheduler.fire();
+
+        assertEquals(1, idleCalls);
+    }
+
+    @Test
+    public void expiryRacingWithTheFirstScreenAfterAProcessStartDoesNothing() {
+        counter.onProcessStarted();
+        counter.onBrowserStarted();      // cancels, but the expiry was already queued
+
+        scheduler.fire();
+
+        assertEquals(0, idleCalls);
+    }
 }

@@ -132,8 +132,8 @@
     <string name="settings_local_server_name">network name for local server</string>
     <string name="settings_local_server_name_key" translatable="false">settings_local_server_name_key</string>
     <string name="settings_local_server_autostart_title">autostart server on boot</string>
-    <string name="settings_local_server_autostart_deactivated">server will not start after booting</string>
-    <string name="settings_local_server_autostart_activated">server will start after booting</string>
+    <string name="settings_local_server_autostart_deactivated">nothing starts after booting; the app closes itself when idle</string>
+    <string name="settings_local_server_autostart_activated">the services that are switched on start after booting; the app is then never closed automatically</string>
     <string name="settings_local_server_autostart_chkbx" translatable="false">settings_local_server_autostart_chkbx</string>
     <string name="settings_sending_upnp_alive_interval">sending UPnP alive notifications</string>
     <string name="settings_sending_upnp_alive_interval_key" translatable="false">settings_sending_upnp_alive_interval_key</string>

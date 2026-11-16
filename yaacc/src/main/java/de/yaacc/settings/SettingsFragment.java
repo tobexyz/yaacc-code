@@ -43,6 +43,7 @@ import de.yaacc.multiroom.client.SnapcastClientRuntime;
 import de.yaacc.multiroom.client.SnapcastClientService;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.NetworkInterfaceManager;
+import de.yaacc.upnp.server.ServerAutostart;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -80,6 +81,16 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                 if (newValue instanceof String) {
                     YaaccLogger.setLogLevel((String) newValue);
                 }
+                return true;
+            });
+        }
+
+        // The boot receiver follows this setting (also applied at every start of the app, see Yaacc.onCreate). The listener runs
+        // before the value is stored, so the new value is used.
+        androidx.preference.CheckBoxPreference autostart = findPreference(getString(R.string.settings_local_server_autostart_chkbx));
+        if (autostart != null) {
+            autostart.setOnPreferenceChangeListener((preference, newValue) -> {
+                ServerAutostart.applySetting(requireContext().getApplicationContext(), Boolean.TRUE.equals(newValue));
                 return true;
             });
         }

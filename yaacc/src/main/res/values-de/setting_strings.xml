@@ -75,8 +75,8 @@
     <string name="settings_local_server_serve_video_on">Videobereistellung aktiviert</string>
     <string name="settings_local_server_name">Netzwerkname für lokalen Server</string>
     <string name="settings_local_server_autostart_title">Autostart Server bei Gerätestart</string>
-    <string name="settings_local_server_autostart_deactivated">Server wird bei Gerätestart nicht aktiviert</string>
-    <string name="settings_local_server_autostart_activated">Server wird bei Gerätestart aktiviert</string>
+    <string name="settings_local_server_autostart_deactivated">Nach dem Gerätestart wird nichts gestartet; die App schließt sich im Leerlauf selbst</string>
+    <string name="settings_local_server_autostart_activated">Nach dem Gerätestart starten die eingeschalteten Dienste; die App wird dann nie automatisch geschlossen</string>
     <string name="settings_sending_upnp_alive_interval">Senden von UPnP-Alive-Meldungen</string>
     <string name="settings_category_playing">Medien Abspielverhalten</string>
     <string name="settings_replay_title">Wiederholung für neue Player</string>

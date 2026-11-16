@@ -31,7 +31,7 @@ public final class AutoCloseRule {
 
     /** What keeps the app open; {@link #NONE} when nothing does. */
     public enum Keep {
-        NONE, PLAYER, LOCAL_SERVER, RENDERER, PROXY, SNAPCAST_CLIENT, SNAPCAST_FEED
+        NONE, PLAYER, LOCAL_SERVER, RENDERER, PROXY, SNAPCAST_CLIENT, SNAPCAST_FEED, AUTOSTART
     }
 
     /** What is running, read when the timer fires. Mutable builder for the timer, read once by the rule. */
@@ -42,6 +42,7 @@ public final class AutoCloseRule {
         private boolean proxyEnabled;
         private boolean snapcastClientSessionActive;
         private boolean snapcastFeedActive;
+        private boolean autostartEnabled;
 
         /** At least one player exists (of any kind). */
         public Facts playersActive(boolean value) {
@@ -76,6 +77,15 @@ public final class AutoCloseRule {
         /** A Snapcast feed (a player that plays into a Snapcast group) exists. */
         public Facts snapcastFeedActive(boolean value) {
             this.snapcastFeedActive = value;
+            return this;
+        }
+
+        /**
+         * The setting "autostart on boot" is ticked: the app is then never closed automatically, even when every server service
+         * is switched off (it only listens for devices then).
+         */
+        public Facts autostartEnabled(boolean value) {
+            this.autostartEnabled = value;
             return this;
         }
     }
@@ -113,6 +123,10 @@ public final class AutoCloseRule {
         }
         if (facts.snapcastFeedActive) {
             return Keep.SNAPCAST_FEED;
+        }
+        // last: the log names a thing that runs before the setting that holds the app open anyway
+        if (facts.autostartEnabled) {
+            return Keep.AUTOSTART;
         }
         return Keep.NONE;
     }

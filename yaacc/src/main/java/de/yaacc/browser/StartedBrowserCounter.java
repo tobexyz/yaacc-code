@@ -53,6 +53,19 @@ public final class StartedBrowserCounter {
         this.onIdle = onIdle;
     }
 
+    /**
+     * The process was created. Without a started browser (a boot, a restart by the system: no screen yet) the timer is armed, so a
+     * process that nobody opens still ends; the first {@link #onBrowserStarted()} cancels it. While a browser is started it
+     * does nothing. Arming again replaces the pending task, there is never more than one.
+     */
+    public synchronized void onProcessStarted() {
+        if (started != 0) {
+            return;
+        }
+        scheduler.cancel(expiry);
+        scheduler.schedule(expiry, timeoutMillis);
+    }
+
     /** A browser activity reached {@code onStart}. */
     public synchronized void onBrowserStarted() {
         started++;
