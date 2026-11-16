@@ -61,14 +61,16 @@ public final class SnapcastMemberRows {
         private final int volume;
         private final boolean muted;
         private final int latencyMs;
+        private final boolean own;
 
-        Member(String clientId, String name, boolean connected, int volume, boolean muted, int latencyMs) {
+        Member(String clientId, String name, boolean connected, int volume, boolean muted, int latencyMs, boolean own) {
             this.clientId = clientId;
             this.name = name;
             this.connected = connected;
             this.volume = volume;
             this.muted = muted;
             this.latencyMs = latencyMs;
+            this.own = own;
         }
 
         /**
@@ -102,6 +104,11 @@ public final class SnapcastMemberRows {
             return latencyMs;
         }
 
+        /** This is the phone's own Snapcast client (its id is the app's client id): the row is labelled and has the power toggle. */
+        public boolean isOwn() {
+            return own;
+        }
+
         @Override
         public boolean equals(Object other) {
             if (this == other) {
@@ -111,13 +118,13 @@ public final class SnapcastMemberRows {
                 return false;
             }
             Member that = (Member) other;
-            return connected == that.connected && volume == that.volume && muted == that.muted
+            return connected == that.connected && volume == that.volume && muted == that.muted && own == that.own
                     && latencyMs == that.latencyMs && clientId.equals(that.clientId) && name.equals(that.name);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(clientId, name, connected, volume, muted, latencyMs);
+            return Objects.hash(clientId, name, connected, volume, muted, latencyMs, own);
         }
 
         /** Numbers only: the name and the id are the server's. */
@@ -130,8 +137,17 @@ public final class SnapcastMemberRows {
     private SnapcastMemberRows() {
     }
 
-    /** @return the rows of the group's members in the order described above; empty for a group without members */
+    /** @return the rows of the group's members in the order described above; none of them is the phone's own client */
     public static List<Member> of(SnapcastGroup group, Words words) {
+        return of(group, words, null);
+    }
+
+    /**
+     * @param ownClientId the app's own client id (task 12.11), null when it has none yet; the member with that id is marked
+     *                    ({@link Member#isOwn}). The order and the names do not depend on it.
+     * @return the rows of the group's members in the order described above; empty for a group without members
+     */
+    public static List<Member> of(SnapcastGroup group, Words words, String ownClientId) {
         List<SnapcastClient> clients = new ArrayList<>(group.getClients());
         final String unnamed = words.unnamedClient();
         final List<String> base = new ArrayList<>();
@@ -163,7 +179,7 @@ public final class SnapcastMemberRows {
         for (int position = 0; position < order.size(); position++) {
             SnapcastClient client = clients.get(order.get(position));
             rows.add(new Member(client.getId(), names.get(position), client.isConnected(), client.getVolume().getPercent(),
-                    client.getVolume().isMuted(), client.getLatencyMs()));
+                    client.getVolume().isMuted(), client.getLatencyMs(), SnapcastOwnClient.isOwn(client.getId(), ownClientId)));
         }
         return rows;
     }

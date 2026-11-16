@@ -35,6 +35,7 @@ import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.widget.NestedScrollView;
@@ -51,6 +52,10 @@ import de.yaacc.multiroom.SnapcastGroupDevice;
 import de.yaacc.multiroom.SnapcastHub;
 import de.yaacc.multiroom.SnapcastMarkerStore;
 import de.yaacc.multiroom.SnapcastReceivers;
+import de.yaacc.multiroom.client.SnapcastClientIdentities;
+import de.yaacc.multiroom.client.SnapcastClientPower;
+import de.yaacc.multiroom.client.SnapcastClientPowerTexts;
+import de.yaacc.multiroom.client.SnapcastClientPowers;
 import de.yaacc.multiroom.control.SnapcastClient;
 import de.yaacc.multiroom.control.SnapcastDisplayText;
 import de.yaacc.multiroom.control.SnapcastGroup;
@@ -60,6 +65,7 @@ import de.yaacc.multiroom.ui.SnapcastControls;
 import de.yaacc.multiroom.ui.SnapcastInputs;
 import de.yaacc.multiroom.ui.SnapcastMemberRows;
 import de.yaacc.multiroom.ui.SnapcastRowText;
+import de.yaacc.multiroom.ui.SnapcastServerChoices;
 import de.yaacc.multiroom.ui.SnapcastStreamChoices;
 
 /**
@@ -177,10 +183,13 @@ final class SnapcastGroupSheet {
         SnapcastRowText.Row row = state == null
                 ? SnapcastRowText.of(null, null, false, serverKey.asString(), rowWords)
                 : SnapcastRowText.of(group, state.getStatus(), state.isOnline(), state.getEndpointText(), rowWords);
+        // the phone's own client is recognised by its one client id (task 12.11), connected or offline
         List<SnapcastMemberRows.Member> members = group == null ? new ArrayList<SnapcastMemberRows.Member>()
-                : SnapcastMemberRows.of(group, SnapcastUi.memberWords(context));
+                : SnapcastMemberRows.of(group, SnapcastUi.memberWords(context), SnapcastClientIdentities.ownId(context));
         String groupName = group == null ? fallbackTitle : groupTitle(group);
-        Object signature = Arrays.asList(row, members, groupName);
+        // the power of the own row follows the session, which the model of the server shows only a moment later
+        Object signature = Arrays.asList(row, members, groupName, SnapcastClientPowers.of(context).isPoweredOn(),
+                RendererPowerController.getShared().isBusy(receiverId));
         if (signature.equals(lastRendered)) {
             return;
         }
@@ -361,6 +370,9 @@ final class SnapcastGroupSheet {
         LinearLayout actions = new LinearLayout(context);
         actions.setOrientation(LinearLayout.HORIZONTAL);
         actions.setGravity(Gravity.CENTER_VERTICAL);
+        if (member.isOwn()) {
+            actions.addView(ownPowerButton(member)); // always on the own row, also for an offline entry: power on is enabled
+        }
         final CheckBox mute = SnapcastMuteToggle.create(context, context.getString(R.string.snapcast_member_mute, member.getName()));
         mute.setChecked(member.isMuted());
         SnapcastMuteToggle.syncState(context, mute);
@@ -382,8 +394,10 @@ final class SnapcastGroupSheet {
         more.setEnabled(online);
         more.setOnClickListener(v -> showMemberMenu(v, member));
         actions.addView(more);
-        String label = member.isConnected() ? member.getName()
-                : member.getName() + " (" + context.getString(R.string.snapcast_offline) + ")";
+        String label = member.isOwn() ? member.getName() + " (" + context.getString(R.string.snapcast_member_this_phone) + ")" : member.getName();
+        if (!member.isConnected()) {
+            label = label + " (" + context.getString(R.string.snapcast_offline) + ")";
+        }
         return sliderRow(label, member.getVolume(), online && member.isConnected(), new SliderListener() {
             @Override
             public void onStart() {
@@ -396,6 +410,28 @@ final class SnapcastGroupSheet {
         }, actions);
     }
 
+    /**
+     * The power toggle of the phone's own client in its member row (tasks 12.4 part 2, 12.16): the same button, look and tap as on the
+     * card ({@link RendererPowerButton}, {@link SnapcastUi#toggleOwnPower}); on while the client has a session, a tap switches it off
+     * (the disconnect) or on.
+     */
+    private ImageButton ownPowerButton(SnapcastMemberRows.Member member) {
+        ImageButton power = new ImageButton(context);
+        power.setImageResource(R.drawable.ic_baseline_power_settings_new_32);
+        TypedValue ripple = new TypedValue();
+        if (context.getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, ripple, true)) {
+            power.setBackgroundResource(ripple.resourceId);
+        }
+        power.setMinimumWidth(dp(48));
+        power.setMinimumHeight(dp(48));
+        RendererPowerButton.bind(context, power, member.getName(), SnapcastOwnPower.of(true, SnapcastClientPowers.of(context).isPoweredOn()),
+                RendererPowerController.getShared().isBusy(receiverId), () -> SnapcastUi.toggleOwnPower(context, receiverId, () -> {
+                    lastRendered = null; // draw again with the state after the change
+                    scheduleRender();
+                }));
+        return power;
+    }
+
     // ---- the member menu and its dialogs
 
     private void showMemberMenu(View anchor, final SnapcastMemberRows.Member member) {
@@ -404,8 +440,12 @@ final class SnapcastGroupSheet {
         menu.getMenu().add(0, 2, 1, R.string.snapcast_member_latency);
         // an offline client is a leftover entry of the server: it can be removed (task 12.8). Not the client of this phone's own
         // session, not a connected one; the call decides again from a fresh status.
-        if (SnapcastClientRemoval.offered(member.isConnected(), member.getClientId(), SnapcastUi.ownClient())) {
+        if (SnapcastClientRemoval.offered(member.isConnected(), member.getClientId(), SnapcastUi.ownClient(context))) {
             menu.getMenu().add(0, 3, 2, R.string.snapcast_client_delete_menu);
+        }
+        // the server of the phone's own client (task 12.10): only on its own row
+        if (member.isOwn()) {
+            menu.getMenu().add(0, 4, 3, R.string.snapcast_member_server);
         }
         menu.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
@@ -418,11 +458,45 @@ final class SnapcastGroupSheet {
                 case 3:
                     showDeleteOffline(member);
                     return true;
+                case 4:
+                    showServerChoice();
+                    return true;
                 default:
                     return false;
             }
         });
         menu.show();
+    }
+
+    /**
+     * The servers the phone's client can use (the list of the server settings and the one the listen test used last: cleaned names,
+     * the host first, at most 17), the current one marked. Choosing another one while the client is on restarts the session on it;
+     * while it is off it only changes the next start ({@link SnapcastClientPower#chooseServer}). No server is contacted by choosing.
+     */
+    private void showServerChoice() {
+        final List<SnapcastServerChoices.Choice> known = SnapcastClientPowers.knownServers(context);
+        if (known.isEmpty()) {
+            Toast.makeText(context, R.string.snapcast_client_choose_none, Toast.LENGTH_LONG).show();
+            return;
+        }
+        String[] items = new String[known.size()];
+        for (int i = 0; i < items.length; i++) {
+            items[i] = known.get(i).label();
+        }
+        openDialog = new AlertDialog.Builder(context)
+                .setTitle(R.string.snapcast_server_choose_title)
+                .setSingleChoiceItems(items, SnapcastClientPowers.currentServerIndex(context, known), (d, which) -> {
+                    d.dismiss();
+                    SnapcastClientPower.Outcome outcome = SnapcastClientPowers.of(context).chooseServer(known.get(which).hostText());
+                    String reason = SnapcastClientPowerTexts.refusalText(context, outcome);
+                    if (reason != null) {
+                        Toast.makeText(context, reason, Toast.LENGTH_LONG).show();
+                    }
+                    lastRendered = null;
+                    scheduleRender();
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
     }
 
     /** The confirmation of the removal: it names the client (cleaned) and says that only its entry goes. */

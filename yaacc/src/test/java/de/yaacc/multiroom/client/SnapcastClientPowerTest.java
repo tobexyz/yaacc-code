@@ -51,6 +51,14 @@ public class SnapcastClientPowerTest {
         boolean seen = true;
         final List<Boolean> writes = new ArrayList<>();
         final List<String> recorded = new ArrayList<>();
+        final List<String> serverWrites = new ArrayList<>();
+        int hostReads;
+
+        @Override
+        public void writeLastServer(String hostText) {
+            serverWrites.add(hostText);
+            host = hostText; // the real store resolves the written key among the known servers
+        }
 
         @Override
         public boolean readSwitchedOn() {
@@ -70,6 +78,7 @@ public class SnapcastClientPowerTest {
 
         @Override
         public String host() {
+            hostReads++;
             return host;
         }
 
@@ -119,6 +128,26 @@ public class SnapcastClientPowerTest {
         final List<String> starts = new ArrayList<>();
         int startCalls;
         int stops;
+        boolean pending;
+        RuntimeException restartFails;
+        final List<String> restarts = new ArrayList<>();
+        java.util.function.Consumer<RuntimeException> restartFailure;
+
+        @Override
+        public boolean restartPending() {
+            return pending;
+        }
+
+        @Override
+        public void restart(String host, int latencyMs, int writeAheadMs, boolean flacGuard,
+                            java.util.function.Consumer<RuntimeException> onFailure) {
+            if (restartFails != null) {
+                throw restartFails;
+            }
+            restarts.add(host + "|" + latencyMs + "|" + writeAheadMs + "|" + flacGuard);
+            restartFailure = onFailure;
+            pending = true;
+        }
 
         @Override
         public boolean isActive() {
@@ -142,6 +171,7 @@ public class SnapcastClientPowerTest {
         @Override
         public void stop() {
             stops++;
+            pending = false; // a stop cancels a restart that waits
             if (stopFails != null) {
                 throw stopFails;
             }
@@ -151,7 +181,8 @@ public class SnapcastClientPowerTest {
     private final FakeStore store = new FakeStore();
     private final FakeSession session = new FakeSession();
     private final List<String> log = new ArrayList<>();
-    private final SnapcastClientPower power = new SnapcastClientPower(store, session, log::add);
+    private long now = 1_000_000L;
+    private final SnapcastClientPower power = new SnapcastClientPower(store, session, log::add, () -> now);
 
     /** Named like the class the platform throws (API 31): it is not on the JVM, the check goes by the name. */
     private static final class ForegroundServiceStartNotAllowedException extends IllegalStateException {
@@ -514,5 +545,223 @@ public class SnapcastClientPowerTest {
         a.initCause(b);
 
         assertFalse(SnapcastClientPower.isBackgroundStartRefusal(a));
+    }
+
+    // ---- on or off for the card: what the power button shows --------------------------------------------------------------
+
+    @Test
+    public void theCardIsOnWhileASessionStartsRunsOrReconnects() {
+        store.on = true;
+        session.active = true;
+        for (SnapcastClientRuntime.Phase phase : new SnapcastClientRuntime.Phase[]{SnapcastClientRuntime.Phase.CONNECTING,
+                SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Phase.RECONNECTING}) {
+            session.phase = phase;
+            assertTrue(phase.name(), power.isPoweredOn());
+        }
+    }
+
+    @Test
+    public void theCardIsOffWhenTheSwitchIsOffWhateverTheSessionStillDoes() {
+        session.active = true;
+        session.phase = SnapcastClientRuntime.Phase.RUNNING;
+
+        assertFalse("off is off, also while the session is still ending", power.isPoweredOn());
+        assertFalse(new SnapcastClientPower(store, new FakeSession(), log::add).isPoweredOn());
+    }
+
+    @Test
+    public void theCardIsOffWhenTheSwitchIsOnButNoSessionRunsAndNoStartWasRequested() {
+        store.on = true;
+        store.ending = "CONNECTION_GAVE_UP";
+
+        assertFalse("the session is over: the card shows off, a tap starts it again", power.isPoweredOn());
+        store.ending = null;
+        assertFalse("at the start of the process, before the restore: nothing started yet", power.isPoweredOn());
+    }
+
+    @Test
+    public void theCardIsOnForAMomentWhileTheStartIsOnItsWayToTheService() {
+        assertEquals(SnapcastClientPower.Outcome.STARTED, power.setOn(true)); // the runtime shows no session yet
+
+        assertTrue("on and starting", power.isPoweredOn());
+        now += 4_999L;
+        assertTrue(power.isPoweredOn());
+        now += 2L;
+        assertFalse("a start that never showed a phase is not 'on' for ever", power.isPoweredOn());
+    }
+
+    @Test
+    public void aRefusedStartIsNotShownAsStarting() {
+        store.option = false;
+        power.setOn(true);
+
+        assertFalse(power.isPoweredOn());
+    }
+
+    @Test
+    public void theCardIsOnWhileARestartWaits() {
+        store.on = true;
+        session.pending = true;
+
+        assertTrue(power.isPoweredOn());
+    }
+
+    // ---- choosing the server of the client ---------------------------------------------------------------------------------
+
+    @Test
+    public void whileOffTheChosenServerIsOnlyRememberedForTheNextStart() {
+        assertEquals(SnapcastClientPower.Outcome.SERVER_SET, power.chooseServer("192.168.1.9"));
+
+        assertEquals(java.util.Collections.singletonList("192.168.1.9"), store.serverWrites);
+        assertTrue(session.starts.isEmpty());
+        assertTrue(session.restarts.isEmpty());
+        assertEquals(0, session.stops);
+        assertFalse("choosing a server does not switch the client on", store.on);
+        assertTrue("no write of the state at all", store.writes.isEmpty());
+    }
+
+    @Test
+    public void whileOnAndConnectedAnotherServerRestartsTheSessionOnIt() {
+        power.setOn(true);
+        session.active = true;
+        session.phase = SnapcastClientRuntime.Phase.RUNNING;
+        store.writes.clear();
+
+        assertEquals(SnapcastClientPower.Outcome.RESTARTING, power.chooseServer("192.168.1.9"));
+
+        assertEquals("one restart with the saved settings, on the chosen server", java.util.Collections.singletonList("192.168.1.9|30|200|true"), session.restarts);
+        assertEquals("the restart is the only start: no second one next to it", 1, session.starts.size());
+        assertTrue("the state stays on", store.on);
+        assertTrue("and nothing wrote it", store.writes.isEmpty());
+        assertTrue(power.isPoweredOn());
+    }
+
+    @Test
+    public void theSameServerIsNotRestarted() {
+        power.setOn(true);
+        session.active = true;
+        session.phase = SnapcastClientRuntime.Phase.RUNNING;
+
+        assertEquals(SnapcastClientPower.Outcome.SERVER_SET, power.chooseServer(HOST));
+
+        assertTrue(session.restarts.isEmpty());
+        assertEquals(0, session.stops);
+    }
+
+    @Test
+    public void aSecondChoiceWhileTheRestartWaitsReplacesTheTargetWithoutAnotherStart() {
+        power.setOn(true);
+        session.active = true;
+        power.chooseServer("192.168.1.9");
+        session.active = false; // the old session is over, the service is still going down
+
+        assertEquals(SnapcastClientPower.Outcome.RESTARTING, power.chooseServer("192.168.1.20"));
+
+        assertEquals(2, session.restarts.size());
+        assertTrue(session.restarts.get(1).startsWith("192.168.1.20|"));
+        assertEquals("the one start of switching on; the restarts start nothing by themselves here", 1, session.starts.size());
+    }
+
+    @Test
+    public void switchingOnWhileARestartWaitsDoesNotStartASecondSession() {
+        power.setOn(true);
+        session.active = true;
+        power.chooseServer("192.168.1.9");
+        session.active = false;
+
+        assertEquals(SnapcastClientPower.Outcome.ALREADY_ACTIVE, power.setOn(true));
+
+        assertEquals(1, session.starts.size());
+    }
+
+    @Test
+    public void switchingOffWhileARestartWaitsCancelsIt() {
+        power.setOn(true);
+        session.active = true;
+        power.chooseServer("192.168.1.9");
+
+        power.setOn(false);
+
+        assertFalse(session.pending);
+        assertFalse(store.on);
+        assertFalse(power.isPoweredOn());
+    }
+
+    @Test
+    public void switchedOnWithoutASessionTheChoiceStartsOnTheChosenServer() {
+        store.on = true; // on, but the session gave up earlier
+
+        assertEquals(SnapcastClientPower.Outcome.STARTED, power.chooseServer("192.168.1.9"));
+
+        assertEquals(java.util.Collections.singletonList("192.168.1.9|30|200|true"), session.starts);
+        assertTrue(session.restarts.isEmpty());
+    }
+
+    @Test
+    public void aServerThatIsNoValidAddressIsRefusedAndNothingIsStored() {
+        power.setOn(true);
+        session.active = true;
+        for (String bad : new String[]{null, "", "  ", "http://x", "user:pw@x", "x/y", "ho st", "0.0.0.0", "h:0"}) {
+            assertEquals(String.valueOf(bad), SnapcastClientPower.Outcome.BAD_SERVER, power.chooseServer(bad));
+        }
+        assertTrue(store.serverWrites.isEmpty());
+        assertTrue(session.restarts.isEmpty());
+    }
+
+    @Test
+    public void theOptionIsCheckedAgainWhenAServerIsChosenWhileOn() {
+        power.setOn(true);
+        session.active = true;
+        store.option = false;
+
+        assertEquals(SnapcastClientPower.Outcome.OPTION_OFF, power.chooseServer("192.168.1.9"));
+
+        assertTrue(session.restarts.isEmpty());
+        assertEquals("the choice itself is kept for later", java.util.Collections.singletonList("192.168.1.9"), store.serverWrites);
+    }
+
+    @Test
+    public void aRestartTheSystemRefusesIsReportedNotThrownAndKeepsTheStateOn() {
+        power.setOn(true);
+        session.active = true;
+        session.restartFails = new ForegroundServiceStartNotAllowedException("secret " + HOST);
+
+        assertEquals(SnapcastClientPower.Outcome.NOT_ALLOWED, power.chooseServer("192.168.1.9"));
+
+        assertTrue(store.on);
+        assertEquals("START_NOT_ALLOWED", store.ending);
+    }
+
+    @Test
+    public void aStartThatTheRestartCouldNotMakeLaterIsRecordedAsTheLastEnding() {
+        power.setOn(true);
+        session.active = true;
+        power.chooseServer("192.168.1.9");
+
+        session.restartFailure.accept(new IllegalStateException("connect to " + HOST + " message-of-the-error"));
+
+        assertEquals("START_NOT_ALLOWED", store.ending);
+        assertTrue(store.on);
+        for (String line : log) {
+            assertFalse(line, line.contains("192.168"));
+            assertFalse(line, line.contains("message-of-the-error"));
+        }
+    }
+
+    // ---- the restore asks the server only when it has to ---------------------------------------------------------------------
+
+    @Test
+    public void theRestoreDoesNotLookUpTheServerWhenTheClientIsNotSwitchedOn() {
+        power.restore(Point.PROCESS_START, false);
+
+        assertEquals("not switched on: the server list is not even read", 0, store.hostReads);
+    }
+
+    @Test
+    public void theRestoreStillSaysWhyWhenNoServerIsKnown() {
+        store.on = true;
+        store.host = "";
+
+        assertEquals(Skip.NO_SERVER, power.restore(Point.PROCESS_START, false).decision.skip());
     }
 }

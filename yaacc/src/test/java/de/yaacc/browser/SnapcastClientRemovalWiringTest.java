@@ -69,7 +69,7 @@ public class SnapcastClientRemovalWiringTest {
         String sheet = source("browser/SnapcastGroupSheet.java");
         String menu = methodBody(sheet, "private void showMemberMenu(");
 
-        assertTrue(menu.contains("SnapcastClientRemoval.offered(member.isConnected(), member.getClientId(), SnapcastUi.ownClient())"));
+        assertTrue(menu.contains("SnapcastClientRemoval.offered(member.isConnected(), member.getClientId(), SnapcastUi.ownClient(context))"));
         assertTrue(menu.contains("showDeleteOffline(member)"));
         assertEquals("the delete is called in one place: the confirmation", 1, sheet.split("deleteOfflineClient\\(", -1).length - 1);
         String confirm = methodBody(sheet, "private void showDeleteOffline(");
@@ -107,9 +107,10 @@ public class SnapcastClientRemovalWiringTest {
         String ui = source("browser/SnapcastUi.java");
         String service = source("multiroom/client/SnapcastClientService.java");
 
-        assertTrue(methodBody(ui, "static SnapcastClientRemoval.Own ownClient()").contains(
-                "SnapcastClientRemoval.ownOf(SnapcastClientRuntime.isActive(), SnapcastClientRuntime.clientId())"));
-        assertTrue(ui.contains("SnapcastUi::ownClient"));
+        // task 12.11: the own id is the one id of all servers, derived from the install secret: known without a session
+        assertTrue(methodBody(ui, "static SnapcastClientRemoval.Own ownClient(Context context)").contains(
+                "SnapcastClientRemoval.ownOf(SnapcastClientRuntime.isActive(), SnapcastClientIdentities.ownId(context))"));
+        assertTrue(ui.contains("() -> ownClient(app)"));
         assertTrue("the Hello id is published as soon as it is built", service.contains("SnapcastClientRuntime.clientId(hello.getId())"));
         assertTrue(service.indexOf("SnapcastClientRuntime.clientId(hello.getId())") < service.indexOf("startServerPoll(address, hello.getId())"));
     }

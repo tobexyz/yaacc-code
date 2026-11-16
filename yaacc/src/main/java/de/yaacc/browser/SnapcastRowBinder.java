@@ -33,9 +33,12 @@ import de.yaacc.R;
 import de.yaacc.multiroom.SnapcastGroupDevice;
 import de.yaacc.multiroom.SnapcastHub;
 import de.yaacc.multiroom.SnapcastReceivers;
+import de.yaacc.multiroom.client.SnapcastClientIdentities;
+import de.yaacc.multiroom.client.SnapcastClientPowers;
 import de.yaacc.multiroom.control.SnapcastDisplayText;
 import de.yaacc.multiroom.ui.SnapcastControls;
 import de.yaacc.multiroom.ui.SnapcastKeyFocus;
+import de.yaacc.multiroom.ui.SnapcastOwnClient;
 import de.yaacc.multiroom.ui.SnapcastRowText;
 import de.yaacc.multiroom.ui.SnapcastVolumeKeys;
 
@@ -172,6 +175,26 @@ final class SnapcastRowBinder {
         show(views, device);
     }
 
+    /**
+     * The power button of the card (tasks 12.4 part 2, 12.16): only on the card of the group whose first member is the phone's own
+     * client (the id is the app's one client id), on or off by the client's session, a tap switches the client on or off. Every other
+     * group card has none. Called with every show (the state follows the session within two seconds) and when the row is bound.
+     */
+    void bindPower(ReceiverRowBinder.RowViews views, final SnapcastGroupDevice device) {
+        if (views.power == null) {
+            return;
+        }
+        final String id = idOf(device);
+        SnapcastReceivers.GroupState state = receivers().stateOf(id);
+        boolean own = SnapcastOwnClient.cardOffersPower(state == null ? null : state.getGroup(), SnapcastClientIdentities.ownId(context));
+        RendererPower power = SnapcastOwnPower.of(own, own && SnapcastClientPowers.of(context).isPoweredOn());
+        RendererPowerButton.bind(context, views.power, cleanName(String.valueOf(device.getDetails().getFriendlyName())), power,
+                RendererPowerController.getShared().isBusy(id), () -> {
+                    keyFocus.touched(id);
+                    SnapcastUi.toggleOwnPower(context, id, null);
+                });
+    }
+
     /** The host goes away: an open sheet would keep the activity alive. */
     void shutdown() {
         if (sheet != null && sheet.isShowing()) {
@@ -276,6 +299,7 @@ final class SnapcastRowBinder {
             }
         }
         SnapcastMuteToggle.syncState(context, views.mute);
+        bindPower(views, device);
     }
 
     /** For the host's own look at a group name (the title of the sheet): cleaned display text. */

@@ -84,6 +84,8 @@ public final class SnapcastClientRuntime {
     // before the Hello is built and again at the start of the next session. Never logged.
     private static final AtomicReference<String> CLIENT_ID = new AtomicReference<>();
 
+    private static final java.util.concurrent.atomic.AtomicBoolean SERVICE_ALIVE = new java.util.concurrent.atomic.AtomicBoolean();
+
     private SnapcastClientRuntime() {
     }
 
@@ -131,6 +133,24 @@ public final class SnapcastClientRuntime {
     /** The newest answer of the server about this client. */
     public static void server(ServerSays says) {
         VIEW.updateAndGet(old -> new View(old.phase, old.ending, old.engine, old.startedAtMillis, says));
+    }
+
+    /** The service instance was created (its {@code onCreate}). */
+    public static void serviceCreated() {
+        SERVICE_ALIVE.set(true);
+    }
+
+    /** The service instance was destroyed: it has torn its session down (its {@code onDestroy}). */
+    public static void serviceDestroyed() {
+        SERVICE_ALIVE.set(false);
+    }
+
+    /**
+     * A service instance exists. It outlives the phase of its session by the teardown (a few seconds at most), and it answers a start
+     * with "busy" until it is gone: a restart on another server waits for this too (task 12.10).
+     */
+    public static boolean isServiceAlive() {
+        return SERVICE_ALIVE.get();
     }
 
     /** True while a session is starting or running. */

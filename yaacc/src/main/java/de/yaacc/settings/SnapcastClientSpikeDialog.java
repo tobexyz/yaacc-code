@@ -375,7 +375,10 @@ final class SnapcastClientSpikeDialog {
             return;
         }
         writeAhead.setText(String.valueOf(ahead)); // the value that is applied (clamped to 40..350), not what was typed
+        // the typed address is the one the client uses from now on (the chosen/last server of task 12.10); it stays a known server through
+        // KEY_LAST_HOST, so the choice is found again even when the address is in no server list
         preferences.edit().putString(SnapcastClientSpike.KEY_LAST_HOST, host.getText().toString().trim())
+                .putString(SnapcastClientSpike.KEY_LAST_SERVER, host.getText().toString().trim())
                 .putInt(SnapcastClientSpike.KEY_LAST_LATENCY, request.getLatencyMs())
                 .putInt(SnapcastClientSpike.KEY_LAST_WRITE_AHEAD, ahead)
                 .putBoolean(SnapcastClientSpike.KEY_LAST_FLAC_GUARD, flacGuard.isChecked()).apply();

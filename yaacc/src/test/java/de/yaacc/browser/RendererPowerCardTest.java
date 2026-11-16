@@ -82,13 +82,16 @@ public class RendererPowerCardTest {
     }
 
     @Test
-    public void oneBinderPlacesItForEveryKindAndSnapcastAndThePhoneHaveNone() throws Exception {
+    public void oneBinderPlacesItForEveryKindAndTheSnapcastBinderDecidesForItsGroupsAndThePhoneHasNone() throws Exception {
         String binder = source("ReceiverRowBinder");
         String bind = methodBody(binder, "private void bindPower(");
 
         assertTrue(binder.contains("final ImageButton power;") && binder.contains("R.id.power_btn"));
         assertTrue("every status rebind places it", methodBody(binder, "void bindStatus(").contains("bindPower(holder, device, deviceId)"));
         assertTrue(bind.contains("!(device instanceof SnapcastGroupDevice) && !isLocalDevice(device)"));
+        // a Snapcast group card goes to the Snapcast binder, which shows the button only on the card of the phone's own client
+        assertTrue(bind.indexOf("snapcastRows.bindPower(holder, (SnapcastGroupDevice) device)") >= 0
+                && bind.indexOf("snapcastRows.bindPower(") < bind.indexOf("MusicCastPower.of("));
         assertTrue("MusicCast first, then OpenHome", bind.indexOf("MusicCastPower.of(") < bind.indexOf("OpenHomePower.offeredBy(device)"));
         assertTrue(bind.contains("RendererPowerButton.bind("));
         assertTrue("the name is cleaned display text", bind.contains("YxcRowText.clean("));

@@ -50,7 +50,10 @@ public final class SnapcastClientPower {
         /** The experimental option of the client ({@link SnapcastClientSpike#isEnabled}). */
         boolean optionEnabled();
 
-        /** The server as the listen test saved it ({@code host[:port]}); null or empty when none. */
+        /**
+         * The server the client uses ({@code host[:port]}): the last one it was connected to, else the first known one
+         * ({@link de.yaacc.multiroom.ui.SnapcastClientServerChoice}); null or empty when no server is known.
+         */
         String host();
 
         int latencyMs();
@@ -69,6 +72,9 @@ public final class SnapcastClientPower {
 
         /** Keeps the reason of a start that did not happen, as the last ending (unseen). */
         void recordEnding(String endingName);
+
+        /** The server the user chose (the text of one of the known servers): the one the next start uses. */
+        void writeLastServer(String hostText);
     }
 
     /** The service of the client; {@link SnapcastClientRuntime} and {@link SnapcastClientService} in the app. */
@@ -82,11 +88,24 @@ public final class SnapcastClientPower {
         void start(String host, int latencyMs, int writeAheadMs, boolean flacGuard);
 
         void stop();
+
+        /** A restart waits for the end of the old session, to start the new one. */
+        boolean restartPending();
+
+        /**
+         * Ends the session, waits until it is gone, then starts it on {@code host}; a start that is refused then is reported to
+         * {@code onFailure}. A later {@link #stop} cancels the restart.
+         */
+        void restart(String host, int latencyMs, int writeAheadMs, boolean flacGuard, Consumer<RuntimeException> onFailure);
     }
 
     /** What a call came to. */
     public enum Outcome {
-        STARTED, ALREADY_ACTIVE, STOPPED, OPTION_OFF, NO_SERVER, BAD_SERVER, NOT_ALLOWED;
+        STARTED, ALREADY_ACTIVE, STOPPED, OPTION_OFF, NO_SERVER, BAD_SERVER, NOT_ALLOWED,
+        /** The server was set; the client is off or already on it: nothing was restarted. */
+        SERVER_SET,
+        /** The server was set; the session ends and starts again on it. */
+        RESTARTING;
 
         /** The start did not happen (its reason is to be shown). */
         public boolean isRefused() {
@@ -125,20 +144,32 @@ public final class SnapcastClientPower {
         }
     }
 
+    /** After a start was handed to the service the card counts as on for this long, until the session shows its first phase. */
+    static final long START_GRACE_MS = 5_000L;
+
     private static final String REFUSAL_CLASS = "ForegroundServiceStartNotAllowedException";
     private static final int MAX_CAUSE_DEPTH = 8;
 
     private final Store store;
     private final Session session;
     private final Consumer<String> log;
+    private final java.util.function.LongSupplier clock;
+    // when the last start was handed to the service (0: none); the service needs a moment to show its first phase
+    private volatile long startRequestedAt;
     // the restore attempts of this process (the object lives as long as the process: one per application)
     private int attempts;
     private boolean lastAttemptRefused;
 
     public SnapcastClientPower(Store store, Session session, Consumer<String> log) {
+        this(store, session, log, System::currentTimeMillis);
+    }
+
+    /** @param clock milliseconds, only differences are used (a fake in the tests) */
+    public SnapcastClientPower(Store store, Session session, Consumer<String> log, java.util.function.LongSupplier clock) {
         this.store = store;
         this.session = session;
         this.log = log;
+        this.clock = clock;
     }
 
     /** @return the persisted state: the user wants the client on */
@@ -146,7 +177,7 @@ public final class SnapcastClientPower {
         return store.readSwitchedOn();
     }
 
-    /** @return whether the switch is offered at all: the option is on and a valid server is saved */
+    /** @return whether the switch is offered at all: the option is on and a valid server is known ({@link SnapcastClientServerChoice}) */
     public boolean offered() {
         return store.optionEnabled() && SnapcastClientSpike.check(store.host(), "").getOutcome() == SnapcastClientSpike.Outcome.OK;
     }
@@ -160,6 +191,7 @@ public final class SnapcastClientPower {
         boolean was = store.readSwitchedOn();
         store.writeSwitchedOn(on); // the intent is kept, whatever the start or the stop comes to; the only write of the state
         if (!on) {
+            startRequestedAt = 0;
             // also while the start is still on its way (the runtime shows no session yet): the stop reaches the service after it
             if (was || session.isActive()) {
                 try {
@@ -180,10 +212,13 @@ public final class SnapcastClientPower {
      * @param exitHold the process was created right after an explicit exit and waits for the user
      */
     public synchronized RestoreResult restore(SnapcastClientRestore.Point point, boolean exitHold) {
+        boolean switchedOn = store.readSwitchedOn();
+        boolean option = store.optionEnabled();
         SnapcastClientRestore.Facts facts = new SnapcastClientRestore.Facts(point)
-                .switchedOn(store.readSwitchedOn())
-                .optionEnabled(store.optionEnabled())
-                .serverSet(serverSet())
+                .switchedOn(switchedOn)
+                .optionEnabled(option)
+                // the server list is looked at only when the answer can matter (the decision stops at the first reason it finds)
+                .serverSet(switchedOn && option && serverSet())
                 .active(session.isActive())
                 .lastEnding(store.lastEnding())
                 .endingSeen(store.endingSeen())
@@ -218,6 +253,68 @@ public final class SnapcastClientPower {
         return new State(shown, ending, unseen);
     }
 
+    /**
+     * What the power button of the card shows (tasks 12.4 part 2 and 12.16): on while a session starts, runs or reconnects, while a
+     * restart on another server waits, and for a moment after a start was handed to the service (the session shows its first phase a
+     * moment later); off when the client is switched off, and also when it is switched on but has no session (it gave up, or a start
+     * was refused: a tap starts it again).
+     */
+    public boolean isPoweredOn() {
+        if (!store.readSwitchedOn()) {
+            return false;
+        }
+        if (session.isActive() || session.restartPending()) {
+            return true;
+        }
+        long at = startRequestedAt;
+        return at != 0 && clock.getAsLong() - at < START_GRACE_MS;
+    }
+
+    /**
+     * The user chose a server on the card of the client (task 12.10): it is remembered as the one the next start uses. While the client
+     * is on and connected to another server, the session ends and starts again on it (one restart; the state stays on; the same server
+     * restarts nothing); while it is off, nothing starts. The option is checked again and the address is validated like on every
+     * start. No automatic failover: this is the only way the server changes.
+     *
+     * @param hostText the text of one of the known servers ({@code host} or {@code host:port})
+     */
+    public Outcome chooseServer(String hostText) {
+        SnapcastClientSpike.Request request = SnapcastClientSpike.check(hostText, String.valueOf(store.latencyMs()));
+        if (request.getOutcome() != SnapcastClientSpike.Outcome.OK) {
+            return Outcome.BAD_SERVER;
+        }
+        String chosen = hostText.trim();
+        String current = store.host();
+        store.writeLastServer(chosen);
+        switch (SnapcastClientServerSwitch.decide(store.readSwitchedOn(), session.isActive(), session.restartPending(), current, chosen)) {
+            case START:
+                return startSession();
+            case RESTART:
+                return restartOn(chosen, request.getLatencyMs());
+            case STORE_ONLY:
+            default:
+                return Outcome.SERVER_SET;
+        }
+    }
+
+    private Outcome restartOn(String host, int latencyMs) {
+        if (!store.optionEnabled()) {
+            return refuse(Outcome.OPTION_OFF, SnapcastClientRuntime.Ending.DISABLED);
+        }
+        try {
+            session.restart(host, latencyMs, SnapcastClientSpike.clampWriteAhead(store.writeAheadMs()), store.flacGuard(), failure -> {
+                // the start after the wait was refused (Android 12 and newer): class name only, the state stays on
+                log.accept("Snapcast client restart was refused: " + failure.getClass().getSimpleName());
+                store.recordEnding(SnapcastClientRuntime.Ending.START_NOT_ALLOWED.name());
+            });
+            startRequestedAt = clock.getAsLong();
+            return Outcome.RESTARTING;
+        } catch (RuntimeException refused) {
+            log.accept("Snapcast client restart was refused: " + refused.getClass().getSimpleName());
+            return refuse(Outcome.NOT_ALLOWED, SnapcastClientRuntime.Ending.START_NOT_ALLOWED);
+        }
+    }
+
     /** The switch or the dialog showed the last ending: it is not unseen any more. */
     public void markEndingSeen() {
         store.markEndingSeen();
@@ -239,14 +336,16 @@ public final class SnapcastClientPower {
         if (request.getOutcome() != SnapcastClientSpike.Outcome.OK) {
             return refuse(Outcome.BAD_SERVER, SnapcastClientRuntime.Ending.BAD_ADDRESS);
         }
-        if (session.isActive()) {
-            return Outcome.ALREADY_ACTIVE;
+        if (session.isActive() || session.restartPending()) {
+            return Outcome.ALREADY_ACTIVE; // a restart that waits starts the one session; a second start would be a double start
         }
         try {
+            startRequestedAt = clock.getAsLong();
             session.start(host.trim(), request.getLatencyMs(), SnapcastClientSpike.clampWriteAhead(store.writeAheadMs()), store.flacGuard());
             return Outcome.STARTED;
         } catch (RuntimeException refused) {
             // Android 12 and newer may refuse a foreground service start from the background (IllegalStateException): class name only
+            startRequestedAt = 0;
             log.accept("Snapcast client start was refused: " + refused.getClass().getSimpleName());
             return refuse(Outcome.NOT_ALLOWED, SnapcastClientRuntime.Ending.START_NOT_ALLOWED);
         }

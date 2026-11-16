@@ -32,6 +32,12 @@ public final class SnapcastClientSpike {
     public static final boolean ENABLED_DEFAULT = false;
     /** Remembered between uses; plain text on the phone like the server list. */
     public static final String KEY_LAST_HOST = "snapcast_client_spike_host";
+    /**
+     * The server the phone's client uses: the one it was last connected to, written when a session first reaches the connected state,
+     * when the user chooses a server on the card of the client, and when the listen test starts with a typed address. Plain text on
+     * the phone like the server list; read through {@code SnapcastClientServerChoice} (validated, a damaged text is none).
+     */
+    public static final String KEY_LAST_SERVER = "snapcast_client_last_server";
     public static final String KEY_LAST_LATENCY = "snapcast_client_spike_latency_ms";
     /** The per-installation secret of the Hello id, see {@link SnapcastClientIdentity}. */
     public static final String KEY_SECRET = "snapcast_client_spike_secret";

@@ -407,12 +407,18 @@ final class ReceiverRowBinder {
 
     /**
      * The power button (task 12.4): MusicCast first (its state is kept live by the device's own events), then OpenHome (the standby
-     * state read by {@link OpenHomePowerMonitor}); a device that offers neither, the phone's own card and a Snapcast group have none
-     * (the phone's own Snapcast client plugs in here later with its own {@link RendererPower} and toggle source). Busy while a change
-     * of this device runs, also while a group change of a MusicCast device does.
+     * state read by {@link OpenHomePowerMonitor}); a device that offers neither and the phone's own card have none. A Snapcast group
+     * card has one only when the phone's own Snapcast client is its first member ({@link SnapcastRowBinder#bindPower}, the client's own
+     * {@link RendererPower} and toggle source). Busy while a change of this device runs, also while a group change of a MusicCast
+     * device does.
      */
     private void bindPower(RowViews holder, Device<?, ?, ?> device, final String udn) {
         if (holder.power == null) {
+            return;
+        }
+        if (device instanceof SnapcastGroupDevice) {
+            // only the card of the phone's own Snapcast client has a button; the Snapcast binder decides (tasks 12.4 part 2, 12.16)
+            snapcastRows.bindPower(holder, (SnapcastGroupDevice) device);
             return;
         }
         RendererPower power = RendererPower.unsupported();

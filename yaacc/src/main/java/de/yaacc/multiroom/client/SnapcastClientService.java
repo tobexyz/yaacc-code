@@ -52,7 +52,6 @@ import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.multiroom.control.SocketTransport;
 import de.yaacc.multiroom.discovery.SnapcastResolver;
-import de.yaacc.multiroom.discovery.SnapcastServerKey;
 import de.yaacc.multiroom.protocol.HelloMessage;
 import de.yaacc.multiroom.protocol.ServerSettingsMessage;
 import de.yaacc.multiroom.protocol.SnapcastConnection;
@@ -71,8 +70,8 @@ import de.yaacc.util.NotificationId;
  * opened; the phone connects out to the one server the user typed in, by an address resolved once.
  *
  * <p><b>Disclosure.</b> The Hello carries the name of the phone as the UPnP server announces it, the program name, the
- * generic words "Android" and "unknown", and an id derived per server from a secret of this installation
- * ({@link SnapcastClientIdentity}); the MAC is the fixed placeholder. Nothing from the server is written to the log.
+ * generic words "Android" and "unknown", and an id derived from a secret of this installation
+ * ({@link SnapcastClientIdentity}): the same id for every server; the MAC is the fixed placeholder. Nothing from the server is written to the log.
  */
 public final class SnapcastClientService extends Service {
 
@@ -104,6 +103,8 @@ public final class SnapcastClientService extends Service {
     private SessionPowerPolicy powerPolicy; // main thread only
     private SnapcastClientRuntime.Phase lastPhaseShown;
     private volatile Integer pendingLatencyMs;
+    private volatile String serverText; // the server of this session as the start named it (validated by beginSession)
+    private final AtomicBoolean serverRemembered = new AtomicBoolean();
     private volatile int writeAheadMs = SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS;
     private volatile boolean flacGuard = true;
 
@@ -154,6 +155,12 @@ public final class SnapcastClientService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        SnapcastClientRuntime.serviceCreated();
     }
 
     @Override
@@ -220,6 +227,21 @@ public final class SnapcastClientService extends Service {
         return START_NOT_STICKY;
     }
 
+    /**
+     * The first time a session reaches the connected state the server is remembered as the one the client was last connected to (task
+     * 12.10: the default of the next start). Once per session; the text is the one the start validated; nothing is logged.
+     */
+    private void rememberServer() {
+        String text = serverText;
+        if (text != null && serverRemembered.compareAndSet(false, true)) {
+            try {
+                PreferenceManager.getDefaultSharedPreferences(this).edit().putString(SnapcastClientSpike.KEY_LAST_SERVER, text).apply();
+            } catch (RuntimeException ignored) {
+                // a courtesy: the session goes on
+            }
+        }
+    }
+
     private static int clampLatency(int value) {
         return Math.max(SnapcastClientSpike.MIN_LATENCY_MS, Math.min(SnapcastClientSpike.MAX_LATENCY_MS, value));
     }
@@ -239,6 +261,7 @@ public final class SnapcastClientService extends Service {
             endSession(SnapcastClientRuntime.Ending.BAD_ADDRESS);
             return;
         }
+        serverText = hostText.trim();
         acquireLocks();
         powerPolicy = new SessionPowerPolicy(SystemClock.elapsedRealtime());
         main.postDelayed(watchdog, WATCHDOG_INTERVAL_MS);
@@ -259,8 +282,7 @@ public final class SnapcastClientService extends Service {
     private void connect(SnapcastClientSpike.Request request) {
         try {
             InetAddress address = SnapcastResolver.system().resolve(request.getEndpoint());
-            String serverKey = SnapcastServerKey.of(request.getEndpoint()).asString();
-            HelloMessage hello = HelloMessage.create(SnapcastClientIdentity.deriveId(installSecret(), serverKey),
+            HelloMessage hello = HelloMessage.create(SnapcastClientIdentity.deriveId(installSecret()),
                     SnapcastClientSpike.helloHostName(address, phoneName()),
                     "YAACC", "Android", "unknown", "spike");
             ClientSession session = ClientSession.assemble(new SocketTransport(address, request.getEndpoint().getPort()), hello,
@@ -308,6 +330,7 @@ public final class SnapcastClientService extends Service {
             main.post(() -> {
                 if (!ended.get()) {
                     SnapcastClientRuntime.phaseWhileActive(SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
+                    rememberServer();
                 }
             });
         } catch (IOException unresolved) {
@@ -398,6 +421,7 @@ public final class SnapcastClientService extends Service {
             main.post(() -> {
                 if (!ended.get()) {
                     SnapcastClientRuntime.phaseWhileActive(SnapcastClientRuntime.Phase.RUNNING, SnapcastClientRuntime.Ending.NONE, startedAtMillis);
+                    rememberServer();
                     refreshNotification();
                 }
             });
@@ -582,6 +606,7 @@ public final class SnapcastClientService extends Service {
         if (worker != null) {
             worker.shutdownNow();
         }
+        SnapcastClientRuntime.serviceDestroyed(); // a restart on another server waits for this
         super.onDestroy();
     }
 

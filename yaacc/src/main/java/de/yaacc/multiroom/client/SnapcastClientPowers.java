@@ -21,9 +21,20 @@ package de.yaacc.multiroom.client;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 
 import androidx.preference.PreferenceManager;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+
+import de.yaacc.multiroom.SnapcastHub;
+import de.yaacc.multiroom.ui.SnapcastClientServerChoice;
+import de.yaacc.multiroom.ui.SnapcastServerChoices;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -57,6 +68,42 @@ public final class SnapcastClientPowers {
         }
     }
 
+    /**
+     * The servers the client can use, as {@link SnapcastServerChoices} builds them from the server list (typed in, remembered, found)
+     * and the address the listen test used last: host only, the client connects to the stream port 1704 (the limit of the list, see
+     * the notes). In memory, no network. At most {@link SnapcastServerChoices#MAX_CHOICES}.
+     */
+    public static List<SnapcastServerChoices.Choice> knownServers(Context context) {
+        Context app = context.getApplicationContext();
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(app);
+        try {
+            return SnapcastServerChoices.of(SnapcastHub.getShared(app).newServerListModel().rows(), string(preferences, SnapcastClientSpike.KEY_LAST_HOST));
+        } catch (RuntimeException unexpected) {
+            YaaccLogger.w(SnapcastClientPowers.class.getName(), "Snapcast servers not read: " + unexpected.getClass().getSimpleName());
+            return Collections.emptyList();
+        }
+    }
+
+    /** The server the client uses now: the last one it was connected to, else the first known one; null when none is known. */
+    public static SnapcastServerChoices.Choice currentServer(Context context) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+        return SnapcastClientServerChoice.resolve(string(preferences, SnapcastClientSpike.KEY_LAST_SERVER), knownServers(context));
+    }
+
+    /** The position of the current server in {@code known} (to mark it in the list); -1 when the list is empty. */
+    public static int currentServerIndex(Context context, List<SnapcastServerChoices.Choice> known) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
+        return SnapcastClientServerChoice.currentIndex(string(preferences, SnapcastClientSpike.KEY_LAST_SERVER), known);
+    }
+
+    private static String string(SharedPreferences preferences, String key) {
+        try {
+            return preferences.getString(key, "");
+        } catch (RuntimeException damaged) {
+            return "";
+        }
+    }
+
     private static SnapcastClientPower create(final Context app) {
         final SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(app);
         SnapcastClientPower.Store store = new SnapcastClientPower.Store() {
@@ -78,11 +125,14 @@ public final class SnapcastClientPowers {
 
             @Override
             public String host() {
-                try {
-                    return preferences.getString(SnapcastClientSpike.KEY_LAST_HOST, "");
-                } catch (RuntimeException damaged) {
-                    return "";
-                }
+                // the server list decides, not the address that the listen test saved (task 12.10); every start checks the text again
+                SnapcastServerChoices.Choice chosen = currentServer(app);
+                return chosen == null ? "" : chosen.hostText();
+            }
+
+            @Override
+            public void writeLastServer(String hostText) {
+                preferences.edit().putString(SnapcastClientSpike.KEY_LAST_SERVER, hostText).apply();
             }
 
             @Override
@@ -144,6 +194,7 @@ public final class SnapcastClientPowers {
                         .putBoolean(SnapcastClientSpike.KEY_LAST_ENDING_SEEN, false).apply();
             }
         };
+        final Restarter restarter = new Restarter(app);
         SnapcastClientPower.Session session = new SnapcastClientPower.Session() {
             @Override
             public boolean isActive() {
@@ -162,9 +213,104 @@ public final class SnapcastClientPowers {
 
             @Override
             public void stop() {
+                restarter.cancel(); // a switch off ends a restart that still waits
                 SnapcastClientService.stop(app);
+            }
+
+            @Override
+            public boolean restartPending() {
+                return restarter.isPending();
+            }
+
+            @Override
+            public void restart(String host, int latencyMs, int writeAheadMs, boolean flacGuard, Consumer<RuntimeException> onFailure) {
+                restarter.restart(new Restarter.Request(host, latencyMs, writeAheadMs, flacGuard, onFailure));
             }
         };
         return new SnapcastClientPower(store, session, line -> YaaccLogger.i(SnapcastClientPowers.class.getName(), line));
+    }
+
+    /**
+     * Ends the session of the client and starts it again on another server: stop, wait until the session AND the service instance are
+     * gone (the service answers a start with "busy" while it still tears the old session down), then start. The waiting is a poll on
+     * the main thread, bounded ({@link SnapcastClientServerSwitch#waitStep}); a second request while it waits replaces the target
+     * (one start in the end); {@link #cancel} removes it. Thin Android glue.
+     */
+    private static final class Restarter {
+        static final long POLL_MS = 200L;
+        static final long MAX_WAIT_MS = 8_000L;
+
+        static final class Request {
+            final String host;
+            final int latencyMs;
+            final int writeAheadMs;
+            final boolean flacGuard;
+            final Consumer<RuntimeException> onFailure;
+            final long requestedAt = SystemClock.elapsedRealtime();
+
+            Request(String host, int latencyMs, int writeAheadMs, boolean flacGuard, Consumer<RuntimeException> onFailure) {
+                this.host = host;
+                this.latencyMs = latencyMs;
+                this.writeAheadMs = writeAheadMs;
+                this.flacGuard = flacGuard;
+                this.onFailure = onFailure;
+            }
+        }
+
+        private final Context app;
+        private final Handler main = new Handler(Looper.getMainLooper());
+        private final AtomicReference<Request> pending = new AtomicReference<>();
+        private final Runnable poll = this::step;
+
+        Restarter(Context app) {
+            this.app = app;
+        }
+
+        boolean isPending() {
+            return pending.get() != null;
+        }
+
+        void restart(Request request) {
+            Request before = pending.getAndSet(request);
+            if (before == null) {
+                SnapcastClientService.stop(app); // the old session ends; the poll starts the new one
+                main.postDelayed(poll, POLL_MS);
+            }
+        }
+
+        void cancel() {
+            pending.set(null);
+            main.removeCallbacks(poll);
+        }
+
+        private void step() {
+            Request request = pending.get();
+            if (request == null) {
+                return;
+            }
+            boolean gone = !SnapcastClientRuntime.isActive() && !SnapcastClientRuntime.isServiceAlive();
+            switch (SnapcastClientServerSwitch.waitStep(gone, SystemClock.elapsedRealtime() - request.requestedAt, MAX_WAIT_MS)) {
+                case START:
+                    if (pending.compareAndSet(request, null)) {
+                        try {
+                            SnapcastClientService.start(app, request.host, request.latencyMs, request.writeAheadMs, request.flacGuard);
+                        } catch (RuntimeException refused) {
+                            request.onFailure.accept(refused);
+                        }
+                    } else {
+                        main.post(poll); // replaced meanwhile: look at the newer request
+                    }
+                    break;
+                case GIVE_UP:
+                    if (pending.compareAndSet(request, null)) {
+                        YaaccLogger.w(SnapcastClientPowers.class.getName(), "Snapcast client restart gave up waiting for the old session");
+                    }
+                    break;
+                case WAIT:
+                default:
+                    main.postDelayed(poll, POLL_MS);
+                    break;
+            }
+        }
     }
 }
