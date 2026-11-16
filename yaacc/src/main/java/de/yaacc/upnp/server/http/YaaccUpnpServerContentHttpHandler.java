@@ -159,10 +159,17 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             responseTrigger.submitResponse(responseBuilder.build(), context);
             return;
         }
+        // The HTTP server is started with the service at every process creation (discovery), also with the
+        // master switch "UPnP Server" off: then nothing but /health is answered (task 12.21).
+        boolean masterOn = preferences.getBoolean(getContext().getString(R.string.settings_local_server_chkbx), false);
         if (!pathSegments.isEmpty() && YaaccUpnpServerService.PROXY_PATH.equals(pathSegments.get(0))) {
-            // The shares of the in-memory registry. Answered before the preference gate below: the
-            // HTTP server runs whenever the process lives and a share is protected by its random
-            // key, its expiry and (setting) the receiver addresses, not by the proxy preference.
+            if (!ServerRequestGate.mayServeShares(masterOn)) {
+                createForbiddenResponse(responseTrigger, context, responseBuilder);
+                return;
+            }
+            // The shares of the in-memory registry. Answered before the provider/proxy gate below: a share is
+            // protected by its random key, its expiry and (setting) the receiver addresses, not by the proxy
+            // preference; the master switch is the one switch that must be on.
             new ProxyShareResponder(getContext(), preferences).respond(request, responseTrigger, context,
                     requestMethod.equals("HEAD"), pathSegments);
             return;
@@ -171,8 +178,10 @@ public class YaaccUpnpServerContentHttpHandler implements AsyncServerRequestHand
             createForbiddenResponse(responseTrigger, context, responseBuilder);
             return;
         }
-        boolean contentServerEnabled = preferences.getBoolean(getContext().getString(R.string.settings_local_server_provider_chkbx), false);
-        boolean contentProxyEnabled = preferences.getBoolean(getContext().getString(R.string.settings_local_server_proxy_chkbx), false);
+        boolean contentServerEnabled = ServerRequestGate.contentServerOpen(masterOn,
+                preferences.getBoolean(getContext().getString(R.string.settings_local_server_provider_chkbx), false));
+        boolean contentProxyEnabled = ServerRequestGate.contentProxyOpen(masterOn,
+                preferences.getBoolean(getContext().getString(R.string.settings_local_server_proxy_chkbx), false));
         if (!contentServerEnabled && !contentProxyEnabled) {
             createForbiddenResponse(responseTrigger, context, responseBuilder);
             return;

@@ -50,6 +50,7 @@
     <string name="share_busy">另一个分享的文件仍在处理中，请稍后再试。</string>
     <string name="share_unnamed_link">分享的链接</string>
     <string name="share_link_failed">无法播放分享的链接。</string>
+    <string name="share_link_needs_server">未播放分享的链接：媒体代理需要打开“UPnP 服务器”开关。请打开该开关，或在设置中关闭代理。</string>
     <string name="error_no_activity_found">未找到播放 mimetype \'%1$s\' 的活动</string>
     <string name="image_viewer_settings_duration">图片停留时长</string>
     <string name="yaacc_menu_settings">YAACC 设置</string>

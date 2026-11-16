@@ -50,6 +50,7 @@
     <string name="share_busy">Otro archivo compartido aún se está procesando. Inténtalo de nuevo en un momento.</string>
     <string name="share_unnamed_link">Enlace compartido</string>
     <string name="share_link_failed">No se pudo reproducir el enlace compartido.</string>
+    <string name="share_link_needs_server">No se reprodujo el enlace compartido: el proxy de medios necesita que el interruptor \'servidor UPnP\' esté activado. Actívalo o desactiva el proxy en los ajustes.</string>
     <string name="error_no_activity_found">No se encontró actividad para jugar tipo MIME \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Duración de la estancia de la foto</string>
     <string name="yaacc_menu_settings">Configuración de YAACC</string>

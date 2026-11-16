@@ -758,6 +758,14 @@ entries when it starts. Shared files always use this mechanism, whether or not
 the "media proxy service" setting is on; the setting only decides whether a
 shared link is proxied or handed to the receiver directly.
 
+The media proxy needs the *UPnP server* switch on the first page to be on as well:
+the proxy is the app's own http server, and with that switch off the app serves
+nothing (its http server answers "403" to every proxy and content address). A shared
+link with the proxy checked and the *UPnP server* switch off is therefore refused, and
+the app shows a message that names the switch; switch the *UPnP server* on or uncheck
+the proxy in the settings. With the proxy not checked a shared link is handed to the
+receiver directly, whatever the switch says.
+
 By default only the receivers you chose may fetch a shared item from the proxy
 (setting "restrict the media proxy to the chosen receivers"). If a receiver is
 refused, see [Settings](settings/) for when to switch this off.

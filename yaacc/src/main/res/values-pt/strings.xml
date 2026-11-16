@@ -51,6 +51,7 @@
     <string name="share_busy">Outro ficheiro partilhado ainda está a ser processado. Tente novamente dentro de instantes.</string>
     <string name="share_unnamed_link">Ligação partilhada</string>
     <string name="share_link_failed">Não foi possível reproduzir a ligação partilhada.</string>
+    <string name="share_link_needs_server">A ligação partilhada não foi reproduzida: o proxy de multimédia precisa do interruptor \'Servidor UPnP\' ativado. Ative-o ou desative o proxy nas definições.</string>
     <string name="error_no_activity_found">Nenhuma atividade encontrada para jogar o tipo MIME \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Duração da permanência da imagem</string>
     <string name="yaacc_menu_settings">Configurações YAACC</string>

@@ -50,6 +50,7 @@
     <string name="share_busy">Een ander gedeeld bestand wordt nog verwerkt. Probeer het zo meteen opnieuw.</string>
     <string name="share_unnamed_link">Gedeelde link</string>
     <string name="share_link_failed">De gedeelde link kon niet worden afgespeeld.</string>
+    <string name="share_link_needs_server">De gedeelde link is niet afgespeeld: de mediaproxy heeft de schakelaar \'UPnP-server\' nodig. Zet die aan of zet de proxy uit in de instellingen.</string>
     <string name="error_no_activity_found">Geen activiteit gevonden voor het spelen van mimetype \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Duur van het beeldverblijf</string>
     <string name="yaacc_menu_settings">YAACC-instellingen</string>

@@ -50,6 +50,7 @@
     <string name="share_busy">Eine andere geteilte Datei wird noch verarbeitet. Versuche es gleich noch einmal.</string>
     <string name="share_unnamed_link">Geteilter Link</string>
     <string name="share_link_failed">Der geteilte Link konnte nicht wiedergegeben werden.</string>
+    <string name="share_link_needs_server">Der geteilte Link wurde nicht wiedergegeben: Der Medien-Proxy braucht den eingeschalteten Schalter \'UPnP Server\'. Schalte ihn ein oder schalte den Proxy in den Einstellungen aus.</string>
     <string name="error_no_activity_found">Keine Aktivität zum Abspielen vom Typ \'%1$s\' gefunden</string>
     <string name="image_viewer_settings_duration">Dauer der Bildanzeige</string>
     <string name="no_valid_uri_data_found_to_display">Keine gültigen Uri-Informationen zum Anzeigen gefunden</string>

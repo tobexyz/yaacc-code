@@ -50,6 +50,7 @@
     <string name="share_busy">Un autre fichier partagé est encore en cours de traitement. Réessayez dans un instant.</string>
     <string name="share_unnamed_link">Lien partagé</string>
     <string name="share_link_failed">Impossible de lire le lien partagé.</string>
+    <string name="share_link_needs_server">Le lien partagé n\'a pas été lu : le proxy multimédia nécessite que le commutateur \'serveur UPnP\' soit activé. Activez-le ou désactivez le proxy dans les réglages.</string>
     <string name="error_no_activity_found">Aucune activité trouvée pour la lecture du type MIME \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Durée du séjour photo</string>
     <string name="yaacc_menu_settings">Paramètres YAACC</string>

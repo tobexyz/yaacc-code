@@ -50,6 +50,7 @@
     <string name="share_busy">Another shared file is still being processed. Try again in a moment.</string>
     <string name="share_unnamed_link">Shared link</string>
     <string name="share_link_failed">Could not play the shared link.</string>
+    <string name="share_link_needs_server">The shared link was not played: the media proxy needs the \'UPnP server\' switch to be on. Switch it on or turn the proxy off in the settings.</string>
     <string name="error_no_activity_found">No activity found for playing mimetype \'%1$s\'</string>
     <string name="image_viewer_settings_duration">Picture stay duration</string>
     <string name="image_viewer_settings_duration_key" translatable="false">image_viewer_settings_duration_key</string>
