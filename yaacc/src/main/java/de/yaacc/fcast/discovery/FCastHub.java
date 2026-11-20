@@ -127,20 +127,24 @@ public final class FCastHub implements FCastReceiverSource {
 
     /** Adds a receiver by hand; the list of receivers is updated at once. */
     public FCastStoredReceivers.AddResult addManual(FCastEndpoint endpoint, String name) {
-        FCastStoredReceivers.AddResult result = manualReceivers.add(endpoint, name);
-        if (result == FCastStoredReceivers.AddResult.ADDED) {
-            directory.setManual(manualReceivers.list());
+        synchronized (manualReceivers) { // the stored list and the directory must see the same order of changes
+            FCastStoredReceivers.AddResult result = manualReceivers.add(endpoint, name);
+            if (result == FCastStoredReceivers.AddResult.ADDED) {
+                directory.setManual(manualReceivers.list());
+            }
+            return result;
         }
-        return result;
     }
 
     /** Removes a receiver that was added by hand. @return true if it was in the list */
     public boolean removeManual(FCastEndpoint endpoint) {
-        boolean removed = manualReceivers.remove(endpoint);
-        if (removed) {
-            directory.setManual(manualReceivers.list());
+        synchronized (manualReceivers) {
+            boolean removed = manualReceivers.remove(endpoint);
+            if (removed) {
+                directory.setManual(manualReceivers.list());
+            }
+            return removed;
         }
-        return removed;
     }
 
     /** The report of the discovery for the user to copy: what was browsed, what the system said, the receivers known. */

@@ -179,6 +179,88 @@ public class FCastDirectoryTest {
     }
 
     @Test
+    public void movingNamesToNewAddressesDoesNotGetRoundTheCap() {
+        // 64 receivers, each announced under two names; moving one name of each to a new address would make 128 receivers if it were not counted
+        for (int i = 0; i < FCastDirectory.MAX_DISCOVERED; i++) {
+            assertTrue(directory.serviceFound(id("a" + i), "a" + i, ip(10, 0, i / 250, i % 250 + 1), 46899, null));
+            assertTrue(directory.serviceFound(id("b" + i), "b" + i, ip(10, 0, i / 250, i % 250 + 1), 46899, null));
+        }
+        int moved = 0;
+        for (int i = 0; i < FCastDirectory.MAX_DISCOVERED; i++) {
+            if (directory.serviceFound(id("b" + i), "b" + i, ip(10, 1, i / 250, i % 250 + 1), 46899, null)) {
+                moved++;
+            }
+        }
+        assertEquals("a move that makes a new receiver is refused while the directory is full", 0, moved);
+        assertEquals(FCastDirectory.MAX_DISCOVERED, directory.snapshot().size());
+    }
+
+    @Test
+    public void aMoveThatFreesTheOldReceiverIsAllowedWhenFull() {
+        for (int i = 0; i < FCastDirectory.MAX_DISCOVERED; i++) {
+            assertTrue(directory.serviceFound(id("r" + i), "r" + i, ip(10, 0, 0, i + 1), 46899, null));
+        }
+        assertTrue("one name, new address: the old one goes, the count stays", directory.serviceFound(id("r0"), "r0", ip(10, 5, 5, 5), 46899, null));
+        assertEquals(FCastDirectory.MAX_DISCOVERED, directory.snapshot().size());
+        assertNull(directory.find(endpoint("10.0.0.1")));
+        assertNotNull(directory.find(endpoint("10.5.5.5")));
+    }
+
+    @Test
+    public void theUsersReceiversAreIndependentOfTheDiscoveredOnes() {
+        for (int i = 0; i < FCastDirectory.MAX_DISCOVERED; i++) {
+            assertTrue(directory.serviceFound(id("r" + i), "r" + i, ip(10, 0, 0, i + 1), 46899, null));
+        }
+        List<FCastDirectory.Known> manual = new ArrayList<>();
+        List<FCastDirectory.Known> remembered = new ArrayList<>();
+        for (int i = 0; i < 16; i++) {
+            manual.add(new FCastDirectory.Known(endpoint("172.16.0." + (i + 1)), "m" + i));
+            remembered.add(new FCastDirectory.Known(endpoint("172.17.0." + (i + 1)), "r" + i));
+        }
+        assertEquals(16, directory.setManual(manual));
+        assertEquals(16, directory.setRemembered(remembered));
+        assertEquals(FCastDirectory.MAX_ENTRIES, directory.snapshot().size());
+        manual.add(new FCastDirectory.Known(endpoint("172.16.0.200"), "one too many"));
+        assertEquals("a longer list than the cap is cut, not rejected as a whole", 16, directory.setManual(manual));
+    }
+
+    @Test
+    public void anIpv6LinkLocalAnnouncementIsRefusedBecauseItNeedsTheInterface() throws Exception {
+        InetAddress linkLocal = InetAddress.getByName("fe80:0:0:0:0:0:0:1");
+        InetAddress uniqueLocal = InetAddress.getByName("fd00:0:0:0:0:0:0:1");
+        assertFalse(directory.serviceFound(id("ll"), "ll", linkLocal, 46899, null));
+        assertTrue(directory.serviceFound(id("ul"), "ul", uniqueLocal, 46899, null));
+    }
+
+    @Test
+    public void anAnnouncementWithTheSameHintsChangesNothing() {
+        final AtomicInteger calls = new AtomicInteger();
+        directory.serviceFound(id("a"), "a", ip(192, 168, 0, 1), 46899, FCastServiceTxt.parse(txt("v", "4")));
+        directory.addListener(calls::incrementAndGet);
+        directory.serviceFound(id("a"), "a", ip(192, 168, 0, 1), 46899, FCastServiceTxt.parse(txt("v", "4"))); // an equal but new object
+        assertEquals(0, calls.get());
+        directory.serviceFound(id("a"), "a", ip(192, 168, 0, 1), 46899, FCastServiceTxt.parse(txt("v", "3")));
+        assertEquals(1, calls.get());
+    }
+
+    private static Map<String, byte[]> txt(String key, String value) {
+        Map<String, byte[]> map = new HashMap<>();
+        map.put(key, value.getBytes(StandardCharsets.UTF_8));
+        return map;
+    }
+
+    @Test
+    public void whatExpiresIsToldToTheListenersAlsoWhenOnlyOneReceiverIsLookedUp() {
+        found("a", 1);
+        directory.discoveryRestarted();
+        now.addAndGet(60_000);
+        final AtomicInteger calls = new AtomicInteger();
+        directory.addListener(calls::incrementAndGet);
+        assertNull(directory.find(endpoint("192.168.0.1")));
+        assertEquals(1, calls.get());
+    }
+
+    @Test
     public void aKnownReceiverCanStillRenameItselfWhenTheDirectoryIsFull() {
         for (int i = 0; i < FCastDirectory.MAX_DISCOVERED; i++) {
             directory.serviceFound(id("r" + i), "r" + i, ip(10, 0, 0, i + 1), 46899, null);
@@ -302,7 +384,16 @@ public class FCastDirectoryTest {
         List<FCastDirectory.Entry> entries = directory.snapshot();
         assertEquals(1, entries.size());
         assertEquals("m", entries.get(0).getDisplayName());
-        assertTrue("the table of service names was emptied too: a new announcement is accepted", found("x", 6));
+    }
+
+    @Test
+    public void switchingTheDiscoveryOffEmptiesTheTableOfServiceNamesToo() {
+        for (int i = 0; i < FCastDirectory.MAX_SERVICE_IDS; i++) {
+            assertTrue(directory.serviceFound(id("n" + i), "n" + i, ip(10, 0, 0, i % 8 + 1), 46899, null));
+        }
+        assertFalse("the name table is full", directory.serviceFound(id("one more"), "one more", ip(10, 0, 0, 9), 46899, null));
+        directory.clearDiscovered();
+        assertTrue("with the table emptied a new name is accepted", directory.serviceFound(id("one more"), "one more", ip(10, 0, 0, 9), 46899, null));
     }
 
     // ---- listeners
@@ -311,13 +402,24 @@ public class FCastDirectoryTest {
     public void listenersAreToldAboutChangesAndMayReadTheDirectory() {
         final AtomicInteger calls = new AtomicInteger();
         final AtomicInteger seen = new AtomicInteger();
-        directory.addListener(() -> {
-            calls.incrementAndGet();
-            seen.set(directory.snapshot().size()); // would deadlock if it were called under the lock
-        });
-        found("a", 1);
+        final java.util.concurrent.ExecutorService other = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            directory.addListener(() -> {
+                calls.incrementAndGet();
+                try {
+                    // another thread reads the directory while this listener waits for it: if the directory called the listener under its
+                    // own lock, the other thread could not get in and this would time out (a monitor does not stop its own thread)
+                    seen.set(other.submit(() -> directory.snapshot().size()).get(3, java.util.concurrent.TimeUnit.SECONDS));
+                } catch (Exception e) {
+                    seen.set(-1);
+                }
+            });
+            found("a", 1);
+        } finally {
+            other.shutdown();
+        }
         assertEquals(1, calls.get());
-        assertEquals(1, seen.get());
+        assertEquals("the listener could read the directory from another thread", 1, seen.get());
         found("a", 1);
         assertEquals("an announcement that changes nothing is silent", 1, calls.get());
         directory.serviceLost(id("a"));

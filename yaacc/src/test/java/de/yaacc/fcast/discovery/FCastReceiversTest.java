@@ -21,6 +21,8 @@ package de.yaacc.fcast.discovery;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -93,6 +95,45 @@ public class FCastReceiversTest {
         assertEquals("192.168.0.239:46899", device.getEndpoint().toString());
         assertFalse(device.isOffline());
         assertFalse(device.isManual());
+    }
+
+    @Test
+    public void anUnchangedReceiverIsTheSameDeviceObjectEveryTimeBecauseTheListsCompareByObject() {
+        found("FCast-pc", 239);
+        FCastReceiverDevice first = receivers.receivers().get(0);
+        assertSame(first, receivers.receivers().get(0));
+        assertSame(first, receivers.findReceiver("fcast:192.168.0.239:46899"));
+        found("FCast-pc", 239); // the same announcement again
+        assertSame(first, receivers.receivers().get(0));
+    }
+
+    @Test
+    public void aChangedReceiverIsANewObjectAndAGoneOneIsForgotten() {
+        found("FCast-pc", 239);
+        FCastReceiverDevice first = receivers.receivers().get(0);
+        found("renamed", 239);
+        FCastReceiverDevice second = receivers.receivers().get(0);
+        assertNotSame(first, second);
+        assertEquals(first, second);
+        assertSame(second, receivers.findReceiver("fcast:192.168.0.239:46899"));
+        directory.serviceLost("_fcast._tcp|renamed");
+        directory.serviceLost("_fcast._tcp|FCast-pc");
+        assertTrue(receivers.receivers().isEmpty());
+        found("renamed", 239);
+        assertNotSame("a receiver that came back is made again", second, receivers.receivers().get(0));
+    }
+
+    @Test
+    public void aNewLabelMakesANewDeviceObject() {
+        directory.setRemembered(Collections.singletonList(new FCastDirectory.Known(endpoint("192.168.0.9"), "x")));
+        String[] label = {"offline"};
+        FCastReceivers localised = new FCastReceivers(directory, () -> new FCastReceiverDevice.Labels(label[0]), new FCastStoredReceivers(storage, 16));
+        FCastReceiverDevice german = localised.receivers().get(0);
+        assertSame(german, localised.receivers().get(0));
+        label[0] = "getrennt";
+        FCastReceiverDevice changed = localised.receivers().get(0);
+        assertNotSame(german, changed);
+        assertEquals("x (FCast, getrennt)", changed.getDisplayString());
     }
 
     @Test

@@ -37,6 +37,8 @@ public final class FCastReceivers implements FCastReceiverSource {
     private final FCastDirectory directory;
     private final Supplier<FCastReceiverDevice.Labels> labels;
     private final FCastStoredReceivers remembered;
+    // the device of each receiver as it was last made: the lists compare devices by object, so an unchanged receiver is the same object
+    private final java.util.Map<String, FCastReceiverDevice> devices = new java.util.HashMap<>();
 
     public FCastReceivers(FCastDirectory directory, Supplier<FCastReceiverDevice.Labels> labels, FCastStoredReceivers remembered) {
         this.directory = directory;
@@ -50,21 +52,37 @@ public final class FCastReceivers implements FCastReceiverSource {
     }
 
     @Override
-    public List<FCastReceiverDevice> receivers() {
-        List<FCastReceiverDevice> devices = new ArrayList<>();
-        FCastReceiverDevice.Labels current = labels.get();
+    public synchronized List<FCastReceiverDevice> receivers() {
+        List<FCastReceiverDevice> result = new ArrayList<>();
+        java.util.Set<String> current = new java.util.HashSet<>();
+        FCastReceiverDevice.Labels now = labels.get();
         for (FCastDirectory.Entry entry : directory.snapshot()) {
-            FCastReceiverDevice device = FCastReceiverDevice.of(entry, current);
+            FCastReceiverDevice device = deviceFor(entry, now);
             if (device != null) {
-                devices.add(device);
+                result.add(device);
+                current.add(entry.getId());
             }
         }
-        return devices;
+        devices.keySet().retainAll(current); // a receiver that is gone is forgotten
+        return result;
     }
 
     @Override
-    public FCastReceiverDevice findReceiver(String receiverId) {
-        return FCastReceiverDevice.of(directory.findById(receiverId), labels.get());
+    public synchronized FCastReceiverDevice findReceiver(String receiverId) {
+        FCastDirectory.Entry entry = directory.findById(receiverId);
+        return entry == null ? null : deviceFor(entry, labels.get());
+    }
+
+    private FCastReceiverDevice deviceFor(FCastDirectory.Entry entry, FCastReceiverDevice.Labels now) {
+        FCastReceiverDevice cached = devices.get(entry.getId());
+        if (cached != null && cached.showsSame(entry, now)) {
+            return cached;
+        }
+        FCastReceiverDevice made = FCastReceiverDevice.of(entry, now);
+        if (made != null) {
+            devices.put(entry.getId(), made);
+        }
+        return made;
     }
 
     @Override

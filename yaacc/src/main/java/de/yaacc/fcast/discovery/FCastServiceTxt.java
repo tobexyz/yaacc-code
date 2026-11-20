@@ -110,6 +110,21 @@ public final class FCastServiceTxt {
         return new String(value, StandardCharsets.UTF_8);
     }
 
+    @Override
+    public boolean equals(Object other) {
+        if (!(other instanceof FCastServiceTxt)) {
+            return false;
+        }
+        FCastServiceTxt o = (FCastServiceTxt) other;
+        return java.util.Objects.equals(protocolVersion, o.protocolVersion) && java.util.Objects.equals(fingerprint, o.fingerprint)
+                && java.util.Objects.equals(appName, o.appName) && java.util.Objects.equals(appVersion, o.appVersion);
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(protocolVersion, fingerprint, appName, appVersion);
+    }
+
     /** The highest protocol version the receiver says it speaks ({@code v} or {@code version}), or null. A hint only. */
     public Integer getProtocolVersion() {
         return protocolVersion;

@@ -58,8 +58,8 @@ public final class FCastDirectory {
     public static final int MAX_DISCOVERED = 64;
     /** The most service names remembered for the lost events. */
     public static final int MAX_SERVICE_IDS = 128;
-    /** The most entries of all kinds. */
-    public static final int MAX_ENTRIES = 64 + 16 + 16;
+    /** The most entries of all kinds: the discovered ones, the manual ones and the remembered ones are capped independently of each other. */
+    public static final int MAX_ENTRIES = MAX_DISCOVERED + FCastStoredReceivers.MAX_MANUAL + FCastStoredReceivers.MAX_REMEMBERED;
     /** The lowest port accepted from an announcement (an announcement must not aim the app at a system service). */
     public static final int MIN_DISCOVERED_PORT = 1024;
     /** How long what a restarted scan knew may stay unconfirmed. */
@@ -207,42 +207,50 @@ public final class FCastDirectory {
                 || !SnapcastAddressFilter.isAcceptedForDiscovery(address)) {
             return false;
         }
+        if (address instanceof java.net.Inet6Address && address.isLinkLocalAddress()) {
+            // fe80::/10 can only be reached with the interface it was seen on, which an endpoint does not keep: not usable (a receiver
+            // that announces an IPv4 address too is listed by that one)
+            return false;
+        }
         FCastEndpoint endpoint = FCastEndpoint.fromAddress(address, port);
         if (endpoint == null) {
             return false;
         }
-        boolean changed;
+        boolean changed = false;
+        boolean dropped;
+        boolean accepted = true;
         synchronized (this) {
-            expireLocked();
+            dropped = expireLocked();
             Node node = nodes.get(endpoint);
             boolean alreadyDiscovered = node != null && node.isDiscovered();
-            if (!alreadyDiscovered && countDiscovered() >= MAX_DISCOVERED && !byServiceId.containsKey(serviceId)) {
-                return false; // a flood does not push out what is known
-            }
-            if (!byServiceId.containsKey(serviceId) && byServiceId.size() >= MAX_SERVICE_IDS) {
-                return false;
-            }
-            if (node == null) {
-                if (nodes.size() >= MAX_ENTRIES) {
-                    return false;
+            // the number of discovered receivers after this announcement: one more if the address is new, one less if the name
+            // moves away from a receiver that has no other name (a receiver that came back at another address)
+            FCastEndpoint before = byServiceId.get(serviceId);
+            Node old = before == null || before.equals(endpoint) ? null : nodes.get(before);
+            boolean freesOld = old != null && old.serviceIds.size() == 1;
+            int after = countDiscovered() + (alreadyDiscovered ? 0 : 1) - (freesOld ? 1 : 0);
+            if (after > MAX_DISCOVERED || (before == null && byServiceId.size() >= MAX_SERVICE_IDS)) {
+                accepted = false; // a flood does not push out what is known, and a move does not get round the cap
+            } else {
+                if (node == null) {
+                    node = new Node(endpoint);
+                    nodes.put(endpoint, node);
                 }
-                node = new Node(endpoint);
-                nodes.put(endpoint, node);
+                changed = moveService(serviceId, node);
+                String name = FCastText.clean(serviceName, MAX_DISPLAY_NAME);
+                FCastServiceTxt newHints = hints == null ? FCastServiceTxt.EMPTY : hints;
+                if (!name.equals(node.discoveredName) || !node.hints.equals(newHints) || node.unconfirmedUntil != 0) {
+                    changed = true;
+                }
+                node.discoveredName = name;
+                node.hints = newHints;
+                node.unconfirmedUntil = 0;
             }
-            changed = moveService(serviceId, node);
-            String name = FCastText.clean(serviceName, MAX_DISPLAY_NAME);
-            FCastServiceTxt newHints = hints == null ? FCastServiceTxt.EMPTY : hints;
-            if (!name.equals(node.discoveredName) || node.hints != newHints || node.unconfirmedUntil != 0) {
-                changed = true;
-            }
-            node.discoveredName = name;
-            node.hints = newHints;
-            node.unconfirmedUntil = 0;
         }
-        if (changed) {
-            fire();
+        if (changed || dropped) {
+            fire(); // outside the lock
         }
-        return true;
+        return accepted;
     }
 
     /** Points the service id at this node; the node it pointed at before loses it (a receiver that came back at another address). @return true if anything changed */
@@ -363,15 +371,16 @@ public final class FCastDirectory {
                     node.rememberedName = null;
                 }
             }
+            int limit = manual ? FCastStoredReceivers.MAX_MANUAL : FCastStoredReceivers.MAX_REMEMBERED;
             for (Known known : receivers) {
                 if (known == null || known.getEndpoint() == null) {
                     continue;
                 }
+                if (count >= limit) {
+                    break; // the user's receivers are capped on their own, so a flood of announcements can not take their places
+                }
                 Node node = nodes.get(known.getEndpoint());
                 if (node == null) {
-                    if (nodes.size() >= MAX_ENTRIES) {
-                        continue;
-                    }
                     node = new Node(known.getEndpoint());
                     nodes.put(known.getEndpoint(), node);
                 }
@@ -420,11 +429,17 @@ public final class FCastDirectory {
 
     /** @return the receiver at this endpoint, or null */
     public Entry find(FCastEndpoint endpoint) {
+        Entry found;
+        boolean dropped;
         synchronized (this) {
-            expireLocked();
+            dropped = expireLocked();
             Node node = nodes.get(endpoint);
-            return node == null ? null : entryOf(node);
+            found = node == null ? null : entryOf(node);
         }
+        if (dropped) {
+            fire();
+        }
+        return found;
     }
 
     /** @return the receiver with this id ({@code fcast:...}), or null */

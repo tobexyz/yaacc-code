@@ -66,6 +66,7 @@ public final class FCastReceiverDevice extends Device {
     private final FCastServiceTxt hints;
     private final String name;
     private final String friendlyName;
+    private final String offlineLabel;
 
     private FCastReceiverDevice(FCastDirectory.Entry entry, Labels labels) throws ValidationException {
         super(new DeviceIdentity(new UDN(entry.getId())));
@@ -74,6 +75,7 @@ public final class FCastReceiverDevice extends Device {
         this.manual = entry.isManual();
         this.hints = entry.getHints();
         this.name = entry.getDisplayName();
+        this.offlineLabel = labels.offlineLabel;
         this.friendlyName = name + (offline ? " (FCast, " + labels.offlineLabel + ")" : PRODUCT_NOTE);
     }
 
@@ -118,10 +120,14 @@ public final class FCastReceiverDevice extends Device {
         return offline;
     }
 
-    /** True if a fresh snapshot with these values would look the same as this one (the id is equal already). */
-    boolean showsSame(FCastDirectory.Entry entry) {
-        return friendlyName.startsWith(entry.getDisplayName()) && offline == entry.isOffline() && manual == entry.isManual()
-                && hints == entry.getHints();
+    /**
+     * True if a fresh snapshot of this entry with these labels would look the same as this one (the id is equal already). The lists
+     * compare devices by object and redraw a row whose device object changed, so {@link FCastReceivers} keeps the old object as long as
+     * this holds.
+     */
+    boolean showsSame(FCastDirectory.Entry entry, Labels labels) {
+        return name.equals(entry.getDisplayName()) && offline == entry.isOffline() && manual == entry.isManual()
+                && hints.equals(entry.getHints()) && offlineLabel.equals(labels == null ? new Labels(null).offlineLabel : labels.offlineLabel);
     }
 
     @Override
