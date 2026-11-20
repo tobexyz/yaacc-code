@@ -1,6 +1,6 @@
 # Decisions: FCast receivers (#327)
 
-Status 2026-11-20: the owner answered D1 to D12 (below, each entry says **Decided** with the answer). Open questions that remain are at the end.
+Status 2026-11-20: the owner answered D1 to D12 and the questions Q2 to Q8 (below, each entry says **Decided** with the answer); D13 and D14 record the last answers. No question is open.
 
 ## Decisions (owner, 2026-11-20)
 
@@ -42,11 +42,19 @@ Rule: use v4 when the Android version supports it and the receiver supports it (
 ### D12. No sender SDK
 **Decided (owner, 2026-11-20): agreed.** FUTO's Rust sender SDK (native code) is not used; v3 and later v4 are written in Java from the documents.
 
+### D13. Test receiver rig for a notebook
+**Decided (owner, 2026-11-20):** the owner has no receiver hardware and tests with a software receiver on a notebook; a Docker setup or an equivalent is wanted. **Outcome:** official desktop receiver on the notebook for real media, plus `tools/fcast-rig/` (task 1.5): a small test receiver with Docker and native instructions (design, "Test rig and real receivers"). A Docker image of the real receiver is task 1.6, optional.
+
+### D14. Trademarks
+**Decided (owner, 2026-11-20): text only, respect all trademarks.** Brand names appear as plain text (FCast, Snapcast, MusicCast, Yamaha, Chromecast and the like), used descriptively with the owners' disclaimers; no third-party logos or icons (Q8 answered: no FCast logo); no name that suggests an official product.
+
+### Answers to the earlier questions (owner, 2026-11-20)
+- **Q2:** no receiver hardware; a software receiver on a notebook (D13).
+- **Q3:** music, video and pictures all three are in scope (the design already plays all three).
+- **Q4:** yes, "what the protocol offers plus device information and troubleshooting" is enough for the settings option of phase 1.
+- **Q5:** agreed, no grouping and no play to several FCast receivers.
+- **Q6:** agreed, no *Hide* entry for discovered receivers in phase 1.
+- **Q8:** text only, respect all trademarks (D14).
+
 ## Questions still open
-- **Q2.** Which receivers do you have for real checks (FCast Receiver on Android TV? the desktop receiver on Linux, Windows or macOS?) and on which networks (mDNS may not work everywhere)? Needed for the spike (task 1.4) and the gate (6.2).
-- **Q3.** What do you want to play: music only, or video and pictures as well? (The design plays all three; images and video are the bigger test effort on real TVs.)
-- **Q4.** Is "what the protocol offers plus device information and troubleshooting" enough for the settings option of phase 1, knowing that FCast cannot change a receiver's own configuration? Is there a particular receiver setting you had in mind?
-- **Q5.** Grouping or "play to several FCast receivers": proposal no (FCast has no sync).
-- **Q6.** A *Hide* entry for discovered receivers: proposal not in phase 1.
-- **Q8.** The FCast logo: text name only (proposal) or ask FUTO like the Snapcast logo question?
-- Answered by D2 to D4: Q1 (scope and proposals), Q7 (v4 wanted, after v3, on suitable Android versions).
+None. New questions go here.

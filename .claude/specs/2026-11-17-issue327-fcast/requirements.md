@@ -2,7 +2,7 @@
 
 Issue (owner): "allow cast to Fcast receivers" (https://fcast.org/, https://github.com/futo-org/fcast). Background and the facts behind this spec: `notes.md` (same folder). Design: `design.md`. Decisions and open questions: `decisions.md`. Tasks: `tasks.md`.
 
-Status (2026-11-20): **spec only**, on branch `feat/issue327`. No code. The owner decided D1 to D12 on 2026-11-20 (`decisions.md`); the questions Q2 to Q6 and Q8 are still open.
+Status (2026-11-20): **spec only**, on branch `feat/issue327`. No code. The owner decided D1 to D12 on 2026-11-20 (`decisions.md`); the questions Q2 to Q8 are answered too (D13 test rig, D14 trademarks); no question is open.
 
 ## Short answers to the owner's questions
 - **Can the receivers be discovered and shown as cards in the receiver list?** Yes. FCast receivers announce themselves by mDNS as `_fcast._tcp` (the port is in the record), and a receiver can also be added by hand with address and port (default 46899). Each receiver becomes one card in the receiver list, built the same way as the Snapcast group cards (a synthetic device that is never registered with Cling).
@@ -24,7 +24,7 @@ YAACC plays to UPnP/DLNA renderers, OpenHome, MusicCast and Snapcast. FCast is a
 - G2. Play music, video and images from any YAACC source (UPnP servers, local files, shared content) on an FCast receiver with the same play / pause / stop / next / previous / seek / queue behaviour as for other receivers, within what FCast offers.
 - G3. Control from the card and from the player screen: volume (and the emulated mute), seek, speed, with the state following changes made by another sender or on the receiver itself.
 - G4. A settings option on the card, like the other receiver types have, showing and controlling what the protocol exposes (see above).
-- G5. A fake receiver in the tests and a documented way for the owner to check with real receivers; the tests do not bind fixed ports.
+- G5. A fake receiver in the tests, a **test receiver rig for a notebook** (`tools/fcast-rig/`, D13) and a documented way to check with the real desktop receiver; the tests do not bind fixed ports.
 
 ## Non-Goals
 - Being an FCast receiver, screen mirroring, the companion (`fcomp://`) resource protocol, playlist push (`application/json` containers), WHEP live streams.
@@ -46,5 +46,5 @@ YAACC plays to UPnP/DLNA renderers, OpenHome, MusicCast and Snapcast. FCast is a
 - Battery: no wake lock, no foreground service for browsing; a connection exists only while the receiver is used or its sheet is open (`design.md`, "Connection lifecycle").
 - Plain TCP on the LAN in phase 1; this is the protocol's v3 behaviour and is stated in the docs. No credentials stored.
 - GPL v3 or later (YAACC) and MIT (FCast) are compatible; the protocol is written from the documents in our own code, no copied sources.
-- FUTO's trademark policy (notes.md, "Brand rules"): disclaimer in About and README, no logo as icon, descriptive names only.
+- **Trademarks (owner, 2026-11-20: text only, respect all trademarks):** brand names (FCast, Snapcast, MusicCast, Yamaha, Chromecast and others) appear as plain text names only, used descriptively and with the disclaimers the owners ask for; no logos or icons of third parties, no name that suggests an official product. FUTO's policy (notes.md, "Brand rules"): disclaimer in About and README, no logo as icon, descriptive names only.
 - Spec first, tests first, then reviewer and security-reviewer gates (sequential, max 3 cycles per group), commits as tobexyz with `(#327)`, no PR unless asked, English, the owner runs the whole suite and lint (agents run only the tests they add).

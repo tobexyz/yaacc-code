@@ -46,6 +46,9 @@ FCast is a registered trademark of FUTO. Third parties: do not use "FCast" as or
 ## Sender SDK (not used)
 `sdk/sender` is a Rust SDK with Android (Kotlin/UniFFI) and Flutter bindings, so it carries native code. YAACC avoids native code and the protocol is small, so the plan is a plain Java implementation written from the documents (MIT would allow reuse, the reason not to is the native build, not the licence).
 
+## Real receivers for a notebook
+The project's website (`website/dist/index.html`) links the official downloads: Android APK (`dl.fcast.org/android/fcast-release.apk`), **Windows installer** (msi), **macOS image** (dmg), **Linux Flatpak**. The desktop receiver has a settings menu and a config file (`~/.config/fcast-receiver/config.toml`; `[fcast] name`, `[discovery] exclude_interfaces` and others) and a `headless` setting (`crates/receiver-core/config.example.toml`). There is no official container image; building the receiver from source compiles a pinned GStreamer fork (`receivers/desktop/README.md`). Receiver version at the recorded commit: 3.0.4 (2026-08-26, `receivers/desktop/CHANGELOG.md`).
+
 ## Test tools in the repository
 `tools/fast` ("FCast's Automated Set of Tests") drives a real receiver through scripted protocol exchanges (`cargo fast run-all`); it is a Rust tool the owner could run against a receiver to see what a conforming receiver does. `senders/terminal` is a command line sender (`cargo`), and `receivers/android/README.md` explains port redirection to reach a receiver in the Android TV emulator (`redir add tcp:46899:46899`).
 
