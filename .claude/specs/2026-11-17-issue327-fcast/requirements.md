@@ -2,7 +2,7 @@
 
 Issue (owner): "allow cast to Fcast receivers" (https://fcast.org/, https://github.com/futo-org/fcast). Background and the facts behind this spec: `notes.md` (same folder). Design: `design.md`. Decisions and open questions: `decisions.md`. Tasks: `tasks.md`.
 
-Status (2026-11-17): **spec only**, written on branch `feat/issue327`. No code. Items marked "proposal" are open for the owner's veto (see `decisions.md`).
+Status (2026-11-20): **spec only**, on branch `feat/issue327`. No code. The owner decided D1 to D12 on 2026-11-20 (`decisions.md`); the questions Q2 to Q6 and Q8 are still open.
 
 ## Short answers to the owner's questions
 - **Can the receivers be discovered and shown as cards in the receiver list?** Yes. FCast receivers announce themselves by mDNS as `_fcast._tcp` (the port is in the record), and a receiver can also be added by hand with address and port (default 46899). Each receiver becomes one card in the receiver list, built the same way as the Snapcast group cards (a synthetic device that is never registered with Cling).
@@ -12,9 +12,9 @@ Status (2026-11-17): **spec only**, written on branch `feat/issue327`. No code. 
 ## Problem Statement
 YAACC plays to UPnP/DLNA renderers, OpenHome, MusicCast and Snapcast. FCast is a young, open, MIT-licensed casting protocol from FUTO with receivers for Android TV, phones and desktops (and the Grayjay app as a sender), so a growing group of self-hosters has FCast receivers on their TVs and no way to send their own library to them from YAACC.
 
-## Decisions (proposal, 2026-11-17; the owner may veto, see `decisions.md`)
+## Decisions (2026-11-17 proposal, confirmed by the owner on 2026-11-20 as recorded in `decisions.md`)
 1. **Scope:** YAACC as an FCast **sender** only (controller side). YAACC does not become an FCast receiver, and does not use FCast's screen mirroring or its "companion" resource transfer.
-2. **Protocol versions:** phase 1 speaks **v3** (plain JSON over TCP, no new dependency). v4 (TLS 1.3 with a pinned key, FlatBuffers) is a later phase and needs its own owner go (new dependency, Android API level and security questions).
+2. **Protocol versions (owner, 2026-11-20):** phase 1 speaks **v3** (plain JSON over TCP, no new dependency). **v4** (TLS 1.3 with a pinned key, FlatBuffers) follows as phase 2 on devices whose Android version supports it; **v4 is preferred and v3 is the fallback** (a receiver that is v3 only, or a device without TLS 1.3). **The minimum Android level (27) does not change.**
 3. **Receiver model:** one receiver (one card) per FCast receiver. Not grouped, no multi-room: FCast has no group concept.
 4. **Streaming model:** the receiver fetches the URL itself; YAACC sends one `Play` per item and drives the queue (no playlist push in phase 1).
 5. **Naming:** "FCast" appears as a plain product name in the UI and docs with the disclaimer that the trademark policy requires; no FCast logo as an icon; package name neutral or at least not a published name (open, see `decisions.md` D5).
