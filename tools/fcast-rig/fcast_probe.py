@@ -7,6 +7,7 @@ itself can talk to it (issue #327). Standard library only; `--browse` needs the 
 
   python3 fcast_probe.py --browse 5                                   list the _fcast._tcp receivers of the network
   python3 fcast_probe.py HOST                                         connect, handshake, print what the receiver says
+  python3 fcast_probe.py HOST --events --play URL --container video/mp4 --seconds 60   also get the media item events (end of item)
   python3 fcast_probe.py HOST --play http://192.168.1.50:8000/a.mp4 --container video/mp4 \
         --do "pause@6,resume@9,seek:30@12,volume:0.3@15,speed:1.5@18,stop@24" --seconds 30
 
@@ -97,6 +98,7 @@ def main():
     p.add_argument("--container", help="MIME type of the URL (required with --play), e.g. video/mp4, audio/mpeg, image/jpeg")
     p.add_argument("--time", type=float, help="start position in seconds")
     p.add_argument("--volume", type=float, help="volume 0 to 1 sent with Play")
+    p.add_argument("--events", action="store_true", help="subscribe to the media item events (start, end, change) after the handshake")
     p.add_argument("--do", default="", help="actions at seconds after the handshake: pause@6,resume@9,seek:30@12,volume:0.3@15,speed:1.5@18,stop@24")
     p.add_argument("--seconds", type=float, default=15.0, help="how long to stay connected (default 15)")
     args = p.parse_args()
@@ -126,6 +128,9 @@ def main():
 
     send("version", {"version": 3})
     send("initial", {"displayName": "fcast_probe", "appName": "yaacc-test-probe", "appVersion": "1"})
+    if args.events:
+        for event_type in (0, 1, 2):
+            send("subscribe_event", {"event": {"type": event_type}})
 
     def run_actions():
         t0 = time.monotonic()

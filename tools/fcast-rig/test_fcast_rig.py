@@ -47,6 +47,14 @@ class Client:
             if packet is None or packet[0] == name:
                 return packet
 
+    def until_where(self, name, test, timeout=3):
+        """The next packet of this name whose body passes `test`."""
+        end = time.monotonic() + timeout
+        while True:
+            packet = self.until(name, max(0.01, end - time.monotonic()))
+            if packet is None or test(packet[1]):
+                return packet
+
     def until_state(self, state, timeout=3):
         while True:
             packet = self.until("playback_update", timeout)
@@ -77,7 +85,6 @@ class Client:
 class RigTest(unittest.TestCase):
     def start(self, **kw):
         kw.setdefault("heartbeat", "none")
-        kw.setdefault("start_delay", 0.1)
         server = rig.Server(("127.0.0.1", 0), options(**kw))
         threading.Thread(target=server.serve_forever, daemon=True).start()
         self.addCleanup(server.server_close)
@@ -240,23 +247,60 @@ class RigTest(unittest.TestCase):
         playing = c.until_state(1)[1]
         self.assertEqual((playing["time"], playing["duration"]), (10.0, 180.0))
         c.send("pause")
-        self.assertEqual(c.until("playback_update")[1]["state"], 2)
+        self.assertEqual(c.until_state(2)[1]["state"], 2)
         c.send("resume")
-        self.assertEqual(c.until("playback_update")[1]["state"], 1)
+        self.assertEqual(c.until_state(1)[1]["state"], 1)
         c.send("seek", {"time": 99})
-        self.assertEqual(c.until("playback_update")[1]["time"], 99.0)
+        self.assertGreaterEqual(c.until_where("playback_update", lambda b: b["time"] >= 99.0)[1]["time"], 99.0)
         c.send("set_volume", {"volume": 2})  # clamped
         self.assertEqual(c.until("volume_update")[1]["volume"], 1.0)
         c.send("set_speed", {"speed": 1.5})
-        self.assertEqual(c.until("playback_update")[1]["speed"], 1.5)
+        self.assertEqual(c.until_where("playback_update", lambda b: b["speed"] == 1.5)[1]["speed"], 1.5)
         c.send("stop")
-        self.assertEqual(c.until("playback_update")[1]["state"], 0)
+        idle = c.until_state(0)[1]
+        self.assertEqual((idle["time"], idle["duration"], idle["speed"]), (0.0, 0.0, 0.0), "an idle update is all zeros, like the desktop receiver")
 
-    def test_a_new_item_reports_idle_first_then_playing_then_idle_at_the_end(self):
+    def test_an_item_plays_at_once_and_its_end_is_a_paused_update_at_the_duration_then_the_event(self):
         _, port = self.start(duration=1.0)
+        subscribed, plain = self.client(port, handshake=True), self.client(port, handshake=True)
+        subscribed.send("subscribe_event", {"event": {"type": 1}})
+        subscribed.send("play", {"container": "audio/mpeg", "url": "http://h/a.mp3"})
+        updates = []
+        while True:
+            update = subscribed.until("playback_update", 4)[1]
+            updates.append(update["state"])
+            if update["state"] != 1:
+                ended = update
+                break
+        self.assertEqual(updates[0], 1, "Playing at once, no Idle first (the desktop receiver)")
+        self.assertEqual(updates[-1], 2, "the end is Paused, not Idle")
+        self.assertEqual((ended["time"], ended["duration"]), (1.0, 1.0))
+        event = subscribed.until("event", 3)[1]["event"]
+        self.assertEqual((event["type"], event["item"]["url"]), (1, "http://h/a.mp3"))
+        self.assertNotIn(0, updates, "no Idle update on the way")
+        # the sender that did not subscribe gets the updates but no event
+        plain.until_state(2, 4)
+        with self.assertRaises(socket.timeout):
+            plain.until("event", 0.4)
+
+    def test_a_receiver_with_a_start_delay_reports_idle_first(self):
+        _, port = self.start(start_delay=0.2)
         c = self.client(port, handshake=True)
         c.send("play", {"container": "audio/mpeg", "url": "http://h/a.mp3"})
-        self.assertEqual(c.states(3), [0, 1, 0], "idle (loading), playing, idle at the end of the track")
+        self.assertEqual(c.states(2), [0, 1])
+
+    def test_unsubscribing_stops_the_events_and_a_bad_subscription_ends_the_session(self):
+        _, port = self.start(duration=1.0)
+        c = self.client(port, handshake=True)
+        c.send("subscribe_event", {"event": {"type": 1}})
+        c.send("unsubscribe_event", {"event": {"type": 1}})
+        c.send("play", {"container": "audio/mpeg", "url": "http://h/a.mp3"})
+        c.until_state(2, 4)
+        with self.assertRaises(socket.timeout):
+            c.until("event", 0.4)
+        d = self.client(port, handshake=True)
+        d.send("subscribe_event", {"event": {}})
+        self.assertTrue(d.closed())
 
     def test_speed_and_time_of_a_play_are_clamped(self):
         _, port = self.start()
@@ -298,7 +342,7 @@ class RigTest(unittest.TestCase):
         c.send("version", {"version": 2})
         c.until("volume_update")
         c.send("play", {"container": "audio/mpeg", "url": "http://h/a.mp3"})
-        self.assertEqual(c.until("playback_update")[1]["state"], 0)
+        self.assertEqual(c.until("playback_update")[1]["state"], 1)
         with self.assertRaises(socket.timeout):
             c.until("play_update", timeout=0.4)
 
@@ -392,8 +436,8 @@ class ProbeTest(unittest.TestCase):
         port = server.server_address[1]
         here = os.path.dirname(os.path.abspath(__file__))
         out = subprocess.run([sys.executable, "-I", os.path.join(here, "fcast_probe.py"), "127.0.0.1", "--port", str(port),
-                              "--play", "http://h/a.mp3", "--container", "audio/mpeg", "--do", "pause@1,resume@1.5,volume:0.3@2,stop@2.5",
+                              "--events", "--play", "http://h/a.mp3", "--container", "audio/mpeg", "--do", "pause@1,resume@1.5,volume:0.3@2,stop@2.5",
                               "--seconds", "4"], capture_output=True, text=True, timeout=30).stdout
         for expected in ("<- version", "<- initial", "-> play", "<- play_update", "<- playback_update", "-> pause", "-> resume",
-                         "-> set_volume", "<- volume_update", "-> stop"):
+                         "-> set_volume", "<- volume_update", "-> stop", "-> subscribe_event"):
             self.assertIn(expected, out)

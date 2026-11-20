@@ -44,7 +44,7 @@ YAACC says "could not connect", this is the first thing to check (a Linux `ufw` 
 
 A command line **sender** (protocol v3, standard library only) to check a real receiver, or the rig, from the notebook before
 YAACC itself can talk to FCast. It sends `Version 3` and `Initial`, answers pings, prints every packet in both directions, and
-can send `Play` and then pause, resume, seek, change volume and speed and stop at times you give.
+can send `Play` and then pause, resume, seek, change volume and speed and stop at times you give; `--events` subscribes to the media item events (the end of an item is reported as an event and as a paused update at the duration).
 
 ```
 .venv/bin/python fcast_probe.py --browse 5                       # list the receivers announced in the network
@@ -53,6 +53,8 @@ python3 -m http.server 8000                                      # in a folder w
 .venv/bin/python fcast_probe.py 192.168.1.50 --play http://192.168.1.50:8000/test.mp4 --container video/mp4 \
     --do "pause@6,resume@9,seek:30@12,volume:0.3@15,speed:1.5@18,stop@24" --seconds 30
 ```
+
+Note: `python3 -m http.server` has **no Range support**, so a seek (which needs a range request) may fail on a real receiver; use a server that supports ranges for the seek test (for example `pip install rangehttpserver` and `python3 -m RangeHTTPServer 8000`).
 
 Try `audio/mpeg` with an mp3, `image/jpeg` with a picture, and a wrong or empty container to see what your receiver does;
 please note the receiver and its version. (`--browse` needs `zeroconf`, everything else needs only Python.)
@@ -75,11 +77,12 @@ fails, say so in the issue.)
 | You do in YAACC | The rig |
 | --- | --- |
 | connect | sends the `Version` it speaks first (3 by default like the Android receiver, 2 or 1 with `--speaks`; `--greeting 4` acts like the desktop receiver, which then expects the sender's `Version 3`), waits for the sender's `Version`, settles on the smaller one, answers with `Initial` and the volume |
-| play an item (`Play`) | logs the message (container, URL, headers, metadata), then reports like a receiver that loads an item: `PlayUpdate`, a `PlaybackUpdate` with state **idle**, `VolumeUpdate` if the message had a volume, and after `--start-delay` (default 0.5 s) state **playing**; the pretend track runs for `--duration` seconds (default 180) with a `PlaybackUpdate` each second and ends with state idle |
+| play an item (`Play`) | logs the message (container, URL, headers, metadata), sends `PlayUpdate` and at once a `PlaybackUpdate` with state **playing** (no idle first, like the desktop receiver; `--start-delay 0.5` makes it send an idle update first and the playing after that time), `VolumeUpdate` if the message had a volume; then one `PlaybackUpdate` every 0.5 s for `--duration` seconds (default 180) |
 | pause, resume, stop, seek, volume, speed | does it, and sends the new state to **every** connected sender |
 | a second sender (another phone, the receiver's own sender app) | gets the same updates, and its changes reach YAACC; a sender that connects later gets the playing item in `Initial` and the current `PlaybackUpdate` |
 | nothing for a while | pings like the desktop receiver (after 3 s of silence, ends the session after 6 s without any packet); `--heartbeat android` pings every 2.5 s like the Android receiver; `--heartbeat none` never |
-| the end of the track | sends `PlaybackUpdate` state 0 (idle): YAACC should start the next item |
+| the end of the track | like both reference receivers: a `PlaybackUpdate` with state **paused** and `time` = `duration` (not idle!), then a `MediaItemEnd` event to the senders that subscribed (`SubscribeEvent` type 1); after that the rig is idle and sends nothing more |
+| stop | `PlaybackUpdate` with state 0 and `time`, `duration` and `speed` 0 (an idle update is all zeros, like the desktop receiver) |
 | pause, resume, seek or stop with nothing loaded | changes nothing (no message) |
 
 Options for bad behaviour (`--behaviour`): `slow` (every answer waits `--slow-seconds`), `silent` (answers nothing and pings nobody, still

@@ -145,8 +145,8 @@ class Receiver:
 
     def playback_update(self):
         now = int(time.time() * 1000)
-        if self.state == 0:
-            return {"generationTime": now, "state": 0}
+        if self.state == 0:   # like the desktop receiver: an idle update is all zeros
+            return {"generationTime": now, "state": 0, "time": 0.0, "duration": 0.0, "speed": 0.0}
         return {"generationTime": now, "state": self.state, "time": round(self.position, 3),
                 "duration": self.duration, "speed": self.speed}
 
@@ -159,20 +159,39 @@ class Receiver:
 
     def _tick(self):
         while True:
-            time.sleep(1.0)
+            time.sleep(0.5)     # the desktop receiver reports every 0.5 s
             with self.lock:
                 if self.state != 1:
                     continue
-                self.position += self.speed
-                if self.position >= self.duration:
+                self.position += 0.5 * self.speed
+                ended = self.position >= self.duration
+                if ended:
+                    # like both reference receivers: the end of an item is a PAUSED update at the duration, then the
+                    # MediaItemEnd event for the senders that subscribed; the receiver is idle afterwards (no Idle update)
+                    update = {"generationTime": int(time.time() * 1000), "state": 2, "time": self.duration,
+                              "duration": self.duration, "speed": self.speed}
+                    item = self.play_data
                     self.state = 0
                     self.position = 0.0
                     self.play_data = None
+            if ended:
+                self.broadcast("playback_update", update)
+                self.broadcast_event(1, item)
+                continue
             self.broadcast("playback_update", self.playback_update())
+
+    def broadcast_event(self, event_type, item):
+        body = {"generationTime": int(time.time() * 1000), "event": {"type": event_type}}
+        if item is not None:
+            body["event"]["item"] = item
+        with self.lock:
+            targets = [x for x in self.sessions if x.version >= 3 and event_type in x.subscribed]
+        for session in targets:
+            session.send(OP["event"], body)
 
     # ---- operations of the senders
     def play(self, message):
-        """Like a receiver that loads a new item: Idle first, Playing after the start delay, Idle at the end."""
+        """Playing at once like the desktop receiver (Idle first only with --start-delay), the end as a Paused update at the duration."""
         try:  # a body that cannot be echoed (1e999, a lone surrogate, too deep) is invalid: the session ends, nothing is stored
             encode_packet(OP["play_update"], {"generationTime": 0, "playData": message})
         except (ValueError, RecursionError) as e:   # UnicodeEncodeError is a ValueError
@@ -191,12 +210,16 @@ class Receiver:
             self.load_token += 1
             token = self.load_token
         self.broadcast("play_update", {"generationTime": int(time.time() * 1000), "playData": message})
-        self.broadcast("playback_update", self.playback_update())
         if volume is not None:
             self.broadcast("volume_update", {"generationTime": int(time.time() * 1000), "volume": self.volume})
-        timer = threading.Timer(self.options.start_delay, self._started, args=(token,))
-        timer.daemon = True
-        timer.start()
+        if self.options.start_delay > 0:
+            # a receiver that loads first (the desktop receiver does not): Idle now, Playing after the delay
+            self.broadcast("playback_update", self.playback_update())
+            timer = threading.Timer(self.options.start_delay, self._started, args=(token,))
+            timer.daemon = True
+            timer.start()
+        else:
+            self._started(token)
 
     def _started(self, token):
         with self.lock:
@@ -249,6 +272,7 @@ class Session(socketserver.BaseRequestHandler):
         self.peer = "%s:%s" % self.client_address[:2]
         self.alive = True
         self.handler_thread = None
+        self.subscribed = set()
 
     def send(self, opcode, body=None):
         if self.options.behaviour == "silent":
@@ -367,7 +391,16 @@ class Session(socketserver.BaseRequestHandler):
             if speed is None:
                 raise BadMessage("SetSpeed without speed")
             receiver.set_speed(speed)
-        elif opcode in (OP["initial"], OP["pong"], OP["subscribe_event"], OP["unsubscribe_event"], OP["set_playlist_item"]):
+        elif opcode in (OP["subscribe_event"], OP["unsubscribe_event"]):
+            event = body.get("event") if isinstance(body, dict) else None
+            kind = event.get("type") if isinstance(event, dict) else None
+            if isinstance(kind, bool) or not isinstance(kind, int):
+                raise BadMessage("%s without an event type" % name)
+            if opcode == OP["subscribe_event"]:
+                self.subscribed.add(kind)
+            else:
+                self.subscribed.discard(kind)
+        elif opcode in (OP["initial"], OP["pong"], OP["set_playlist_item"]):
             pass
         else:
             log.info("[%s] (not handled by the rig)", self.peer)
@@ -470,12 +503,12 @@ def parse(argv):
     p.add_argument("--heartbeat", default="desktop", choices=("desktop", "android", "none"),
                    help="ping like the desktop receiver (default), like the Android receiver, or not at all")
     p.add_argument("--duration", type=float, default=180.0, help="length in seconds of the pretend track")
-    p.add_argument("--start-delay", type=float, default=0.5, help="seconds between the Idle after a Play and the Playing")
+    p.add_argument("--start-delay", type=float, default=0.0, help="0 (default): Playing at once after a Play, like the desktop receiver; above 0: an Idle update first and the Playing after this many seconds")
     p.add_argument("-v", "--verbose", action="store_true")
     options = p.parse_args(argv)
     for name in ("duration", "start_delay", "slow_seconds"):
         value = getattr(options, name)
-        if not math.isfinite(value) or value <= 0 and name == "duration" or value < 0:
+        if not math.isfinite(value) or (value <= 0 and name == "duration") or value < 0:
             p.error("--%s must be a finite positive number" % name.replace("_", "-"))
     return options
 
