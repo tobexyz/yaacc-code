@@ -55,6 +55,9 @@ Rule: use v4 when the Android version supports it and the receiver supports it (
 - **Why not extract a neutral base:** it would touch the Snapcast classes and their tests for no behaviour gain; the neutral classes are already public and final. **Cleanup option (owner's call, later):** rename the neutral ones to neutral names in one mechanical commit once the Snapcast review of Group 12 is done.
 - **Risk:** `de.yaacc.fcast` depends on `de.yaacc.multiroom.discovery` and on `MonotonicClock`, which lives in `de.yaacc.multiroom.control`; if the Snapcast code is ever removed or reshaped, those classes must move first. Recorded here and in `tasks.md` 3.1 and 3.3.
 
+### D16. More ways to add a receiver: connection URL, QR scan, device name (owner's request, 2026-11-20)
+**Decided (owner): add the QR scan and the input of a device name as alternative connection types.** Tasks 5.5 (connection URL, pasted), 5.6 (QR scan) and 5.7 (device name) in Group 5. Reading the sources showed that both FUTO receivers already show a QR code with an `fcast://r/<base64url JSON>` URL (name, addresses, services, optional `txt` with `v` and `fp`), so the scan needs no protocol work, only the URL parser and a scanner. **Proposal for the scanner (open until task 5.6 step 1):** ZXing in the app with the CAMERA permission asked on tap, an intent to a scanner app as the fallback; no Google services. The `fp` in the URL is the trusted channel for the v4 pin (7.2). The device name is resolved as: IP, then a receiver already discovered, then the system name lookup, then a short `_fcast._tcp` search; the failure text says what was tried.
+
 ### Answers to the earlier questions (owner, 2026-11-20)
 - **Q2:** no receiver hardware; a software receiver on a notebook (D13).
 - **Q3:** music, video and pictures all three are in scope (the design already plays all three).

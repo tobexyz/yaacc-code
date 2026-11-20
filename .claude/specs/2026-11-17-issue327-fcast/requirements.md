@@ -20,7 +20,7 @@ YAACC plays to UPnP/DLNA renderers, OpenHome, MusicCast and Snapcast. FCast is a
 5. **Naming:** "FCast" appears as a plain product name in the UI and docs with the disclaimer that the trademark policy requires; no FCast logo as an icon; package name neutral or at least not a published name (open, see `decisions.md` D5).
 
 ## Goals
-- G1. Find FCast receivers on the network (mDNS) and by hand, and show each as a card in the receivers list, with live state (name, reachable or not, idle / playing / paused, volume).
+- G1. Find FCast receivers on the network (mDNS), and add them by hand, by the name of the device, by a pasted connection URL or by scanning the QR code that the receivers show (D16), and show each as a card in the receivers list, with live state (name, reachable or not, idle / playing / paused, volume).
 - G2. Play music, video and images from any YAACC source (UPnP servers, local files, shared content) on an FCast receiver with the same play / pause / stop / next / previous / seek / queue behaviour as for other receivers, within what FCast offers.
 - G3. Control from the card and from the player screen: volume (and the emulated mute), seek, speed, with the state following changes made by another sender or on the receiver itself.
 - G4. A settings option on the card, like the other receiver types have, showing and controlling what the protocol exposes (see above).
