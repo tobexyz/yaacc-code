@@ -302,6 +302,7 @@
     <string name="notification_download_to">Téléchargement vers : %1$s</string>
     <string name="snapcast_group">Groupe Snapcast</string>
     <string name="snapcast_offline">hors ligne</string>
+    <string name="fcast_offline">hors ligne</string>
     <string name="snapcast_play_not_available">La lecture sur des groupes Snapcast n\'est pas encore disponible</string>
     <string name="snapcast_play_audio_only">Seule la musique peut être lue sur des groupes Snapcast</string>
     <string name="player_track_skipped">Impossible de lire \"%1$s\", piste ignorée</string>

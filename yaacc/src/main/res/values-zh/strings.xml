@@ -294,6 +294,7 @@
     <string name="notification_download_to">下载到：%1$s</string>
     <string name="snapcast_group">Snapcast 组</string>
     <string name="snapcast_offline">离线</string>
+    <string name="fcast_offline">离线</string>
     <string name="snapcast_play_not_available">尚不支持向 Snapcast 组播放</string>
     <string name="snapcast_play_audio_only">Snapcast 组只能播放音乐</string>
     <string name="player_track_skipped">无法播放“%1$s”，已跳过</string>
