@@ -54,8 +54,6 @@ python3 -m http.server 8000                                      # in a folder w
     --do "pause@6,resume@9,seek:30@12,volume:0.3@15,speed:1.5@18,stop@24" --seconds 30
 ```
 
-Note: `python3 -m http.server` has **no Range support**, so a seek (which needs a range request) may fail on a real receiver; use a server that supports ranges for the seek test (for example `pip install rangehttpserver` and `python3 -m RangeHTTPServer 8000`).
-
 Try `audio/mpeg` with an mp3, `image/jpeg` with a picture, and a wrong or empty container to see what your receiver does;
 please note the receiver and its version. (`--browse` needs `zeroconf`, everything else needs only Python.)
 
@@ -81,7 +79,7 @@ fails, say so in the issue.)
 | pause, resume, stop, seek, volume, speed | does it, and sends the new state to **every** connected sender |
 | a second sender (another phone, the receiver's own sender app) | gets the same updates, and its changes reach YAACC; a sender that connects later gets the playing item in `Initial` and the current `PlaybackUpdate` |
 | nothing for a while | pings like the desktop receiver (after 3 s of silence, ends the session after 6 s without any packet); `--heartbeat android` pings every 2.5 s like the Android receiver; `--heartbeat none` never |
-| the end of the track | like both reference receivers: a `PlaybackUpdate` with state **paused** and `time` = `duration` (not idle!), then a `MediaItemEnd` event to the senders that subscribed (`SubscribeEvent` type 1); after that the rig is idle and sends nothing more |
+| the end of the track | `--end desktop` (default, what the real desktop receiver 3.0.4 does): the updates stop and a `MediaItemEnd` event goes to the senders that subscribed (`SubscribeEvent` type 1), **nothing** to the others; `--end android`: first a `PlaybackUpdate` with state **paused** and `time` = `duration`, then the event. The rig is idle afterwards and sends nothing more; a `MediaItemStart` event (type 0) follows each `Play` for subscribers |
 | stop | `PlaybackUpdate` with state 0 and `time`, `duration` and `speed` 0 (an idle update is all zeros, like the desktop receiver) |
 | pause, resume, seek or stop with nothing loaded | changes nothing (no message) |
 

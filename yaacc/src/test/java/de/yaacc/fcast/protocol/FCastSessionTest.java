@@ -515,4 +515,163 @@ public class FCastSessionTest {
         assertEquals(1, connector.attempts.get());
         assertEquals(0, receiver.received(Op.PLAY).size());
     }
+
+    // ---- races and leaks (review of Group 2)
+
+    @Test
+    public void closeWhileTheConnectionIsBeingMadeLeavesNoConnectionBehind() throws Exception {
+        FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
+        final CountingConnector inner = connectorTo(receiver.port());
+        final java.util.concurrent.CountDownLatch entered = new java.util.concurrent.CountDownLatch(1);
+        final java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        final List<FCastConnection> made = Collections.synchronizedList(new ArrayList<FCastConnection>());
+        FCastSession.Connector blocking = listener -> {
+            entered.countDown();
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            FCastConnection connection = inner.connect(listener);
+            made.add(connection);
+            return connection;
+        };
+        FCastSession session = new FCastSession(blocking, new Events(), fastSession(), MonotonicClock.SYSTEM, executor);
+        toClose.add(session);
+        session.acquire();
+        session.pause();
+        assertTrue(entered.await(WAIT, TimeUnit.MILLISECONDS));
+        session.close();      // the connect is still blocked
+        release.countDown();  // now it returns a live connection to a session that is closed
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);
+        while (made.isEmpty() && System.nanoTime() < end) {
+            Thread.sleep(5);
+        }
+        assertEquals(1, made.size());
+        assertTrue("the connection was closed, not left open", made.get(0).awaitTermination(WAIT));
+        assertTrue(made.get(0).isClosed());
+        assertEquals(FCastReceiverState.Link.IDLE, session.getState().getLink());
+        assertEquals("nothing was sent", 0, receiver.received(Op.PAUSE).size());
+    }
+
+    @Test
+    public void theCloseEventOfAnOldConnectionDoesNotTouchTheNewOne() throws Exception {
+        FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
+        CountingConnector connector = connectorTo(receiver.port());
+        FCastSession session = session(connector, new Events(), fastSession());
+        session.acquire();
+        session.pause();
+        assertTrue(receiver.awaitPackets(Op.PAUSE, 1, WAIT));
+        // the session's thread is busy; a command waits behind it, then the first connection closes: the command finds a closed
+        // connection and makes a second one, and only after that the close event of the first one reaches the session
+        final java.util.concurrent.CountDownLatch gate = new java.util.concurrent.CountDownLatch(1);
+        executor.execute(() -> {
+            try {
+                gate.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        session.pause();
+        receiver.closeConnection(0);
+        Thread.sleep(300);
+        gate.countDown();
+        assertTrue(await(session, s -> connector.attempts.get() == 2 && s.getLink() == FCastReceiverState.Link.CONNECTED, WAIT));
+        Thread.sleep(300);
+        assertEquals("the stale close event did not open a third connection", 2, connector.attempts.get());
+        assertEquals(FCastReceiverState.Link.CONNECTED, session.getState().getLink());
+        assertEquals(2, receiver.acceptedCount());
+    }
+
+    // ---- the end of an item (task 2.6)
+
+    @Test
+    public void aVersion3ReceiverIsSubscribedToTheEndEventOnceAndAnOlderOneNot() throws Exception {
+        FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
+        FCastSession session = session(connectorTo(receiver.port()), new Events(), fastSession());
+        session.acquire();
+        session.setVolume(0.5);
+        assertTrue(receiver.awaitPackets(Op.SUBSCRIBE_EVENT, 1, WAIT));
+        assertEquals(FCastMessages.EVENT_MEDIA_ITEM_END, receiver.received(Op.SUBSCRIBE_EVENT).get(0).json().getJSONObject("event").getInt("type"));
+        Thread.sleep(200);
+        assertEquals("once", 1, receiver.received(Op.SUBSCRIBE_EVENT).size());
+
+        FakeFCastReceiver old = receiver(new FakeFCastReceiver.Options().greeting(2).speaks(2));
+        FCastSession oldSession = session(connectorTo(old.port()), new Events(), fastSession());
+        oldSession.acquire();
+        oldSession.setVolume(0.5);
+        assertTrue(old.awaitPackets(Op.SET_VOLUME, 1, WAIT));
+        Thread.sleep(300);
+        assertEquals("a version 2 receiver has no events", 0, old.received(Op.SUBSCRIBE_EVENT).size());
+    }
+
+    @Test
+    public void theRealSequenceOfAReceiverEndsWithAPausedUpdateAtTheDurationAndTheEvent() throws Exception {
+        FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
+        Events events = new Events();
+        FCastSession session = session(connectorTo(receiver.port()), events, fastSession());
+        session.acquire();
+        session.play(song("http://h/a.mp3"));
+        assertTrue(receiver.awaitPackets(Op.PLAY, 1, WAIT));
+        FakeFCastReceiver.Session wire = receiver.session(0);
+        wire.sendPlaybackUpdate(1, 0.0, 30.5, 1.0);   // playing at once, no idle first
+        wire.sendPlaybackUpdate(1, 29.9, 30.5, 1.0);
+        assertTrue(await(session, s -> s.getPlayback() == FCastReceiverState.Playback.PLAYING && s.getPosition() != null && s.getPosition() > 29, WAIT));
+        assertFalse(session.getState().hasEnded());
+        wire.sendPlaybackUpdate(2, 30.5, 30.5, 1.0);  // the end, as both reference receivers report it
+        assertTrue(await(session, s -> s.hasEnded(), WAIT));
+        wire.send(Op.EVENT, "{\"generationTime\":1,\"event\":{\"type\":1}}");
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);
+        while (events.events.isEmpty() && System.nanoTime() < end) {
+            Thread.sleep(5);
+        }
+        assertEquals(1, events.events.size());
+        wire.sendPlaybackUpdate(0, 0, 0, 0);          // a stop afterwards: all zeros, no end any more
+        assertTrue(await(session, s -> s.getPlayback() == FCastReceiverState.Playback.IDLE, WAIT));
+        assertFalse(session.getState().hasEnded());
+        assertNull("an idle update keeps no speed", session.getState().getSpeed());
+    }
+
+    @Test
+    public void theDesktopReceiversSequenceEndsWithOnlyTheEventAndTheStateIsNearTheEnd() throws Exception {
+        // what the owner's real run showed (receiver 3.0.4): updates every 0.5 s up to 30.425 of 30.527 s, then the event, no paused update
+        FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
+        Events events = new Events();
+        FCastSession session = session(connectorTo(receiver.port()), events, fastSession());
+        session.acquire();
+        session.play(song("http://h/a.mp3"));
+        assertTrue(receiver.awaitPackets(Op.PLAY, 1, WAIT));
+        FakeFCastReceiver.Session wire = receiver.session(0);
+        wire.sendPlayUpdate("audio/mpeg", "http://h/a.mp3");
+        wire.send(Op.EVENT, "{\"generationTime\":1,\"event\":{\"type\":0,\"item\":{\"container\":\"audio/mpeg\",\"url\":\"http://h/a.mp3\"}}}");
+        wire.sendPlaybackUpdate(1, 0.0, 30.526666666, 1.0);
+        wire.sendPlaybackUpdate(1, 30.425013848, 30.526666666, 1.0);
+        assertTrue(await(session, s -> s.getPosition() != null && s.getPosition() > 30, WAIT));
+        assertTrue(session.getState().isNearEnd());
+        assertFalse("no paused update came, so this is not hasEnded()", session.getState().hasEnded());
+        wire.send(Op.EVENT, "{\"generationTime\":2,\"event\":{\"type\":1,\"item\":{\"container\":\"audio/mpeg\",\"url\":\"http://h/a.mp3\"}}}");
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);
+        while (events.events.size() < 2 && System.nanoTime() < end) {
+            Thread.sleep(5);
+        }
+        assertEquals(2, events.events.size());
+        assertEquals(FCastMessages.EVENT_MEDIA_ITEM_START, events.events.get(0).getType());
+        assertEquals(FCastMessages.EVENT_MEDIA_ITEM_END, events.events.get(1).getType());
+        assertEquals("http://h/a.mp3", events.events.get(1).getItemUrl());
+    }
+
+    @Test
+    public void aFailedRetryIsOneErrorNotTwo() throws Exception {
+        FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
+        CountingConnector connector = connectorTo(receiver.port());
+        FCastSession session = session(connector, new Events(), fastSession());
+        session.acquire();
+        session.pause();
+        assertTrue(receiver.awaitPackets(Op.PAUSE, 1, WAIT));
+        int before = session.getState().getErrorSerial();
+        receiver.close();
+        assertTrue(await(session, s -> s.getLink() == FCastReceiverState.Link.FAILED, WAIT));
+        Thread.sleep(200);
+        assertEquals(before + 1, session.getState().getErrorSerial());
+    }
 }

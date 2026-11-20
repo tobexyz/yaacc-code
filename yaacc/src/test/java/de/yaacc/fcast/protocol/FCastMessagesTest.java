@@ -240,6 +240,19 @@ public class FCastMessagesTest {
     }
 
     @Test
+    public void formsOfThePlatformParserThatJsonDoesNotHaveAreRefusedAsBadBodies() {
+        char[] open = new char[20_000];
+        Arrays.fill(open, '[');
+        String brackets = new String(open);
+        String[] bodies = {"{'state':1}", "{\"state\":1} // c", "{\"state\":1 /* \" */,\"b\":" + brackets, "{'a':'\"','b':" + brackets,
+                "{\"state\":1 # \"\n,\"b\":" + brackets, "{\"state\":1;\"x\":2}"};
+        for (String body : bodies) {
+            assertRefused(FCastOpcode.PLAYBACK_UPDATE, body, FCastProtocolException.Kind.BAD_BODY);
+            assertRefused(FCastOpcode.INITIAL, body, FCastProtocolException.Kind.BAD_BODY);
+        }
+    }
+
+    @Test
     public void messagesWithoutAModelAreNull() throws Exception {
         for (FCastOpcode opcode : new FCastOpcode[]{FCastOpcode.PING, FCastOpcode.PONG, FCastOpcode.PLAY, FCastOpcode.PAUSE,
                 FCastOpcode.SET_VOLUME, FCastOpcode.SUBSCRIBE_EVENT, FCastOpcode.NONE}) {

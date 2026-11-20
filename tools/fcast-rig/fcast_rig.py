@@ -166,8 +166,8 @@ class Receiver:
                 self.position += 0.5 * self.speed
                 ended = self.position >= self.duration
                 if ended:
-                    # like both reference receivers: the end of an item is a PAUSED update at the duration, then the
-                    # MediaItemEnd event for the senders that subscribed; the receiver is idle afterwards (no Idle update)
+                    # --end android: a PAUSED update at the duration, then the MediaItemEnd event for the senders that subscribed
+                    # --end desktop (default): only the event, no update at all (receiver 3.0.4 on a real run); idle afterwards
                     update = {"generationTime": int(time.time() * 1000), "state": 2, "time": self.duration,
                               "duration": self.duration, "speed": self.speed}
                     item = self.play_data
@@ -175,7 +175,8 @@ class Receiver:
                     self.position = 0.0
                     self.play_data = None
             if ended:
-                self.broadcast("playback_update", update)
+                if self.options.end == "android":
+                    self.broadcast("playback_update", update)
                 self.broadcast_event(1, item)
                 continue
             self.broadcast("playback_update", self.playback_update())
@@ -210,6 +211,7 @@ class Receiver:
             self.load_token += 1
             token = self.load_token
         self.broadcast("play_update", {"generationTime": int(time.time() * 1000), "playData": message})
+        self.broadcast_event(0, message)   # MediaItemStart, for the senders that subscribed
         if volume is not None:
             self.broadcast("volume_update", {"generationTime": int(time.time() * 1000), "volume": self.volume})
         if self.options.start_delay > 0:
@@ -502,6 +504,9 @@ def parse(argv):
     p.add_argument("--slow-seconds", type=float, default=2.0)
     p.add_argument("--heartbeat", default="desktop", choices=("desktop", "android", "none"),
                    help="ping like the desktop receiver (default), like the Android receiver, or not at all")
+    p.add_argument("--end", default="desktop", choices=("desktop", "android"),
+                   help="how the end of an item is reported: desktop (default, the real desktop receiver 3.0.4): only the MediaItemEnd event "
+                        "to subscribers; android: a Paused update at the duration, then the event")
     p.add_argument("--duration", type=float, default=180.0, help="length in seconds of the pretend track")
     p.add_argument("--start-delay", type=float, default=0.0, help="0 (default): Playing at once after a Play, like the desktop receiver; above 0: an Idle update first and the Playing after this many seconds")
     p.add_argument("-v", "--verbose", action="store_true")

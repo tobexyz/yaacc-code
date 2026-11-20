@@ -323,8 +323,9 @@ public final class FCastMessages {
         if (body == null) {
             throw new FCastProtocolException(FCastProtocolException.Kind.BAD_BODY, packet.getOpcode() + " without a body");
         }
-        if (FCastText.isNestedTooDeep(body)) {
-            throw new FCastProtocolException(FCastProtocolException.Kind.BAD_BODY, packet.getOpcode() + " is nested too deep");
+        if (!FCastText.isAcceptableJson(body)) {
+            throw new FCastProtocolException(FCastProtocolException.Kind.BAD_BODY,
+                    packet.getOpcode() + " is nested too deep or uses a form that JSON does not have");
         }
         try {
             return new JSONObject(body);

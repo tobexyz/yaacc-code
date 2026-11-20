@@ -156,6 +156,25 @@ public final class FCastReceiverState {
         return itemFromElsewhere;
     }
 
+    /**
+     * True if the receiver reports that the item ended: both reference receivers send a {@code Paused} update with the position
+     * at the duration (not an Idle one, see {@code docs/tech.md}). The position counts as at the end within one second of a
+     * duration above zero, as the Android receiver does.
+     */
+    public boolean hasEnded() {
+        return playback == Playback.PAUSED && position != null && duration != null && duration > 0 && duration - position <= 1.0;
+    }
+
+    /**
+     * True if the receiver is playing or paused within one second of the end of the item (a duration above zero). Together with
+     * a silence of the receiver this is the safety net for the end of an item: the desktop receiver reports the end only as an
+     * event, and a sender that has no subscription sees the updates just stop (docs/tech.md).
+     */
+    public boolean isNearEnd() {
+        return (playback == Playback.PLAYING || playback == Playback.PAUSED) && position != null && duration != null
+                && duration > 0 && duration - position <= 1.0;
+    }
+
     public Pending getPending() {
         return pending;
     }

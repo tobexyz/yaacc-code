@@ -51,7 +51,9 @@ public final class FCastText {
             int cp = text.codePointAt(i);
             i += Character.charCount(cp);
             if (cp < 0x20 || (cp >= 0x7f && cp <= 0x9f) || cp == 0x2028 || cp == 0x2029
-                    || (cp >= 0xd800 && cp <= 0xdfff)) {
+                    || (cp >= 0xd800 && cp <= 0xdfff)
+                    || (cp >= 0x200b && cp <= 0x200f) || (cp >= 0x202a && cp <= 0x202e) || (cp >= 0x2066 && cp <= 0x2069)
+                    || cp == 0xfeff) { // controls, separators, zero-width and bidirectional marks (they can disguise a name)
                 continue;
             }
             out.appendCodePoint(cp);
@@ -66,6 +68,43 @@ public final class FCastText {
             return min;
         }
         return Math.max(min, Math.min(max, value));
+    }
+
+    /**
+     * Is this body safe to hand to the platform's JSON parser? Android's {@code org.json} tokener is far more lenient than JSON
+     * (single-quoted strings, {@code //}, {@code /* *}{@code /} and {@code #} comments, {@code ;} and {@code =} as separators) and recurses
+     * without a limit, so a scan that only understands double-quoted strings can be fooled into counting too little nesting
+     * (a {@code '} or a comment hides a {@code "}) and the parser then overflows its stack. So this scan is strict: outside
+     * double-quoted strings only whitespace, the structure characters {@code { } [ ] , :} and the characters of numbers and
+     * of {@code true}, {@code false}, {@code null} are allowed; and the nesting is limited to {@link #MAX_DEPTH}.
+     */
+    public static boolean isAcceptableJson(String body) {
+        int depth = 0;
+        boolean inString = false;
+        for (int i = 0; i < body.length(); i++) {
+            char c = body.charAt(i);
+            if (inString) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == '"') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (c == '"') {
+                inString = true;
+            } else if (c == '{' || c == '[') {
+                if (++depth > MAX_DEPTH) {
+                    return false;
+                }
+            } else if (c == '}' || c == ']') {
+                depth--;
+            } else if (!(c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ',' || c == ':'
+                    || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '+' || c == '-' || c == '.')) {
+                return false;
+            }
+        }
+        return !inString;
     }
 
     /** @return true if the body has more than {@link #MAX_DEPTH} levels of arrays and objects (brackets in strings do not count) */

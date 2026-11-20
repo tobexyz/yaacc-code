@@ -365,6 +365,47 @@ public class FCastConnectionTest {
     }
 
     @Test
+    public void aBodyThatTheJsonGuardRefusesDoesNotKillTheReader() throws Exception {
+        FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
+        Recorder recorder = new Recorder();
+        connect(receiver, recorder, fast());
+        assertNotNull(recorder.await(FCastMessages.VolumeUpdate.class, WAIT));
+        StringBuilder hostile = new StringBuilder("{'a':'\"','b':");
+        for (int i = 0; i < 20_000; i++) {
+            hostile.append('[');
+        }
+        FakeFCastReceiver.Session session = receiver.session(0);
+        session.send(Op.PLAYBACK_UPDATE, hostile.toString());
+        session.send(Op.INITIAL, hostile.toString());
+        session.sendVolumeUpdate(0.25);
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);
+        while (recorder.count(FCastMessages.VolumeUpdate.class) < 2 && System.nanoTime() < end) {
+            Thread.sleep(5);
+        }
+        assertEquals("the reader is alive and read on", 2, recorder.count(FCastMessages.VolumeUpdate.class));
+        assertFalse(recorder.awaitClosed(50));
+    }
+
+    @Test
+    public void theHandshakeAndHeartbeatMessagesCanNotBeSentByACaller() throws Exception {
+        FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
+        Recorder recorder = new Recorder();
+        FCastConnection connection = connect(receiver, recorder, fast());
+        assertNotNull(recorder.await(FCastMessages.VolumeUpdate.class, WAIT));
+        int versions = receiver.received(Op.VERSION).size();
+        for (FCastOpcode opcode : new FCastOpcode[]{FCastOpcode.VERSION, FCastOpcode.INITIAL, FCastOpcode.PING, FCastOpcode.PONG,
+                FCastOpcode.PLAYBACK_UPDATE, FCastOpcode.VOLUME_UPDATE, FCastOpcode.NONE}) {
+            try {
+                connection.send(opcode, "{}");
+                fail(opcode + " was sent by a caller");
+            } catch (FCastProtocolException e) {
+                assertEquals(FCastProtocolException.Kind.UNSUPPORTED, e.getKind());
+            }
+        }
+        assertEquals("no second Version reached the receiver (it would end the session)", versions, receiver.received(Op.VERSION).size());
+    }
+
+    @Test
     public void anUnknownOpcodeIsSkipped() throws Exception {
         FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
         Recorder recorder = new Recorder();

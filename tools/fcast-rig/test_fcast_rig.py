@@ -260,28 +260,39 @@ class RigTest(unittest.TestCase):
         idle = c.until_state(0)[1]
         self.assertEqual((idle["time"], idle["duration"], idle["speed"]), (0.0, 0.0, 0.0), "an idle update is all zeros, like the desktop receiver")
 
-    def test_an_item_plays_at_once_and_its_end_is_a_paused_update_at_the_duration_then_the_event(self):
+    def test_an_item_plays_at_once_and_the_desktop_style_end_is_only_the_event(self):
         _, port = self.start(duration=1.0)
         subscribed, plain = self.client(port, handshake=True), self.client(port, handshake=True)
+        subscribed.send("subscribe_event", {"event": {"type": 0}})
         subscribed.send("subscribe_event", {"event": {"type": 1}})
         subscribed.send("play", {"container": "audio/mpeg", "url": "http://h/a.mp3"})
-        updates = []
+        start = subscribed.until("event", 3)[1]["event"]
+        self.assertEqual((start["type"], start["item"]["url"]), (0, "http://h/a.mp3"), "MediaItemStart after the play")
+        states = []
         while True:
-            update = subscribed.until("playback_update", 4)[1]
-            updates.append(update["state"])
-            if update["state"] != 1:
-                ended = update
+            packet = subscribed.read(4)
+            self.assertIsNotNone(packet)
+            if packet[0] == "playback_update":
+                states.append(packet[1]["state"])
+            elif packet[0] == "event":
+                end = packet[1]["event"]
                 break
-        self.assertEqual(updates[0], 1, "Playing at once, no Idle first (the desktop receiver)")
-        self.assertEqual(updates[-1], 2, "the end is Paused, not Idle")
-        self.assertEqual((ended["time"], ended["duration"]), (1.0, 1.0))
-        event = subscribed.until("event", 3)[1]["event"]
-        self.assertEqual((event["type"], event["item"]["url"]), (1, "http://h/a.mp3"))
-        self.assertNotIn(0, updates, "no Idle update on the way")
-        # the sender that did not subscribe gets the updates but no event
-        plain.until_state(2, 4)
+        self.assertEqual((end["type"], end["item"]["url"]), (1, "http://h/a.mp3"))
+        self.assertEqual(set(states), {1}, "playing updates up to the end, no paused and no idle update (desktop receiver 3.0.4)")
         with self.assertRaises(socket.timeout):
-            plain.until("event", 0.4)
+            subscribed.until("playback_update", 0.8)   # nothing after the end
+        # a sender that did not subscribe gets the updates and nothing at the end
+        with self.assertRaises(socket.timeout):
+            plain.until("event", 0.3)
+
+    def test_the_android_style_end_is_a_paused_update_at_the_duration_then_the_event(self):
+        _, port = self.start(duration=1.0, end="android")
+        c = self.client(port, handshake=True)
+        c.send("subscribe_event", {"event": {"type": 1}})
+        c.send("play", {"container": "audio/mpeg", "url": "http://h/a.mp3"})
+        ended = c.until_state(2, 4)[1]
+        self.assertEqual((ended["time"], ended["duration"]), (1.0, 1.0))
+        self.assertEqual(c.until("event", 3)[1]["event"]["type"], 1)
 
     def test_a_receiver_with_a_start_delay_reports_idle_first(self):
         _, port = self.start(start_delay=0.2)
@@ -295,7 +306,7 @@ class RigTest(unittest.TestCase):
         c.send("subscribe_event", {"event": {"type": 1}})
         c.send("unsubscribe_event", {"event": {"type": 1}})
         c.send("play", {"container": "audio/mpeg", "url": "http://h/a.mp3"})
-        c.until_state(2, 4)
+        time.sleep(1.5)  # the item ended meanwhile
         with self.assertRaises(socket.timeout):
             c.until("event", 0.4)
         d = self.client(port, handshake=True)

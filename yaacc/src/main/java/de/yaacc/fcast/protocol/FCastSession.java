@@ -107,6 +107,7 @@ public final class FCastSession implements AutoCloseable {
     private long connectedAt;
     private int retriesInRow;
     private String lastPlayedUrl;
+    private boolean subscribedToEnd;
     private ScheduledFuture<?> idleTask;
     private ScheduledFuture<?> pendingTask;
     private int pendingToken;
@@ -247,7 +248,13 @@ public final class FCastSession implements AutoCloseable {
                 return false;
             }
             connection = made;
+            if (closed) { // close() ran between the check above and the assignment: its cleanup has seen no connection
+                connection = null;
+                made.close();
+                return false;
+            }
             connectedAt = clock.nowMillis();
+            subscribedToEnd = false;
             publish(state.toBuilder().link(FCastReceiverState.Link.CONNECTED).protocolVersion(made.getNegotiatedVersion()));
             return true;
         } catch (IOException e) {
@@ -295,9 +302,7 @@ public final class FCastSession implements AutoCloseable {
             publish(state.toBuilder().link(FCastReceiverState.Link.IDLE));
             return;
         }
-        if (!ensureConnected()) {
-            fail("the connection to the receiver was lost and could not be made again");
-        }
+        ensureConnected(); // a failure is published there, with its reason
     }
 
     // ------------------------------------------------------------------ messages of the receiver
@@ -311,6 +316,16 @@ public final class FCastSession implements AutoCloseable {
             FCastConnection c = connection;
             if (c != null) {
                 b.protocolVersion(c.getNegotiatedVersion());
+                // the end of an item also comes as an event (both reference receivers); only a version 3 receiver has events,
+                // and only now, after its Version, is the version known
+                if (c.getNegotiatedVersion() >= 3 && !subscribedToEnd) {
+                    subscribedToEnd = true;
+                    try {
+                        c.send(FCastOpcode.SUBSCRIBE_EVENT, FCastMessages.subscribeEvent(FCastMessages.EVENT_MEDIA_ITEM_END));
+                    } catch (FCastProtocolException e) {
+                        YaaccLogger.w(TAG, "FCast: the end event was not subscribed: " + e.getMessage());
+                    }
+                }
             }
             publish(b);
         } else if (message instanceof FCastMessages.Initial) {
@@ -368,7 +383,7 @@ public final class FCastSession implements AutoCloseable {
                 playback = FCastReceiverState.Playback.IDLE;
         }
         if (playback == FCastReceiverState.Playback.IDLE) {
-            b.playback(playback, null, null, update.getSpeed());
+            b.playback(playback, null, null, null);
         } else {
             b.playback(playback, update.getTime() != null ? update.getTime() : state.getPosition(),
                     update.getDuration() != null ? update.getDuration() : state.getDuration(),
@@ -497,6 +512,10 @@ public final class FCastSession implements AutoCloseable {
         post(() -> {
             cancelIdle();
             cancelPending();
+            FCastConnection left = connection;
+            if (left != null) {
+                left.close(); // a connection made after the close above was seen
+            }
             connection = null;
             state = state.toBuilder().link(FCastReceiverState.Link.IDLE).playback(FCastReceiverState.Playback.UNKNOWN, null, null, null)
                     .pending(FCastReceiverState.Pending.NONE).build();

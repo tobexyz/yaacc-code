@@ -209,18 +209,42 @@ public final class FCastConnection implements AutoCloseable {
     /**
      * Queues a message for the receiver. Never blocks.
      *
-     * @param opcode a sender opcode of the negotiated version
+     * @param opcode a command opcode ({@code Play}, {@code Pause}, {@code Resume}, {@code Stop}, {@code Seek}, {@code SetVolume},
+     *               {@code SetSpeed}, {@code SetPlaylistItem}, event subscriptions) of the negotiated version
      * @param body   the JSON text or null
      * @return false if the connection is closed (or the queue overflowed and the connection was closed by this call)
      * @throws FCastProtocolException {@code UNSUPPORTED} if the receiver's version does not have the opcode (say a {@code SetSpeed}
      *                                to a version 1 receiver), {@code TOO_LARGE} if the message does not fit into a packet
      */
     public boolean send(FCastOpcode opcode, String body) throws FCastProtocolException {
+        if (!isCommandOpcode(opcode)) {
+            throw new FCastProtocolException(FCastProtocolException.Kind.UNSUPPORTED,
+                    opcode + " is sent by the connection itself, not by a caller");
+        }
         if (opcode.sinceVersion() > getNegotiatedVersion()) {
             throw new FCastProtocolException(FCastProtocolException.Kind.UNSUPPORTED,
                     opcode + " does not exist in protocol version " + getNegotiatedVersion() + " of this receiver");
         }
         return enqueue(opcode, body);
+    }
+
+    /** The messages a caller may send; the handshake and the heartbeat are the connection's own business. */
+    private static boolean isCommandOpcode(FCastOpcode opcode) {
+        switch (opcode) {
+            case PLAY:
+            case PAUSE:
+            case RESUME:
+            case STOP:
+            case SEEK:
+            case SET_VOLUME:
+            case SET_SPEED:
+            case SET_PLAYLIST_ITEM:
+            case SUBSCRIBE_EVENT:
+            case UNSUBSCRIBE_EVENT:
+                return true;
+            default:
+                return false;
+        }
     }
 
     private boolean enqueue(FCastOpcode opcode, String body) throws FCastProtocolException {
@@ -273,6 +297,8 @@ public final class FCastConnection implements AutoCloseable {
             if (!closed.get()) {
                 close(CloseReason.IO_ERROR, e.getClass().getSimpleName());
             }
+        } catch (RuntimeException e) {
+            close(CloseReason.PROTOCOL_ERROR, "unexpected " + e.getClass().getSimpleName());
         }
     }
 
@@ -299,6 +325,10 @@ public final class FCastConnection implements AutoCloseable {
             message = FCastMessages.parse(packet);
         } catch (FCastProtocolException e) {
             YaaccLogger.w(TAG, "FCast: " + opcode + " was dropped: " + e.getMessage());
+            return;
+        } catch (RuntimeException | StackOverflowError e) {
+            // nothing a receiver sends may kill the reader thread (a parser of the platform can fail in ways the JVM's can not)
+            YaaccLogger.w(TAG, "FCast: " + opcode + " was dropped: " + e.getClass().getSimpleName());
             return;
         }
         if (message == null) {

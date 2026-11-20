@@ -88,6 +88,60 @@ public class FCastTextTest {
     }
 
     @Test
+    public void zeroWidthAndBidirectionalMarksAreRemovedFromNames() {
+        assertEquals("TV", FCastText.clean("T\u200bV", 60));
+        assertEquals("TV", FCastText.clean("\u202eT\u202cV\u2066", 60));
+        assertEquals("TV", FCastText.clean("\ufeffTV", 60));
+        assertEquals("Café", FCastText.clean("Café", 60));
+    }
+
+    @Test
+    public void ordinaryJsonIsAcceptable() {
+        String[] good = {"{}", "[]", "{\"a\":1}", "{ \"a\" : [ 1 , -2.5e+3 , true , false , null ] }", "{\"a\":\"it's \\\" # // /* ; =\"}",
+                "{\"url\":\"http://h/a?b=c;d#e\"}", "{\"t\":\"é€😀\"}", "{\"a\":{\"b\":{\"c\":[[1]]}}}"};
+        for (String body : good) {
+            assertTrue(body, FCastText.isAcceptableJson(body));
+        }
+    }
+
+    @Test
+    public void formsThatOnlyThePlatformParserAcceptAreRefused() {
+        String[] bad = {"{'a':1}", "{\"a\":1} // comment", "{\"a\":1 /* c */}", "{\"a\":1 # c\n}", "{\"a\":1;\"b\":2}", "{\"a\"=1}",
+                "{\"a\":<1>}", "{\"a\":\"unterminated}", "{\"a\":\\1}"};
+        for (String body : bad) {
+            assertFalse(body, FCastText.isAcceptableJson(body));
+        }
+    }
+
+    @Test
+    public void aQuoteHiddenInASingleQuotedStringOrACommentCanNotHideTheNesting() {
+        // each of these made the old scan (double-quoted strings only) count too little: the guard must refuse them whatever follows
+        char[] open = new char[20_000];
+        Arrays.fill(open, '[');
+        String brackets = new String(open);
+        String[] bodies = {"{'a':'\"','b':" + brackets, "{\"a\":1 /* \" */,\"b\":" + brackets, "{\"a\":1 # \"\n,\"b\":" + brackets};
+        for (String body : bodies) {
+            assertFalse(FCastText.isAcceptableJson(body));
+        }
+    }
+
+    @Test
+    public void tooDeepNestingIsRefusedAndTheLimitItselfIsFine() {
+        StringBuilder atLimit = new StringBuilder();
+        StringBuilder over = new StringBuilder();
+        for (int i = 0; i < FCastText.MAX_DEPTH; i++) {
+            atLimit.append('[');
+            over.append('[');
+        }
+        over.append('[');
+        for (int i = 0; i < FCastText.MAX_DEPTH; i++) {
+            atLimit.append(']');
+        }
+        assertTrue(FCastText.isAcceptableJson(atLimit.toString()));
+        assertFalse(FCastText.isAcceptableJson(over.toString()));
+    }
+
+    @Test
     public void aBodyOfSixteenThousandBracketsIsRefusedWithoutRecursing() {
         char[] chars = new char[16_000];
         Arrays.fill(chars, '[');
