@@ -64,10 +64,10 @@ class Client:
             try:
                 if self.read(timeout=max(0.05, end - time.monotonic())) is None:
                     return True
+            except socket.timeout:   # a TimeoutError is an OSError too: it must be caught first, it is no close
+                continue
             except (ConnectionError, OSError):
                 return True
-            except socket.timeout:
-                return False
         return False
 
     def close(self):
@@ -135,6 +135,29 @@ class RigTest(unittest.TestCase):
         c.send("version", {"version": 3})
         self.assertEqual(c.read()[0], "volume_update")
 
+    def test_a_v2_rig_greets_with_2_by_default(self):
+        _, port = self.start(speaks=2)
+        c = self.client(port)
+        self.assertEqual(c.read(), ("version", {"version": 2}))
+        self.assertEqual(rig.effective_greeting(options(speaks=1)), 1)
+        self.assertEqual(rig.effective_greeting(options()), 3)
+        self.assertEqual(rig.effective_greeting(options(greeting=4)), 4)
+
+    def test_a_hostile_body_does_not_spoil_the_rig_for_the_next_sender(self):
+        _, port = self.start()
+        bad = self.client(port)
+        bad.read()
+        bad.raw(struct.pack("<I", 1 + len(b'{"container":"a/b","url":"http://h","m":NaN}')) + bytes([1]) + b'{"container":"a/b","url":"http://h","m":NaN}')
+        self.assertTrue(bad.closed())
+        good = self.client(port)
+        good.send("version", {"version": 3})
+        self.assertEqual(good.until("initial")[0], "initial")
+
+    def test_the_options_are_checked(self):
+        for argv in (["--duration", "inf"], ["--duration", "0"], ["--start-delay", "-1"], ["--slow-seconds", "nan"]):
+            with self.assertRaises(SystemExit):
+                rig.parse(argv)
+
     def test_version_1_receiver_sends_no_initial_and_ends_the_session_on_a_ping(self):
         _, port = self.start(speaks=1, greeting=0)
         c = self.client(port)
@@ -157,6 +180,13 @@ class RigTest(unittest.TestCase):
             "seek without time": lambda c: c.send("seek", {}),
             "seek with a text": lambda c: c.send("seek", {"time": "5"}),
             "set_volume with a list": lambda c: c.send("set_volume", [1]),
+            "a body with NaN": lambda c: c.raw(
+                struct.pack("<I", 1 + len(b'{"container":"a/b","url":"http://h","m":NaN}')) + bytes([1]) + b'{"container":"a/b","url":"http://h","m":NaN}'),
+            "a time larger than any float": lambda c: c.raw(
+                struct.pack("<I", 1 + len(b'{"time":' + b"1" * 400 + b"}")) + bytes([5]) + b'{"time":' + b"1" * 400 + b"}"),
+            "a body nested too deep": lambda c: c.raw(
+                struct.pack("<I", 1 + 20000) + bytes([5]) + b"[" * 10000 + b"]" * 10000),
+            "initial from a version 2 sender": lambda c: (c.send("version", {"version": 2}), c.send("initial", {"displayName": "x"})),
             "play with an infinite speed": lambda c: c.raw(
                 struct.pack("<I", 1 + len(b'{"container":"a/b","url":"http://h","speed":1e999}')) + bytes([1])
                 + b'{"container":"a/b","url":"http://h","speed":1e999}'),
@@ -269,6 +299,12 @@ class RigTest(unittest.TestCase):
         d = self.client(port, handshake=True)
         d.raw(struct.pack("<I", rig.MAX_PACKET + 1) + bytes([1]))
         self.assertTrue(d.closed())
+
+    def test_a_silent_receiver_does_not_end_a_silent_sender(self):
+        _, port = self.start(behaviour="silent", heartbeat="desktop")
+        c = self.client(port)
+        c.send("version", {"version": 3})
+        self.assertFalse(c.closed(timeout=7.0), "a silent receiver pings nobody and so ends nobody")
 
     def test_silent_behaviour_answers_nothing(self):
         _, port = self.start(behaviour="silent")

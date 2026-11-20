@@ -57,7 +57,7 @@ fails, say so in the issue.)
 
 | You do in YAACC | The rig |
 | --- | --- |
-| connect | sends `Version 3` first (like the Android receiver; `--greeting 4` acts like the desktop receiver, which then expects the sender's `Version 3`), waits for the sender's `Version`, settles on the smaller one, answers with `Initial` and the volume |
+| connect | sends the `Version` it speaks first (3 by default like the Android receiver, 2 or 1 with `--speaks`; `--greeting 4` acts like the desktop receiver, which then expects the sender's `Version 3`), waits for the sender's `Version`, settles on the smaller one, answers with `Initial` and the volume |
 | play an item (`Play`) | logs the message (container, URL, headers, metadata), then reports like a receiver that loads an item: `PlayUpdate`, a `PlaybackUpdate` with state **idle**, `VolumeUpdate` if the message had a volume, and after `--start-delay` (default 0.5 s) state **playing**; the pretend track runs for `--duration` seconds (default 180) with a `PlaybackUpdate` each second and ends with state idle |
 | pause, resume, stop, seek, volume, speed | does it, and sends the new state to **every** connected sender |
 | a second sender (another phone, the receiver's own sender app) | gets the same updates, and its changes reach YAACC; a sender that connects later gets the playing item in `Initial` and the current `PlaybackUpdate` |
@@ -65,12 +65,12 @@ fails, say so in the issue.)
 | the end of the track | sends `PlaybackUpdate` state 0 (idle): YAACC should start the next item |
 | pause, resume, seek or stop with nothing loaded | changes nothing (no message) |
 
-Options for bad behaviour (`--behaviour`): `slow` (every answer waits `--slow-seconds`), `silent` (answers nothing, still
+Options for bad behaviour (`--behaviour`): `slow` (every answer waits `--slow-seconds`), `silent` (answers nothing and pings nobody, still
 logs), `oversize` (announces a packet larger than the 32000 bytes of the protocol right after the connect), `ignore-pings`
-(never answers a ping). `--speaks 2` or `1` makes it an old receiver without `Initial`. A sender that asks for protocol
+(never answers a ping). `--speaks 2` or `1` makes it an old receiver without `Initial` (it greets with that version too, and announces it by mDNS). A sender that asks for protocol
 **version 4** is disconnected, because the rig has no TLS (planned together with YAACC's v4 support, task 7.6).
 
-Like the desktop receiver the rig **ends the session** of a sender that sends a body that is not valid JSON or has the wrong type (a text for a number, an infinite or missing value), an opcode it does not know, a second `Version`, a `Version` below 1 or of 4 and up, a packet of size 0 or over 32000 bytes, or (in a version 1 session) a ping or a speed; the log says why. This is meant to show bugs in YAACC's client. It does not send what is over the 32000 bytes limit either: the `PlayUpdate` echo of a very long `Play` is skipped (and logged), as the real receivers do. Times and speeds in a `Play` are clamped (speed 1/16 to 16, time not below 0) like the desktop receiver does. `PlayUpdate`, `Initial` and the other messages that only exist from version 3 are sent only to sessions of that version.
+Like the desktop receiver the rig **ends the session** of a sender that sends a body that is not valid JSON or has the wrong type (a text for a number, an infinite or missing value), an opcode it does not know, a second `Version`, a `Version` below 1 or of 4 and up, an `Initial`, `SetPlaylistItem` or event subscription from a version 1 or 2 session, a body with `NaN` or `Infinity` or a number too large for a float, a packet of size 0 or over 32000 bytes, or (in a version 1 session) a ping or a speed; the log says why. This is meant to show bugs in YAACC's client. It does not send what is over the 32000 bytes limit either: the `PlayUpdate` echo of a very long `Play` is skipped (and logged), as the real receivers do. Times and speeds in a `Play` are clamped (speed 1/16 to 16, time not below 0) like the desktop receiver does. `PlayUpdate`, `Initial` and the other messages that only exist from version 3 are sent only to sessions of that version.
 
 Everything the rig receives is only logged; it parses JSON and nothing else, never fetches a URL and never runs anything it
 receives.

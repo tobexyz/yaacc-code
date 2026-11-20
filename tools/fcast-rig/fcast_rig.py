@@ -50,6 +50,16 @@ class BadMessage(Exception):
     """A body that is not valid for its opcode: the session ends (as the desktop receiver does)."""
 
 
+def reject_constant(name):
+    """json.loads accepts NaN and Infinity, which are not JSON: such a body is invalid."""
+    raise BadMessage("%s is not valid JSON" % name)
+
+
+def effective_greeting(options):
+    """The Version sent first: what was asked for, else the version the rig speaks (so a v2 rig greets with 2)."""
+    return options.greeting if options.greeting is not None else min(3, options.speaks)
+
+
 def read_exact(sock, count):
     data = bytearray()
     while len(data) < count:
@@ -81,7 +91,7 @@ def encode_packet(opcode, body=None):
     elif isinstance(body, bytes):
         data = body
     else:
-        data = json.dumps(body, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
+        data = json.dumps(body, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")  # ValueError on NaN
     if 1 + len(data) > MAX_PACKET:
         return None
     return struct.pack("<I", 1 + len(data)) + bytes([opcode]) + data
@@ -92,9 +102,14 @@ def number(body, key, lo=None, hi=None, default=None):
     if not isinstance(body, dict) or body.get(key) is None:
         return default
     value = body[key]
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise BadMessage("%s is not a number" % key)
+    try:
+        value = float(value)
+    except OverflowError:
+        raise BadMessage("%s is too large" % key)
+    if not math.isfinite(value):
         raise BadMessage("%s is not a finite number" % key)
-    value = float(value)
     if lo is not None:
         value = max(lo, value)
     if hi is not None:
@@ -175,7 +190,9 @@ class Receiver:
         self.broadcast("playback_update", self.playback_update())
         if volume is not None:
             self.broadcast("volume_update", {"generationTime": int(time.time() * 1000), "volume": self.volume})
-        threading.Timer(self.options.start_delay, self._started, args=(token,)).start()
+        timer = threading.Timer(self.options.start_delay, self._started, args=(token,))
+        timer.daemon = True
+        timer.start()
 
     def _started(self, token):
         with self.lock:
@@ -232,7 +249,11 @@ class Session(socketserver.BaseRequestHandler):
     def send(self, opcode, body=None):
         if self.options.behaviour == "silent":
             return
-        data = encode_packet(opcode, body)
+        try:
+            data = encode_packet(opcode, body)
+        except (ValueError, TypeError, RecursionError) as e:
+            log.warning("[%s] not sending %s: %s", self.peer, OP_NAME.get(opcode, opcode), e)
+            return
         if data is None:
             log.warning("[%s] not sending %s: over the %d byte limit (the receivers skip such a message too)",
                         self.peer, OP_NAME.get(opcode, opcode), MAX_PACKET)
@@ -260,8 +281,8 @@ class Session(socketserver.BaseRequestHandler):
         self.receiver.add(self)
         threading.Thread(target=self._heartbeat, name="rig-heartbeat", daemon=True).start()
         try:
-            if self.options.greeting > 0:
-                self.send(OP["version"], {"version": self.options.greeting})
+            if effective_greeting(self.options) > 0:
+                self.send(OP["version"], {"version": effective_greeting(self.options)})
             if self.options.behaviour == "oversize":
                 self.request.sendall(struct.pack("<I", MAX_PACKET + 1000) + bytes([OP["playback_update"]]) + b"{")
                 log.info("[%s] -> (oversize packet announced on purpose)", self.peer)
@@ -284,6 +305,10 @@ class Session(socketserver.BaseRequestHandler):
                 except BadMessage as e:
                     self.end("invalid message: %s" % e)
                     return
+                except Exception as e:  # nothing a sender sends may leave the rig in a half done state or kill the thread
+                    log.exception("[%s] unexpected %s while handling a packet", self.peer, type(e).__name__)
+                    self.end("unexpected error")
+                    return
         finally:
             self.alive = False
             self.receiver.remove(self)
@@ -295,8 +320,8 @@ class Session(socketserver.BaseRequestHandler):
         body = None
         if raw:
             try:
-                body = json.loads(raw.decode("utf-8"))
-            except (ValueError, UnicodeDecodeError):
+                body = json.loads(raw.decode("utf-8"), parse_constant=reject_constant)
+            except (ValueError, RecursionError):  # UnicodeDecodeError is a ValueError
                 raise BadMessage("%s with a body that is not JSON" % name)
         log.info("[%s] <- %s %s", self.peer, name, "" if body is None else json.dumps(body, ensure_ascii=False)[:300])
         receiver = self.receiver
@@ -305,6 +330,8 @@ class Session(socketserver.BaseRequestHandler):
             return
         if self.version < 2 and opcode in (OP["ping"], OP["pong"], OP["set_speed"]):
             raise BadMessage("%s is not in protocol v1" % name)
+        if self.version < 3 and opcode in (OP["initial"], OP["set_playlist_item"], OP["subscribe_event"], OP["unsubscribe_event"]):
+            raise BadMessage("%s is not in protocol v%d" % (name, self.version))
         if self.options.behaviour == "ignore-pings" and opcode == OP["ping"]:
             return
         if opcode == OP["ping"]:
@@ -368,8 +395,8 @@ class Session(socketserver.BaseRequestHandler):
 
     def _heartbeat(self):
         mode = self.options.heartbeat
-        if mode == "none":
-            return
+        if mode == "none" or self.options.behaviour == "silent":
+            return   # a silent receiver does not ping, so it cannot end a silent sender either
         while self.alive:
             time.sleep(0.5)
             idle = time.monotonic() - self.last_packet
@@ -383,10 +410,11 @@ class Session(socketserver.BaseRequestHandler):
                     self.send(OP["ping"])
             elif mode == "android":
                 # like the Android receiver: a ping every 2.5 s, gone after more than 3 unanswered (about 10 s)
-                if idle > 10.0:
+                if idle > 10.0:   # the Android receiver drops after the 5th tick without an answer (10 to 12.5 s)
                     self.end("no packet for %.1f s" % idle)
                     return
-                self.send(OP["ping"])
+                if self.version >= 2:
+                    self.send(OP["ping"])
                 time.sleep(2.0)
 
 
@@ -411,7 +439,7 @@ def advertise(options, port):
         packed = [socket.inet_aton(a) for a in addresses]
         info = ServiceInfo(
             SERVICE_TYPE, "%s.%s" % (options.name, SERVICE_TYPE), addresses=packed, port=port,
-            properties={"version": str(options.greeting or 3), "appName": "yaacc-test-rig", "appVersion": "1"},
+            properties={"version": str(effective_greeting(options) or 3), "appName": "yaacc-test-rig", "appVersion": "1"},
             server=options.name.replace(" ", "-") + ".local.")
         zc = Zeroconf(ip_version=IPVersion.V4Only)
         zc.register_service(info)
@@ -429,7 +457,7 @@ def parse(argv):
     p.add_argument("--name", default="YAACC test rig", help="name announced by mDNS and sent in Initial")
     p.add_argument("--address", action="append", help="IPv4 address to announce (repeat for more; default: this host's)")
     p.add_argument("--no-advertise", action="store_true", help="do not announce the service by mDNS")
-    p.add_argument("--greeting", type=int, default=3, help="Version sent first on connect: 3 (Android receiver, default), 4 (desktop receiver, which then expects 3), 0 none")
+    p.add_argument("--greeting", type=int, default=None, help="Version sent first on connect and announced by mDNS: default the version the rig speaks (3: like the Android receiver); 4: like the desktop receiver, which then expects 3; 0: none")
     p.add_argument("--speaks", type=int, default=3, choices=(1, 2, 3), help="highest protocol version the rig speaks (1, 2: no Initial)")
     p.add_argument("--behaviour", default="normal", choices=("normal", "slow", "silent", "oversize", "ignore-pings"),
                    help="misbehave on purpose: slow (each answer waits --slow-seconds), silent (answers nothing), "
@@ -440,7 +468,12 @@ def parse(argv):
     p.add_argument("--duration", type=float, default=180.0, help="length in seconds of the pretend track")
     p.add_argument("--start-delay", type=float, default=0.5, help="seconds between the Idle after a Play and the Playing")
     p.add_argument("-v", "--verbose", action="store_true")
-    return p.parse_args(argv)
+    options = p.parse_args(argv)
+    for name in ("duration", "start_delay", "slow_seconds"):
+        value = getattr(options, name)
+        if not math.isfinite(value) or value <= 0 and name == "duration" or value < 0:
+            p.error("--%s must be a finite positive number" % name.replace("_", "-"))
+    return options
 
 
 def main(argv=None):
