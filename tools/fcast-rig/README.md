@@ -40,6 +40,23 @@ py -3 -m venv .venv
 Firewall: allow **TCP 46899** (the protocol) and **UDP 5353** (mDNS) on the notebook, for the network the phone is in. When
 YAACC says "could not connect", this is the first thing to check (a Linux `ufw` or a Windows network profile "public").
 
+## Try a receiver with the probe sender (`fcast_probe.py`)
+
+A command line **sender** (protocol v3, standard library only) to check a real receiver, or the rig, from the notebook before
+YAACC itself can talk to FCast. It sends `Version 3` and `Initial`, answers pings, prints every packet in both directions, and
+can send `Play` and then pause, resume, seek, change volume and speed and stop at times you give.
+
+```
+.venv/bin/python fcast_probe.py --browse 5                       # list the receivers announced in the network
+.venv/bin/python fcast_probe.py 192.168.1.50                     # connect to the receiver, print what it says
+python3 -m http.server 8000                                      # in a folder with test files, in another terminal
+.venv/bin/python fcast_probe.py 192.168.1.50 --play http://192.168.1.50:8000/test.mp4 --container video/mp4 \
+    --do "pause@6,resume@9,seek:30@12,volume:0.3@15,speed:1.5@18,stop@24" --seconds 30
+```
+
+Try `audio/mpeg` with an mp3, `image/jpeg` with a picture, and a wrong or empty container to see what your receiver does;
+please note the receiver and its version. (`--browse` needs `zeroconf`, everything else needs only Python.)
+
 ## Run it in Docker (Linux only)
 
 ```

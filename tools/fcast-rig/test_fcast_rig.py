@@ -378,3 +378,22 @@ class RigTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProbeTest(unittest.TestCase):
+    """The probe sender against the rig (both in this folder)."""
+
+    def test_the_probe_handshakes_plays_and_stops(self):
+        import subprocess, sys, os
+        server = rig.Server(("127.0.0.1", 0), options(heartbeat="none", start_delay=0.1))
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        port = server.server_address[1]
+        here = os.path.dirname(os.path.abspath(__file__))
+        out = subprocess.run([sys.executable, "-I", os.path.join(here, "fcast_probe.py"), "127.0.0.1", "--port", str(port),
+                              "--play", "http://h/a.mp3", "--container", "audio/mpeg", "--do", "pause@1,resume@1.5,volume:0.3@2,stop@2.5",
+                              "--seconds", "4"], capture_output=True, text=True, timeout=30).stdout
+        for expected in ("<- version", "<- initial", "-> play", "<- play_update", "<- playback_update", "-> pause", "-> resume",
+                         "-> set_volume", "<- volume_update", "-> stop"):
+            self.assertIn(expected, out)
