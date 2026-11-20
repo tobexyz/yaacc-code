@@ -173,6 +173,10 @@ class Receiver:
     # ---- operations of the senders
     def play(self, message):
         """Like a receiver that loads a new item: Idle first, Playing after the start delay, Idle at the end."""
+        try:  # a body that cannot be echoed (1e999, a lone surrogate, too deep) is invalid: the session ends, nothing is stored
+            encode_packet(OP["play_update"], {"generationTime": 0, "playData": message})
+        except (ValueError, RecursionError) as e:   # UnicodeEncodeError is a ValueError
+            raise BadMessage("Play body cannot be sent on: %s" % e)
         start = number(message, "time", lo=0.0, default=0.0)
         speed = number(message, "speed", lo=MIN_RATE, hi=MAX_RATE, default=1.0)
         volume = number(message, "volume", lo=0.0, hi=1.0)

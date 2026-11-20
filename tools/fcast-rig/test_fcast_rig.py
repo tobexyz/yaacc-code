@@ -153,6 +153,18 @@ class RigTest(unittest.TestCase):
         good.send("version", {"version": 3})
         self.assertEqual(good.until("initial")[0], "initial")
 
+    def test_a_rejected_play_leaves_nothing_behind_for_later_senders(self):
+        _, port = self.start()
+        bad = self.client(port)
+        bad.read()
+        body = b'{"container":"a/b","url":"http://h","metadata":{"m":1e999}}'
+        bad.raw(struct.pack("<I", 1 + len(body)) + bytes([1]) + body)
+        self.assertTrue(bad.closed())
+        good = self.client(port)
+        good.send("version", {"version": 3})
+        initial = good.until("initial")[1]
+        self.assertNotIn("playData", initial)
+
     def test_the_options_are_checked(self):
         for argv in (["--duration", "inf"], ["--duration", "0"], ["--start-delay", "-1"], ["--slow-seconds", "nan"]):
             with self.assertRaises(SystemExit):
@@ -182,6 +194,11 @@ class RigTest(unittest.TestCase):
             "set_volume with a list": lambda c: c.send("set_volume", [1]),
             "a body with NaN": lambda c: c.raw(
                 struct.pack("<I", 1 + len(b'{"container":"a/b","url":"http://h","m":NaN}')) + bytes([1]) + b'{"container":"a/b","url":"http://h","m":NaN}'),
+            "a number too large anywhere in a play": lambda c: c.raw(
+                struct.pack("<I", 1 + len(b'{"container":"a/b","url":"http://h","metadata":{"m":1e999}}')) + bytes([1])
+                + b'{"container":"a/b","url":"http://h","metadata":{"m":1e999}}'),
+            "a lone surrogate in a play": lambda c: c.raw(
+                struct.pack("<I", 1 + len(b'{"container":"a/b","url":"\\ud800"}')) + bytes([1]) + b'{"container":"a/b","url":"\\ud800"}'),
             "a time larger than any float": lambda c: c.raw(
                 struct.pack("<I", 1 + len(b'{"time":' + b"1" * 400 + b"}")) + bytes([5]) + b'{"time":' + b"1" * 400 + b"}"),
             "a body nested too deep": lambda c: c.raw(
