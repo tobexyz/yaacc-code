@@ -1,6 +1,6 @@
 # Decisions: FCast receivers (#327)
 
-Status 2026-11-20: the owner answered D1 to D12 and the questions Q2 to Q8 (below, each entry says **Decided** with the answer); D13 and D14 record the last answers. No question is open.
+Status 2026-11-20: the owner answered D1 to D12 and the questions Q2 to Q8 (below, each entry says **Decided** with the answer); D13 and D14 record the last answers, D15 the discovery reuse decision. No question is open.
 
 ## Decisions (owner, 2026-11-20)
 
@@ -19,7 +19,7 @@ The platform has TLS 1.3 from API 29 (Android 10). So v4 is used on API 29 and l
 Rule: use v4 when the Android version supports it and the receiver supports it (it announces `v` 4 or answers `Version` 4); otherwise v3. The v4 document's advice to refuse any fallback for a receiver known to support v4 is not followed (it would shut out API 27 and 28 devices and v3-only receivers). Two guard rails stay: (1) a **pin mismatch** (the certificate does not match `fp`) is an error shown to the user, never a silent fall back to v3; (2) the settings sheet shows which version is in use and whether the connection is encrypted, and says so when a v4-capable receiver is used with v3.
 
 ### D5. Naming: package, classes, UI
-**Decided (owner, 2026-11-20): use `de.yaacc.fcast` if possible.** Package `de.yaacc.fcast` (an internal package of an app that is not named FCast; FUTO's policy forbids "FCast" as or at the start of a product name and as a *published* package name; descriptive use is fine, `notes.md`), class names `FCast...`, "FCast" as plain text in the UI ("FCast receiver", "compatible with FCast"), the policy's disclaimer in the About screen and the README, no FCast logo (Q8 open). If FUTO objects, a rename is mechanical.
+**Decided (owner, 2026-11-20): use `de.yaacc.fcast` if possible.** Package `de.yaacc.fcast` (an internal package of an app that is not named FCast; FUTO's policy forbids "FCast" as or at the start of a product name and as a *published* package name; descriptive use is fine, `notes.md`), class names `FCast...`, "FCast" as plain text in the UI ("FCast receiver", "compatible with FCast"), the policy's disclaimer in the About screen and the README, no FCast logo (Q8, answered in D14: text only). If FUTO objects, a rename is mechanical.
 
 ### D6. Identity of a receiver
 **Decided (owner, 2026-11-20): agreed.** The id is `fcast:<host>:<port>` (the endpoint), parsed from the right, like the Snapcast server key; a changed IP makes a new receiver.
@@ -53,7 +53,7 @@ Rule: use v4 when the Android version supports it and the receiver supports it (
 - **Used as they are (logic is service-type neutral, only the class names say Snapcast):** `SnapcastResolveQueue<T>` (serial `NsdManager` resolves, bounded, timeout), `SnapcastResolveRetry` (which failures are retried), `SnapcastBrowseHandle` (a stop before the start is confirmed), `SnapcastNsdErrors` (names of the NSD failure codes for the report), `SnapcastAddressFilter` (local-network address ranges for discovered hosts), `SnapcastPreferencesStorage(context, key)` with the `SnapcastManualServers.Storage` interface (a plain string list under a key of our own), `SnapcastEndpoint.parse(text, defaultPort)` (host or IP with optional port, IPv6, validation; called with 46899), `SnapcastResolver` (name lookup for a typed host name, takes a `SnapcastEndpoint`), `MonotonicClock`.
 - **New FCast classes (the Snapcast ones are tied to Snapcast types):** `FCastNsd` (one browse `_fcast._tcp`, the lifecycle of `SnapcastNsd` without the type list, role logic and `SnapcastDirectory` coupling), `FCastDirectory` (small: id, name, endpoint, TXT hints, last seen, caps; no server-group rules), `FCastManualReceivers` (the list on top of the storage, default port 46899, cap 16), `FCastDiscoveryLog` and `FCastDiscoveryReport` (small, one type), `FCastServiceType` (the type string and its canonical form: `NsdManager` reports types with a trailing dot, in any case).
 - **Why not extract a neutral base:** it would touch the Snapcast classes and their tests for no behaviour gain; the neutral classes are already public and final. **Cleanup option (owner's call, later):** rename the neutral ones to neutral names in one mechanical commit once the Snapcast review of Group 12 is done.
-- **Risk:** `de.yaacc.fcast` depends on `de.yaacc.multiroom.discovery`; if the Snapcast code is ever removed or reshaped, the neutral classes must move first. Recorded here and in `tasks.md` 3.x.
+- **Risk:** `de.yaacc.fcast` depends on `de.yaacc.multiroom.discovery` and on `MonotonicClock`, which lives in `de.yaacc.multiroom.control`; if the Snapcast code is ever removed or reshaped, those classes must move first. Recorded here and in `tasks.md` 3.1 and 3.3.
 
 ### Answers to the earlier questions (owner, 2026-11-20)
 - **Q2:** no receiver hardware; a software receiver on a notebook (D13).

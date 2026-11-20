@@ -20,7 +20,6 @@ package de.yaacc.fcast;
 
 import org.json.JSONObject;
 
-import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -51,49 +50,49 @@ import java.util.concurrent.atomic.AtomicInteger;
  * the answer to {@code Ping}, a ping of its own, silence, a stalled reader. For anything else a test gives its own
  * {@link Script}, which gets the {@link Session} of one accepted connection.
  */
-final class FakeFCastReceiver implements AutoCloseable {
+public final class FakeFCastReceiver implements AutoCloseable {
 
     /** The opcodes of protocol v3 (the fixture's own copy). */
-    static final class Op {
-        static final int PLAY = 1;
-        static final int PAUSE = 2;
-        static final int RESUME = 3;
-        static final int STOP = 4;
-        static final int SEEK = 5;
-        static final int PLAYBACK_UPDATE = 6;
-        static final int VOLUME_UPDATE = 7;
-        static final int SET_VOLUME = 8;
-        static final int PLAYBACK_ERROR = 9;
-        static final int SET_SPEED = 10;
-        static final int VERSION = 11;
-        static final int PING = 12;
-        static final int PONG = 13;
-        static final int INITIAL = 14;
-        static final int PLAY_UPDATE = 15;
-        static final int SET_PLAYLIST_ITEM = 16;
-        static final int SUBSCRIBE_EVENT = 17;
-        static final int UNSUBSCRIBE_EVENT = 18;
-        static final int EVENT = 19;
+    public static final class Op {
+        public static final int PLAY = 1;
+        public static final int PAUSE = 2;
+        public static final int RESUME = 3;
+        public static final int STOP = 4;
+        public static final int SEEK = 5;
+        public static final int PLAYBACK_UPDATE = 6;
+        public static final int VOLUME_UPDATE = 7;
+        public static final int SET_VOLUME = 8;
+        public static final int PLAYBACK_ERROR = 9;
+        public static final int SET_SPEED = 10;
+        public static final int VERSION = 11;
+        public static final int PING = 12;
+        public static final int PONG = 13;
+        public static final int INITIAL = 14;
+        public static final int PLAY_UPDATE = 15;
+        public static final int SET_PLAYLIST_ITEM = 16;
+        public static final int SUBSCRIBE_EVENT = 17;
+        public static final int UNSUBSCRIBE_EVENT = 18;
+        public static final int EVENT = 19;
 
         private Op() {
         }
     }
 
     /** The largest packet (opcode plus body) of protocol v3. */
-    static final int MAX_PACKET = 32000;
+    public static final int MAX_PACKET = 32000;
 
     /** One packet as it was on the wire. */
-    static final class Packet {
-        final int opcode;
+    public static final class Packet {
+        public final int opcode;
         /** The body text, or null if the packet had none. */
-        final String body;
+        public final String body;
 
-        Packet(int opcode, String body) {
+        public Packet(int opcode, String body) {
             this.opcode = opcode;
             this.body = body;
         }
 
-        JSONObject json() throws Exception {
+        public JSONObject json() throws Exception {
             return new JSONObject(body);
         }
 
@@ -104,21 +103,21 @@ final class FakeFCastReceiver implements AutoCloseable {
     }
 
     /** The packet size announced by a peer exceeded the limit. */
-    static final class OversizeException extends IOException {
-        final long declaredSize;
+    public static final class OversizeException extends IOException {
+        public final long declaredSize;
 
-        OversizeException(long declaredSize) {
+        public OversizeException(long declaredSize) {
             super("packet of " + declaredSize + " bytes is over the limit of " + MAX_PACKET);
             this.declaredSize = declaredSize;
         }
     }
 
     /** The framing of protocol v3, written without the production code. */
-    static final class Wire {
+    public static final class Wire {
         private Wire() {
         }
 
-        static void write(OutputStream out, int opcode, byte[] body) throws IOException {
+        public static void write(OutputStream out, int opcode, byte[] body) throws IOException {
             int bodyLength = body == null ? 0 : body.length;
             long size = 1L + bodyLength;
             byte[] packet = new byte[4 + 1 + bodyLength];
@@ -141,7 +140,7 @@ final class FakeFCastReceiver implements AutoCloseable {
          * @throws OversizeException if the announced size is over {@link #MAX_PACKET} (nothing more is read)
          * @throws EOFException      if the peer closed inside a packet
          */
-        static Packet read(InputStream in) throws IOException {
+        public static Packet read(InputStream in) throws IOException {
             int first = in.read();
             if (first < 0) {
                 return null;
@@ -183,68 +182,73 @@ final class FakeFCastReceiver implements AutoCloseable {
     }
 
     /** How the ready-made behaviour acts. All fields have the behaviour of a normal v3 receiver. */
-    static final class Options {
+    public static final class Options {
         /** The {@code Version} the receiver sends first, on its own; 0: none (the Android receiver 3, the desktop receiver 4). */
-        int greetingVersion = 3;
+        public int greetingVersion = 3;
         /** The highest version it speaks; the session uses the smaller of this and the sender's. 1 and 2 send no {@code Initial}. */
-        int speaksVersion = 3;
-        String displayName = "Fake Receiver";
-        String appName = "FakeFCast";
-        String appVersion = "1.0";
+        public int speaksVersion = 3;
+        public String displayName = "Fake Receiver";
+        public String appName = "FakeFCast";
+        public String appVersion = "1.0";
         /** Answer a {@code Ping} with a {@code Pong}. */
-        boolean answerPings = true;
+        public boolean answerPings = true;
         /** Send a {@code Ping} of its own this often (0: never); a {@code Pong} from the sender is counted. */
-        long pingEveryMillis = 0;
+        public long pingEveryMillis = 0;
         /** Say nothing at all: no greeting, no {@code Initial}, no {@code Pong}; it still reads and records. */
-        boolean silent = false;
+        public boolean silent = false;
         /** After the handshake do not read any more (the sender's writes pile up) until {@link FakeFCastReceiver#release()}. */
-        boolean stallAfterHandshake = false;
+        public boolean stallAfterHandshake = false;
+        /**
+         * A sender {@code Version} of 4 or more ends the session: the desktop receiver switches to TLS at once and this fixture
+         * has no TLS, so a client that sends 4 before it can do the upgrade is a bug (phase 2 adds a v4 fixture).
+         */
+        public boolean endOnVersion4 = true;
         /** A volume to report with the {@code Initial} (a {@code VolumeUpdate} follows, as the receivers do). */
-        double initialVolume = 1.0;
+        public double initialVolume = 1.0;
 
-        Options greeting(int version) {
+        public Options greeting(int version) {
             this.greetingVersion = version;
             return this;
         }
 
-        Options speaks(int version) {
+        public Options speaks(int version) {
             this.speaksVersion = version;
             return this;
         }
 
-        Options name(String name) {
+        public Options name(String name) {
             this.displayName = name;
             return this;
         }
 
-        Options ignorePings() {
+        public Options ignorePings() {
             this.answerPings = false;
             return this;
         }
 
-        Options pingEvery(long millis) {
+        public Options pingEvery(long millis) {
             this.pingEveryMillis = millis;
             return this;
         }
 
-        Options silent() {
+        public Options silent() {
             this.silent = true;
             return this;
         }
 
-        Options stalled() {
+        public Options stalled() {
             this.stallAfterHandshake = true;
             return this;
         }
     }
 
     /** What a test does with one accepted connection. */
-    interface Script {
+    public interface Script {
         void run(Session session) throws Exception;
     }
 
     /** One accepted connection as seen by a script. */
-    final class Session {
+    public final class Session {
         private final Socket socket;
         private final InputStream in;
         private final OutputStream out;
@@ -261,7 +265,7 @@ final class FakeFCastReceiver implements AutoCloseable {
         }
 
         /** The next packet of the sender, recorded; null when it closed the connection. */
-        Packet read() throws IOException {
+        public Packet read() throws IOException {
             Packet packet = Wire.read(in);
             if (packet != null) {
                 received.add(packet);
@@ -272,17 +276,17 @@ final class FakeFCastReceiver implements AutoCloseable {
             return packet;
         }
 
-        void send(int opcode, String json) throws IOException {
+        public void send(int opcode, String json) throws IOException {
             synchronized (writeLock) {
                 Wire.write(out, opcode, json == null ? null : json.getBytes(StandardCharsets.UTF_8));
             }
         }
 
-        void sendVersion(int version) throws IOException {
+        public void sendVersion(int version) throws IOException {
             send(Op.VERSION, "{\"version\":" + version + "}");
         }
 
-        void sendInitial(Options o) throws IOException {
+        public void sendInitial(Options o) throws IOException {
             JSONObject json = new JSONObject();
             try {
                 json.put("displayName", o.displayName);
@@ -295,7 +299,7 @@ final class FakeFCastReceiver implements AutoCloseable {
         }
 
         /** {@code state}: 0 idle, 1 playing, 2 paused. A negative time or duration is left out of the message. */
-        void sendPlaybackUpdate(int state, double time, double duration, double speed) throws IOException {
+        public void sendPlaybackUpdate(int state, double time, double duration, double speed) throws IOException {
             StringBuilder sb = new StringBuilder("{\"generationTime\":").append(System.currentTimeMillis())
                     .append(",\"state\":").append(state);
             if (time >= 0) {
@@ -310,30 +314,30 @@ final class FakeFCastReceiver implements AutoCloseable {
             send(Op.PLAYBACK_UPDATE, sb.append('}').toString());
         }
 
-        void sendVolumeUpdate(double volume) throws IOException {
+        public void sendVolumeUpdate(double volume) throws IOException {
             send(Op.VOLUME_UPDATE, "{\"generationTime\":" + System.currentTimeMillis() + ",\"volume\":" + volume + "}");
         }
 
         /** What a receiver says when another sender (or the receiver itself) started something. */
-        void sendPlayUpdate(String container, String url) throws IOException {
+        public void sendPlayUpdate(String container, String url) throws IOException {
             send(Op.PLAY_UPDATE, "{\"generationTime\":" + System.currentTimeMillis()
                     + ",\"playData\":{\"container\":" + JSONObject.quote(container) + ",\"url\":" + JSONObject.quote(url) + "}}");
         }
 
-        void sendPlaybackError(String message) throws IOException {
+        public void sendPlaybackError(String message) throws IOException {
             send(Op.PLAYBACK_ERROR, "{\"message\":" + JSONObject.quote(message) + "}");
         }
 
-        void sendPing() throws IOException {
+        public void sendPing() throws IOException {
             send(Op.PING, null);
         }
 
-        void sendPong() throws IOException {
+        public void sendPong() throws IOException {
             send(Op.PONG, null);
         }
 
         /** Announces a packet larger than the limit and sends a few bytes of it; the connection stays open. */
-        void sendOversize(long declaredSize) throws IOException {
+        public void sendOversize(long declaredSize) throws IOException {
             byte[] header = new byte[]{
                     (byte) (declaredSize & 0xff), (byte) ((declaredSize >> 8) & 0xff),
                     (byte) ((declaredSize >> 16) & 0xff), (byte) ((declaredSize >> 24) & 0xff),
@@ -342,26 +346,26 @@ final class FakeFCastReceiver implements AutoCloseable {
         }
 
         /** A packet without an opcode: size 0. */
-        void sendEmptyPacket() throws IOException {
+        public void sendEmptyPacket() throws IOException {
             sendRaw(new byte[]{0, 0, 0, 0});
         }
 
-        void sendRaw(byte[] bytes) throws IOException {
+        public void sendRaw(byte[] bytes) throws IOException {
             synchronized (writeLock) {
                 out.write(bytes);
                 out.flush();
             }
         }
 
-        int negotiatedVersion() {
+        public int negotiatedVersion() {
             return negotiated;
         }
 
-        int pongCount() {
+        public int pongCount() {
             return pongs.get();
         }
 
-        void close() {
+        public void close() {
             try {
                 socket.close();
             } catch (IOException ignored) {
@@ -381,17 +385,17 @@ final class FakeFCastReceiver implements AutoCloseable {
     private volatile boolean closed;
 
     /** A receiver that behaves as the options say. */
-    static FakeFCastReceiver start(Options options) throws IOException {
+    public static FakeFCastReceiver start(Options options) throws IOException {
         return new FakeFCastReceiver(options, null);
     }
 
     /** A normal v3 receiver. */
-    static FakeFCastReceiver start() throws IOException {
+    public static FakeFCastReceiver start() throws IOException {
         return start(new Options());
     }
 
     /** A receiver that runs the script on every accepted connection (the options are not used). */
-    static FakeFCastReceiver start(Script script) throws IOException {
+    public static FakeFCastReceiver start(Script script) throws IOException {
         return new FakeFCastReceiver(new Options(), script);
     }
 
@@ -407,6 +411,10 @@ final class FakeFCastReceiver implements AutoCloseable {
                     final Session session = new Session(socket);
                     sessions.add(session);
                     accepted.incrementAndGet();
+                    if (closed) {
+                        session.close();
+                        return;
+                    }
                     Thread handler = new Thread(() -> {
                         try {
                             if (this.script != null) {
@@ -466,6 +474,10 @@ final class FakeFCastReceiver implements AutoCloseable {
             switch (packet.opcode) {
                 case Op.VERSION:
                     int theirs = new JSONObject(packet.body).getInt("version");
+                    if (theirs >= 4 && o.endOnVersion4) {
+                        session.close();
+                        return;
+                    }
                     session.negotiated = Math.min(theirs, o.speaksVersion);
                     if (session.negotiated >= 3 && !session.sentInitial) {
                         session.sentInitial = true;
@@ -485,22 +497,27 @@ final class FakeFCastReceiver implements AutoCloseable {
         }
     }
 
+    /** The address of the receiver as text for the code under test: {@code 127.0.0.1:<port>}. */
+    public String endpoint() {
+        return "127.0.0.1:" + port();
+    }
+
     /** The port of the receiver; hand it to the code under test. */
-    int port() {
+    public int port() {
         return serverSocket.getLocalPort();
     }
 
-    int acceptedCount() {
+    public int acceptedCount() {
         return accepted.get();
     }
 
     /** All packets received so far, from every connection, in arrival order. */
-    List<Packet> received() {
+    public List<Packet> received() {
         return new ArrayList<>(received);
     }
 
     /** The packets with this opcode received so far. */
-    List<Packet> received(int opcode) {
+    public List<Packet> received(int opcode) {
         List<Packet> result = new ArrayList<>();
         for (Packet packet : received) {
             if (packet.opcode == opcode) {
@@ -511,7 +528,7 @@ final class FakeFCastReceiver implements AutoCloseable {
     }
 
     /** Waits until at least {@code count} packets with this opcode arrived; false after the timeout. */
-    boolean awaitPackets(int opcode, int count, long timeoutMillis) throws InterruptedException {
+    public boolean awaitPackets(int opcode, int count, long timeoutMillis) throws InterruptedException {
         long end = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
         while (System.nanoTime() < end) {
             if (received(opcode).size() >= count) {
@@ -523,7 +540,7 @@ final class FakeFCastReceiver implements AutoCloseable {
     }
 
     /** The n-th accepted session (waits a moment for the accept thread), for a test that talks on it directly. */
-    Session session(int index) throws InterruptedException {
+    public Session session(int index) throws InterruptedException {
         long end = System.nanoTime() + 2_000_000_000L;
         while (sessions.size() <= index && System.nanoTime() < end) {
             Thread.sleep(5);
@@ -532,7 +549,7 @@ final class FakeFCastReceiver implements AutoCloseable {
     }
 
     /** Sends the same packet to every connection (what a receiver does when another sender changed something). */
-    void broadcast(int opcode, String json) throws IOException {
+    public void broadcast(int opcode, String json) throws IOException {
         synchronized (sessions) {
             for (Session session : sessions) {
                 session.send(opcode, json);
@@ -541,12 +558,12 @@ final class FakeFCastReceiver implements AutoCloseable {
     }
 
     /** Lets a stalled receiver read again. */
-    void release() {
+    public void release() {
         released.countDown();
     }
 
     /** Closes the n-th connection from the receiver's side. */
-    void closeConnection(int index) throws InterruptedException {
+    public void closeConnection(int index) throws InterruptedException {
         session(index).close();
     }
 

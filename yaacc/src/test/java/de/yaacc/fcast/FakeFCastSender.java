@@ -32,13 +32,13 @@ import java.nio.charset.StandardCharsets;
  * and the peer that checks {@link FakeFCastReceiver} in its own test. It speaks the wire format through
  * {@link FakeFCastReceiver.Wire}, not through the production codec. Not a model of YAACC's own client.
  */
-final class FakeFCastSender implements AutoCloseable {
+public final class FakeFCastSender implements AutoCloseable {
     private final Socket socket;
     private final InputStream in;
     private final OutputStream out;
 
     /** Connects to a receiver on the loopback address. */
-    FakeFCastSender(int port) throws IOException {
+    public FakeFCastSender(int port) throws IOException {
         socket = new Socket();
         socket.connect(new InetSocketAddress(InetAddress.getByAddress(new byte[]{127, 0, 0, 1}), port), 2_000);
         socket.setTcpNoDelay(true);
@@ -46,19 +46,19 @@ final class FakeFCastSender implements AutoCloseable {
         out = socket.getOutputStream();
     }
 
-    void send(int opcode, String json) throws IOException {
+    public void send(int opcode, String json) throws IOException {
         FakeFCastReceiver.Wire.write(out, opcode, json == null ? null : json.getBytes(StandardCharsets.UTF_8));
     }
 
-    void sendVersion(int version) throws IOException {
+    public void sendVersion(int version) throws IOException {
         send(FakeFCastReceiver.Op.VERSION, "{\"version\":" + version + "}");
     }
 
-    void sendInitial(String displayName) throws IOException {
+    public void sendInitial(String displayName) throws IOException {
         send(FakeFCastReceiver.Op.INITIAL, "{\"displayName\":\"" + displayName + "\",\"appName\":\"FakeSender\",\"appVersion\":\"1\"}");
     }
 
-    void sendRaw(byte[] bytes) throws IOException {
+    public void sendRaw(byte[] bytes) throws IOException {
         out.write(bytes);
         out.flush();
     }
@@ -68,13 +68,13 @@ final class FakeFCastSender implements AutoCloseable {
      *
      * @throws SocketTimeoutException if nothing arrived within the time
      */
-    FakeFCastReceiver.Packet read(int timeoutMillis) throws IOException {
+    public FakeFCastReceiver.Packet read(int timeoutMillis) throws IOException {
         socket.setSoTimeout(timeoutMillis);
         return FakeFCastReceiver.Wire.read(in);
     }
 
     /** Reads until a packet with this opcode arrives and returns it (earlier packets are dropped); null if closed first. */
-    FakeFCastReceiver.Packet readUntil(int opcode, int timeoutMillis) throws IOException {
+    public FakeFCastReceiver.Packet readUntil(int opcode, int timeoutMillis) throws IOException {
         long end = System.nanoTime() + timeoutMillis * 1_000_000L;
         while (true) {
             long left = (end - System.nanoTime()) / 1_000_000L;
@@ -88,11 +88,13 @@ final class FakeFCastSender implements AutoCloseable {
         }
     }
 
-    boolean isClosedByPeer(int timeoutMillis) {
+    public boolean isClosedByPeer(int timeoutMillis) {
         try {
             return read(timeoutMillis) == null;
-        } catch (IOException e) {
+        } catch (SocketTimeoutException e) {
             return false;
+        } catch (IOException e) {
+            return true; // a reset or a broken stream also means the receiver ended the connection
         }
     }
 

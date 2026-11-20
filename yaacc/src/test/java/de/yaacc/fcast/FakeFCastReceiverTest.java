@@ -343,6 +343,25 @@ public class FakeFCastReceiverTest {
     }
 
     @Test
+    public void aSenderThatAsksForVersion4EndsTheSessionBecauseTheFixtureHasNoTls() throws Exception {
+        try (FakeFCastReceiver receiver = FakeFCastReceiver.start(); FakeFCastSender sender = new FakeFCastSender(receiver.port())) {
+            sender.sendVersion(4);
+            Packet next;
+            do {
+                next = sender.read(WAIT); // the greeting first, then the end of the connection
+            } while (next != null);
+            assertEquals(0, receiver.received(Op.INITIAL).size());
+        }
+    }
+
+    @Test
+    public void theEndpointNamesTheLoopbackAddressAndThePort() throws Exception {
+        try (FakeFCastReceiver receiver = FakeFCastReceiver.start()) {
+            assertEquals("127.0.0.1:" + receiver.port(), receiver.endpoint());
+        }
+    }
+
+    @Test
     public void aSilentReceiverRecordsButSaysNothing() throws Exception {
         try (FakeFCastReceiver receiver = FakeFCastReceiver.start(new FakeFCastReceiver.Options().silent());
              FakeFCastSender sender = new FakeFCastSender(receiver.port())) {

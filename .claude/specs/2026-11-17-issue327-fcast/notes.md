@@ -1,6 +1,6 @@
 # Notes: FCast protocol and receivers (research for #327)
 
-Read first-hand on 2026-11-17 from a shallow clone of `https://github.com/futo-org/fcast` at commit `ea3982b31d751957e3cb6a114ee65504c7b91105` (2026-10-26, MIT licence). The hosted docs sites (`docs.fcast.org`, `fcast-docs.pages.dev`, `docs.rs`) were not reachable from the sandbox, so the markdown sources in the repository were used. Paths below are relative to that repository. Nothing here comes from memory unless marked (memory). This file is to be moved into `docs/tech.md` by task 1.1 after the checks marked "verify" were done against a real receiver.
+Read first-hand on 2026-11-17 from a shallow clone of `https://github.com/futo-org/fcast` at commit `ea3982b31d751957e3cb6a114ee65504c7b91105` (2026-10-26, MIT licence). The hosted docs sites (`docs.fcast.org`, `fcast-docs.pages.dev`, `docs.rs`) were not reachable from the sandbox, so the markdown sources in the repository were used. Paths below are relative to that repository. Nothing here comes from memory unless marked (memory). The verified parts were moved into `docs/tech.md` (section "FCast (issue #327)") by task 1.1 on 2026-11-20; that section is the maintained one, this file keeps the longer research notes.
 
 ## What FCast is
 An open protocol (MIT) to push audio, video and images from a sender to a receiver on the LAN. The sender gives the receiver a **URL** (HLS, DASH, mp4, ...) and then controls playback; the receiver fetches and plays the media itself (`README.md`). That is the same model as UPnP AVTransport, so YAACC's "play this item on that receiver" maps well. The FCast project ships receivers for Android (TV first, also phones and tablets, Android 7 and later; `receivers/android/README.md`) and desktop (Linux, Windows, macOS; the Rust receiver in `crates/receiver-*`), senders for desktop and terminal, and a sender SDK. Grayjay is a sender.
@@ -52,7 +52,5 @@ The project's website (`website/dist/index.html`) links the official downloads: 
 ## Test tools in the repository
 `tools/fast` ("FCast's Automated Set of Tests") drives a real receiver through scripted protocol exchanges (`cargo fast run-all`); it is a Rust tool the owner could run against a receiver to see what a conforming receiver does. `senders/terminal` is a command line sender (`cargo`), and `receivers/android/README.md` explains port redirection to reach a receiver in the Android TV emulator (`redir add tcp:46899:46899`).
 
-## Not checked (to verify in task 1.1 or by the owner)
-- Which receiver versions accept a v3 sender today (the Rust receiver: source says yes), whether the Android receiver plays audio-only items and images through `Play`, and what the receivers do with an unknown `container`.
-- Ping and idle timing of the receivers in v3 (the document gives no numbers; v4 gives 3 s and 6 s).
-- Whether the Android receiver announces itself on Android 16 and on networks with client isolation (the receiver docs warn about it).
+## Not checked
+See the end of the FCast section of `docs/tech.md` ("Still to verify"): what is left is the owner's gate with real receivers.

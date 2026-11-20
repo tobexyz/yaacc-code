@@ -1,10 +1,11 @@
 # Copyright (C) 2026 Tobias Schoene www.yaacc.de
 # GPL-3.0-or-later, like the rest of YAACC.
-"""Self-test of the rig (no network beyond the loopback, no fixed port): python3 -I -m unittest discover -s tools/fcast-rig"""
+"""Self-test of the rig (loopback only, no fixed port): see README.md, "Test the rig itself"."""
 import json
 import socket
 import struct
 import threading
+import time
 import unittest
 
 import fcast_rig as rig
@@ -24,6 +25,9 @@ class Client:
     def send(self, name, body=None):
         self.sock.sendall(rig.encode_packet(rig.OP[name], body))
 
+    def raw(self, data):
+        self.sock.sendall(data)
+
     def read(self, timeout=3):
         self.sock.settimeout(timeout)
         packet = rig.read_packet(self.sock)
@@ -33,10 +37,38 @@ class Client:
         return rig.OP_NAME[opcode], (json.loads(raw) if raw else None)
 
     def until(self, name, timeout=3):
+        """The next packet with this name; socket.timeout when none comes within `timeout` seconds in total."""
+        end = time.monotonic() + timeout
         while True:
-            packet = self.read(timeout)
+            left = end - time.monotonic()
+            if left <= 0:
+                raise socket.timeout("no %s within %s s" % (name, timeout))
+            packet = self.read(left)
             if packet is None or packet[0] == name:
                 return packet
+
+    def until_state(self, state, timeout=3):
+        while True:
+            packet = self.until("playback_update", timeout)
+            if packet is None or packet[1]["state"] == state:
+                return packet
+
+    def states(self, count, timeout=4):
+        """The states of the next `count` PlaybackUpdates."""
+        return [self.until("playback_update", timeout)[1]["state"] for _ in range(count)]
+
+    def closed(self, timeout=3):
+        """True if the rig closes the connection (nothing but closing is accepted as the end)."""
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            try:
+                if self.read(timeout=max(0.05, end - time.monotonic())) is None:
+                    return True
+            except (ConnectionError, OSError):
+                return True
+            except socket.timeout:
+                return False
+        return False
 
     def close(self):
         self.sock.close()
@@ -45,27 +77,39 @@ class Client:
 class RigTest(unittest.TestCase):
     def start(self, **kw):
         kw.setdefault("heartbeat", "none")
-        opts = options(**kw)
-        server = rig.Server(("127.0.0.1", 0), opts)
+        kw.setdefault("start_delay", 0.1)
+        server = rig.Server(("127.0.0.1", 0), options(**kw))
         threading.Thread(target=server.serve_forever, daemon=True).start()
         self.addCleanup(server.server_close)
         self.addCleanup(server.shutdown)
         return server, server.server_address[1]
 
-    def client(self, port):
+    def client(self, port, handshake=False):
         c = Client(port)
         self.addCleanup(c.close)
+        if handshake:
+            c.send("version", {"version": 3})
+            c.until("volume_update")
         return c
+
+    # ---- framing
 
     def test_port_zero_picks_a_free_port(self):
         _, port = self.start()
-        self.assertNotEqual(port, 0)
-        self.assertNotEqual(port, 46899)
+        self.assertNotIn(port, (0, 46899))
 
     def test_framing_is_little_endian_and_counts_the_opcode(self):
         self.assertEqual(rig.encode_packet(rig.OP["pause"]), bytes([1, 0, 0, 0, 2]))
         body = json.dumps({"time": 5.5}, separators=(",", ":")).encode()
         self.assertEqual(rig.encode_packet(rig.OP["seek"], {"time": 5.5}), struct.pack("<I", 1 + len(body)) + bytes([5]) + body)
+
+    def test_a_message_over_the_limit_is_not_encoded_and_text_stays_utf8(self):
+        self.assertIsNone(rig.encode_packet(rig.OP["play"], {"url": "a" * rig.MAX_PACKET}))
+        self.assertIn("é".encode("utf-8"), rig.encode_packet(rig.OP["play"], {"t": "é"}))
+        with self.assertRaises(ValueError):
+            rig.encode_packet(rig.OP["play"], {"t": float("inf")})
+
+    # ---- handshake
 
     def test_handshake_greeting_initial_and_volume(self):
         _, port = self.start()
@@ -74,7 +118,7 @@ class RigTest(unittest.TestCase):
         c.send("version", {"version": 3})
         name, body = c.read()
         self.assertEqual(name, "initial")
-        self.assertEqual(body["displayName"], "FCast-rig")
+        self.assertEqual(body["displayName"], "YAACC test rig")
         self.assertEqual(c.read()[0], "volume_update")
 
     def test_desktop_style_greeting_4_settles_on_3(self):
@@ -91,12 +135,39 @@ class RigTest(unittest.TestCase):
         c.send("version", {"version": 3})
         self.assertEqual(c.read()[0], "volume_update")
 
-    def test_a_sender_asking_for_version_4_is_closed(self):
-        _, port = self.start()
+    def test_version_1_receiver_sends_no_initial_and_ends_the_session_on_a_ping(self):
+        _, port = self.start(speaks=1, greeting=0)
         c = self.client(port)
-        c.read()
-        c.send("version", {"version": 4})
-        self.assertIsNone(c.until("initial"))
+        c.send("version", {"version": 3})
+        self.assertEqual(c.read()[0], "volume_update")
+        c.send("ping")  # v1 has no Ping: the desktop receiver ends such a session
+        self.assertTrue(c.closed())
+
+    def test_the_session_ends_on_bad_input_like_the_desktop_receiver(self):
+        cases = {
+            "version 4": lambda c: c.send("version", {"version": 4}),
+            "version 0": lambda c: c.send("version", {"version": 0}),
+            "version not an integer": lambda c: c.send("version", {"version": "abc"}),
+            "version without a body": lambda c: c.send("version"),
+            "a second version": lambda c: (c.send("version", {"version": 3}), c.send("version", {"version": 3})),
+            "an unknown opcode": lambda c: c.raw(struct.pack("<I", 1) + bytes([99])),
+            "a body that is not json": lambda c: c.raw(struct.pack("<I", 4) + bytes([1]) + b"{x}"),
+            "a size of zero": lambda c: c.raw(b"\0\0\0\0"),
+            "a packet over the limit": lambda c: c.raw(struct.pack("<I", rig.MAX_PACKET + 1) + bytes([1])),
+            "seek without time": lambda c: c.send("seek", {}),
+            "seek with a text": lambda c: c.send("seek", {"time": "5"}),
+            "set_volume with a list": lambda c: c.send("set_volume", [1]),
+            "play with an infinite speed": lambda c: c.raw(
+                struct.pack("<I", 1 + len(b'{"container":"a/b","url":"http://h","speed":1e999}')) + bytes([1])
+                + b'{"container":"a/b","url":"http://h","speed":1e999}'),
+        }
+        for label, act in cases.items():
+            with self.subTest(label):
+                _, port = self.start()
+                c = self.client(port)
+                c.read()
+                act(c)
+                self.assertTrue(c.closed(), label + ": the rig kept the session")
 
     def test_ping_pong_and_ignore_pings(self):
         _, port = self.start()
@@ -111,16 +182,16 @@ class RigTest(unittest.TestCase):
         with self.assertRaises(socket.timeout):
             d.until("pong", timeout=0.4)
 
+    # ---- playing
+
     def test_play_pause_resume_seek_volume_speed_stop(self):
         _, port = self.start()
-        c = self.client(port)
-        c.send("version", {"version": 3})
-        c.until("volume_update")
+        c = self.client(port, handshake=True)
         c.send("play", {"container": "video/mp4", "url": "http://192.168.1.2/a.mp4", "time": 10, "volume": 0.5})
         self.assertEqual(c.until("play_update")[1]["playData"]["url"], "http://192.168.1.2/a.mp4")
-        update = c.until("playback_update")[1]
-        self.assertEqual((update["state"], update["time"], update["duration"]), (1, 10.0, 180.0))
-        self.assertEqual(c.until("volume_update")[1]["volume"], 0.5)
+        self.assertEqual(c.until("volume_update")[1]["volume"], 0.5)   # sent with the new item, before it starts
+        playing = c.until_state(1)[1]
+        self.assertEqual((playing["time"], playing["duration"]), (10.0, 180.0))
         c.send("pause")
         self.assertEqual(c.until("playback_update")[1]["state"], 2)
         c.send("resume")
@@ -134,43 +205,70 @@ class RigTest(unittest.TestCase):
         c.send("stop")
         self.assertEqual(c.until("playback_update")[1]["state"], 0)
 
+    def test_a_new_item_reports_idle_first_then_playing_then_idle_at_the_end(self):
+        _, port = self.start(duration=1.0)
+        c = self.client(port, handshake=True)
+        c.send("play", {"container": "audio/mpeg", "url": "http://h/a.mp3"})
+        self.assertEqual(c.states(3), [0, 1, 0], "idle (loading), playing, idle at the end of the track")
+
+    def test_speed_and_time_of_a_play_are_clamped(self):
+        _, port = self.start()
+        c = self.client(port, handshake=True)
+        c.send("play", {"container": "audio/mpeg", "url": "http://h/a.mp3", "speed": 100, "time": -5})
+        playing = c.until_state(1)[1]
+        self.assertEqual((playing["speed"], playing["time"]), (16.0, 0.0))
+
+    def test_pause_seek_and_stop_with_nothing_loaded_change_nothing(self):
+        _, port = self.start()
+        c = self.client(port, handshake=True)
+        for name, body in (("pause", None), ("resume", None), ("stop", None), ("seek", {"time": 5})):
+            c.send(name, body)
+        with self.assertRaises(socket.timeout):
+            c.until("playback_update", timeout=0.4)
+
     def test_a_play_without_url_is_an_error(self):
         _, port = self.start()
-        c = self.client(port)
-        c.send("version", {"version": 3})
+        c = self.client(port, handshake=True)
         c.send("play", {"container": "video/mp4"})
         self.assertEqual(c.until("playback_error")[0], "playback_error")
 
-    def test_a_second_sender_sees_the_changes_of_the_first(self):
+    def test_a_second_sender_sees_the_changes_of_the_first_and_a_late_one_gets_the_state(self):
         _, port = self.start()
-        a, b = self.client(port), self.client(port)
-        for c in (a, b):
-            c.send("version", {"version": 3})
-            c.until("volume_update")
+        a, b = self.client(port, handshake=True), self.client(port, handshake=True)
         a.send("set_volume", {"volume": 0.25})
         self.assertEqual(b.until("volume_update")[1]["volume"], 0.25)
+        a.send("play", {"container": "audio/mpeg", "url": "http://h/a.mp3"})
+        a.until_state(1)
+        late = self.client(port)
+        late.send("version", {"version": 3})
+        initial = late.until("initial")[1]
+        self.assertEqual(initial["playData"]["url"], "http://h/a.mp3")
+        self.assertEqual(late.until("playback_update")[1]["state"], 1)
 
-    def test_an_oversize_packet_from_the_sender_closes_the_connection(self):
-        _, port = self.start()
+    def test_a_version_2_sender_gets_no_play_update(self):
+        _, port = self.start(speaks=2)
         c = self.client(port)
-        c.send("version", {"version": 3})
-        c.sock.sendall(struct.pack("<I", rig.MAX_PACKET + 1) + bytes([1]))
-        self.assertIsNone(c.until("never"))
-
-    def test_a_packet_of_size_zero_closes_the_connection(self):
-        _, port = self.start()
-        c = self.client(port)
-        c.sock.sendall(b"\0\0\0\0")
-        self.assertIsNone(c.until("never"))
-
-    def test_the_limit_itself_is_accepted(self):
-        _, port = self.start()
-        c = self.client(port)
-        c.send("version", {"version": 3})
+        c.send("version", {"version": 2})
         c.until("volume_update")
-        url = "http://h/" + "a" * (rig.MAX_PACKET - 200)
-        c.send("play", {"container": "audio/mpeg", "url": url})
-        self.assertEqual(c.until("playback_update")[1]["state"], 1)
+        c.send("play", {"container": "audio/mpeg", "url": "http://h/a.mp3"})
+        self.assertEqual(c.until("playback_update")[1]["state"], 0)
+        with self.assertRaises(socket.timeout):
+            c.until("play_update", timeout=0.4)
+
+    # ---- limits
+
+    def test_the_largest_packet_is_accepted_and_one_byte_more_ends_the_session(self):
+        _, port = self.start()
+        c = self.client(port, handshake=True)
+        prefix = '{"container":"audio/mpeg","url":"http://h/'
+        suffix = '"}'
+        body = prefix + "a" * (rig.MAX_PACKET - 1 - len(prefix) - len(suffix)) + suffix
+        self.assertEqual(len(body) + 1, rig.MAX_PACKET)
+        c.raw(struct.pack("<I", rig.MAX_PACKET) + bytes([1]) + body.encode())
+        self.assertEqual(c.until_state(1)[1]["state"], 1)  # accepted; the PlayUpdate echo is too big and is skipped
+        d = self.client(port, handshake=True)
+        d.raw(struct.pack("<I", rig.MAX_PACKET + 1) + bytes([1]))
+        self.assertTrue(d.closed())
 
     def test_silent_behaviour_answers_nothing(self):
         _, port = self.start(behaviour="silent")
@@ -187,8 +285,17 @@ class RigTest(unittest.TestCase):
         with self.assertRaises(rig.OversizeError):
             c.read()
 
+    def test_slow_behaviour_delays_answers(self):
+        _, port = self.start(behaviour="slow", slow_seconds=0.3, greeting=0)
+        c = self.client(port)
+        started = time.monotonic()
+        c.send("version", {"version": 3})
+        c.read()
+        self.assertGreaterEqual(time.monotonic() - started, 0.25)
+
+    # ---- heartbeat
+
     def test_desktop_heartbeat_pings_after_3_seconds_and_ends_a_silent_sender_after_6(self):
-        import time
         _, port = self.start(heartbeat="desktop", greeting=0)
         c = self.client(port)
         c.send("version", {"version": 3})
@@ -199,7 +306,6 @@ class RigTest(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 8.5)
 
     def test_a_sender_that_answers_pings_is_kept(self):
-        import time
         _, port = self.start(heartbeat="desktop", greeting=0)
         c = self.client(port)
         c.send("version", {"version": 3})
@@ -215,15 +321,6 @@ class RigTest(unittest.TestCase):
                 pings += 1
                 c.send("pong")
         self.assertGreaterEqual(pings, 1)
-
-    def test_slow_behaviour_delays_answers(self):
-        import time
-        _, port = self.start(behaviour="slow", slow_seconds=0.3, greeting=0)
-        c = self.client(port)
-        started = time.monotonic()
-        c.send("version", {"version": 3})
-        c.read()
-        self.assertGreaterEqual(time.monotonic() - started, 0.25)
 
 
 if __name__ == "__main__":

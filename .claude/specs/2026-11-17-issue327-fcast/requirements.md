@@ -2,7 +2,7 @@
 
 Issue (owner): "allow cast to Fcast receivers" (https://fcast.org/, https://github.com/futo-org/fcast). Background and the facts behind this spec: `notes.md` (same folder). Design: `design.md`. Decisions and open questions: `decisions.md`. Tasks: `tasks.md`.
 
-Status (2026-11-20): **spec only**, on branch `feat/issue327`. No code. The owner decided D1 to D12 on 2026-11-20 (`decisions.md`); the questions Q2 to Q8 are answered too (D13 test rig, D14 trademarks); no question is open.
+Status (2026-11-20): spec on branch `feat/issue327`; Group 1 (research, test fixture, test receiver rig) is built, the app code (Groups 2 to 6) is not. The owner decided D1 to D12 on 2026-11-20 (`decisions.md`), D13 to D15 followed; the questions Q2 to Q8 are answered too (D13 test rig, D14 trademarks); no question is open.
 
 ## Short answers to the owner's questions
 - **Can the receivers be discovered and shown as cards in the receiver list?** Yes. FCast receivers announce themselves by mDNS as `_fcast._tcp` (the port is in the record), and a receiver can also be added by hand with address and port (default 46899). Each receiver becomes one card in the receiver list, built the same way as the Snapcast group cards (a synthetic device that is never registered with Cling).
