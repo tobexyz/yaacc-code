@@ -397,6 +397,10 @@ public class FCastSessionTest {
         receiver.closeConnection(0);
         assertTrue(await(session, s -> events.sawLink(FCastReceiverState.Link.RECONNECTING) && s.getLink() == FCastReceiverState.Link.CONNECTED, WAIT));
         assertEquals(2, connector.attempts.get());
+        long acceptEnd = System.nanoTime() + TimeUnit.SECONDS.toNanos(4);
+        while (receiver.acceptedCount() < 2 && System.nanoTime() < acceptEnd) {
+            Thread.sleep(5);
+        }
         assertEquals(2, receiver.acceptedCount());
         assertEquals("the playback state is not trusted across a connection", FCastReceiverState.Playback.UNKNOWN, session.getState().getPlayback());
 
@@ -626,7 +630,8 @@ public class FCastSessionTest {
             Thread.sleep(5);
         }
         assertEquals(1, events.events.size());
-        wire.sendPlaybackUpdate(0, 0, 0, 0);          // a stop afterwards: all zeros, no end any more
+        // a stop afterwards: all zeros as the desktop receiver sends them, written by hand so that the speed 0 is really on the wire
+        wire.send(Op.PLAYBACK_UPDATE, "{\"generationTime\":1,\"state\":0,\"time\":0.0,\"duration\":0.0,\"speed\":0.0}");
         assertTrue(await(session, s -> s.getPlayback() == FCastReceiverState.Playback.IDLE, WAIT));
         assertFalse(session.getState().hasEnded());
         assertNull("an idle update keeps no speed", session.getState().getSpeed());
@@ -673,5 +678,96 @@ public class FCastSessionTest {
         assertTrue(await(session, s -> s.getLink() == FCastReceiverState.Link.FAILED, WAIT));
         Thread.sleep(200);
         assertEquals(before + 1, session.getState().getErrorSerial());
+    }
+
+    // ---- review of Group 2, cycle 2
+
+    @Test
+    public void aNewItemDoesNotInheritTheEndOfTheOldOne() throws Exception {
+        FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
+        FCastSession session = session(connectorTo(receiver.port()), new Events(), fastSession());
+        session.acquire();
+        session.play(song("http://h/a.mp3"));
+        assertTrue(receiver.awaitPackets(Op.PLAY, 1, WAIT));
+        FakeFCastReceiver.Session wire = receiver.session(0);
+        wire.sendPlayUpdate("audio/mpeg", "http://h/a.mp3");
+        wire.sendPlaybackUpdate(2, 30.5, 30.5, 1.0);   // an Android style end
+        assertTrue(await(session, s -> s.hasEnded(), WAIT));
+        assertTrue(session.getState().getPlaybackUpdatedAt() > 0);
+
+        wire.sendPlayUpdate("audio/mpeg", "http://h/a.mp3"); // the same item again (repeat one) must reset too
+        assertTrue(await(session, s -> s.getPlayback() == FCastReceiverState.Playback.UNKNOWN, WAIT));
+        FCastReceiverState fresh = session.getState();
+        assertFalse(fresh.hasEnded());
+        assertFalse(fresh.isNearEnd());
+        assertNull(fresh.getPosition());
+        assertNull(fresh.getDuration());
+
+        wire.sendPlayUpdate("audio/mpeg", "http://h/b.mp3");
+        wire.sendPlaybackUpdate(1, 0.5, 40.0, 1.0);
+        assertTrue(await(session, s -> s.getPlayback() == FCastReceiverState.Playback.PLAYING, WAIT));
+        assertEquals("http://h/b.mp3", session.getState().getItemUrl());
+        assertEquals(40.0, session.getState().getDuration(), 0.0);
+    }
+
+    @Test
+    public void aMessageOfAnOldConnectionIsNotAppliedToTheNewOne() throws Exception {
+        FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
+        CountingConnector connector = connectorTo(receiver.port());
+        Events events = new Events();
+        FCastSession session = session(connector, events, fastSession());
+        session.acquire();
+        session.pause();
+        assertTrue(receiver.awaitPackets(Op.PAUSE, 1, WAIT));
+        final java.util.concurrent.CountDownLatch gate = new java.util.concurrent.CountDownLatch(1);
+        executor.execute(() -> {
+            try {
+                gate.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        session.pause(); // waits behind the gate and makes the second connection when it runs
+        FakeFCastReceiver.Session old = receiver.session(0);
+        old.sendPlaybackUpdate(1, 9.0, 30.0, 1.0);                                        // queued behind the command
+        old.send(Op.EVENT, "{\"generationTime\":1,\"event\":{\"type\":1,\"item\":{\"url\":\"http://h/old.mp3\"}}}");
+        Thread.sleep(300);
+        receiver.closeConnection(0);
+        Thread.sleep(300);
+        gate.countDown();
+        assertTrue(await(session, s -> connector.attempts.get() == 2 && s.getLink() == FCastReceiverState.Link.CONNECTED, WAIT));
+        Thread.sleep(300);
+        assertEquals("what the old connection said is not what the new receiver said", FCastReceiverState.Playback.UNKNOWN,
+                session.getState().getPlayback());
+        assertEquals("an event of the old connection does not reach the player", 0, events.events.size());
+    }
+
+    @Test
+    public void theEndEventIsSubscribedAgainAfterAReconnect() throws Exception {
+        FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
+        CountingConnector connector = connectorTo(receiver.port());
+        FCastSession session = session(connector, new Events(), fastSession());
+        session.acquire();
+        session.setVolume(0.5);
+        assertTrue(receiver.awaitPackets(Op.SUBSCRIBE_EVENT, 1, WAIT));
+        receiver.closeConnection(0);
+        assertTrue(await(session, s -> connector.attempts.get() == 2 && s.getLink() == FCastReceiverState.Link.CONNECTED, WAIT));
+        assertTrue("the desktop receiver's only end signal must be asked for again on the new connection",
+                receiver.awaitPackets(Op.SUBSCRIBE_EVENT, 2, WAIT));
+    }
+
+    @Test
+    public void aStoppedReceiverShowsNoSpeedNotTheClampedZero() throws Exception {
+        FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
+        FCastSession session = session(connectorTo(receiver.port()), new Events(), fastSession());
+        session.acquire();
+        session.stop();
+        assertTrue(receiver.awaitPackets(Op.STOP, 1, WAIT));
+        receiver.session(0).sendPlaybackUpdate(1, 5, 30, 1.0);
+        assertTrue(await(session, s -> s.getSpeed() != null, WAIT));
+        receiver.session(0).send(Op.PLAYBACK_UPDATE, "{\"generationTime\":1,\"state\":0,\"time\":0.0,\"duration\":0.0,\"speed\":0.0}");
+        assertTrue(await(session, s -> s.getPlayback() == FCastReceiverState.Playback.IDLE, WAIT));
+        assertNull(session.getState().getSpeed());
+        assertNull(session.getState().getPosition());
     }
 }

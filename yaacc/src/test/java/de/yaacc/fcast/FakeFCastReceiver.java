@@ -308,7 +308,7 @@ public final class FakeFCastReceiver implements AutoCloseable {
             if (duration >= 0) {
                 sb.append(",\"duration\":").append(duration);
             }
-            if (speed > 0) {
+            if (speed >= 0) {
                 sb.append(",\"speed\":").append(speed);
             }
             send(Op.PLAYBACK_UPDATE, sb.append('}').toString());

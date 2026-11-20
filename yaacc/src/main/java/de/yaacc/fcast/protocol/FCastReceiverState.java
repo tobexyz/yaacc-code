@@ -67,6 +67,7 @@ public final class FCastReceiverState {
     private final String itemTitle;
     private final boolean itemFromElsewhere;
     private final Pending pending;
+    private final long playbackUpdatedAt;
     private final String lastError;
     private final int errorSerial;
 
@@ -86,6 +87,7 @@ public final class FCastReceiverState {
         this.itemTitle = b.itemTitle;
         this.itemFromElsewhere = b.itemFromElsewhere;
         this.pending = b.pending;
+        this.playbackUpdatedAt = b.playbackUpdatedAt;
         this.lastError = b.lastError;
         this.errorSerial = b.errorSerial;
     }
@@ -179,6 +181,15 @@ public final class FCastReceiverState {
         return pending;
     }
 
+    /**
+     * The monotonic clock time (milliseconds, the session's clock) when the last {@code PlaybackUpdate} arrived, 0 if none did since
+     * the connection was made. The player needs it for the safety net of the end of an item: the receiver was near the end of the
+     * item and nothing came for 2 s.
+     */
+    public long getPlaybackUpdatedAt() {
+        return playbackUpdatedAt;
+    }
+
     /** The last error text (a failed connection, a refused command, a playback error of the receiver), or null. */
     public String getLastError() {
         return lastError;
@@ -212,6 +223,7 @@ public final class FCastReceiverState {
         private String itemTitle;
         private boolean itemFromElsewhere;
         private Pending pending = Pending.NONE;
+        private long playbackUpdatedAt;
         private String lastError;
         private int errorSerial;
 
@@ -234,6 +246,7 @@ public final class FCastReceiverState {
             itemTitle = s.itemTitle;
             itemFromElsewhere = s.itemFromElsewhere;
             pending = s.pending;
+            playbackUpdatedAt = s.playbackUpdatedAt;
             lastError = s.lastError;
             errorSerial = s.errorSerial;
         }
@@ -278,6 +291,11 @@ public final class FCastReceiverState {
 
         public Builder pending(Pending pending) {
             this.pending = pending;
+            return this;
+        }
+
+        public Builder playbackUpdatedAt(long millis) {
+            this.playbackUpdatedAt = millis;
             return this;
         }
 

@@ -276,7 +276,7 @@ public final class FCastSession implements AutoCloseable {
         connection = null;
         cancelPending();
         FCastReceiverState.Builder lost = state.toBuilder().playback(FCastReceiverState.Playback.UNKNOWN, null, null, null)
-                .pending(FCastReceiverState.Pending.NONE);
+                .pending(FCastReceiverState.Pending.NONE).playbackUpdatedAt(0);
         if (reason == FCastConnection.CloseReason.CLOSED_BY_US || users == 0) {
             publish(lost.link(FCastReceiverState.Link.IDLE));
             return;
@@ -350,6 +350,8 @@ public final class FCastSession implements AutoCloseable {
         } else if (message instanceof FCastMessages.PlayUpdate) {
             FCastMessages.PlayUpdate update = (FCastMessages.PlayUpdate) message;
             FCastMessages.PlayData data = update.getPlayData();
+            // a new item was started (by us or by anyone): what the old item reported must not be read as the new item's state
+            b.playback(FCastReceiverState.Playback.UNKNOWN, null, null, null);
             if (data != null) {
                 b.item(data.getUrl(), data.getContainer(), data.getTitle(), isElsewhere(data.getUrl()));
             }
@@ -367,7 +369,8 @@ public final class FCastSession implements AutoCloseable {
     }
 
     private boolean isElsewhere(String url) {
-        return url == null || !url.equals(lastPlayedUrl);
+        // the URL of the receiver's message is cleaned and cut; ours is compared in the same form
+        return url == null || lastPlayedUrl == null || !url.equals(FCastText.clean(lastPlayedUrl, FCastText.MAX_URL));
     }
 
     private void applyPlaybackUpdate(FCastReceiverState.Builder b, FCastMessages.PlaybackUpdate update) {
@@ -389,6 +392,7 @@ public final class FCastSession implements AutoCloseable {
                     update.getDuration() != null ? update.getDuration() : state.getDuration(),
                     update.getSpeed() != null ? update.getSpeed() : state.getSpeed());
         }
+        b.playbackUpdatedAt(clock.nowMillis());
         if (confirms(state.getPending(), update)) {
             cancelPending();
             b.pending(FCastReceiverState.Pending.NONE);
