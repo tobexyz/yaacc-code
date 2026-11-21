@@ -70,16 +70,28 @@ public class FCastSettingsTest {
         String[] settingTexts = {"settings_fcast_category", "settings_fcast_about_title", "settings_fcast_about_summary",
                 "settings_fcast_discovery_title", "settings_fcast_discovery_summary", "settings_fcast_receivers_title",
                 "settings_fcast_receivers_summary"};
-        String[] screenTexts = {"fcast_offline", "fcast_play_failed", "fcast_unreachable", "fcast_item_too_large", "fcast_receivers_add_hint",
-                "fcast_receivers_add", "fcast_receivers_adding", "fcast_receivers_added", "fcast_receivers_empty",
-                "fcast_receivers_error_empty", "fcast_receivers_error_invalid", "fcast_receivers_error_full", "fcast_receivers_error_already",
-                "fcast_receivers_error_unreachable", "fcast_receivers_error_bad_link", "fcast_receivers_error_link_no_address",
-                "fcast_receivers_error_link_no_service", "fcast_receivers_error_ambiguous", "fcast_receivers_error_not_found",
-                "fcast_receivers_tried_found", "fcast_receivers_tried_system", "fcast_receivers_tried_search",
-                "fcast_receivers_tried_search_off", "fcast_receivers_kind_found", "fcast_receivers_kind_manual",
-                "fcast_receivers_kind_manual_found", "fcast_receivers_kind_remembered", "fcast_receivers_remove", "fcast_receivers_removed",
-                "fcast_receivers_discovery_title", "fcast_receivers_discovery_copy", "fcast_receivers_discovery_copied",
-                "fcast_receivers_discovery_note"};
+        String[] screenTexts = {"fcast_item_too_large", "fcast_link_addresses", "fcast_link_name", "fcast_link_not_a_link",
+                "fcast_link_note", "fcast_link_title", "fcast_link_unnamed", "fcast_offline", "fcast_play_failed",
+                "fcast_receivers_add", "fcast_receivers_add_hint", "fcast_receivers_added", "fcast_receivers_adding",
+                "fcast_receivers_discovery_copied", "fcast_receivers_discovery_copy", "fcast_receivers_discovery_note",
+                "fcast_receivers_discovery_title", "fcast_receivers_empty", "fcast_receivers_error_already",
+                "fcast_receivers_error_ambiguous", "fcast_receivers_error_bad_link", "fcast_receivers_error_empty",
+                "fcast_receivers_error_full", "fcast_receivers_error_invalid", "fcast_receivers_error_link_no_address",
+                "fcast_receivers_error_link_no_service", "fcast_receivers_error_not_found", "fcast_receivers_error_unreachable",
+                "fcast_receivers_kind_found", "fcast_receivers_kind_manual", "fcast_receivers_kind_manual_found",
+                "fcast_receivers_kind_remembered", "fcast_receivers_remove", "fcast_receivers_removed",
+                "fcast_receivers_tried_found", "fcast_receivers_tried_search", "fcast_receivers_tried_search_off",
+                "fcast_receivers_tried_system", "fcast_row_idle", "fcast_row_not_reachable", "fcast_row_settings",
+                "fcast_row_state_title", "fcast_row_type", "fcast_sheet_address", "fcast_sheet_app", "fcast_sheet_check",
+                "fcast_sheet_check_failed", "fcast_sheet_check_ok", "fcast_sheet_check_running", "fcast_sheet_mute",
+                "fcast_sheet_name", "fcast_sheet_not_known", "fcast_sheet_protocol", "fcast_sheet_protocol_other",
+                "fcast_sheet_protocol_v3", "fcast_sheet_reconnect", "fcast_sheet_remove", "fcast_sheet_removed",
+                "fcast_sheet_section_connection", "fcast_sheet_section_device", "fcast_sheet_section_manage",
+                "fcast_sheet_section_playback", "fcast_sheet_section_trouble", "fcast_sheet_source", "fcast_sheet_speed",
+                "fcast_sheet_state", "fcast_sheet_state_connected", "fcast_sheet_state_connecting", "fcast_sheet_state_failed",
+                "fcast_sheet_state_not_connected", "fcast_sheet_state_reconnecting", "fcast_sheet_stop", "fcast_sheet_too_many",
+                "fcast_sheet_trace_copied", "fcast_sheet_trace_copy", "fcast_sheet_trace_empty", "fcast_sheet_trace_note",
+                "fcast_sheet_volume", "fcast_unreachable"};
         for (String locale : LOCALES) {
             String settings = read(locale + "/setting_strings.xml");
             for (String name : settingTexts) {

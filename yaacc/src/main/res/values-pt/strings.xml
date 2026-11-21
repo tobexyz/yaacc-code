@@ -538,4 +538,10 @@
     <string name="fcast_sheet_remove">Remove receiver</string>
     <string name="fcast_sheet_removed">Receiver removed</string>
     <string name="fcast_sheet_too_many">Too many receivers are open at once. Close another sheet and try again.</string>
+    <string name="fcast_link_title">Add FCast receiver?</string>
+    <string name="fcast_link_name">Name: %1$s</string>
+    <string name="fcast_link_unnamed">(no name)</string>
+    <string name="fcast_link_addresses">Addresses:</string>
+    <string name="fcast_link_note">The receiver is added to your list of FCast receivers. Nothing is played to it until you choose it. FCast sends data unencrypted (protocol v3).</string>
+    <string name="fcast_link_not_a_link">This is not an FCast link.</string>
 </resources>

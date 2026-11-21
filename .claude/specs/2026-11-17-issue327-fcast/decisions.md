@@ -73,6 +73,13 @@ Rule: use v4 when the Android version supports it and the receiver supports it (
 ### D19. Review of Group 4, cycle 2 (2026-11-21)
 **Fixed:** "is it our item" no longer depends on the receiver echoing our URL byte for byte: the first `PlayUpdate` after our `Play` (while the Play is pending) is ours whatever form of the URL it reports; only later updates are compared. The play serial is read before the logic decides, not after. **Known limit:** a `MediaItemEnd` event whose URL is in another form than ours is ignored by the end rule (the safety net still ends the item two seconds after the last update near the end); gate 6.2 should include a URL with a space, an upper-case host and a bare host. A foreign `PlayUpdate` that arrives while our `Play` is pending is taken for the answer to it (a window of at most the pending time, 3 s).
 
+### D20. Details of the UI (Group 5, 2026-11-21, spec author; the owner may veto)
+- **Mute and speed need a player.** The mute is emulated by the player (it remembers the old volume), and the speed is a property of what plays and of the following items, so the card and the sheet offer them only while a player plays to the receiver. The volume works always (a short-lived session is opened for it, D11).
+- **One connection per receiver.** The sheet and the volume of the card use the player's session if there is a player, otherwise a session of `FCastReceiverLinks` (at most 8 receivers, closed 35 s after the last use); when a player is made for a receiver, the screens' session of it is closed at once.
+- **The trace of the sheet is what the sheet saw** (connection, protocol version, what the receiver reports, errors, with URLs shortened to host and path), not the raw packets; 50 lines.
+- **Adding:** an IP address is added at once without a test (a receiver that is off can be added); a connection link is added with the first address that answers (3 s each); a name is looked up among the receivers found, then by the system, then by a 4 s search while discovery runs; the failure says what was tried. Names with spaces are matched against announced names only. The hints (`v`, `fp`) of a link are not stored in phase 1.
+- **The link activity** needs the user's tap on *Add* before anything is stored; if another app registers `fcast://` the system shows its chooser.
+
 ### Answers to the earlier questions (owner, 2026-11-20)
 - **Q2:** no receiver hardware; a software receiver on a notebook (D13).
 - **Q3:** music, video and pictures all three are in scope (the design already plays all three).

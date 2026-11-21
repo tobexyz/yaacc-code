@@ -74,6 +74,24 @@
         android:requestLegacyExternalStorage="true">
 
         <activity
+            android:name=".browser.FCastLinkActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="@string/fcast_link_title"
+            android:launchMode="singleTop"
+            android:theme="@style/AppTheme.Translucent">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:host="r"
+                    android:scheme="fcast" />
+            </intent-filter>
+        </activity>
+        <activity
             android:name=".LauncherActivity"
             android:exported="true"
             android:label="@string/title_activity_main"

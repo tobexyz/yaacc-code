@@ -92,6 +92,16 @@
         <item name="preferenceTheme">@style/PreferenceThemeOverlay.App</item>
     </style>
 
+    <!-- The window of the activity that opens fcast:// links: nothing but the confirmation dialog on top of what was on screen. -->
+    <style name="AppTheme.Translucent">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+
     <!-- Title bar: the surface color (page color), flat, no shadow -->
     <style name="Widget.App.ActionBar" parent="Widget.Material3.Light.ActionBar.Solid">
         <item name="background">?attr/colorSurface</item>
