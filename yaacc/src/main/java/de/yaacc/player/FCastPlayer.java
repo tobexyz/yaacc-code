@@ -26,7 +26,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.widget.Toast;
 
-import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
@@ -38,10 +37,10 @@ import java.util.concurrent.TimeUnit;
 import de.yaacc.BuildConfig;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.fcast.FCastAppSessions;
 import de.yaacc.fcast.FCastPlayRequests;
 import de.yaacc.fcast.discovery.FCastEndpoint;
 import de.yaacc.fcast.discovery.FCastReceiverDevice;
-import de.yaacc.fcast.protocol.FCastConnection;
 import de.yaacc.fcast.protocol.FCastMessages;
 import de.yaacc.fcast.protocol.FCastReceiverState;
 import de.yaacc.fcast.protocol.FCastSession;
@@ -120,11 +119,7 @@ public class FCastPlayer extends AbstractPlayer {
 
     /** The session of this player; tests replace the way to the receiver. */
     protected FCastSession createSession(FCastSession.Listener listener, ScheduledExecutorService executor) {
-        final FCastEndpoint target = endpoint;
-        FCastSession.Connector connector = connectionListener -> FCastSession.connectorFor(
-                new InetSocketAddress(target.getHost(), target.getPort()), new FCastConnection.Config(), clock,
-                "YAACC", "YAACC", BuildConfig.VERSION_NAME).connect(connectionListener);
-        return new FCastSession(connector, listener, new FCastSession.Config(), clock, executor);
+        return FCastAppSessions.create(endpoint, listener, executor, BuildConfig.VERSION_NAME);
     }
 
     /** For tests: the decisions of this player. */

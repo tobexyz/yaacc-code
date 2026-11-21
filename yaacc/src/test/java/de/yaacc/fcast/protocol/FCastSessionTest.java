@@ -206,6 +206,33 @@ public class FCastSessionTest {
         assertTrue(events.sawLink(FCastReceiverState.Link.CONNECTING));
     }
 
+    @Test
+    public void connectMakesTheConnectionWithoutSendingACommand() throws Exception {
+        FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options().name("Living Room"));
+        FCastSession session = session(connectorTo(receiver.port()), new Events(), fastSession());
+        session.acquire();
+
+        session.connect();
+
+        assertTrue(await(session, s -> s.getLink() == FCastReceiverState.Link.CONNECTED && s.getProtocolVersion() == 3, WAIT));
+        assertEquals(1, receiver.acceptedCount());
+        assertEquals("nothing was played or changed", 0, receiver.received(Op.PLAY).size());
+    }
+
+    @Test
+    public void connectToAReceiverThatIsGoneEndsInFailedWithAReason() throws Exception {
+        int closedPort;
+        try (ServerSocket probe = new ServerSocket(0)) {
+            closedPort = probe.getLocalPort();
+        }
+        FCastSession session = session(connectorTo(closedPort), new Events(), fastSession());
+        session.acquire();
+
+        session.connect();
+
+        assertTrue(await(session, s -> s.getLink() == FCastReceiverState.Link.FAILED && s.getLastError() != null, WAIT));
+    }
+
     // ---- the state is what the receiver says
 
     @Test

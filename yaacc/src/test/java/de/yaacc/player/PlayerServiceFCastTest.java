@@ -77,6 +77,7 @@ public class PlayerServiceFCastTest {
         service = spy(new PlayerService());
         doNothing().when(service).addPlayer(any());
         doNothing().when(service).shutdown(any(Player.class));
+        doNothing().when(service).releaseFCastLink(any(), any());
         client = mock(UpnpClient.class);
         doReturn(Collections.emptyList()).when(service).getCurrentPlayersOfType(FCastPlayer.class);
         org.mockito.Mockito.doAnswer(call -> {
@@ -130,6 +131,7 @@ public class PlayerServiceFCastTest {
         verify(service, never()).shutdown(other);
         // the old player is gone before the new one is made
         org.mockito.InOrder order = org.mockito.Mockito.inOrder(service);
+        order.verify(service).releaseFCastLink(any(), any());
         order.verify(service).shutdown(same);
         order.verify(service).newFCastPlayer(any(), any());
         assertTrue(made.size() == 1);

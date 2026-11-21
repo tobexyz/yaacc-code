@@ -178,6 +178,21 @@ public final class FCastSession implements AutoCloseable {
         post(() -> command(FCastOpcode.SET_SPEED, FCastReceiverState.Pending.NONE, () -> FCastMessages.setSpeed(speed), null));
     }
 
+    /**
+     * Makes the connection now (the "check connection" of the settings sheet) without sending anything: the state shows
+     * {@code CONNECTING}, then {@code CONNECTED} with the version, or {@code FAILED} with the reason.
+     */
+    public void connect() {
+        post(() -> {
+            if (closed) {
+                return;
+            }
+            touch();
+            ensureConnected();
+            armIdle();
+        });
+    }
+
     /** Subscribes to an event type, e.g. {@link FCastMessages#EVENT_MEDIA_ITEM_END} (version 3 receivers only). */
     public void subscribe(final int eventType) {
         post(() -> command(FCastOpcode.SUBSCRIBE_EVENT, FCastReceiverState.Pending.NONE, () -> FCastMessages.subscribeEvent(eventType), null));

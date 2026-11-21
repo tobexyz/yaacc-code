@@ -961,12 +961,21 @@ public class PlayerService extends MediaSessionService {
                 + "-FCast@" + friendlyName, friendlyName);
     }
 
+    /** The screens' own session to the receiver (an open sheet, a volume change on the card) closes: the player has its own. */
+    void releaseFCastLink(UpnpClient upnpClient, FCastReceiverDevice device) {
+        android.content.Context context = upnpClient.getContext();
+        if (context != null) {
+            de.yaacc.fcast.discovery.FCastHub.getShared(context).links().handOverToPlayer(device.getEndpoint());
+        }
+    }
+
     /**
      * One player per receiver: an earlier one for the same receiver ends first (it stops its item and closes its connection, so
      * the receiver is not told two things at once).
      */
     Player createFCastPlayer(UpnpClient upnpClient, FCastReceiverDevice device) {
         String receiverId = device.getReceiverId();
+        releaseFCastLink(upnpClient, device);
         for (Player player : getCurrentPlayersOfType(FCastPlayer.class)) {
             if (receiverId.equals(player.getDeviceId())) {
                 shutdown(player);

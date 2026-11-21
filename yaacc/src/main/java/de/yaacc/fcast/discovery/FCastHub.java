@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.Set;
 
 import de.yaacc.R;
+import de.yaacc.fcast.FCastAppSessions;
+import de.yaacc.fcast.FCastReceiverLinks;
 import de.yaacc.multiroom.SnapcastDiscoveryGate;
 import de.yaacc.multiroom.control.MonotonicClock;
 import de.yaacc.multiroom.discovery.SnapcastEndpoint;
@@ -183,6 +185,25 @@ public final class FCastHub implements FCastReceiverSource {
     }
 
     private static final int PROBE_TIMEOUT_MILLIS = 3_000;
+
+    private FCastReceiverLinks links;
+
+    /**
+     * The sessions that the screens open on demand (the volume of an idle card, the settings sheet); one per receiver, closed a short
+     * time after the last use, and closed at once when a player takes the receiver.
+     */
+    public synchronized FCastReceiverLinks links() {
+        if (links == null) {
+            final java.util.concurrent.ScheduledExecutorService executor = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(runnable -> {
+                Thread thread = new Thread(runnable, "fcast-links");
+                thread.setDaemon(true);
+                return thread;
+            });
+            links = new FCastReceiverLinks((endpoint, listener, ex) ->
+                    FCastAppSessions.create(endpoint, listener, ex, de.yaacc.BuildConfig.VERSION_NAME), executor);
+        }
+        return links;
+    }
 
     /** The input "Add receiver" with the network of the app behind it (task 5.4). Its calls block: run them on a worker. */
     public FCastAddReceiver newAddReceiver() {

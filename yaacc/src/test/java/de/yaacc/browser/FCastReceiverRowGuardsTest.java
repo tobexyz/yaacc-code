@@ -114,4 +114,13 @@ public class FCastReceiverRowGuardsTest {
 
         assertEquals(2, ReceiverLiveUpdates.watched(receivers).size());
     }
+
+    @Test
+    public void theLogNameOfAnFCastReceiverCarriesNothingOfItsNameOrAddress() {
+        String logged = ReceiverRowBinder.logName(receiver("192.168.0.239"));
+
+        assertEquals("FCast receiver", logged);
+        assertFalse(logged.contains("Living"));
+        assertFalse(logged.contains("192.168"));
+    }
 }

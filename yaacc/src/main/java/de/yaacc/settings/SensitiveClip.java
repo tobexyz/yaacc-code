@@ -28,13 +28,13 @@ import android.os.PersistableBundle;
  * model). From Android 13 on the clip carries {@link ClipDescription#EXTRA_IS_SENSITIVE}, so the system keeps its content
  * out of the paste preview; on older versions the flag does not exist and the clip is a plain one.
  */
-final class SensitiveClip {
+public final class SensitiveClip {
 
     private SensitiveClip() {
     }
 
     /** A plain text clip, marked as sensitive where the system knows the mark. */
-    static ClipData plainText(CharSequence label, CharSequence text) {
+    public static ClipData plainText(CharSequence label, CharSequence text) {
         ClipData clip = ClipData.newPlainText(label, text);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             PersistableBundle extras = new PersistableBundle();
