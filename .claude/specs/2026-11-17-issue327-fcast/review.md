@@ -410,3 +410,32 @@ Also checked and fine: `onTick`'s new `getPlaybackUpdatedAt() < playedAt` guard 
 
 ### Verdict: FAIL
 No Critical. The six Warnings of cycle 1 are fixed and pinned (every probe of cycle 1 passes except the inherent "pause by another sender in the last second"). One new Warning: the "is it our item" decision, which now gates the Stop on leaving and the handling of errors, depends on the receiver echoing our URL exactly, which nothing verifies; a receiver that rewrites the URL gets no Stop when the player is closed. Small fix in the session plus one test. Cycle 2 of 3 for Group 4; the security review is postponed by the owner.
+
+## Group 4, Cycle 3 — 2026-11-21
+Reviewing: commit 154bde32 (the Warning of cycle 2, the serial read before the decision, tests for the two unpinned fixes) against `FCastSession` (PlayUpdate branch), `FCastPlayer.act`, `FCastPlayRequestsTest`, `FCastSessionTest`, `FCastPlayerTest`. Scope as asked: the cycle-2 Warning and the serial change; I also re-ran every probe and the mutant sets.
+
+**The cycle-2 Warning is fixed.** `answersOurPlay = state.getPending() == PLAY` is taken before the update is applied; when it is true the item is not marked foreign whatever URL form it reports and the pending Play is cleared; later `PlayUpdate`s are compared with our URL as before. Probe N1 (the receiver answers `A` with `A/`, then the player is closed) now sends the Stop, and all 10 player probes of cycles 1 to 3 pass (E1, E2, E3, W1, W2, W3, W5, N1 and the two that always passed); the logic probes pass except the inherent "pause by another sender in the last second" (in the gate list). Mutants (tests `FCastSessionTest` 32, `FCastPlayerTest` 37, together 69): comparison always applied again (killed by 3 tests), every `PlayUpdate` taken as the answer (killed by 7), the pending Play not cleared by the answer (killed by 3), the cycle-2 claim removed (killed by 2). The changed `ourOwnPlayClaimsTheItemAfterAnotherSendersItem` is correct: the first Play is answered first, so the foreign update afterwards is compared, which is the documented behaviour (D19).
+
+**The serial change is correct.** `act(action, serial)` reads the serial before `logic.onState`, `onEvent` and `onTick` decide, and passes it to `whenFree` for `ITEM_ENDED` and `STOPPED_BY_RECEIVER`; a start or stop that lands between the read and the decision now makes the action obsolete instead of escaping. The two paths that still read it after deciding (`itemFailed`, after `logic.onError` bumps it, and the FAILED branch, after `logic.onStopCommand`) are right to: the bump is their own decision. No deadlock or ordering problem: the read and the decision are two separate locked calls on one thread and the worst case is a dropped action, which the next report or the tick repeats.
+
+The two fixes that were unpinned in cycle 2 are now killed: `updateTimer` for pictures only (mutant "always `super`" fails `onlyAPictureStartsTheTimerOfTheBaseClass`) and the speed in the size check (the mutant that adds it after the check fails `theSpeedIsCountedInTheSizeCheck`; the test searches for the length at which only the speed tips the request over the limit, so it does not depend on a magic number).
+
+### Critical
+- none
+
+### Warning
+- none (the Warning of cycle 2 is fixed; the six of cycle 1 stay fixed)
+
+### Suggestion
+1. [FCastPlayer.java:155-189] The serial read before the decision is not pinned: the mutants "read after the decision" and "ignore the serial for `ITEM_ENDED`" (back to the two-argument `whenFree`) pass all 37 player tests. The window is microseconds and cannot be hit without a test hook; a package-private seam that lets a test bump the serial between the read and the decision would pin it. Not blocking.
+2. [FCastSession.java:339-345, 396-408 with 358-368] `Pending.PLAY` is cleared by any playback update (`confirms(PLAY)` is true for all), so a still-playing old item's `PlaybackUpdate` that arrives before our `PlayUpdate` ends the "first PlayUpdate is ours" window; the answer is then compared with our URL again, and N1 returns for a receiver that rewrites the URL and keeps another item playing for a moment. Narrow (the desktop receiver sends the `PlayUpdate` first). Clear the pending Play only on the `PlayUpdate`, a `PlaybackError` or the pending timeout, or keep a separate "answer expected" flag. Also D19's known limit stays: a `MediaItemEnd` event whose URL is in another form is ignored by the end rule (the safety net ends the item about 3 s later); comparing the event with the URL the receiver itself reported (`state.getItemUrl()`) as well as with ours would remove that delay.
+3. [FCastPlayerTest.aDeferredEndIsDroppedWhen...] still uses `player.logic().onStopCommand()` instead of a real `stop()`/`next()` (cycle 2, Suggestion 3); probes W1 and W2 with the real commands pass.
+4. Still deferred in D18 and none blocking: tick for the whole life of the player, `createSession` in the constructor, host-name share (task 5.7), the end lost during a reconnect (gate 6.2), pictures (gate 6.2), a pause by another sender in the last second (gate 6.2), the timing of two tests.
+5. Security (postponed by the owner): no new problem; the fix makes the Stop on leaving independent of the receiver's URL spelling, which closes the integrity point of cycle 2.
+
+### Tests
+- [x] All tests passing: `./gradlew --offline -q :yaacc:testDebugUnitTest --tests 'de.yaacc.fcast.*' --tests 'de.yaacc.player.*FCast*' --tests 'de.yaacc.browser.FCast*'` exit 0. `FCastPlayerLogicTest` 40, `FCastPlayerTest` 37, `FCastSessionTest` 32, `FCastPlayRequestsTest` 13, `PlayerServiceFCastTest` 3, `FCastReceiverRowGuardsTest` 6 and the other FCast classes: 0 failures, 0 errors, 0 skipped. No fixed port, no wall clock in the logic tests, no new flaky wait.
+- [x] Coverage adequate for the change: every fix of cycles 1 to 3 is pinned by a test that fails on its mutant, except the read order of the serial (Suggestion 1). Of the mutants of the whole review the only survivors are the equivalent or redundant guards (`ended` in `onEvent`, `Pending.PAUSE/STOP` in the PAUSED branch, `logic.onStopCommand()` in `onDestroy`) and Suggestion 1.
+
+### Verdict: PASS
+Zero Critical, zero Warning, all tests passing. Group 4 passes its general review in cycle 3 of 3; the security review is postponed by the owner (no new obvious security problem).
