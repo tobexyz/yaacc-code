@@ -43,16 +43,23 @@ public class AutoCloseRuleTest {
 
     @Test
     public void everyUpnpServiceKeepsTheApp() {
-        assertFalse(AutoCloseRule.mayCloseNow(new AutoCloseRule.Facts().serverEnabled(true)));
-        assertFalse(AutoCloseRule.mayCloseNow(new AutoCloseRule.Facts().rendererEnabled(true)));
-        assertFalse(AutoCloseRule.mayCloseNow(new AutoCloseRule.Facts().proxyEnabled(true)));
+        AutoCloseRule.Facts facts = new AutoCloseRule.Facts().upnpServerEnabled(true);
+        assertFalse(AutoCloseRule.mayCloseNow(facts));
+        assertEquals(AutoCloseRule.Keep.UPNP_SERVER, AutoCloseRule.reasonToStay(facts));
+    }
+
+    @Test
+    public void snapcastClientEnabledKeepsTheApp() {
+        AutoCloseRule.Facts facts = new AutoCloseRule.Facts().snapcastClientEnabled(true);
+        assertFalse(AutoCloseRule.mayCloseNow(facts));
+        assertEquals(AutoCloseRule.Keep.SNAPCAST_CLIENT, AutoCloseRule.reasonToStay(facts));
     }
 
     @Test
     public void aSnapcastClientSessionKeepsTheApp() {
         AutoCloseRule.Facts facts = new AutoCloseRule.Facts().snapcastClientSessionActive(true);
         assertFalse(AutoCloseRule.mayCloseNow(facts));
-        assertEquals(AutoCloseRule.Keep.SNAPCAST_CLIENT, AutoCloseRule.reasonToStay(facts));
+        assertEquals(AutoCloseRule.Keep.SNAPCAST_CLIENT_SESSION, AutoCloseRule.reasonToStay(facts));
     }
 
     @Test
@@ -70,14 +77,26 @@ public class AutoCloseRuleTest {
             }
             AutoCloseRule.Facts facts = new AutoCloseRule.Facts();
             switch (keep) {
-                case PLAYER: facts.playersActive(true); break;
-                case LOCAL_SERVER: facts.serverEnabled(true); break;
-                case RENDERER: facts.rendererEnabled(true); break;
-                case PROXY: facts.proxyEnabled(true); break;
-                case SNAPCAST_CLIENT: facts.snapcastClientSessionActive(true); break;
-                case SNAPCAST_FEED: facts.snapcastFeedActive(true); break;
-                case AUTOSTART: facts.autostartEnabled(true); break;
-                default: throw new AssertionError(keep);
+                case PLAYER:
+                    facts.playersActive(true);
+                    break;
+                case UPNP_SERVER:
+                    facts.upnpServerEnabled(true);
+                    break;
+                case SNAPCAST_CLIENT_SESSION:
+                    facts.snapcastClientSessionActive(true);
+                    break;
+                case SNAPCAST_CLIENT:
+                    facts.snapcastClientEnabled(true);
+                    break;
+                case SNAPCAST_FEED:
+                    facts.snapcastFeedActive(true);
+                    break;
+                case AUTOSTART:
+                    facts.autostartEnabled(true);
+                    break;
+                default:
+                    throw new AssertionError(keep);
             }
             assertFalse(keep.name(), AutoCloseRule.mayCloseNow(facts));
             assertEquals(keep, AutoCloseRule.reasonToStay(facts));
@@ -102,7 +121,7 @@ public class AutoCloseRuleTest {
     public void autostartTickedKeepsTheAppOpenWithEverythingElseOff() {
         // the app then only listens for devices: nothing is switched on, and it still does not close
         AutoCloseRule.Facts facts = new AutoCloseRule.Facts()
-                .playersActive(false).serverEnabled(false).rendererEnabled(false).proxyEnabled(false)
+                .playersActive(false).upnpServerEnabled(false).snapcastClientEnabled(false)
                 .snapcastClientSessionActive(false).snapcastFeedActive(false).autostartEnabled(true);
         assertFalse(AutoCloseRule.mayCloseNow(facts));
         assertEquals(AutoCloseRule.Keep.AUTOSTART, AutoCloseRule.reasonToStay(facts));
@@ -117,10 +136,9 @@ public class AutoCloseRuleTest {
     public void autostartIsTheLastReasonSoAMoreSpecificOneIsNamedFirst() {
         // the log line names the first reason: with autostart ticked and something running, the running thing is named
         assertEquals(AutoCloseRule.Keep.PLAYER, AutoCloseRule.reasonToStay(new AutoCloseRule.Facts().autostartEnabled(true).playersActive(true)));
-        assertEquals(AutoCloseRule.Keep.LOCAL_SERVER, AutoCloseRule.reasonToStay(new AutoCloseRule.Facts().autostartEnabled(true).serverEnabled(true)));
-        assertEquals(AutoCloseRule.Keep.RENDERER, AutoCloseRule.reasonToStay(new AutoCloseRule.Facts().autostartEnabled(true).rendererEnabled(true)));
-        assertEquals(AutoCloseRule.Keep.PROXY, AutoCloseRule.reasonToStay(new AutoCloseRule.Facts().autostartEnabled(true).proxyEnabled(true)));
-        assertEquals(AutoCloseRule.Keep.SNAPCAST_CLIENT,
+        assertEquals(AutoCloseRule.Keep.UPNP_SERVER, AutoCloseRule.reasonToStay(new AutoCloseRule.Facts().autostartEnabled(true).upnpServerEnabled(true)));
+        assertEquals(AutoCloseRule.Keep.SNAPCAST_CLIENT, AutoCloseRule.reasonToStay(new AutoCloseRule.Facts().autostartEnabled(true).snapcastClientEnabled(true)));
+        assertEquals(AutoCloseRule.Keep.SNAPCAST_CLIENT_SESSION,
                 AutoCloseRule.reasonToStay(new AutoCloseRule.Facts().autostartEnabled(true).snapcastClientSessionActive(true)));
         assertEquals(AutoCloseRule.Keep.SNAPCAST_FEED,
                 AutoCloseRule.reasonToStay(new AutoCloseRule.Facts().autostartEnabled(true).snapcastFeedActive(true)));

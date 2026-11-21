@@ -33,21 +33,18 @@ final class IdleFacts {
     }
 
     /**
-     * @param master                   the master switch of the local UPnP service (settings_local_server_chkbx)
-     * @param receiverTicked           the checkbox "receiving" (the UPnP renderer; settings_local_server_receiver_chkbx)
-     * @param proxyTicked              the checkbox of the media proxy (settings_local_server_proxy_chkbx)
-     * @param playersActive            at least one player exists
-     * @param snapcastClientActive     a Snapcast client session is starting or running
-     * @param snapcastFeedActive       a Snapcast feed (a player into a group) exists
-     * @param autostartTicked          the setting "autostart on boot"
+     * @param upnpServerActive     the master switch of the local UPnP service (settings_local_server_chkbx)
+     * @param playersActive        at least one player exists
+     * @param snapcastClientActive a Snapcast client session is starting or running
+     * @param snapcastFeedActive   a Snapcast feed (a player into a group) exists
+     * @param autostartTicked      the setting "autostart on boot"
      */
-    static AutoCloseRule.Facts of(boolean master, boolean receiverTicked, boolean proxyTicked, boolean playersActive,
+    static AutoCloseRule.Facts of(boolean upnpServerActive, boolean snapcastClientTicked, boolean playersActive,
                                   boolean snapcastClientActive, boolean snapcastFeedActive, boolean autostartTicked) {
         return new AutoCloseRule.Facts()
                 .playersActive(playersActive)
-                .serverEnabled(master)
-                .rendererEnabled(master && receiverTicked)
-                .proxyEnabled(master && proxyTicked)
+                .upnpServerEnabled(upnpServerActive)
+                .snapcastClientEnabled(snapcastClientTicked)
                 .snapcastClientSessionActive(snapcastClientActive)
                 .snapcastFeedActive(snapcastFeedActive)
                 .autostartEnabled(autostartTicked);
