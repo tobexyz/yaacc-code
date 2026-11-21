@@ -124,6 +124,51 @@ public class FCastReceiversTest {
     }
 
     @Test
+    public void aRememberedReceiverThatIsAnnouncedAgainUnderTheSameNameIsANewOnlineDevice() {
+        directory.setRemembered(Collections.singletonList(new FCastDirectory.Known(endpoint("192.168.0.239"), "FCast-pc")));
+        FCastReceiverDevice offline = receivers.receivers().get(0);
+        assertTrue(offline.isOffline());
+        assertEquals("FCast-pc (FCast, offline)", offline.getDisplayString());
+
+        found("FCast-pc", 239);
+
+        FCastReceiverDevice online = receivers.receivers().get(0);
+        assertNotSame("only the offline flag changed", offline, online);
+        assertFalse(online.isOffline());
+        assertEquals("FCast-pc (FCast)", online.getDisplayString());
+    }
+
+    @Test
+    public void aReceiverThatIsAddedByHandAfterwardsIsANewManualDevice() {
+        found("FCast-pc", 239);
+        FCastReceiverDevice discovered = receivers.receivers().get(0);
+        assertFalse(discovered.isManual());
+
+        directory.setManual(Collections.singletonList(new FCastDirectory.Known(endpoint("192.168.0.239"), "FCast-pc")));
+
+        FCastReceiverDevice manual = receivers.receivers().get(0);
+        assertNotSame("only the manual flag changed", discovered, manual);
+        assertTrue(manual.isManual());
+        assertEquals("FCast-pc", manual.getName());
+    }
+
+    @Test
+    public void otherTextAttributesOfTheSameAnnouncementMakeANewDeviceWithTheNewHints() {
+        found("FCast-pc", 239);
+        FCastReceiverDevice first = receivers.receivers().get(0);
+
+        java.util.Map<String, byte[]> attributes = new java.util.HashMap<>();
+        attributes.put("v", "3".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        FCastServiceTxt hints = FCastServiceTxt.parse(attributes);
+        directory.serviceFound("_fcast._tcp|FCast-pc", "FCast-pc", ip(239), 46899, hints);
+
+        FCastReceiverDevice second = receivers.receivers().get(0);
+        assertNotSame("only the hints changed", first, second);
+        assertEquals(hints, second.getHints());
+        assertNotEquals(first.getHints(), second.getHints());
+    }
+
+    @Test
     public void aNewLabelMakesANewDeviceObject() {
         directory.setRemembered(Collections.singletonList(new FCastDirectory.Known(endpoint("192.168.0.9"), "x")));
         String[] label = {"offline"};
