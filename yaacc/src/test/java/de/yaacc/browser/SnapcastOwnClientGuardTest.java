@@ -161,8 +161,8 @@ public class SnapcastOwnClientGuardTest {
         assertEquals(2, places);
         assertEquals(1, count(service, "KEY_LAST_SERVER"));
 
-        assertTrue(methodBody(source("settings/SnapcastClientSpikeDialog.java"), "private void onStart()").contains("KEY_LAST_SERVER"));
-        assertTrue(source("multiroom/client/SnapcastClientPowers.java").contains("preferences.edit().putString(SnapcastClientSpike.KEY_LAST_SERVER, hostText)"));
+        assertTrue(methodBody(source("settings/SnapcastClientDialog.java"), "private void onStart()").contains("KEY_LAST_SERVER"));
+        assertTrue(source("multiroom/client/SnapcastClientPowers.java").contains("preferences.edit().putString(SnapcastClient.KEY_LAST_SERVER, hostText)"));
     }
 
     @Test
@@ -179,8 +179,8 @@ public class SnapcastOwnClientGuardTest {
     @Test
     public void everyStartChecksTheAddressAgainAndARestartWaitsBounded() throws Exception {
         String power = source("multiroom/client/SnapcastClientPower.java");
-        assertTrue("the choice is validated like a typed address", methodBody(power, "public Outcome chooseServer(").contains("SnapcastClientSpike.check("));
-        assertTrue("every start", methodBody(power, "private Outcome startSession()").contains("SnapcastClientSpike.check(host,"));
+        assertTrue("the choice is validated like a typed address", methodBody(power, "public Outcome chooseServer(").contains("SnapcastClient.check("));
+        assertTrue("every start", methodBody(power, "private Outcome startSession()").contains("SnapcastClient.check(host,"));
 
         String powers = source("multiroom/client/SnapcastClientPowers.java");
         String step = methodBody(powers, "private void step()");
@@ -205,16 +205,16 @@ public class SnapcastOwnClientGuardTest {
         assertFalse(service.contains("deriveId(installSecret(),"));
         String identity = source("multiroom/client/SnapcastClientIdentity.java");
         assertFalse(identity.contains("serverKey"));
-        assertTrue("the fixed MAC and the host name rule are untouched", source("multiroom/client/SnapcastClientSpike.java")
+        assertTrue("the fixed MAC and the host name rule are untouched", source("multiroom/client/SnapcastClient.java")
                 .contains("return localityOf(endpoint) == Locality.PUBLIC ? \"YAACC\" : phoneName;"));
-        assertTrue(service.contains("SnapcastClientSpike.helloHostName(address, phoneName())"));
+        assertTrue(service.contains("SnapcastClient.helloHostName(address, phoneName())"));
     }
 
     @Test
     public void theHelloVersionIsTheServerNameAndTheAppVersionNotTheWordSpike() throws Exception {
         String service = source("multiroom/client/SnapcastClientService.java");
 
-        assertTrue(service.contains("SnapcastClientSpike.helloVersion(phoneName(), BuildConfig.VERSION_NAME,"));
+        assertTrue(service.contains("SnapcastClient.helloVersion(phoneName(), BuildConfig.VERSION_NAME,"));
         assertTrue("the privacy decision uses the resolved address, as the host name does",
                 service.contains("SnapcastAddressFilter.isAccepted(address)"));
         assertFalse("no protocol value that says spike", service.contains("\"spike\""));

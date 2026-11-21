@@ -43,7 +43,9 @@ public class SnapcastServersDialogLifecycleGuardTest {
                 .replaceAll("(?s)/\\*.*?\\*/", "").replaceAll("//[^\\n]*", "");
     }
 
-    /** The text of the method that starts at {@code signature}, up to the closing brace at the same depth. */
+    /**
+     * The text of the method that starts at {@code signature}, up to the closing brace at the same depth.
+     */
     private static String body(String code, String signature) {
         int start = code.indexOf(signature);
         assertTrue("missing " + signature, start >= 0);
@@ -126,7 +128,7 @@ public class SnapcastServersDialogLifecycleGuardTest {
 
     @Test
     public void bothReportsAreCopiedAsSensitiveClips() throws Exception {
-        for (String file : new String[]{DIALOG, "de/yaacc/settings/SnapcastClientSpikeDialog.java"}) {
+        for (String file : new String[]{DIALOG, "de/yaacc/settings/SnapcastClientDialog.java"}) {
             String code = code(file);
             assertTrue(file, code.contains("SensitiveClip.plainText("));
             assertFalse(file + " builds a plain clip", code.contains("ClipData.newPlainText("));

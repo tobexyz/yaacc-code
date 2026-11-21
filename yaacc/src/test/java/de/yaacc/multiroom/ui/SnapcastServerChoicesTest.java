@@ -30,7 +30,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import de.yaacc.multiroom.client.SnapcastClientSpike;
+import de.yaacc.multiroom.client.SnapcastClient;
 import de.yaacc.multiroom.discovery.SnapcastEndpoint;
 
 /**
@@ -78,8 +78,8 @@ public class SnapcastServerChoicesTest {
 
         assertEquals(5, choices.size());
         for (SnapcastServerChoices.Choice choice : choices) {
-            SnapcastClientSpike.Request request = SnapcastClientSpike.check(choice.hostText(), "0");
-            assertEquals(choice.hostText(), SnapcastClientSpike.Outcome.OK, request.getOutcome());
+            SnapcastClient.Request request = SnapcastClient.check(choice.hostText(), "0");
+            assertEquals(choice.hostText(), SnapcastClient.Outcome.OK, request.getOutcome());
         }
     }
 

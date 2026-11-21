@@ -77,7 +77,9 @@ public class SnapcastSettingsResourcesTest {
         return names;
     }
 
-    /** The format arguments of a text: %1$s, %2$d, %% ... */
+    /**
+     * The format arguments of a text: %1$s, %2$d, %% ...
+     */
     private static List<String> formatArguments(String text) {
         List<String> arguments = new ArrayList<>();
         Matcher m = Pattern.compile("%(\\d+\\$)?[sd%]").matcher(text);
@@ -180,7 +182,7 @@ public class SnapcastSettingsResourcesTest {
         String element = xml.substring(xml.lastIndexOf("<CheckBoxPreference", at), xml.indexOf("/>", at));
         assertTrue(element, element.contains("android:defaultValue=\"" + SnapcastSettings.PLAY_DEFAULT + "\""));
         assertTrue(SnapcastSettings.PLAY_DEFAULT);
-        int client = xml.indexOf("android:key=\"@string/settings_snapcast_client_spike\"");
+        int client = xml.indexOf("android:key=\"@string/settings_snapcast_client\"");
         assertTrue(client > 0);
         String clientElement = xml.substring(xml.lastIndexOf("<CheckBoxPreference", client), xml.indexOf("/>", client));
         assertTrue(clientElement, clientElement.contains("android:defaultValue=\"false\""));
@@ -217,7 +219,7 @@ public class SnapcastSettingsResourcesTest {
                 {"values-pt", "sem encriptação", "sem cifrar"}, {"values-zh", "未加密"}};
         for (String[] row : unencrypted) {
             Map<String, String> settings = strings(row[0], "setting_strings.xml");
-            for (String name : new String[]{"settings_snapcast_play_experimental_summary", "settings_snapcast_client_spike_summary",
+            for (String name : new String[]{"settings_snapcast_play_experimental_summary", "settings_snapcast_client_summary",
                     "settings_renderer_output_summary"}) {
                 boolean said = false;
                 for (int i = 1; i < row.length; i++) {

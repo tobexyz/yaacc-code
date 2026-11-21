@@ -106,7 +106,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
-        setUpSnapcastClientSpike();
+        setUpSnapcastClient();
         setUpRendererOutput();
         scrollToRequestedSection();
 
@@ -232,20 +232,20 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     }
 
     /**
-     * The experimental client spike: the entries below the option (the checkbox "Snapcast client" and the test screen) are visible
+     * The experimental client: the entries below the option (the checkbox "Snapcast client" and the test screen) are visible
      * only while the option is on, and switching the option off ends a running session. The checkbox goes through the one power API
      * of the client (the same state as the switch on the first page and the test screen).
      */
-    private void setUpSnapcastClientSpike() {
-        androidx.preference.CheckBoxPreference spike = findPreference(getString(R.string.settings_snapcast_client));
+    private void setUpSnapcastClient() {
+        androidx.preference.CheckBoxPreference client = findPreference(getString(R.string.settings_snapcast_client));
         androidx.preference.CheckBoxPreference switchedOn = findPreference(getString(R.string.settings_snapcast_client_switched_on));
         androidx.preference.Preference open = findPreference(getString(R.string.settings_snapcast_client_open));
-        if (spike == null || open == null) {
+        if (client == null || open == null) {
             return;
         }
-        open.setVisible(spike.isChecked());
+        open.setVisible(client.isChecked());
         if (switchedOn != null) {
-            switchedOn.setVisible(spike.isChecked());
+            switchedOn.setVisible(client.isChecked());
             switchedOn.setChecked(SnapcastClientPowers.of(requireContext()).isOn());
             switchedOn.setOnPreferenceChangeListener((preference, newValue) -> {
                 SnapcastClientPower.Outcome outcome = SnapcastClientPowers.of(requireContext()).setOn(Boolean.TRUE.equals(newValue));
@@ -257,7 +257,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                 return true;
             });
         }
-        spike.setOnPreferenceChangeListener((preference, newValue) -> {
+        client.setOnPreferenceChangeListener((preference, newValue) -> {
             boolean on = Boolean.TRUE.equals(newValue);
             open.setVisible(on);
             if (switchedOn != null) {
@@ -269,7 +269,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             return true;
         });
         open.setOnPreferenceClickListener(preference -> {
-            SnapcastClientSpikeDialog.show(requireContext());
+            SnapcastClientDialog.show(requireContext());
             return true;
         });
     }

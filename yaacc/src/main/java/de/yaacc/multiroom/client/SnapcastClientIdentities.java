@@ -38,11 +38,13 @@ public final class SnapcastClientIdentities {
     private SnapcastClientIdentities() {
     }
 
-    /** @return the client id the phone gives every server, or null when this installation has no secret yet */
+    /**
+     * @return the client id the phone gives every server, or null when this installation has no secret yet
+     */
     public static String ownId(Context context) {
         try {
             SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
-            return SnapcastClientIdentity.idOfSecret(preferences.getString(SnapcastClientSpike.KEY_SECRET, null));
+            return SnapcastClientIdentity.idOfSecret(preferences.getString(SnapcastClient.KEY_SECRET, null));
         } catch (RuntimeException damaged) {
             return null;
         }
@@ -60,11 +62,11 @@ public final class SnapcastClientIdentities {
     public static synchronized SnapcastOwnIds ownIds(Context context, List<SnapcastEndpoint> servers) {
         try {
             SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
-            String secret = preferences.getString(SnapcastClientSpike.KEY_SECRET, null);
+            String secret = preferences.getString(SnapcastClient.KEY_SECRET, null);
             if (!SnapcastClientIdentity.isSecret(secret)) {
                 return SnapcastOwnIds.none();
             }
-            String lastHost = preferences.getString(SnapcastClientSpike.KEY_LAST_HOST, "");
+            String lastHost = preferences.getString(SnapcastClient.KEY_LAST_HOST, "");
             StringBuilder key = new StringBuilder(secret).append('|').append(lastHost);
             if (servers != null) {
                 for (SnapcastEndpoint server : servers) {

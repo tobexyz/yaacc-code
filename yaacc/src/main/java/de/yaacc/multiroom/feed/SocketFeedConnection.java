@@ -26,12 +26,14 @@ import java.net.Socket;
 
 /**
  * The real {@link FeedConnection}: a TCP socket with a small send buffer and {@code TCP_NODELAY}. The small send
- * buffer matters: bytes in socket buffers delay a pause or a stop by bytes / bytes-per-second (the feed spike piled up
+ * buffer matters: bytes in socket buffers delay a pause or a stop by bytes / bytes-per-second (the feed piled up
  * 39 s of audio in buffers when it did not pace and kept the default sizes).
  */
 public final class SocketFeedConnection implements FeedConnection {
 
-    /** Opens real sockets. */
+    /**
+     * Opens real sockets.
+     */
     public static final Factory FACTORY = SocketFeedConnection::connect;
 
     private final Socket socket;
@@ -77,7 +79,9 @@ public final class SocketFeedConnection implements FeedConnection {
         }
     }
 
-    /** For the tests: the socket options that were applied. */
+    /**
+     * For the tests: the socket options that were applied.
+     */
     Socket socketForTest() {
         return socket;
     }

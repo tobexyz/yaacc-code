@@ -184,7 +184,9 @@ public class SnapcastClientPowerTest {
     private long now = 1_000_000L;
     private final SnapcastClientPower power = new SnapcastClientPower(store, session, log::add, () -> now);
 
-    /** Named like the class the platform throws (API 31): it is not on the JVM, the check goes by the name. */
+    /**
+     * Named like the class the platform throws (API 31): it is not on the JVM, the check goes by the name.
+     */
     private static final class ForegroundServiceStartNotAllowedException extends IllegalStateException {
         ForegroundServiceStartNotAllowedException(String message) {
             super(message);
@@ -195,15 +197,15 @@ public class SnapcastClientPowerTest {
 
     @Test
     public void theStateIsOffByDefaultAndReadSafely() {
-        assertEquals("settings_snapcast_client_switched_on", SnapcastClientSpike.KEY_SWITCHED_ON);
-        assertFalse(SnapcastClientSpike.SWITCHED_ON_DEFAULT);
-        assertFalse(SnapcastClientSpike.isSwitchedOn(null));
-        assertFalse(SnapcastClientSpike.isSwitchedOn((key, def) -> def));
-        assertFalse("a damaged value is off", SnapcastClientSpike.isSwitchedOn((key, def) -> {
+        assertEquals("settings_snapcast_client_switched_on", SnapcastClient.KEY_SWITCHED_ON);
+        assertFalse(SnapcastClient.SWITCHED_ON_DEFAULT);
+        assertFalse(SnapcastClient.isSwitchedOn(null));
+        assertFalse(SnapcastClient.isSwitchedOn((key, def) -> def));
+        assertFalse("a damaged value is off", SnapcastClient.isSwitchedOn((key, def) -> {
             throw new ClassCastException("not a boolean");
         }));
-        assertTrue(SnapcastClientSpike.isSwitchedOn((key, def) -> SnapcastClientSpike.KEY_SWITCHED_ON.equals(key)));
-        assertEquals("snapcast_client_spike_last_ending_seen", SnapcastClientSpike.KEY_LAST_ENDING_SEEN);
+        assertTrue(SnapcastClient.isSwitchedOn((key, def) -> SnapcastClient.KEY_SWITCHED_ON.equals(key)));
+        assertEquals("snapcast_client_last_ending_seen", SnapcastClient.KEY_LAST_ENDING_SEEN);
     }
 
     // ---- switched on --------------------------------------------------------------------------------------------------

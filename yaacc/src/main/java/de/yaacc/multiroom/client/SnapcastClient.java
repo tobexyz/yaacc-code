@@ -22,35 +22,43 @@ import de.yaacc.multiroom.discovery.SnapcastEndpoint;
 import de.yaacc.multiroom.protocol.SnapcastConnection;
 
 /**
- * The settings and the input of the experimental client spike (a listen test of the phone as a Snapcast client). The
+ * The settings and the input of the client (a listen test of the phone as a Snapcast client). The
  * option is <b>off by default</b>; with it off nothing of the client is reachable from the UI. Pure.
  */
-public final class SnapcastClientSpike {
+public final class SnapcastClient {
 
-    /** The key of the switch in the default preferences (also the name of its string resource). */
-    public static final String KEY_ENABLED = "settings_snapcast_client_spike";
+    /**
+     * The key of the switch in the default preferences (also the name of its string resource).
+     */
+    public static final String KEY_ENABLED = "settings_snapcast_client";
     public static final boolean ENABLED_DEFAULT = false;
-    /** Remembered between uses; plain text on the phone like the server list. */
-    public static final String KEY_LAST_HOST = "snapcast_client_spike_host";
+    /**
+     * Remembered between uses; plain text on the phone like the server list.
+     */
+    public static final String KEY_LAST_HOST = "snapcast_client_host";
     /**
      * The server the phone's client uses: the one it was last connected to, written when a session first reaches the connected state,
      * when the user chooses a server on the card of the client, and when the listen test starts with a typed address. Plain text on
      * the phone like the server list; read through {@code SnapcastClientServerChoice} (validated, a damaged text is none).
      */
     public static final String KEY_LAST_SERVER = "snapcast_client_last_server";
-    public static final String KEY_LAST_LATENCY = "snapcast_client_spike_latency_ms";
-    /** The per-installation secret of the Hello id, see {@link SnapcastClientIdentity}. */
-    public static final String KEY_SECRET = "snapcast_client_spike_secret";
+    public static final String KEY_LAST_LATENCY = "snapcast_client_latency_ms";
+    /**
+     * The per-installation secret of the Hello id, see {@link SnapcastClientIdentity}.
+     */
+    public static final String KEY_SECRET = "snapcast_client_secret";
 
-    /** Why and when the last session ended (written by the service, also when the whole app exits); read by the dialog. */
-    public static final String KEY_LAST_ENDING = "snapcast_client_spike_last_ending";
-    public static final String KEY_LAST_ENDING_AT = "snapcast_client_spike_last_ending_at";
+    /**
+     * Why and when the last session ended (written by the service, also when the whole app exits); read by the dialog.
+     */
+    public static final String KEY_LAST_ENDING = "snapcast_client_last_ending";
+    public static final String KEY_LAST_ENDING_AT = "snapcast_client_last_ending_at";
     /**
      * Whether the user has seen the last ending (a boolean, true when missing). The service writes false with every ending; the
      * switch, the checkbox or the dialog write true when they show it. An ending that is a failure and unseen keeps the restore at the
      * start of the app from trying again blindly ({@link SnapcastClientRestore}).
      */
-    public static final String KEY_LAST_ENDING_SEEN = "snapcast_client_spike_last_ending_seen";
+    public static final String KEY_LAST_ENDING_SEEN = "snapcast_client_last_ending_seen";
     /**
      * The one persisted state "the Snapcast client is switched on" (task 12C): set by the switch on the first page, the checkbox
      * of the settings and the Start/Stop of the listen test, read by the restore at the start of the app. Also the name of its string
@@ -58,10 +66,14 @@ public final class SnapcastClientSpike {
      */
     public static final String KEY_SWITCHED_ON = "settings_snapcast_client_switched_on";
     public static final boolean SWITCHED_ON_DEFAULT = false;
-    public static final String KEY_LAST_WRITE_AHEAD = "snapcast_client_spike_write_ahead_ms";
-    /** The "FLAC stall guard" check box of the test screen (default on). */
-    public static final String KEY_LAST_FLAC_GUARD = "snapcast_client_spike_flac_guard";
-    /** How far ahead of the playback position the output is kept filled (the deep-buffer output of a phone needs more than its 128 ms queued: 250 by default). */
+    public static final String KEY_LAST_WRITE_AHEAD = "snapcast_client_write_ahead_ms";
+    /**
+     * The "FLAC stall guard" check box of the test screen (default on).
+     */
+    public static final String KEY_LAST_FLAC_GUARD = "snapcast_client_flac_guard";
+    /**
+     * How far ahead of the playback position the output is kept filled (the deep-buffer output of a phone needs more than its 128 ms queued: 250 by default).
+     */
     public static final int MIN_WRITE_AHEAD_MS = 40;
     public static final int MAX_WRITE_AHEAD_MS = 350;
     public static final int DEFAULT_WRITE_AHEAD_MS = 250;
@@ -69,12 +81,16 @@ public final class SnapcastClientSpike {
     public static final int MIN_LATENCY_MS = -2000;
     public static final int MAX_LATENCY_MS = 2000;
 
-    /** What the input of the dialog turned out to be. */
+    /**
+     * What the input of the dialog turned out to be.
+     */
     public enum Outcome {
         OK, EMPTY_HOST, INVALID_HOST, INVALID_LATENCY
     }
 
-    /** The checked input. */
+    /**
+     * The checked input.
+     */
     public static final class Request {
         private final Outcome outcome;
         private final SnapcastEndpoint endpoint;
@@ -90,28 +106,40 @@ public final class SnapcastClientSpike {
             return outcome;
         }
 
-        /** The server to connect to (port 1704 when the entry had none); null unless OK. */
+        /**
+         * The server to connect to (port 1704 when the entry had none); null unless OK.
+         */
         public SnapcastEndpoint getEndpoint() {
             return endpoint;
         }
 
-        /** The manual latency, clamped; 0 when the field was empty. */
+        /**
+         * The manual latency, clamped; 0 when the field was empty.
+         */
         public int getLatencyMs() {
             return latencyMs;
         }
     }
 
-    /** Where the typed server is, as far as the text tells. */
+    /**
+     * Where the typed server is, as far as the text tells.
+     */
     public enum Locality {
-        /** An IP literal in the local ranges: loopback, private, link-local, unique-local. */
+        /**
+         * An IP literal in the local ranges: loopback, private, link-local, unique-local.
+         */
         LOCAL,
-        /** An IP literal outside them: audio and control are unencrypted and unauthenticated on the way there. */
+        /**
+         * An IP literal outside them: audio and control are unencrypted and unauthenticated on the way there.
+         */
         PUBLIC,
-        /** A host name: where it resolves is not looked up here (that would be a lookup on the main thread). */
+        /**
+         * A host name: where it resolves is not looked up here (that would be a lookup on the main thread).
+         */
         NAME
     }
 
-    private SnapcastClientSpike() {
+    private SnapcastClient() {
     }
 
     /**
@@ -135,7 +163,9 @@ public final class SnapcastClientSpike {
         return new Request(Outcome.OK, endpoint, latency);
     }
 
-    /** @return the write-ahead clamped to 40..350; the default for empty text; null for text that is no whole number */
+    /**
+     * @return the write-ahead clamped to 40..350; the default for empty text; null for text that is no whole number
+     */
     public static Integer parseWriteAhead(String text) {
         String t = text == null ? "" : text.trim();
         if (t.isEmpty()) {
@@ -155,7 +185,9 @@ public final class SnapcastClientSpike {
         return clampWriteAhead((int) Math.min(value, Integer.MAX_VALUE));
     }
 
-    /** The configuration of the engine for a session of the test screen (the write-ahead is clamped, the guard as chosen). */
+    /**
+     * The configuration of the engine for a session of the test screen (the write-ahead is clamped, the guard as chosen).
+     */
     public static ClientEngineConfig engineConfig(int writeAheadMs, boolean flacGuard) {
         return new ClientEngineConfig().maxAheadMs(clampWriteAhead(writeAheadMs)).smoothCorrections(true).flacTimeGuard(flacGuard);
     }
@@ -164,7 +196,9 @@ public final class SnapcastClientSpike {
         return Math.max(MIN_WRITE_AHEAD_MS, Math.min(MAX_WRITE_AHEAD_MS, value));
     }
 
-    /** @return the latency clamped to the range; 0 for empty text; null for text that is no whole number */
+    /**
+     * @return the latency clamped to the range; 0 for empty text; null for text that is no whole number
+     */
     public static Integer parseLatency(String text) {
         String t = text == null ? "" : text.trim();
         if (t.isEmpty()) {
@@ -191,7 +225,9 @@ public final class SnapcastClientSpike {
         return (int) Math.max(MIN_LATENCY_MS, Math.min(MAX_LATENCY_MS, value));
     }
 
-    /** @return whether the option is on; off for no source, a missing value or a value that can not be read */
+    /**
+     * @return whether the option is on; off for no source, a missing value or a value that can not be read
+     */
     public static boolean isEnabled(de.yaacc.multiroom.SnapcastSettings.BooleanSource source) {
         if (source == null) {
             return ENABLED_DEFAULT;
@@ -203,7 +239,9 @@ public final class SnapcastClientSpike {
         }
     }
 
-    /** @return whether the client is switched on (the state that is restored); off for no source, a missing value or a value that can not be read */
+    /**
+     * @return whether the client is switched on (the state that is restored); off for no source, a missing value or a value that can not be read
+     */
     public static boolean isSwitchedOn(de.yaacc.multiroom.SnapcastSettings.BooleanSource source) {
         if (source == null) {
             return SWITCHED_ON_DEFAULT;
@@ -223,7 +261,9 @@ public final class SnapcastClientSpike {
         return de.yaacc.multiroom.discovery.SnapcastAddressFilter.isAccepted(address) ? Locality.LOCAL : Locality.PUBLIC;
     }
 
-    /** The host name for the Hello: the name of the phone for a local server, a generic one for a public address. */
+    /**
+     * The host name for the Hello: the name of the phone for a local server, a generic one for a public address.
+     */
     public static String helloHostName(SnapcastEndpoint endpoint, String phoneName) {
         return localityOf(endpoint) == Locality.PUBLIC ? "YAACC" : phoneName;
     }
@@ -237,7 +277,9 @@ public final class SnapcastClientSpike {
         return de.yaacc.multiroom.discovery.SnapcastAddressFilter.isAccepted(resolved) ? phoneName : "YAACC";
     }
 
-    /** The longest version text of the Hello (the server shows it in its client list). */
+    /**
+     * The longest version text of the Hello (the server shows it in its client list).
+     */
     static final int HELLO_VERSION_MAX = 40;
     private static final int APP_VERSION_MAX = 20;
     private static final String GENERIC_PROGRAM = "YAACC";

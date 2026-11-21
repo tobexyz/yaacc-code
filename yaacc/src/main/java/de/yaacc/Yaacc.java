@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
 import de.yaacc.browser.BackgroundIdleTimer;
 import de.yaacc.browser.BrowserLauncher;
 import de.yaacc.multiroom.SnapcastHub;
+import de.yaacc.multiroom.client.SnapcastClient;
 import de.yaacc.multiroom.client.SnapcastClientPowers;
 import de.yaacc.multiroom.client.SnapcastClientRestore;
 import de.yaacc.player.Player;
@@ -409,7 +410,7 @@ public class Yaacc extends Application {
                 // close every share (held files, links) first, so that a failure further down cannot
                 // leave a descriptor open or a share reachable
                 .add(ExitSequence.STEP_SHARES, this::closeShares)
-                // written before the process ends, and before the services go (the spike dialog finds the reason)
+                // written before the process ends, and before the services go (the dialog finds the reason)
                 .add(ExitSequence.STEP_SNAPCAST_NOTE, this::recordSnapcastClientEnding)
                 .run();
         if (!first.allSucceeded()) {
@@ -567,7 +568,7 @@ public class Yaacc extends Application {
 
     /**
      * The exit action and the shutdown (sleep) timer end the whole process, and with it a running Snapcast client session,
-     * without a word: keep the reason where the spike dialog finds it (written at once, the process ends right after).
+     * without a word: keep the reason where the dialog finds it (written at once, the process ends right after).
      */
     @android.annotation.SuppressLint("ApplySharedPref")
     // commit on purpose: the process ends right after
@@ -575,9 +576,9 @@ public class Yaacc extends Application {
         try {
             if (de.yaacc.multiroom.client.SnapcastClientRuntime.isActive()) {
                 androidx.preference.PreferenceManager.getDefaultSharedPreferences(this).edit()
-                        .putString(de.yaacc.multiroom.client.SnapcastClientSpike.KEY_LAST_ENDING,
+                        .putString(SnapcastClient.KEY_LAST_ENDING,
                                 de.yaacc.multiroom.client.SnapcastClientRuntime.Ending.APP_EXIT.name())
-                        .putLong(de.yaacc.multiroom.client.SnapcastClientSpike.KEY_LAST_ENDING_AT, System.currentTimeMillis())
+                        .putLong(SnapcastClient.KEY_LAST_ENDING_AT, System.currentTimeMillis())
                         .commit();
             }
         } catch (RuntimeException ignored) {

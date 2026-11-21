@@ -22,8 +22,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import de.yaacc.multiroom.client.SnapcastClientSpike;
-
 import org.junit.Test;
 
 import java.io.File;
@@ -35,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import de.yaacc.multiroom.client.SnapcastClient;
 
 /**
  * The resources of the phone's Snapcast client (the option, its state and the details sheet): its texts exist in the seven locales with the same format arguments, the switch is
@@ -52,9 +52,18 @@ public class SnapcastClientResourcesTest {
     }
 
     private static Map<String, String> strings(String locale, String file) throws Exception {
+        return strings(locale, file, false);
+    }
+
+    private static Map<String, String> strings(String locale, String file, boolean includeNonTranslateables) throws Exception {
         Map<String, String> result = new LinkedHashMap<>();
-        Matcher m = Pattern.compile("<string name=\"([^\"]+)\"[^>]*>([^<]*)</string>")
-                .matcher(read("src/main/res/" + locale + "/" + file));
+        String regex = "<string name=\"([^\"]+)\"(?![^>]*\\btranslatable=\"false\")[^>]*>([^<]*)</string>";
+        if (includeNonTranslateables) {
+            regex = "<string name=\"([^\"]+)\"[^>]*>([^<]*)</string>";
+
+        }
+
+        Matcher m = Pattern.compile(regex).matcher(read("src/main/res/" + locale + "/" + file));
         while (m.find()) {
             assertFalse(locale + " defines " + m.group(1) + " twice", result.containsKey(m.group(1)));
             result.put(m.group(1), m.group(2));
@@ -102,12 +111,12 @@ public class SnapcastClientResourcesTest {
 
     @Test
     public void theSwitchIsOffByDefaultUnderTheKeyTheCodeReads() throws Exception {
-        assertEquals(SnapcastClientSpike.KEY_ENABLED, strings("values", "setting_strings.xml").get("settings_snapcast_client_spike"));
-        Matcher m = Pattern.compile("<CheckBoxPreference[^>]*?android:defaultValue=\"(\\w+)\"[^>]*?android:key=\"@string/settings_snapcast_client_spike\"",
+        assertEquals(SnapcastClient.KEY_ENABLED, strings("values", "setting_strings.xml", true).get("settings_snapcast_client"));
+        Matcher m = Pattern.compile("<CheckBoxPreference[^>]*?android:defaultValue=\"(\\w+)\"[^>]*?android:key=\"@string/settings_snapcast_client\"",
                 Pattern.DOTALL).matcher(read("src/main/res/xml/preference.xml"));
         assertTrue("the preference is declared", m.find());
         assertEquals("false", m.group(1));
-        assertFalse(SnapcastClientSpike.ENABLED_DEFAULT);
+        assertFalse(SnapcastClient.ENABLED_DEFAULT);
     }
 
     @Test
@@ -115,8 +124,8 @@ public class SnapcastClientResourcesTest {
         String xml = read("src/main/res/xml/preference.xml");
         int category = xml.indexOf("@string/settings_snapcast_category");
         String block = xml.substring(category, xml.indexOf("</PreferenceCategory>", category));
-        assertTrue(block.contains("@string/settings_snapcast_client_spike\""));
-        assertTrue(block.contains("@string/settings_snapcast_client_spike_open\""));
+        assertTrue(block.contains("@string/settings_snapcast_client\""));
+        assertTrue(block.contains("@string/settings_snapcast_client_open\""));
     }
 
     @Test

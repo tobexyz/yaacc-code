@@ -52,7 +52,9 @@ public class SnapcastClientSwitchGuardTest {
         return text("java/de/yaacc/" + relativePath).replaceAll("(?s)/\\*.*?\\*/", "").replaceAll("//[^\\n]*", "");
     }
 
-    /** The text of the method starting at the signature, from its opening brace to the matching closing brace. */
+    /**
+     * The text of the method starting at the signature, from its opening brace to the matching closing brace.
+     */
     private static String body(String code, String signature) {
         int start = code.indexOf(signature);
         assertTrue("method not found: " + signature, start >= 0);
@@ -129,7 +131,7 @@ public class SnapcastClientSwitchGuardTest {
                 "android:contentDescription=\"@string/snapcast_client_switch_label\""));
         assertTrue("a refused start is still a toast with its reason", body(bar, "private void toggled(boolean checked)").contains("Toast.makeText("));
         // the details sheet shows the state and so the reason of a restore that failed
-        assertTrue(code("settings/SnapcastClientSpikeDialog.java").contains("SnapcastClientPowerTexts.stateText(context, state)"));
+        assertTrue(code("settings/SnapcastClientDialog.java").contains("SnapcastClientPowerTexts.stateText(context, state)"));
     }
 
     @Test
@@ -183,7 +185,7 @@ public class SnapcastClientSwitchGuardTest {
         int category = xml.indexOf("@string/settings_snapcast_category");
         String block = xml.substring(category, xml.indexOf("</PreferenceCategory>", category));
 
-        assertInOrder(block, "@string/settings_snapcast_client_spike\"", "@string/" + KEY + "\"", "@string/settings_snapcast_client_spike_open\"");
+        assertInOrder(block, "@string/settings_snapcast_client\"", "@string/" + KEY + "\"", "@string/settings_snapcast_client_open\"");
         Matcher entry = Pattern.compile("<CheckBoxPreference[^>]*?android:key=\"@string/" + KEY + "\"[^>]*?/>", Pattern.DOTALL).matcher(block);
         assertTrue(entry.find());
         assertTrue(entry.group().contains("android:defaultValue=\"false\""));
@@ -203,12 +205,12 @@ public class SnapcastClientSwitchGuardTest {
     @Test
     public void theSettingsScreenBindsTheCheckboxToThePowerApiAndScrollsToTheSectionOnRequest() throws Exception {
         String fragment = code("settings/SettingsFragment.java");
-        String setUp = body(fragment, "private void setUpSnapcastClientSpike()");
+        String setUp = body(fragment, "private void setUpSnapcastClient()");
         assertTrue("the checkbox starts and stops through the power API", setUp.contains("SnapcastClientPowers.of("));
         assertTrue(setUp.contains(".setOn("));
         assertTrue("a refusal is shown with its reason", setUp.contains("SnapcastClientPowerTexts."));
         assertTrue("shown only while the option is on, like the test screen entry", setUp.contains("setVisible("));
-        assertTrue("the details entry stays", setUp.contains("SnapcastClientSpikeDialog.show("));
+        assertTrue("the details entry stays", setUp.contains("SnapcastClientDialog.show("));
 
         assertTrue(body(fragment, "public void onCreatePreferences(").contains("scrollToRequestedSection()"));
         String scroll = body(fragment, "private void scrollToRequestedSection()");
@@ -225,7 +227,7 @@ public class SnapcastClientSwitchGuardTest {
 
     @Test
     public void theDialogStartsAndStopsThroughThePowerApiAndShowsTheSameState() throws Exception {
-        String dialog = code("settings/SnapcastClientSpikeDialog.java");
+        String dialog = code("settings/SnapcastClientDialog.java");
         assertFalse("no direct start of the service", dialog.contains("SnapcastClientService.start("));
         assertFalse("no direct stop of the service", dialog.contains("SnapcastClientService.stop("));
         assertTrue(dialog.contains("SnapcastClientPowers.of("));

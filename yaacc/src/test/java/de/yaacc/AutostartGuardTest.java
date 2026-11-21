@@ -50,7 +50,9 @@ public class AutostartGuardTest {
         return text("java/de/yaacc/" + relativePath).replaceAll("(?s)/\\*.*?\\*/", "").replaceAll("//[^\\n]*", "");
     }
 
-    /** The text of the method starting at the signature, from its opening brace to the matching closing brace. */
+    /**
+     * The text of the method starting at the signature, from its opening brace to the matching closing brace.
+     */
     private static String body(String code, String signature) {
         int start = code.indexOf(signature);
         assertTrue("method not found: " + signature, start >= 0);
@@ -85,7 +87,7 @@ public class AutostartGuardTest {
     @Test
     public void theAutostartEntryDoesNotDependOnAnotherEntry() throws Exception {
         String xml = text("res/xml/preference.xml");
-        Matcher entry = Pattern.compile("<CheckBoxPreference[^>]*?settings_local_server_autostart_chkbx[^>]*?/>", Pattern.DOTALL).matcher(xml);
+        Matcher entry = Pattern.compile("<CheckBoxPreference[^>]*?settings_autostart_chkbx[^>]*?/>", Pattern.DOTALL).matcher(xml);
         assertTrue("the autostart entry exists", entry.find());
         assertFalse("always selectable: no dependency", entry.group().contains("android:dependency"));
         assertFalse("the entry has no default of its own besides off", entry.group().contains("defaultValue=\"true\""));
@@ -114,7 +116,7 @@ public class AutostartGuardTest {
         assertTrue("a refused change is caught, not a crash", apply.contains("catch"));
         // the receiver itself is as before: it checks the preference as defence and starts the service
         String onReceive = body(receiver, "public void onReceive(");
-        assertTrue(onReceive.contains("settings_local_server_autostart_chkbx"));
+        assertTrue(onReceive.contains("settings_autostart_chkbx"));
         assertTrue(onReceive.contains("startForegroundService("));
     }
 
@@ -124,7 +126,7 @@ public class AutostartGuardTest {
     public void onCreateSyncsTheReceiverStateFromTheSetting() throws Exception {
         String onCreate = body(code("Yaacc.java"), "public void onCreate()");
         assertTrue(onCreate.contains("ServerAutostart.applySetting("));
-        assertTrue("reads the setting, not a constant", onCreate.contains("settings_local_server_autostart_chkbx"));
+        assertTrue("reads the setting, not a constant", onCreate.contains("settings_autostart_chkbx"));
     }
 
     @Test
@@ -162,8 +164,8 @@ public class AutostartGuardTest {
     public void theIdleCheckReadsTheAutostartSettingIntoTheFacts() throws Exception {
         String exitIfIdle = body(code("browser/BackgroundIdleTimer.java"), "private static void exitIfIdle(");
         assertTrue(exitIfIdle.contains("IdleFacts.of("));
-        assertTrue(exitIfIdle.contains("settings_local_server_autostart_chkbx"));
-        assertInOrder(exitIfIdle, "settings_local_server_autostart_chkbx", "AutoCloseRule.reasonToStay(facts)");
+        assertTrue(exitIfIdle.contains("settings_autostart_chkbx"));
+        assertInOrder(exitIfIdle, "settings_autostart_chkbx", "AutoCloseRule.reasonToStay(facts)");
         assertInOrder(exitIfIdle, "AutoCloseRule.reasonToStay(facts)", "Idle in background, exiting", "Idle in background, staying open: ");
     }
 
@@ -172,7 +174,7 @@ public class AutostartGuardTest {
     @Test
     public void changingTheSettingSwitchesTheReceiverAtOnce() throws Exception {
         String fragment = code("settings/SettingsFragment.java");
-        assertTrue(fragment.contains("settings_local_server_autostart_chkbx"));
-        assertInOrder(fragment, "settings_local_server_autostart_chkbx", "ServerAutostart.applySetting(");
+        assertTrue(fragment.contains("settings_autostart_chkbx"));
+        assertInOrder(fragment, "settings_autostart_chkbx", "ServerAutostart.applySetting(");
     }
 }

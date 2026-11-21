@@ -21,7 +21,7 @@ package de.yaacc.multiroom.client;
 import java.util.Locale;
 
 /**
- * The live status of the spike as text: the numbers the owner reports after a listen test. English and technical on
+ * The live status of the client as text: the numbers the owner reports after a listen test. English and technical on
  * purpose (it is a diagnostic dump, not a user message). Contains numbers and fixed words, and, from the control port, what
  * the server says about this client ({@link ServerSays#text()}: the first 8 characters of the group id and the stream
  * names and states, cleaned of control and invisible characters and cut).
@@ -59,7 +59,7 @@ public final class SnapcastClientStatusText {
         }
         text.append(String.format(Locale.ROOT, "sync: drift %s (+ = late)%s, buffer %d ms, server latency %d ms, manual latency %d ms%n",
                 ms(s.driftMicros), s.aligned ? "" : " [last value, not current: no audio is being placed]",
- s.bufferMs, s.serverLatencyMs, s.manualLatencyMs));
+                s.bufferMs, s.serverLatencyMs, s.manualLatencyMs));
         text.append(String.format(Locale.ROOT, "volume: %d%s%n", s.volume, s.muted ? " (muted)" : ""));
         text.append(String.format(Locale.ROOT, "chunks: received %d, queued %d, decoded waiting %d ms, played %d%n",
                 s.chunksReceived, s.chunksWaiting, s.decodedWaitingMs, s.chunksPlayed));
@@ -178,7 +178,9 @@ public final class SnapcastClientStatusText {
         }
     }
 
-    /** What the connection saw: frames by type, bytes, the last chunk, the server's settings, and a word when nothing came. */
+    /**
+     * What the connection saw: frames by type, bytes, the last chunk, the server's settings, and a word when nothing came.
+     */
     private static void appendConnection(StringBuilder text, EngineStatus s) {
         de.yaacc.multiroom.protocol.SnapcastConnection.Stats c = s.connection;
         if (c == null) {

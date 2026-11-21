@@ -26,7 +26,7 @@ import androidx.media3.common.util.UnstableApi;
 
 /**
  * DRAFT of task 4.1: the Media3 processors that turn what ExoPlayer decodes into the format of the Snapcast stream and
- * hand it to a {@link PcmSink}. Not wired into the player: task 4.4 waits for the owner's device spike.
+ * hand it to a {@link PcmSink}. Not wired into the player: task 4.4 waits for the owner's device.
  *
  * <p>The order matters:
  * <ol>
@@ -41,7 +41,7 @@ import androidx.media3.common.util.UnstableApi;
  *
  * <p>Use: {@code new DefaultAudioSink.Builder(context).setAudioProcessors(FeedTapChain.create(...)).build()} from the
  * {@code buildAudioSink} of a {@code DefaultRenderersFactory}. Where in ExoPlayer's own pipeline these processors sit
- * (before or after its channel mapping and trimming) is one of the questions of the device spike, see "Snapcast feed
+ * (before or after its channel mapping and trimming) is one of the questions of the device, see "Snapcast feed
  * tap (draft)" in {@code docs/tech.md}.
  */
 @OptIn(markerClass = UnstableApi.class)

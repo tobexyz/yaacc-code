@@ -104,9 +104,9 @@ public class SnapcastClientPowerTextsTest {
 
     @Test
     public void onlyTheSnapcastSectionIsAValidTargetOfTheSettingsScroll() {
-        assertEquals(SnapcastClientSpike.KEY_SWITCHED_ON, SnapcastSettingsTarget.scrollKey(SnapcastClientSpike.KEY_SWITCHED_ON));
-        assertEquals(SnapcastClientSpike.KEY_SWITCHED_ON, SnapcastSettingsTarget.SNAPCAST_CLIENT);
-        for (String other : new String[]{null, "", " ", "settings_theme_key", "../x", SnapcastClientSpike.KEY_SWITCHED_ON + "x",
+        assertEquals(SnapcastClient.KEY_SWITCHED_ON, SnapcastSettingsTarget.scrollKey(SnapcastClient.KEY_SWITCHED_ON));
+        assertEquals(SnapcastClient.KEY_SWITCHED_ON, SnapcastSettingsTarget.SNAPCAST_CLIENT);
+        for (String other : new String[]{null, "", " ", "settings_theme_key", "../x", SnapcastClient.KEY_SWITCHED_ON + "x",
                 new String(new char[5000]).replace('\0', 'a')}) {
             assertEquals(String.valueOf(other), null, SnapcastSettingsTarget.scrollKey(other));
         }
