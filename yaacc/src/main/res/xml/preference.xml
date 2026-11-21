@@ -119,6 +119,21 @@
             android:key="@string/image_viewer_settings_duration_key"
             android:title="@string/image_viewer_settings_duration" />
     </PreferenceCategory>
+    <PreferenceCategory android:title="@string/settings_fcast_category">
+        <Preference
+            android:selectable="false"
+            android:summary="@string/settings_fcast_about_summary"
+            android:title="@string/settings_fcast_about_title" />
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="@string/settings_fcast_discovery"
+            android:summary="@string/settings_fcast_discovery_summary"
+            android:title="@string/settings_fcast_discovery_title" />
+        <Preference
+            android:key="@string/settings_fcast_receivers"
+            android:summary="@string/settings_fcast_receivers_summary"
+            android:title="@string/settings_fcast_receivers_title" />
+    </PreferenceCategory>
     <PreferenceCategory android:title="@string/settings_snapcast_category">
         <Preference
             android:selectable="false"

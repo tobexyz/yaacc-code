@@ -27,13 +27,21 @@ import android.os.Build;
 
 import androidx.preference.PreferenceManager;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import de.yaacc.R;
 import de.yaacc.multiroom.SnapcastDiscoveryGate;
 import de.yaacc.multiroom.control.MonotonicClock;
+import de.yaacc.multiroom.discovery.SnapcastEndpoint;
 import de.yaacc.multiroom.discovery.SnapcastPreferencesStorage;
+import de.yaacc.multiroom.discovery.SnapcastResolver;
 
 /**
  * The app-wide FCast part, the counterpart of the Snapcast hub: the directory of receivers, the receivers added by hand, the
@@ -167,6 +175,85 @@ public final class FCastHub implements FCastReceiverSource {
         } catch (RuntimeException unreadable) {
             return null;
         }
+    }
+
+    /** The receivers as the directory knows them (found, typed in, remembered), for the list of the settings. */
+    public List<FCastDirectory.Entry> entries() {
+        return directory.snapshot();
+    }
+
+    private static final int PROBE_TIMEOUT_MILLIS = 3_000;
+
+    /** The input "Add receiver" with the network of the app behind it (task 5.4). Its calls block: run them on a worker. */
+    public FCastAddReceiver newAddReceiver() {
+        final SnapcastResolver resolver = SnapcastResolver.system();
+        return new FCastAddReceiver(new FCastAddReceiver.Environment() {
+            @Override
+            public List<FCastDirectory.Entry> receivers() {
+                return directory.snapshot();
+            }
+
+            @Override
+            public boolean answers(FCastEndpoint endpoint) {
+                InetAddress address = endpoint.getAddress();
+                if (address == null) {
+                    return false;
+                }
+                try (Socket socket = new Socket()) {
+                    socket.connect(new InetSocketAddress(address, endpoint.getPort()), PROBE_TIMEOUT_MILLIS);
+                    return true;
+                } catch (IOException | RuntimeException unreachable) {
+                    return false;
+                }
+            }
+
+            @Override
+            public InetAddress lookup(String host) throws IOException {
+                SnapcastEndpoint endpoint = SnapcastEndpoint.parse(host, FCastEndpoint.DEFAULT_PORT);
+                if (endpoint == null) {
+                    throw new IOException("not a name");
+                }
+                return resolver.resolve(endpoint);
+            }
+
+            @Override
+            public FCastStoredReceivers.AddResult store(FCastEndpoint endpoint, String name) {
+                return addManual(endpoint, name);
+            }
+
+            @Override
+            public boolean isDiscoveryRunning() {
+                return nsd.isStarted();
+            }
+
+            @Override
+            public void pause(long millis) {
+                try {
+                    Thread.sleep(millis);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        });
+    }
+
+    /** Removes a receiver that was added by hand, and takes it out of the stored selection (task 5.4). Blocking: run it on a worker. */
+    public FCastReceiverAdmin.Result removeReceiver(FCastEndpoint endpoint) {
+        final SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        final String key = context.getString(R.string.settings_selected_receivers_title);
+        FCastReceiverAdmin admin = new FCastReceiverAdmin(this::removeManual, new FCastReceiverAdmin.SelectionStore() {
+            @Override
+            public Set<String> read() {
+                Set<String> stored = preferences.getStringSet(key, null);
+                return stored == null ? new HashSet<String>() : new HashSet<>(stored);
+            }
+
+            @Override
+            public void write(Set<String> receiverIds) {
+                preferences.edit().putStringSet(key, new HashSet<>(receiverIds)).apply();
+            }
+        }, this::selectionChanged);
+        return admin.remove(endpoint);
     }
 
     @Override

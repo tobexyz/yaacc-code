@@ -146,4 +146,11 @@
     <string name="settings_renderer_output_group_server">Gruppe auf Server %1$s. Tippen zum Ändern.</string>
     <string name="settings_renderer_output_group_named">%1$s auf Server %2$s. Tippen zum Ändern.</string>
     <string name="settings_renderer_output_group_damaged">Die gespeicherte Gruppe ist beschädigt; der Empfänger spielt auf diesem Gerät. Tippen, um die Gruppe neu zu wählen.</string>
+    <string name="settings_fcast_category">FCast</string>
+    <string name="settings_fcast_about_title">About FCast</string>
+    <string name="settings_fcast_about_summary">YAACC can play to FCast receivers on your network. This application is an independent community implementation of the FCast protocol. It is not affiliated with FUTO. FCast is a registered trademark of FUTO.</string>
+    <string name="settings_fcast_discovery_title">Find FCast receivers</string>
+    <string name="settings_fcast_discovery_summary">Searches the local network for FCast receivers; on by default. It sends mDNS queries and lists every device that announces itself. Announcements are not authenticated: anyone on the network can announce a receiver. Nothing is played to a receiver before you choose it. Data is sent unencrypted (protocol v3).</string>
+    <string name="settings_fcast_receivers_title">FCast receivers</string>
+    <string name="settings_fcast_receivers_summary">Add a receiver by address, device name or connection link, or remove it</string>
 </resources>

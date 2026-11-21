@@ -98,6 +98,17 @@ final class ReceiverLiveUpdates {
         default void startSnapcast(Runnable onChanged) {
         }
 
+        /**
+         * Starts following the FCast receivers (the discovery runs for as long as it does); {@code onChanged} is told, on the main
+         * thread and coalesced, when the receivers changed. Nothing by default.
+         */
+        default void startFCast(Runnable onChanged) {
+        }
+
+        /** Stops following the FCast receivers. */
+        default void stopFCast() {
+        }
+
         /** Stops following the Snapcast groups. */
         default void stopSnapcast() {
         }
@@ -150,6 +161,15 @@ final class ReceiverLiveUpdates {
         }
     };
 
+    private final Runnable fcastCallback = new Runnable() {
+        @Override
+        public void run() {
+            if (running) {
+                target.refresh();
+            }
+        }
+    };
+
     private final Runnable poller = new Runnable() {
         @Override
         public void run() {
@@ -188,6 +208,7 @@ final class ReceiverLiveUpdates {
         sources.startGroupFeed(groupCallback);
         sources.addPlayerListener(playerListener);
         sources.startSnapcast(snapcastCallback);
+        sources.startFCast(fcastCallback);
         target.startLiveVolume();
         sources.postDelayed(poller, POLL_INTERVAL_MS);
     }
@@ -215,6 +236,7 @@ final class ReceiverLiveUpdates {
         sources.stopGroupFeed();
         sources.removePlayerListener(playerListener);
         sources.stopSnapcast();
+        sources.stopFCast();
     }
 
     /** The real world: the shared monitors, the client's player list and the main thread's handler. */
@@ -222,6 +244,7 @@ final class ReceiverLiveUpdates {
         return new Sources() {
             private YxcRowFeed groupFeed;
             private SnapcastLiveSource snapcast;
+            private FCastLiveSource fcast;
 
             @Override
             public void subscribeStatus(RendererStatusMonitor.StatusListener listener) {
@@ -273,6 +296,22 @@ final class ReceiverLiveUpdates {
                 if (snapcast != null) {
                     snapcast.stop();
                     snapcast = null;
+                }
+            }
+
+            @Override
+            public void startFCast(Runnable onChanged) {
+                if (fcast == null) {
+                    fcast = FCastLiveSource.forApp(upnpClient.getContext(), handler, onChanged);
+                }
+                fcast.start();
+            }
+
+            @Override
+            public void stopFCast() {
+                if (fcast != null) {
+                    fcast.stop();
+                    fcast = null;
                 }
             }
 
