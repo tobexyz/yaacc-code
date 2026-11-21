@@ -311,3 +311,26 @@ What was checked and holds. **Warning 1 (cap), fixed.** `serviceFound` now count
 
 ### Verdict: FAIL
 No Critical. The three Warnings of cycle 1 are really fixed: the cap held in two fuzz probes with moves, several names per address, expiry during a flood and the name table, and the user's receivers are independent of the discovered ones; the device cache is correct and thread safe; the listener test can fail now. One new Warning, small: the state comparisons of `showsSame` (offline, manual, hints) are not pinned by tests and three mutants survive, among them the stale "offline" label. Cycle 2 of 3 for Group 3; the security review is postponed by the owner.
+
+## Group 3, Cycle 3 — 2026-11-21
+Reviewing: commit 7a5e0189 (only `FCastReceiversTest` changed: three tests) against the one Warning of Group 3, Cycle 2. Scope as asked: that Warning only; no source file of Group 3 changed since bb237137.
+
+The three tests do what the Warning asked: `aRememberedReceiverThatIsAnnouncedAgainUnderTheSameNameIsANewOnlineDevice` (same name, only the offline flag changes; `assertNotSame`, the new device is online and its text is "FCast-pc (FCast)"), `aReceiverThatIsAddedByHandAfterwardsIsANewManualDevice` (same endpoint, only `manual` changes), `otherTextAttributesOfTheSameAnnouncementMakeANewDeviceWithTheNewHints` (same name and address, other `v`; the new device carries the new hints). Each changes exactly one property and checks the new value on the new device, so none can pass by accident; they build their own fixtures (fake clock and in-memory storage as in the other tests), no port, no sleep.
+
+Mutants on copies of `FCastReceiverDevice` against the committed tests (all 23 tests of `FCastReceiversTest`): offline comparison removed (killed by the offline test), manual comparison removed (killed by the manual test), hints comparison removed (killed by the hints test), name comparison removed (killed by two tests), unmodified copy (OK, 23 tests). The three mutants that survived in cycle 2 are all killed, each by its own test.
+
+### Critical
+- none
+
+### Warning
+- none (Warning 1 of cycle 2 is fixed)
+
+### Suggestion
+- Unchanged from cycle 2 and not blocking: 1 (the expiry report from `serviceFound` has no test), 2 (cache entries from `findReceiver`), 3 (listeners fire under the `FCastReceivers` and `manualReceivers` monitors: add to task 5.4 and the `Listener` Javadoc), 4 (`selectionChanged` with more than 16 selected receivers rewrites at every call), 5 (`MAX_ENTRIES` only used by a test), 6 (stale Accept names in tasks 3.1 to 3.4), 7 (a multi-name node is confirmed as a whole), 8 (older Suggestions 2, 11 and 13 of cycle 1). Suggestion 3 and 4 are worth doing with Group 5 at the latest.
+
+### Tests
+- [x] All tests passing: `./gradlew --offline -q :yaacc:testDebugUnitTest --tests 'de.yaacc.fcast.*' --tests 'de.yaacc.upnp.UpnpClient*'` exit 0. `FCastAddressingTest` 20, `FCastDirectoryTest` 35, `FCastDiscoveryTextTest` 9, `FCastReceiversTest` 23, `UpnpClientFCastReceiversTest` 9 and the other `UpnpClient*` classes: 0 failures, 0 errors, 0 skipped.
+- [x] Coverage adequate for the change: every comparison of `showsSame` and every fix of cycle 1 is pinned by a test that fails on its mutant; the only mutant known to survive is the expiry report inside `serviceFound` (Suggestion 1, a notification, not state).
+
+### Verdict: PASS
+Zero Critical, zero Warning, all tests passing. Group 3 passes its general review in cycle 3 of 3; the security review is postponed by the owner (the cap bypass found in cycle 1 is closed; no new obvious security problem).
