@@ -308,6 +308,8 @@ public class FCastSessionTest {
         session.acquire();
         session.play(song("http://h/first.mp3"));
         assertTrue(receiver.awaitPackets(Op.PLAY, 1, WAIT));
+        receiver.session(0).sendPlayUpdate("audio/mpeg", "http://h/first.mp3"); // the answer to our first Play
+        assertTrue(await(session, s -> "http://h/first.mp3".equals(s.getItemUrl()), WAIT));
         receiver.session(0).sendPlayUpdate("video/mp4", "http://other/movie.mp4");
         assertTrue(await(session, s -> s.isItemFromElsewhere(), WAIT));
 
@@ -316,6 +318,23 @@ public class FCastSessionTest {
         assertTrue(receiver.awaitPackets(Op.PLAY, 2, WAIT));
         assertTrue("the answers to our Play are not foreign", await(session, s -> !s.isItemFromElsewhere(), WAIT));
         assertEquals("http://h/ours.mp3", session.getState().getItemUrl());
+    }
+
+    @Test
+    public void theFirstPlayUpdateAfterOurPlayIsOursWhateverFormOfTheUrlItReports() throws Exception {
+        FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
+        FCastSession session = session(connectorTo(receiver.port()), new Events(), fastSession());
+        session.acquire();
+        session.play(song("http://h/ours.mp3"));
+        assertTrue(receiver.awaitPackets(Op.PLAY, 1, WAIT));
+
+        receiver.session(0).sendPlayUpdate("audio/mpeg", "http://H:80/ours.mp3/"); // another form of our URL
+
+        assertTrue(await(session, s -> "http://H:80/ours.mp3/".equals(s.getItemUrl()), WAIT));
+        assertFalse("the answer to our Play is ours", session.getState().isItemFromElsewhere());
+
+        receiver.session(0).sendPlayUpdate("video/mp4", "http://other/movie.mp4"); // no Play of ours is pending any more
+        assertTrue(await(session, s -> s.isItemFromElsewhere(), WAIT));
     }
 
     @Test

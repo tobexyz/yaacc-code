@@ -155,7 +155,8 @@ public class FCastPlayer extends AbstractPlayer {
 
         @Override
         public void onMediaItemEvent(FCastMessages.Event event) {
-            act(logic.onEvent(event.getType(), event.getItemUrl()));
+            int serial = logic.serial();
+            act(logic.onEvent(event.getType(), event.getItemUrl()), serial);
         }
     }
 
@@ -177,23 +178,26 @@ public class FCastPlayer extends AbstractPlayer {
             whenFree(this::stop, 0);
             return;
         }
-        act(logic.onState(state));
+        int serial = logic.serial();
+        act(logic.onState(state), serial);
     }
 
     private void onTick() {
         if (!destroyed) {
-            act(logic.onTick(session.getState()));
+            int serial = logic.serial();
+            act(logic.onTick(session.getState()), serial);
         }
     }
 
-    private void act(FCastPlayerLogic.Action action) {
+    /** @param serial the play serial read before the logic decided: a start or stop in between makes the action obsolete */
+    private void act(FCastPlayerLogic.Action action, int serial) {
         switch (action) {
             case ITEM_ENDED:
-                whenFree(this::onItemEnded, 0);
+                whenFree(this::onItemEnded, 0, serial);
                 break;
             case STOPPED_BY_RECEIVER:
                 itemOnReceiver = false;
-                whenFree(this::stop, 0);
+                whenFree(this::stop, 0, serial);
                 break;
             case EXTERNAL_PAUSE:
                 pausedLocally = true;

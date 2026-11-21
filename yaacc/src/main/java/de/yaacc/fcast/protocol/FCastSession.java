@@ -358,10 +358,13 @@ public final class FCastSession implements AutoCloseable {
             FCastMessages.PlayData data = update.getPlayData();
             // a new item was started (by us or by anyone): what the old item reported must not be read as the new item's state
             b.playback(FCastReceiverState.Playback.UNKNOWN, null, null, null);
+            // the first PlayUpdate after our Play is the answer to it, whatever form of the URL the receiver reports (a receiver may
+            // write it differently: a bare host, an escaped space, an upper-case host); only later ones are compared with ours
+            boolean answersOurPlay = state.getPending() == FCastReceiverState.Pending.PLAY;
             if (data != null) {
-                b.item(data.getUrl(), data.getContainer(), data.getTitle(), isElsewhere(data.getUrl()));
+                b.item(data.getUrl(), data.getContainer(), data.getTitle(), !answersOurPlay && isElsewhere(data.getUrl()));
             }
-            if (state.getPending() == FCastReceiverState.Pending.PLAY) {
+            if (answersOurPlay) {
                 cancelPending();
                 b.pending(FCastReceiverState.Pending.NONE);
             }

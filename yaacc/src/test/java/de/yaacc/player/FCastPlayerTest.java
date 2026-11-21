@@ -68,6 +68,7 @@ public class FCastPlayerTest {
     /** The port of the fake receiver; set before a player is made (the session is made in the constructor). */
     private static volatile int port;
 
+    private final List<Long> timerStarts = Collections.synchronizedList(new ArrayList<Long>());
     private final List<Integer> toasts = Collections.synchronizedList(new ArrayList<Integer>());
     private FakeFCastReceiver receiver;
     private FCastPlayer player;
@@ -105,6 +106,11 @@ public class FCastPlayerTest {
 
         @Override
         protected void showNotificationInternal() {
+        }
+
+        @Override
+        public void startTimer(long duration) {
+            timerStarts.add(duration);
         }
 
         @Override
@@ -588,6 +594,45 @@ public class FCastPlayerTest {
         awaitPlays(1);
         assertEquals(B, playUrl(0));
         assertTrue(toasts.contains(R.string.fcast_item_too_large));
+    }
+
+    private void secondItemAnsweredInAnotherForm() throws Exception {
+        startTwoItems(); // the receiver answered with the exact URL
+        player.next();
+        awaitPlays(2);
+        receiver.session(0).sendPlayUpdate("audio/mpeg", B.toUpperCase() + "/"); // the answer to our second Play, in another form
+        await(() -> player.getSession().getState().getItemUrl() != null
+                && player.getSession().getState().getItemUrl().endsWith("/"));
+        assertFalse(player.getSession().getState().isItemFromElsewhere());
+    }
+
+    @Test
+    public void anErrorOfOurItemCountsWhenTheReceiverReportsAnotherFormOfItsUrl() throws Exception {
+        secondItemAnsweredInAnotherForm();
+
+        receiver.session(0).sendPlaybackError("cannot load");
+
+        await(() -> toasts.contains(R.string.fcast_play_failed));
+    }
+
+    @Test
+    public void leavingStopsOurItemWhenTheReceiverReportsAnotherFormOfItsUrl() throws Exception {
+        secondItemAnsweredInAnotherForm();
+
+        player.onDestroy();
+
+        await(() -> receiver.received(Op.STOP).size() >= 1);
+    }
+
+    @Test
+    public void onlyAPictureStartsTheTimerOfTheBaseClass() throws Exception {
+        player.setItems(item(A, "audio/mpeg", "Song"));
+        player.updateTimer();
+        assertEquals("audio and video end by what the receiver reports", 0, timerStarts.size());
+
+        player.setItems(item(B, "image/jpeg", "Picture"));
+        player.updateTimer();
+        assertEquals(1, timerStarts.size());
     }
 
     // ---- leaving

@@ -170,4 +170,28 @@ public class FCastPlayRequestsTest {
         JSONObject json = body(FCastPlayRequests.build("http://h/a", "audio/mpeg", null, "t", "http://192.168.0.5/a.jpg", 1, 1));
         assertFalse(json.has("headers"));
     }
+
+    @Test
+    public void theSpeedIsCountedInTheSizeCheck() {
+        boolean found = false;
+        for (int length = 31_000; length < FCastPacketCodec.MAX_BODY && !found; length++) {
+            StringBuilder url = new StringBuilder("http://h/");
+            while (url.length() < length) {
+                url.append('a');
+            }
+            FCastPlayRequests.Result plain = FCastPlayRequests.build(url.toString(), "audio/mpeg", null, "t", null, 0, Double.NaN, 1.0);
+            FCastPlayRequests.Result fast = FCastPlayRequests.build(url.toString(), "audio/mpeg", null, "t", null, 0, Double.NaN, 2.0);
+            if (plain.getRefusal() == FCastPlayRequests.Refusal.NONE && fast.getRefusal() == FCastPlayRequests.Refusal.TOO_LARGE) {
+                found = true;
+            }
+        }
+        assertTrue("a request that fits only without the speed is refused with it", found);
+    }
+
+    @Test
+    public void aSpeedOtherThanOneIsSentAndOneIsNot() throws Exception {
+        assertEquals(2.0, body(FCastPlayRequests.build("http://h/a", "audio/mpeg", null, "t", null, 0, 1, 2.0)).getDouble("speed"), 0.0001);
+        assertFalse(body(FCastPlayRequests.build("http://h/a", "audio/mpeg", null, "t", null, 0, 1, 1.0)).has("speed"));
+        assertFalse(body(FCastPlayRequests.build("http://h/a", "audio/mpeg", null, "t", null, 0, 1, Double.NaN)).has("speed"));
+    }
 }
