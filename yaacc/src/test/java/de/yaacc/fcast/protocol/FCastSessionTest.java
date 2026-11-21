@@ -233,6 +233,36 @@ public class FCastSessionTest {
         assertTrue(await(session, s -> s.getLink() == FCastReceiverState.Link.FAILED && s.getLastError() != null, WAIT));
     }
 
+    @Test
+    public void volumeCommandsThatPileUpWhileTheConnectionIsBeingMadeAreCoalescedToTheLatest() throws Exception {
+        FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
+        final java.util.concurrent.CountDownLatch gate = new java.util.concurrent.CountDownLatch(1);
+        final FCastSession.Connector inner = connectorTo(receiver.port());
+        FCastSession.Connector slow = listener -> {
+            try {
+                gate.await(WAIT, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return inner.connect(listener);
+        };
+        FCastSession session = session(new CountingConnector(slow), new Events(), fastSession());
+        session.acquire();
+
+        for (int i = 1; i <= 20; i++) {
+            session.setVolume(i / 100.0); // a slider that is dragged while the connection is not up yet
+        }
+        gate.countDown();
+
+        assertTrue(receiver.awaitPackets(Op.SET_VOLUME, 1, WAIT));
+        Thread.sleep(300);
+        assertEquals("one command, not twenty", 1, receiver.received(Op.SET_VOLUME).size());
+        assertEquals(0.20, receiver.received(Op.SET_VOLUME).get(0).json().getDouble("volume"), 0.0001);
+        session.setVolume(0.5);
+        assertTrue(receiver.awaitPackets(Op.SET_VOLUME, 2, WAIT));
+        assertEquals("later values go out again", 0.5, receiver.received(Op.SET_VOLUME).get(1).json().getDouble("volume"), 0.0001);
+    }
+
     // ---- the state is what the receiver says
 
     @Test

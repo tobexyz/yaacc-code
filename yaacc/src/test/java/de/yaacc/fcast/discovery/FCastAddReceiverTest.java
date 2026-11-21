@@ -340,4 +340,51 @@ public class FCastAddReceiverTest {
         assertEquals(Outcome.NAME_NOT_FOUND, result.getOutcome());
         assertNull(result.getEndpoint());
     }
+
+    @Test
+    public void anIpv6LinkLocalAddressIsRefusedWhetherTypedOrFoundByName() throws Exception {
+        assertEquals(Outcome.LINK_LOCAL, add.add("fe80::1").getOutcome());
+        assertEquals(Outcome.LINK_LOCAL, add.add("[fe80::1]:4711").getOutcome());
+        assertTrue(stored.isEmpty());
+
+        // a name that the system resolves to a link-local address is not found: the scope would be lost
+        FCastAddReceiver byName = new FCastAddReceiver(new FCastAddReceiver.Environment() {
+            @Override
+            public List<FCastDirectory.Entry> receivers() {
+                return new ArrayList<>();
+            }
+
+            @Override
+            public boolean answers(FCastEndpoint endpoint) {
+                return false;
+            }
+
+            @Override
+            public InetAddress lookup(String host) {
+                try {
+                    return InetAddress.getByName("fe80:0:0:0:0:0:0:1");
+                } catch (java.net.UnknownHostException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+
+            @Override
+            public FCastStoredReceivers.AddResult store(FCastEndpoint endpoint, String name) {
+                stored.add(endpoint.toString());
+                return FCastStoredReceivers.AddResult.ADDED;
+            }
+
+            @Override
+            public boolean isDiscoveryRunning() {
+                return false;
+            }
+
+            @Override
+            public void pause(long millis) {
+            }
+        });
+
+        assertEquals(Outcome.NAME_NOT_FOUND, byName.add("mybox.local").getOutcome());
+        assertTrue(stored.isEmpty());
+    }
 }

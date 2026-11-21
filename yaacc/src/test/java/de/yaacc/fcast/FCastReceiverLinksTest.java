@@ -155,4 +155,61 @@ public class FCastReceiverLinksTest {
         assertFalse(links.isOpen(endpoint(1)));
         assertFalse(links.isOpen(endpoint(2)));
     }
+
+    @Test
+    public void everyReceiverHasItsOwnThreadWhichEndsWithItsSession() {
+        List<ScheduledExecutorService> executors = new ArrayList<>();
+        FCastReceiverLinks own = new FCastReceiverLinks((endpoint, listener, ex) -> {
+            executors.add(ex);
+            return mock(FCastSession.class);
+        }, executor, GRACE);
+
+        own.open(endpoint(1));
+        own.open(endpoint(2));
+
+        assertEquals(2, executors.size());
+        assertTrue("one thread per receiver", executors.get(0) != executors.get(1));
+        assertTrue("not the timers' thread", executors.get(0) != executor);
+        own.handOverToPlayer(endpoint(1));
+        assertTrue(executors.get(0).isShutdown());
+        assertFalse(executors.get(1).isShutdown());
+        own.closeAll();
+        assertTrue(executors.get(1).isShutdown());
+    }
+
+    @Test
+    public void openCloseOpenCloseKeepsTheSessionUntilTheLastGraceIsOver() throws Exception {
+        final long grace = 400;
+        FCastReceiverLinks slow = new FCastReceiverLinks((endpoint, listener, ex) -> mock(FCastSession.class), executor, grace);
+        FCastReceiverLinks.Link first = slow.open(endpoint(1));
+        FCastSession session = first.getSession();
+        first.close(); // its timer would close the session at 400 ms
+        Thread.sleep(200);
+        slow.open(endpoint(1)).close(); // a slider that is dragged again: the new grace runs until 600 ms
+
+        Thread.sleep(300); // 500 ms: the first timer is over, the second is not
+        assertTrue("the first timer must not close a session that was used again", slow.isOpen(endpoint(1)));
+        verify(session, never()).close();
+        Thread.sleep(450); // 950 ms
+
+        assertFalse(slow.isOpen(endpoint(1)));
+        verify(session).close();
+    }
+
+    @Test
+    public void aStaleLinkThatIsClosedAfterAHandOverDoesNotTouchTheNewSession() throws Exception {
+        FCastReceiverLinks.Link stale = links.open(endpoint(1));
+        links.handOverToPlayer(endpoint(1));
+        FCastReceiverLinks.Link fresh = links.open(endpoint(1));
+        FCastSession newSession = fresh.getSession();
+
+        stale.close();
+        Thread.sleep(GRACE * 3); // a wrong count of users would close the session of the link that is still open
+
+        verify(newSession, never()).release();
+        verify(newSession, never()).close();
+        assertTrue(links.isOpen(endpoint(1)));
+        fresh.close();
+        verify(newSession).release();
+    }
 }

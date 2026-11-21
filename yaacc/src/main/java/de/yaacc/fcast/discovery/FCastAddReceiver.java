@@ -82,6 +82,8 @@ public final class FCastAddReceiver {
         BAD_LINK,
         /** A name that was not found; see what was tried in the result. */
         NAME_NOT_FOUND,
+        /** An IPv6 link-local address (fe80::/10): it needs a zone that the entry can not keep; use an IPv4 or a global address. */
+        LINK_LOCAL,
         /** More than one receiver has that name; {@link Result#getCandidates()} lists their addresses. */
         AMBIGUOUS
     }
@@ -158,6 +160,9 @@ public final class FCastAddReceiver {
         }
         FCastEndpoint typed = FCastEndpoint.parse(text);
         if (typed != null && typed.getAddress() != null) {
+            if (isLinkLocalV6(typed.getAddress())) {
+                return new Result(Outcome.LINK_LOCAL);
+            }
             return store(typed, "");
         }
         if (typed == null && (text.contains("://") || text.contains("/") || text.indexOf(':') >= 0 && text.indexOf(' ') < 0)) {
@@ -198,7 +203,7 @@ public final class FCastAddReceiver {
         if (systemLookup) {
             try {
                 InetAddress address = environment.lookup(typedHost.getHost());
-                FCastEndpoint endpoint = SnapcastAddressFilter.isAcceptedForDiscovery(address)
+                FCastEndpoint endpoint = SnapcastAddressFilter.isAcceptedForDiscovery(address) && !isLinkLocalV6(address)
                         ? FCastEndpoint.fromAddress(address, typedHost.getPort()) : null;
                 if (endpoint != null) {
                     return store(endpoint, typedHost.getHost());
@@ -263,6 +268,10 @@ public final class FCastAddReceiver {
             text = text.substring(0, text.length() - ".local".length());
         }
         return text;
+    }
+
+    private static boolean isLinkLocalV6(InetAddress address) {
+        return address instanceof java.net.Inet6Address && address.isLinkLocalAddress();
     }
 
     private static boolean hasControlCharacters(String text) {

@@ -147,10 +147,10 @@
     <string name="settings_renderer_output_group_named">%1$s no servidor %2$s. Toque para alterar.</string>
     <string name="settings_renderer_output_group_damaged">O grupo guardado está danificado; o recetor reproduz neste dispositivo. Toque para escolher o grupo de novo.</string>
     <string name="settings_fcast_category">FCast</string>
-    <string name="settings_fcast_about_title">About FCast</string>
-    <string name="settings_fcast_about_summary">YAACC can play to FCast receivers on your network. This application is an independent community implementation of the FCast protocol. It is not affiliated with FUTO. FCast is a registered trademark of FUTO.</string>
-    <string name="settings_fcast_discovery_title">Find FCast receivers</string>
-    <string name="settings_fcast_discovery_summary">Searches the local network for FCast receivers; on by default. It sends mDNS queries and lists every device that announces itself. Announcements are not authenticated: anyone on the network can announce a receiver. Nothing is played to a receiver before you choose it. Data is sent unencrypted (protocol v3).</string>
-    <string name="settings_fcast_receivers_title">FCast receivers</string>
-    <string name="settings_fcast_receivers_summary">Add a receiver by address, device name or connection link, or remove it</string>
+    <string name="settings_fcast_about_title">Sobre o FCast</string>
+    <string name="settings_fcast_about_summary">O YAACC pode reproduzir em recetores FCast da sua rede. Esta aplicação é uma implementação comunitária independente do protocolo FCast. Não é afiliada à FUTO. FCast é uma marca registada da FUTO.</string>
+    <string name="settings_fcast_discovery_title">Procurar recetores FCast</string>
+    <string name="settings_fcast_discovery_summary">Procura recetores FCast na rede local; ativado por predefinição. Envia consultas mDNS e lista cada dispositivo que se anuncia. Os anúncios não são autenticados: qualquer pessoa na rede pode anunciar um recetor. Nada é reproduzido num recetor antes de o escolher. Os dados são enviados sem cifragem (protocolo v3).</string>
+    <string name="settings_fcast_receivers_title">Recetores FCast</string>
+    <string name="settings_fcast_receivers_summary">Adicionar um recetor por endereço, nome do dispositivo ou ligação de ligação, ou removê-lo</string>
 </resources>

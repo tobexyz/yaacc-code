@@ -99,6 +99,7 @@ public final class FCastSession implements AutoCloseable {
     private volatile FCastReceiverState state = FCastReceiverState.INITIAL;
     private volatile FCastConnection connection;
     private volatile boolean closed;
+    private final java.util.concurrent.atomic.AtomicReference<Double> latestVolume = new java.util.concurrent.atomic.AtomicReference<>();
 
     // the following are touched on the executor thread only
     private int generation;
@@ -168,9 +169,22 @@ public final class FCastSession implements AutoCloseable {
         post(() -> command(FCastOpcode.SEEK, FCastReceiverState.Pending.SEEK, () -> FCastMessages.seek(seconds), null));
     }
 
-    /** {@code volume} 0 to 1. The volume field of the state changes when the receiver says so. */
+    /**
+     * {@code volume} 0 to 1. The volume field of the state changes when the receiver says so. Volume commands that are still queued are
+     * <b>coalesced</b>: only the latest value is sent (a slider that is dragged gives many, and the session's thread can be busy for
+     * seconds with a connection that does not come up).
+     */
     public void setVolume(final double volume) {
-        post(() -> command(FCastOpcode.SET_VOLUME, FCastReceiverState.Pending.NONE, () -> FCastMessages.setVolume(volume), null));
+        boolean first = latestVolume.getAndSet(volume) == null;
+        if (first) {
+            post(() -> {
+                Double latest = latestVolume.getAndSet(null);
+                if (latest != null) {
+                    final double value = latest;
+                    command(FCastOpcode.SET_VOLUME, FCastReceiverState.Pending.NONE, () -> FCastMessages.setVolume(value), null);
+                }
+            });
+        }
     }
 
     /** Asks for a speed (a receiver of version 1 refuses: the error says so). */

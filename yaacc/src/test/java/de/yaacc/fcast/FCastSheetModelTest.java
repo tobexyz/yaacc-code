@@ -139,6 +139,15 @@ public class FCastSheetModelTest {
     }
 
     @Test
+    public void anUpperCaseSchemeIsShortenedToo() {
+        FCastSheetTrace trace = new FCastSheetTrace();
+
+        trace.add("Play HTTP://u:p@192.168.0.5/a?k=SECRET and Https://h/b#f");
+
+        assertEquals("Play HTTP://192.168.0.5/a and Https://h/b", trace.lines().get(0));
+    }
+
+    @Test
     public void shortenLeavesOtherTextAndPlainUrlsAlone() {
         assertEquals("http://h/a", FCastSheetTrace.shorten("http://h/a"));
         assertEquals("http://h", FCastSheetTrace.shorten("http://u@h?x"));

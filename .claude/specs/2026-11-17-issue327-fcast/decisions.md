@@ -80,6 +80,10 @@ Rule: use v4 when the Android version supports it and the receiver supports it (
 - **Adding:** an IP address is added at once without a test (a receiver that is off can be added); a connection link is added with the first address that answers (3 s each); a name is looked up among the receivers found, then by the system, then by a 4 s search while discovery runs; the failure says what was tried. Names with spaces are matched against announced names only. The hints (`v`, `fp`) of a link are not stored in phase 1.
 - **The link activity** needs the user's tap on *Add* before anything is stored; if another app registers `fcast://` the system shows its chooser.
 
+### D21. Review of Group 5, cycle 1 (2026-11-21)
+**Fixed:** the non-English texts were English copies (a bug of the script that wrote them: it looked the translations up under the wrong key); they are real translations now and a test fails if more than 14 texts of a language equal the English ones; IPv6 link-local addresses (typed, or found by a name) are refused, a typed one with its own message; a recycled card row shows no old volume or mute; each receiver of the screens has its own session thread (a receiver that does not answer blocks only itself) and volume commands that are queued while a connection is made are coalesced to the latest; the guards of the links (grace, stale link) and of the live source (a stop and a start) are pinned; an upper-case `HTTP://` is shortened in the trace.
+**Deferred:** the play, pause and stop buttons of a card without a player do nothing (there is no queue to start; stopping a receiver that another sender plays is the sheet's *Stop*); the link activity finishes on a rotation within 2 s (the same intent counts as a repeat), and a new link during an add leaves the new dialog's *Add* waiting for the running add.
+
 ### Answers to the earlier questions (owner, 2026-11-20)
 - **Q2:** no receiver hardware; a software receiver on a notebook (D13).
 - **Q3:** music, video and pictures all three are in scope (the design already plays all three).

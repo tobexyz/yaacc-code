@@ -85,8 +85,9 @@ public final class FCastSheetTrace {
     }
 
     private static int indexOfUrl(String text, int from) {
-        int http = text.indexOf("http://", from);
-        int https = text.indexOf("https://", from);
+        String lower = text.toLowerCase(java.util.Locale.ROOT);
+        int http = lower.indexOf("http://", from);
+        int https = lower.indexOf("https://", from);
         if (http < 0) {
             return https;
         }

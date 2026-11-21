@@ -64,6 +64,9 @@ public final class FCastAddReceiverText {
             case FULL:
                 lines.add(new Line(R.string.fcast_receivers_error_full, FCastStoredReceivers.MAX_MANUAL));
                 break;
+            case LINK_LOCAL:
+                lines.add(new Line(R.string.fcast_receivers_error_link_local));
+                break;
             case ALREADY_LISTED:
                 lines.add(new Line(R.string.fcast_receivers_error_already));
                 break;

@@ -226,12 +226,17 @@ final class FCastRowBinder {
         long now = SystemClock.elapsedRealtime();
         if (row.getVolume() >= 0) {
             rows.showVolume(views, id, now, row.getVolume());
+        } else if (!views.volume.isPressed()) {
+            // an idle card has no connection and no value: nothing of the card that was in this row before stays on screen
+            views.volume.setProgress(0);
+            views.volumeText.setText("");
         }
         boolean muteWorks = player instanceof FCastPlayer;
         views.mute.setEnabled(muteWorks);
         views.mute.setAlpha(muteWorks ? 1f : 0.5f);
-        if (muteWorks && views.mute.isChecked() != row.isMuted()) {
-            views.mute.setChecked(row.isMuted());
+        boolean muted = muteWorks && row.isMuted();
+        if (views.mute.isChecked() != muted) {
+            views.mute.setChecked(muted);
         }
         SnapcastMuteToggle.syncState(context, views.mute);
     }

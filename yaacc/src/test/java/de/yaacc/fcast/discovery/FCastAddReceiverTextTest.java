@@ -86,6 +86,11 @@ public class FCastAddReceiverTextTest {
     }
 
     @Test
+    public void aLinkLocalAddressHasItsOwnLine() {
+        assertEquals(java.util.Collections.singletonList(R.string.fcast_receivers_error_link_local), ids(FCastAddReceiverText.lines(add.add("fe80::1"))));
+    }
+
+    @Test
     public void aLinkWithoutAddressOrServiceSaysWhichIsMissing() {
         String noAddress = FCastConnectionUrl.PREFIX + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
                 "{\"addresses\":[\"8.8.8.8\"],\"services\":[{\"port\":1,\"type\":0}]}".getBytes(java.nio.charset.StandardCharsets.UTF_8));

@@ -147,10 +147,10 @@
     <string name="settings_renderer_output_group_named">%1$s auf Server %2$s. Tippen zum Ändern.</string>
     <string name="settings_renderer_output_group_damaged">Die gespeicherte Gruppe ist beschädigt; der Empfänger spielt auf diesem Gerät. Tippen, um die Gruppe neu zu wählen.</string>
     <string name="settings_fcast_category">FCast</string>
-    <string name="settings_fcast_about_title">About FCast</string>
-    <string name="settings_fcast_about_summary">YAACC can play to FCast receivers on your network. This application is an independent community implementation of the FCast protocol. It is not affiliated with FUTO. FCast is a registered trademark of FUTO.</string>
-    <string name="settings_fcast_discovery_title">Find FCast receivers</string>
-    <string name="settings_fcast_discovery_summary">Searches the local network for FCast receivers; on by default. It sends mDNS queries and lists every device that announces itself. Announcements are not authenticated: anyone on the network can announce a receiver. Nothing is played to a receiver before you choose it. Data is sent unencrypted (protocol v3).</string>
-    <string name="settings_fcast_receivers_title">FCast receivers</string>
-    <string name="settings_fcast_receivers_summary">Add a receiver by address, device name or connection link, or remove it</string>
+    <string name="settings_fcast_about_title">Über FCast</string>
+    <string name="settings_fcast_about_summary">YAACC kann auf FCast-Empfängern in Ihrem Netzwerk abspielen. Diese Anwendung ist eine unabhängige Community-Implementierung des FCast-Protokolls. Sie ist nicht mit FUTO verbunden. FCast ist eine eingetragene Marke von FUTO.</string>
+    <string name="settings_fcast_discovery_title">FCast-Empfänger suchen</string>
+    <string name="settings_fcast_discovery_summary">Sucht im lokalen Netzwerk nach FCast-Empfängern; standardmäßig an. Es sendet mDNS-Anfragen und listet jedes Gerät auf, das sich meldet. Meldungen werden nicht authentifiziert: Jeder im Netzwerk kann einen Empfänger ankündigen. Es wird nichts auf einem Empfänger abgespielt, bevor Sie ihn auswählen. Die Daten werden unverschlüsselt gesendet (Protokoll v3).</string>
+    <string name="settings_fcast_receivers_title">FCast-Empfänger</string>
+    <string name="settings_fcast_receivers_summary">Empfänger per Adresse, Gerätename oder Verbindungslink hinzufügen oder entfernen</string>
 </resources>

@@ -174,4 +174,17 @@ public class FCastLiveSourceTest {
         assertEquals(1, refreshes);
         assertEquals(2, hub.started);
     }
+
+    @Test
+    public void aChangeThatWasQueuedBeforeAStopDoesNotBlockTheNextStart() {
+        source.start();
+        hub.change(); // a hop is queued
+        source.stop(); // it is dropped: the flag that says "a hop is queued" must be reset with it
+        source.start();
+
+        hub.change();
+        poster.advance(10_000);
+
+        assertEquals("the page refreshes after a stop and a start", 1, refreshes);
+    }
 }

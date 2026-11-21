@@ -545,4 +545,5 @@
     <string name="fcast_link_addresses">Addresses:</string>
     <string name="fcast_link_note">The receiver is added to your list of FCast receivers. Nothing is played to it until you choose it. FCast sends data unencrypted (protocol v3).</string>
     <string name="fcast_link_not_a_link">This is not an FCast link.</string>
+    <string name="fcast_receivers_error_link_local">Addresses that start with fe80 (IPv6 link-local) need a network zone that cannot be stored. Use the IPv4 address or a global IPv6 address of the receiver.</string>
 </resources>
