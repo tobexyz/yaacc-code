@@ -53,60 +53,60 @@ public class NetworkInterfaceManager {
     public static List<NetworkInterfaceInfo> getAvailableInterfaces(Context context) {
         List<NetworkInterfaceInfo> result = new ArrayList<>();
         try {
-            for (Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces(); 
+            for (Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
                  networkInterfaces.hasMoreElements(); ) {
                 NetworkInterface networkInterface = networkInterfaces.nextElement();
-                
+
                 // Skip loopback and virtual interfaces
                 if (networkInterface.isLoopback() || networkInterface.isVirtual()) {
                     continue;
                 }
-                
-                for (Enumeration<InetAddress> inetAddresses = networkInterface.getInetAddresses(); 
+
+                for (Enumeration<InetAddress> inetAddresses = networkInterface.getInetAddresses();
                      inetAddresses.hasMoreElements(); ) {
                     InetAddress inetAddress = inetAddresses.nextElement();
-                    if (!inetAddress.isLoopbackAddress() && 
-                        inetAddress.getHostAddress() != null && 
-                        IPV4_PATTERN.matcher(inetAddress.getHostAddress()).matches()) {
-                        
-                        String displayName = String.format("%s (%s)", 
-                            networkInterface.getDisplayName(), inetAddress.getHostAddress());
-                        
+                    if (!inetAddress.isLoopbackAddress() &&
+                            inetAddress.getHostAddress() != null &&
+                            IPV4_PATTERN.matcher(inetAddress.getHostAddress()).matches()) {
+
+                        String displayName = String.format("%s (%s)",
+                                networkInterface.getDisplayName(), inetAddress.getHostAddress());
+
                         result.add(new NetworkInterfaceInfo(
-                            networkInterface.getName(),
-                            displayName,
-                            inetAddress
+                                networkInterface.getName(),
+                                displayName,
+                                inetAddress
                         ));
                     }
                 }
             }
         } catch (SocketException e) {
-            YaaccLogger.e(NetworkInterfaceManager.class.getName(), 
-                "Error while retrieving network interfaces", e);
+            YaaccLogger.e(NetworkInterfaceManager.class.getName(),
+                    "Error while retrieving network interfaces", e);
         }
         return result;
     }
 
     public static String getSelectedInterfaceName(Context context) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        return prefs.getString(context.getString(R.string.settings_upnp_selected_interface_key), "");
+        return prefs.getString(context.getString(R.string.settings_selected_interface_key), "");
     }
 
     public static void setSelectedInterfaceName(Context context, String interfaceName) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        prefs.edit().putString(context.getString(R.string.settings_upnp_selected_interface_key), interfaceName).apply();
+        prefs.edit().putString(context.getString(R.string.settings_selected_interface_key), interfaceName).apply();
     }
 
     public static NetworkInterfaceInfo getSelectedInterface(Context context) {
         String selectedName = getSelectedInterfaceName(context);
         List<NetworkInterfaceInfo> interfaces = getAvailableInterfaces(context);
-        
+
         for (NetworkInterfaceInfo info : interfaces) {
             if (selectedName.equals(info.name)) {
                 return info;
             }
         }
-        
+
         return null;
     }
 
@@ -116,14 +116,14 @@ public class NetworkInterfaceManager {
         if (selected != null) {
             return selected;
         }
-        
+
         // Otherwise use best effort (current behavior)
         InterfaceResolutionHelper.InterfaceHolder holder = InterfaceResolutionHelper.getNetworkInterface(context);
         if (holder.inetAddress != null && holder.networkInterface != null) {
             NetworkInterfaceInfo info = new NetworkInterfaceInfo(
-                holder.networkInterface.getName(),
-                holder.networkInterface.getDisplayName() + " (" + holder.inetAddress.getHostAddress() + ")",
-                holder.inetAddress
+                    holder.networkInterface.getName(),
+                    holder.networkInterface.getDisplayName() + " (" + holder.inetAddress.getHostAddress() + ")",
+                    holder.inetAddress
             );
             return info;
         }

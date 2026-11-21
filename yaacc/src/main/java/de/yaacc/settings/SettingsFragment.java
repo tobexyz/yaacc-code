@@ -45,8 +45,8 @@ import de.yaacc.multiroom.client.SnapcastClientPowers;
 import de.yaacc.multiroom.client.SnapcastClientRuntime;
 import de.yaacc.multiroom.client.SnapcastClientService;
 import de.yaacc.upnp.UpnpClient;
-import de.yaacc.util.NetworkInterfaceManager;
 import de.yaacc.upnp.server.ServerAutostart;
+import de.yaacc.util.NetworkInterfaceManager;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -90,7 +90,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
 
         // The boot receiver follows this setting (also applied at every start of the app, see Yaacc.onCreate). The listener runs
         // before the value is stored, so the new value is used.
-        androidx.preference.CheckBoxPreference autostart = findPreference(getString(R.string.settings_local_server_autostart_chkbx));
+        androidx.preference.CheckBoxPreference autostart = findPreference(getString(R.string.settings_autostart_chkbx));
         if (autostart != null) {
             autostart.setOnPreferenceChangeListener((preference, newValue) -> {
                 ServerAutostart.applySetting(requireContext().getApplicationContext(), Boolean.TRUE.equals(newValue));
@@ -172,7 +172,9 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         super.onStop();
     }
 
-    /** Makes the list, the chooser's visibility and its summary show what is stored now (somebody else changed it). */
+    /**
+     * Makes the list, the chooser's visibility and its summary show what is stored now (somebody else changed it).
+     */
     private void showRendererOutputAsStored() {
         if (!isAdded() || getContext() == null) {
             return;
@@ -235,9 +237,9 @@ public class SettingsFragment extends PreferenceFragmentCompat {
      * of the client (the same state as the switch on the first page and the test screen).
      */
     private void setUpSnapcastClientSpike() {
-        androidx.preference.CheckBoxPreference spike = findPreference(getString(R.string.settings_snapcast_client_spike));
+        androidx.preference.CheckBoxPreference spike = findPreference(getString(R.string.settings_snapcast_client));
         androidx.preference.CheckBoxPreference switchedOn = findPreference(getString(R.string.settings_snapcast_client_switched_on));
-        androidx.preference.Preference open = findPreference(getString(R.string.settings_snapcast_client_spike_open));
+        androidx.preference.Preference open = findPreference(getString(R.string.settings_snapcast_client_open));
         if (spike == null || open == null) {
             return;
         }
@@ -274,7 +276,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
 
     private void populateNetworkInterfaceList() {
         ListPreference interfacePreference =
-                findPreference(getString(R.string.settings_upnp_selected_interface_key));
+                findPreference(getString(R.string.settings_selected_interface_key));
         if (interfacePreference == null) return;
 
         List<NetworkInterfaceManager.NetworkInterfaceInfo> interfaces =
@@ -289,7 +291,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         List<String> entries = new ArrayList<>();
         List<String> values = new ArrayList<>();
 
-        entries.add(getString(R.string.settings_upnp_selected_interface_none));
+        entries.add(getString(R.string.settings_selected_interface_none));
         values.add("");
 
         for (NetworkInterfaceManager.NetworkInterfaceInfo info : interfaces) {
@@ -306,17 +308,17 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         interfacePreference.setOnPreferenceChangeListener((preference, newValue) -> {
             String selectedInterface = (String) newValue;
             if (!selectedInterface.isEmpty() && blacklist.stream().anyMatch(b -> selectedInterface.startsWith(b.trim()))) {
-                interfacePreference.setSummary(getString(R.string.settings_upnp_selected_interface_blacklisted_warning));
+                interfacePreference.setSummary(getString(R.string.settings_selected_interface_blacklisted_warning));
             } else {
-                interfacePreference.setSummary(getString(R.string.settings_upnp_selected_interface_summary));
+                interfacePreference.setSummary(getString(R.string.settings_selected_interface_summary));
             }
             return true;
         });
 
         // Set initial warning summary if selected interface is blacklisted
-        String selectedInterface = prefs.getString(getString(R.string.settings_upnp_selected_interface_key), "");
+        String selectedInterface = prefs.getString(getString(R.string.settings_selected_interface_key), "");
         if (!selectedInterface.isEmpty() && blacklist.stream().anyMatch(b -> selectedInterface.startsWith(b.trim()))) {
-            interfacePreference.setSummary(getString(R.string.settings_upnp_selected_interface_blacklisted_warning));
+            interfacePreference.setSummary(getString(R.string.settings_selected_interface_blacklisted_warning));
         }
     }
 

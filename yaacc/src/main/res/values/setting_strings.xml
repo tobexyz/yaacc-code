@@ -131,10 +131,10 @@
     <string name="settings_local_server_serve_screen_cast_chkbx" translatable="false">local_server_serve_screen_cast_chkbx</string>
     <string name="settings_local_server_name">network name for local server</string>
     <string name="settings_local_server_name_key" translatable="false">settings_local_server_name_key</string>
-    <string name="settings_local_server_autostart_title">autostart server on boot</string>
-    <string name="settings_local_server_autostart_deactivated">nothing starts after booting; the app closes itself when idle</string>
-    <string name="settings_local_server_autostart_activated">the services that are switched on start after booting; the app is then never closed automatically</string>
-    <string name="settings_local_server_autostart_chkbx" translatable="false">settings_local_server_autostart_chkbx</string>
+    <string name="settings_autostart_title">autostart on boot</string>
+    <string name="settings_autostart_deactivated">nothing starts after booting; the app closes itself when idle</string>
+    <string name="settings_autostart_activated">the services that are switched on start after booting; the app is then never closed automatically</string>
+    <string name="settings_autostart_chkbx" translatable="false">settings_autostart_chkbx</string>
     <string name="settings_sending_upnp_alive_interval">sending UPnP alive notifications</string>
     <string name="settings_sending_upnp_alive_interval_key" translatable="false">settings_sending_upnp_alive_interval_key</string>
     <string name="settings_category_playing">media playing behavior</string>
@@ -153,14 +153,14 @@
     <string name="settings_browse_swipe_on">Change tabs on swipe and touch</string>
     <string name="settings_browse_swipe_title">Swipe on browse</string>
     <string name="settings_upnp_if_filter_key" translatable="false">settings_upnp_if_filter_key</string>
-    <string name="settings_upnp_if_filter_names">blacklisted interfaces for UPnP network interface discovery</string>
+    <string name="settings_if_filter_names">blacklisted interfaces for network interface discovery</string>
     <string name="settings_upnp_if_filter_default" translatable="false">lo,dummy,rmnet,ccmni,tun</string>
-    <string name="settings_upnp_selected_interface_key" translatable="false">settings_upnp_selected_interface_key</string>
-    <string name="settings_upnp_selected_interface_title">UPnP network interface</string>
-    <string name="settings_upnp_selected_interface_summary">Select specific network interface for UPnP (empty = auto-detect)</string>
-    <string name="settings_upnp_selected_interface_none">Auto-detect (best effort)</string>
+    <string name="settings_selected_interface_key" translatable="false">settings_selected_interface_key</string>
+    <string name="settings_selected_interface_title">network interface</string>
+    <string name="settings_selected_interface_summary">Select specific network interface (empty = auto-detect)</string>
+    <string name="settings_selected_interface_none">Auto-detect (best effort)</string>
     <string name="settings_media_paths_pref_key" translatable="false">settings_media_paths_pref_key</string>
-    <string name="settings_upnp_selected_interface_blacklisted_warning">⚠️ Selected interface is blacklisted and to use it remove it from the list!</string>
+    <string name="settings_selected_interface_blacklisted_warning">⚠️ Selected interface is blacklisted and to use it remove it from the list!</string>
     <string name="settings_shutdown_timer" translatable="false">settings_local_server_shutdown_timer_chkbx</string>
     <string name="settings_saf_tree_uris_pref_key" translatable="false">settings_saf_tree_uris_pref_key</string>
     <string name="settings_saf_tree_uris_selected_pref_key" translatable="false">settings_saf_tree_uris_selected_pref_key</string>
@@ -179,16 +179,16 @@
     <string name="settings_snapcast_about_summary">YAACC plays into an existing Snapcast server; it needs one reachable on your network.</string>
     <string name="settings_snapcast_discovery" translatable="false">settings_snapcast_discovery</string>
     <string name="settings_snapcast_servers" translatable="false">settings_snapcast_servers</string>
-    <string name="settings_snapcast_client_spike_title">Snapcast client</string>
-    <string name="settings_snapcast_client_spike_summary">Lets this phone act as a Snapcast client: adds the Snapcast client switch to the first page and its card. Off by default. Audio and control are sent unencrypted.</string>
-    <string name="settings_snapcast_client_spike_open_title">Snapcast client details</string>
-    <string name="settings_snapcast_client_spike_open_summary">Shows the connection state, the sync values and the event trace of this client, for troubleshooting.</string>
+    <string name="settings_snapcast_client_title">Snapcast client</string>
+    <string name="settings_snapcast_client_summary">Lets this phone act as a Snapcast client: adds the Snapcast client switch to the first page and its card. Off by default. Audio and control are sent unencrypted.</string>
+    <string name="settings_snapcast_client_open_title">Snapcast client details</string>
+    <string name="settings_snapcast_client_open_summary">Shows the connection state, the sync values and the event trace of this client, for troubleshooting.</string>
     <string name="settings_snapcast_client_switched_on_title">Connected to the Snapcast server</string>
     <string name="settings_snapcast_client_switched_on_summary_on">This phone is connected to a Snapcast server and plays as a client.</string>
     <string name="settings_snapcast_client_switched_on_summary_off">This phone is not connected to a Snapcast server.</string>
     <string name="settings_snapcast_client_switched_on" translatable="false">settings_snapcast_client_switched_on</string>
-    <string name="settings_snapcast_client_spike" translatable="false">settings_snapcast_client_spike</string>
-    <string name="settings_snapcast_client_spike_open" translatable="false">settings_snapcast_client_spike_open</string>
+    <string name="settings_snapcast_client" translatable="false">settings_snapcast_client_spike</string>
+    <string name="settings_snapcast_client_open" translatable="false">settings_snapcast_client_spike_open</string>
     <string name="settings_renderer_output_title">Output</string>
     <string name="settings_renderer_output_summary">The audio is sent unencrypted to the server. Any device that can reach the receiver can change the volume and mute of the whole group. Snapcast group: only the group plays, this phone stays silent; volume and mute are the group\'s.</string>
     <string name="settings_renderer_output_device">This device</string>
