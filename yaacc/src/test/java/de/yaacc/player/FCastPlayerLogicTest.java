@@ -283,6 +283,123 @@ public class FCastPlayerLogicTest {
         assertEquals("the receiver has not paused yet", Action.NONE, logic.onState(state(Playback.PLAYING, 5.4, 30.0, Pending.PAUSE, false)));
     }
 
+    // ---- the guards of the safety net and of the end rules
+
+    private FCastReceiverState nearEnd(Playback playback, Pending pending, boolean elsewhere) {
+        return state(playback, 29.8, 30.0, pending, elsewhere).toBuilder().playbackUpdatedAt(100_000).build();
+    }
+
+    @Test
+    public void theSafetyNetNeverFiresAfterAPauseOfOurOwn() {
+        startItem();
+        logic.onState(state(Playback.PLAYING, 29.0, 30.0));
+        logic.onPauseCommand();
+        now.addAndGet(10_000);
+
+        assertEquals(Action.NONE, logic.onTick(nearEnd(Playback.PLAYING, Pending.NONE, false)));
+    }
+
+    @Test
+    public void theSafetyNetNeverFiresWhileACommandIsPending() {
+        startItem();
+        logic.onState(state(Playback.PLAYING, 29.0, 30.0));
+        now.addAndGet(10_000);
+
+        for (Pending pending : new Pending[]{Pending.SEEK, Pending.PAUSE, Pending.RESUME, Pending.STOP, Pending.PLAY}) {
+            assertEquals("pending " + pending, Action.NONE, logic.onTick(nearEnd(Playback.PLAYING, pending, false)));
+        }
+    }
+
+    @Test
+    public void theSafetyNetNeverFiresForAnotherSendersItemOrAnItemThatIsNotPlaying() {
+        startItem();
+        logic.onState(state(Playback.PLAYING, 29.0, 30.0));
+        now.addAndGet(10_000);
+
+        assertEquals(Action.NONE, logic.onTick(nearEnd(Playback.PLAYING, Pending.NONE, true)));
+        assertEquals("a paused item near its end is paused, not ended", Action.NONE, logic.onTick(nearEnd(Playback.PAUSED, Pending.NONE, false)));
+        assertEquals(Action.NONE, logic.onTick(nearEnd(Playback.IDLE, Pending.NONE, false)));
+        assertEquals(Action.NONE, logic.onTick(nearEnd(Playback.UNKNOWN, Pending.NONE, false)));
+        assertEquals("and with the item itself it fires", Action.ITEM_ENDED, logic.onTick(nearEnd(Playback.PLAYING, Pending.NONE, false)));
+    }
+
+    @Test
+    public void theSafetyNetDoesNotJudgeTheOldItemsStateAfterOurPlay() {
+        startItem();
+        logic.onState(state(Playback.PLAYING, 29.0, 30.0));
+        FCastReceiverState oldItem = nearEnd(Playback.PLAYING, Pending.NONE, false); // taken at 100_000
+        now.addAndGet(5_000);
+        startItem(); // the next item; the receiver has not answered yet
+
+        now.addAndGet(5_000);
+        assertEquals(Action.NONE, logic.onTick(oldItem));
+    }
+
+    @Test
+    public void aPausedUpdateWhileOurResumeOrSeekIsPendingIsNoEnd() {
+        startItem();
+        logic.onState(state(Playback.PLAYING, 29.0, 30.0));
+
+        assertEquals(Action.NONE, logic.onState(state(Playback.PAUSED, 30.0, 30.0, Pending.RESUME, false)));
+        assertEquals(Action.NONE, logic.onState(state(Playback.PAUSED, 30.0, 30.0, Pending.SEEK, false)));
+        assertEquals(Action.ITEM_ENDED, logic.onState(state(Playback.PAUSED, 30.0, 30.0)));
+    }
+
+    @Test
+    public void anIdleWhileOurPlayIsPendingIsTheOldItemClearing() {
+        startItem();
+        logic.onState(state(Playback.PLAYING, 29.0, 30.0));
+        startItem(); // the next item; a stale Playing update of the old one arrives
+        logic.onState(state(Playback.PLAYING, 29.5, 30.0, Pending.PLAY, false));
+
+        assertEquals(Action.NONE, logic.onState(state(Playback.IDLE, null, null, Pending.PLAY, false)));
+    }
+
+    @Test
+    public void anIdleAfterTheEndIsNoStopOfTheReceiver() {
+        startItem();
+        logic.onState(state(Playback.PLAYING, 29.0, 30.0));
+        assertEquals(Action.ITEM_ENDED, logic.onEvent(FCastMessages.EVENT_MEDIA_ITEM_END, URL));
+
+        assertEquals(Action.NONE, logic.onState(state(Playback.IDLE, null, null)));
+    }
+
+    @Test
+    public void theSerialChangesWithEveryStartStopAndErrorSoThatDeferredActionsCanBeDropped() {
+        int start = logic.serial();
+        startItem();
+        int afterPlay = logic.serial();
+        assertTrue(afterPlay != start);
+        assertTrue(logic.isActive());
+        logic.onPauseCommand();
+        logic.onResumeCommand();
+        logic.onState(state(Playback.PLAYING, 1.0, 30.0));
+        assertEquals("pause, resume and reports do not change it", afterPlay, logic.serial());
+
+        logic.onStopCommand();
+        int afterStop = logic.serial();
+        assertTrue(afterStop != afterPlay);
+        assertFalse(logic.isActive());
+
+        startItem();
+        int afterSecondPlay = logic.serial();
+        logic.onError(true);
+        assertTrue(logic.serial() != afterSecondPlay);
+        assertFalse(logic.isActive());
+    }
+
+    @Test
+    public void everyMethodThatTouchesTheStateIsSynchronized() {
+        // the logic is called from the executor of the session, the timer thread of the player, the main thread and the screen
+        for (java.lang.reflect.Method method : FCastPlayerLogic.class.getDeclaredMethods()) {
+            int modifiers = method.getModifiers();
+            if (java.lang.reflect.Modifier.isStatic(modifiers) || method.isSynthetic() || java.lang.reflect.Modifier.isPrivate(modifiers)) {
+                continue;
+            }
+            assertTrue(method.getName() + " is not synchronized", java.lang.reflect.Modifier.isSynchronized(modifiers));
+        }
+    }
+
     // ---- errors
 
     @Test

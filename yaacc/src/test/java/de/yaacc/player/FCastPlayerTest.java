@@ -453,6 +453,143 @@ public class FCastPlayerTest {
         assertEquals("image/jpeg", receiver.received(Op.PLAY).get(0).json().getString("container"));
     }
 
+    // ---- what the review of Group 4 found
+
+    @Test
+    public void anErrorAfterOurStopDoesNotStartTheNextItem() throws Exception {
+        startTwoItems();
+        player.stop();
+        await(() -> receiver.received(Op.STOP).size() == 1);
+
+        receiver.session(0).sendPlaybackError("late error");
+        Thread.sleep(400);
+
+        assertEquals(1, receiver.received(Op.PLAY).size());
+        assertFalse(player.isPlaying());
+    }
+
+    @Test
+    public void anErrorOfAnotherSendersItemIsNoneOfOurBusiness() throws Exception {
+        startTwoItems();
+        receiver.session(0).sendPlayUpdate("video/mp4", "http://other.example/movie.mp4");
+        await(() -> player.getSession().getState().isItemFromElsewhere());
+
+        receiver.session(0).sendPlaybackError("their item failed");
+        Thread.sleep(400);
+
+        assertEquals("we do not play over them", 1, receiver.received(Op.PLAY).size());
+        assertFalse(toasts.contains(R.string.fcast_play_failed));
+    }
+
+    @Test
+    public void anErrorOfOurItemRightAfterAnotherSendersItemStillCounts() throws Exception {
+        startTwoItems();
+        receiver.session(0).sendPlayUpdate("video/mp4", "http://other.example/movie.mp4");
+        await(() -> player.getSession().getState().isItemFromElsewhere());
+        player.next(); // our own Play now claims the receiver again
+        awaitPlays(2);
+        await(() -> !player.getSession().getState().isItemFromElsewhere());
+
+        receiver.session(0).sendPlaybackError("cannot load");
+
+        await(() -> toasts.contains(R.string.fcast_play_failed));
+    }
+
+    @Test
+    public void ourStopLeavesAnotherSendersItemPlaying() throws Exception {
+        startTwoItems();
+        receiver.session(0).sendPlayUpdate("video/mp4", "http://other.example/movie.mp4");
+        await(() -> player.getSession().getState().isItemFromElsewhere());
+
+        player.stop();
+        await(() -> !player.isPlaying());
+        Thread.sleep(300);
+
+        assertEquals(0, receiver.received(Op.STOP).size());
+    }
+
+    @Test
+    public void leavingLeavesAnotherSendersItemPlaying() throws Exception {
+        startTwoItems();
+        receiver.session(0).sendPlayUpdate("video/mp4", "http://other.example/movie.mp4");
+        await(() -> player.getSession().getState().isItemFromElsewhere());
+
+        player.onDestroy();
+        Thread.sleep(400);
+
+        assertEquals(0, receiver.received(Op.STOP).size());
+    }
+
+    @Test
+    public void anEndThatArrivesWhileACommandRunsIsRetriedUntilThePlayerIsFree() throws Exception {
+        startTwoItems();
+        player.setProcessingCommand(true);
+
+        receiverEnds(A);
+        Thread.sleep(400);
+        assertEquals("not while a command runs", 1, receiver.received(Op.PLAY).size());
+        player.setProcessingCommand(false);
+
+        awaitPlays(2);
+        assertEquals(B, playUrl(1));
+    }
+
+    @Test
+    public void aDeferredEndIsDroppedWhenTheUserStartedOrStoppedSomethingMeanwhile() throws Exception {
+        startTwoItems();
+        player.setProcessingCommand(true);
+        receiverEnds(A);
+        Thread.sleep(150);
+
+        player.logic().onStopCommand(); // the user's stop ran in the meantime
+        player.setProcessingCommand(false);
+        Thread.sleep(600);
+
+        assertEquals("the stale end did not restart playback", 1, receiver.received(Op.PLAY).size());
+    }
+
+    @Test
+    public void aSpeedIsSentAtOnceAndWithTheFollowingItems() throws Exception {
+        startTwoItems();
+
+        player.setSpeed(2.0);
+        await(() -> receiver.received(Op.SET_SPEED).size() == 1);
+        assertEquals(2.0, receiver.received(Op.SET_SPEED).get(0).json().getDouble("speed"), 0.0001);
+        receiverEnds(A);
+
+        awaitPlays(2);
+        assertEquals(2.0, receiver.received(Op.PLAY).get(1).json().getDouble("speed"), 0.0001);
+        assertFalse("the first item had none", receiver.received(Op.PLAY).get(0).json().has("speed"));
+    }
+
+    @Test
+    public void aResumeOfAnItemThatThePausedReceiverNoLongerHoldsPlaysItAgainFromWhereItWas() throws Exception {
+        startTwoItems(); // position 1.0 s
+        player.pause();
+        await(() -> receiver.received(Op.PAUSE).size() == 1);
+
+        player.play(); // the receiver never reported Paused: it is not sure to hold the item
+
+        awaitPlays(2);
+        assertEquals(A, playUrl(1));
+        assertTrue(receiver.received(Op.PLAY).get(1).json().getDouble("time") >= 1.0);
+    }
+
+    @Test
+    public void anItemThatDoesNotFitThePacketIsSkippedWithItsOwnMessage() throws Exception {
+        StringBuilder url = new StringBuilder("http://192.168.0.5/");
+        while (url.length() < 33_000) {
+            url.append('a');
+        }
+        player.setItems(item(url.toString(), "audio/mpeg", "huge"), item(B, "audio/mpeg", "Second"));
+
+        player.play();
+
+        awaitPlays(1);
+        assertEquals(B, playUrl(0));
+        assertTrue(toasts.contains(R.string.fcast_item_too_large));
+    }
+
     // ---- leaving
 
     @Test
@@ -464,6 +601,29 @@ public class FCastPlayerTest {
         await(() -> receiver.received(Op.STOP).size() >= 1);
         await(() -> player.getSession().getState().getLink() == FCastReceiverState.Link.IDLE);
         assertEquals(1, receiver.acceptedCount());
+    }
+
+    @Test
+    public void leavingWhileACommandRunsStillStopsTheItem() throws Exception {
+        startTwoItems();
+        player.setProcessingCommand(true); // the base class would ignore its own stop now
+
+        player.onDestroy();
+
+        await(() -> receiver.received(Op.STOP).size() >= 1);
+    }
+
+    @Test
+    public void theConnectionStaysOpenUntilTheReceiverAnsweredOurStopOrTwoSecondsPassed() throws Exception {
+        startTwoItems();
+        long left = System.currentTimeMillis();
+
+        player.onDestroy();
+
+        await(() -> player.getSession().getState().getLink() == FCastReceiverState.Link.IDLE);
+        long closedAfter = System.currentTimeMillis() - left;
+        assertTrue("closed after " + closedAfter + " ms, before the Stop could be answered or timed out", closedAfter >= 200);
+        assertTrue(receiver.received(Op.STOP).size() >= 1);
     }
 
     @Test

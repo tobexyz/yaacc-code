@@ -66,6 +66,10 @@ Rule: use v4 when the Android version supports it and the receiver supports it (
 - **Leaving:** the player stops the item, waits up to 2 s for the receiver's answer and then closes the session, so no connection is left; the 30 s idle close is only the fallback.
 - **An earlier player of the same receiver is ended first** when a new one is made; the old Stop leaves before the new connection can send a Play.
 
+### D18. Review of Group 4, cycle 1 (2026-11-21): what was fixed and what is deferred
+**Fixed:** an error of the receiver is acted on only for our own active item (not after our stop, not for another sender's item); a deferred end or stop is dropped if the user started or stopped something meanwhile (a play serial in the logic); our Stop and the Stop on leaving are not sent while the receiver shows another sender's item (our own `Play` claims the item in the session state until the receiver says otherwise); `FCastPlayerLogic` is synchronized; an Idle after the end is no stop of the receiver; a Paused update with our Resume or Seek pending is no end; the safety net ignores the state of the old item after our `Play`; the size check counts the speed; the base class `updateTimer` acts for pictures only.
+**Deferred (written into the tasks):** the end event lost during a reconnect, the player then shows playing until the user acts (gate 6.2, and the settings sheet shows the link state, task 5.3); a host-name receiver has no share allowance until its name is resolved (task 5.7: store the resolved address); pictures go through the same state rules as audio and video (gate 6.2); the tick runs for the whole life of the player (a cost of one wake per second, to be revisited if the owner sees battery use); `createSession` is called from the constructor (works, a factory argument is a cleanup for later).
+
 ### Answers to the earlier questions (owner, 2026-11-20)
 - **Q2:** no receiver hardware; a software receiver on a notebook (D13).
 - **Q3:** music, video and pictures all three are in scope (the design already plays all three).

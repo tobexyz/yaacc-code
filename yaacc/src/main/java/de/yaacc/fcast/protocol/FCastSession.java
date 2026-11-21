@@ -210,6 +210,12 @@ public final class FCastSession implements AutoCloseable {
             }
             if (playedUrl != null) {
                 lastPlayedUrl = playedUrl;
+                // from now on the item is ours until the receiver says otherwise (an item of another sender that was shown before
+                // must not make the answers to our own Play look foreign: an error, a stop)
+                if (state.isItemFromElsewhere()) {
+                    publish(state.toBuilder().item(FCastText.clean(playedUrl, FCastText.MAX_URL), state.getItemContainer(),
+                            state.getItemTitle(), false));
+                }
             }
             if (pending != FCastReceiverState.Pending.NONE) {
                 setPending(pending);

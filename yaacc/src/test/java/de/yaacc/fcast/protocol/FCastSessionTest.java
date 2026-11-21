@@ -302,6 +302,23 @@ public class FCastSessionTest {
     }
 
     @Test
+    public void ourOwnPlayClaimsTheItemAfterAnotherSendersItem() throws Exception {
+        FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
+        FCastSession session = session(connectorTo(receiver.port()), new Events(), fastSession());
+        session.acquire();
+        session.play(song("http://h/first.mp3"));
+        assertTrue(receiver.awaitPackets(Op.PLAY, 1, WAIT));
+        receiver.session(0).sendPlayUpdate("video/mp4", "http://other/movie.mp4");
+        assertTrue(await(session, s -> s.isItemFromElsewhere(), WAIT));
+
+        session.play(song("http://h/ours.mp3"));
+
+        assertTrue(receiver.awaitPackets(Op.PLAY, 2, WAIT));
+        assertTrue("the answers to our Play are not foreign", await(session, s -> !s.isItemFromElsewhere(), WAIT));
+        assertEquals("http://h/ours.mp3", session.getState().getItemUrl());
+    }
+
+    @Test
     public void aPlaybackErrorIsShownOnceAndEndsThePendingPlay() throws Exception {
         FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
         Events events = new Events();

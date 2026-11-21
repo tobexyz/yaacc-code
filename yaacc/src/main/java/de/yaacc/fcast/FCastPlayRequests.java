@@ -92,6 +92,12 @@ public final class FCastPlayRequests {
      */
     public static Result build(String url, String describedType, String extensionType, String title, String artUrl,
                                double startSeconds, double volume) {
+        return build(url, describedType, extensionType, title, artUrl, startSeconds, volume, 1.0);
+    }
+
+    /** As above; {@code speed} 1.0 or NaN is not sent, other values are clamped by the message (the size check counts it). */
+    public static Result build(String url, String describedType, String extensionType, String title, String artUrl,
+                               double startSeconds, double volume, double speed) {
         if (url == null || url.trim().isEmpty()) {
             return new Result(null, Refusal.NO_URL);
         }
@@ -102,6 +108,9 @@ public final class FCastPlayRequests {
         }
         if (!Double.isNaN(volume)) {
             request.volume(FCastText.clamp(volume, 0.0, 1.0));
+        }
+        if (!Double.isNaN(speed) && speed != 1.0) {
+            request.speed(speed);
         }
         request.title(title);
         if (isReachableWebAddress(artUrl)) {

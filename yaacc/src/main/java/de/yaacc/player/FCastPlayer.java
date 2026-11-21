@@ -127,6 +127,11 @@ public class FCastPlayer extends AbstractPlayer {
         return new FCastSession(connector, listener, new FCastSession.Config(), clock, executor);
     }
 
+    /** For tests: the decisions of this player. */
+    FCastPlayerLogic logic() {
+        return logic;
+    }
+
     /** The session, for the settings sheet and the tests. */
     public FCastSession getSession() {
         return session;
@@ -142,7 +147,10 @@ public class FCastPlayer extends AbstractPlayer {
 
         @Override
         public void onPlaybackError(String message) {
-            itemFailed(R.string.fcast_play_failed);
+            // an error of an item that is not ours (another sender's), or one that comes after our stop, is none of our business
+            if (logic.isActive() && !session.getState().isItemFromElsewhere()) {
+                itemFailed(R.string.fcast_play_failed);
+            }
         }
 
         @Override
@@ -205,7 +213,12 @@ public class FCastPlayer extends AbstractPlayer {
      * that the receiver reports only once must not be lost.
      */
     private void whenFree(final Runnable work, final int attempt) {
-        if (destroyed) {
+        whenFree(work, attempt, logic.serial());
+    }
+
+    /** The work was decided for the item of {@code serial}; a start or a stop since then makes it obsolete and it is dropped. */
+    private void whenFree(final Runnable work, final int attempt, final int serial) {
+        if (destroyed || logic.serial() != serial) {
             return;
         }
         if (!isProcessingCommand()) {
@@ -221,7 +234,7 @@ public class FCastPlayer extends AbstractPlayer {
             return;
         }
         try {
-            executor.schedule(() -> whenFree(work, attempt + 1), BUSY_RETRY_MILLIS, TimeUnit.MILLISECONDS);
+            executor.schedule(() -> whenFree(work, attempt + 1, serial), BUSY_RETRY_MILLIS, TimeUnit.MILLISECONDS);
         } catch (java.util.concurrent.RejectedExecutionException e) {
             // the player is gone
         }
@@ -234,7 +247,8 @@ public class FCastPlayer extends AbstractPlayer {
                 boolean hasNext = getNextItemIndex() != PlayOrder.NONE;
                 itemOnReceiver = false;
                 toast(textRes);
-                if (logic.onError(hasNext) == TrackFailurePolicy.Decision.SKIP) {
+                TrackFailurePolicy.Decision decision = logic.onError(hasNext);
+                if (decision == TrackFailurePolicy.Decision.SKIP) {
                     whenFree(this::next, 0);
                 } else {
                     whenFree(this::stop, 0);
@@ -259,15 +273,12 @@ public class FCastPlayer extends AbstractPlayer {
         }
         Uri uri = playableItem.getUri();
         FCastPlayRequests.Result result = FCastPlayRequests.build(uri == null ? null : uri.toString(), playableItem.getMimeType(), null,
-                playableItem.getTitle(), artAddress(playableItem), resumeAtMillis / 1000.0, Double.NaN);
+                playableItem.getTitle(), artAddress(playableItem), resumeAtMillis / 1000.0, Double.NaN, speed);
         resumeAtMillis = 0;
         if (result.getRequest() == null) {
             YaaccLogger.d(TAG, "FCast item refused: " + result.getRefusal());
             itemFailed(result.getRefusal() == FCastPlayRequests.Refusal.TOO_LARGE ? R.string.fcast_item_too_large : R.string.fcast_play_failed);
             return;
-        }
-        if (speed != 1.0) {
-            result.getRequest().speed(speed);
         }
         pausedLocally = false;
         itemOnReceiver = true;
@@ -280,9 +291,16 @@ public class FCastPlayer extends AbstractPlayer {
         logic.onStopCommand();
         pausedLocally = false;
         resumeAtMillis = 0;
+        stopReceiverItem();
+    }
+
+    /** Stops the receiver, but only for an item that is ours: another sender's item is left playing. */
+    private void stopReceiverItem() {
         if (itemOnReceiver) {
             itemOnReceiver = false;
-            session.stop();
+            if (!session.getState().isItemFromElsewhere()) {
+                session.stop();
+            }
         }
     }
 
@@ -317,6 +335,14 @@ public class FCastPlayer extends AbstractPlayer {
         // only a picture advances by a timer; the end of audio and video is reported by the receiver
         if (isImage(playableItem)) {
             super.doPostLoadItem(playableItem);
+        }
+    }
+
+    @Override
+    protected void updateTimer() {
+        // the base class derives an alarm from the receiver's duration; audio and video end by what the receiver reports
+        if (isImage(currentItem())) {
+            super.updateTimer();
         }
     }
 
@@ -481,11 +507,8 @@ public class FCastPlayer extends AbstractPlayer {
     public void onDestroy() {
         destroyed = true;
         tick.cancel(false);
-        if (itemOnReceiver) {
-            itemOnReceiver = false;
-            logic.onStopCommand();
-            session.stop();
-        }
+        logic.onStopCommand();
+        stopReceiverItem();
         super.onDestroy();
         session.release();
         closeSessionSoon(clock.nowMillis() + CLOSE_WAIT_MILLIS);

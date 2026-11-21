@@ -40,7 +40,8 @@ import de.yaacc.multiroom.control.MonotonicClock;
  * An {@code Idle} after the item played, without a stop of ours, means the receiver was stopped (by its user or another sender):
  * the player stops too, it does not advance. An {@code Idle} before the item played is the receiver clearing its old item.
  *
- * <p>Not thread safe: the player calls it from its own lock or one thread.
+ * <p>Thread safe: the methods are synchronized. The player calls them from the executor of its session, the timer thread of the base
+ * class, the main thread and the screen.
  */
 final class FCastPlayerLogic {
 
@@ -68,6 +69,8 @@ final class FCastPlayerLogic {
     private boolean sawPlaying;
     private boolean pausedByUs;
     private String playedUrl;
+    private long playedAt;
+    private int serial;
 
     private boolean muted;
     private Double volumeBeforeMute;
@@ -79,38 +82,54 @@ final class FCastPlayerLogic {
     // ------------------------------------------------------------------ our commands
 
     /** A new item is started by us. */
-    void onPlayCommand(String url) {
+    synchronized void onPlayCommand(String url) {
         active = true;
         ended = false;
         sawPlaying = false;
         pausedByUs = false;
         playedUrl = url;
+        playedAt = clock.nowMillis();
+        serial++;
     }
 
-    void onPauseCommand() {
+    /**
+     * Counts the items started and the stops: a deferred action (an end that waits for the player to be free) is dropped if the
+     * number changed, because the user's command made it obsolete.
+     */
+    synchronized int serial() {
+        return serial;
+    }
+
+    /** True from the start of an item until its end, an error or a stop. */
+    synchronized boolean isActive() {
+        return active;
+    }
+
+    synchronized void onPauseCommand() {
         pausedByUs = true;
     }
 
-    void onResumeCommand() {
+    synchronized void onResumeCommand() {
         pausedByUs = false;
     }
 
     /** We stop the receiver: whatever it reports now is our doing. */
-    void onStopCommand() {
+    synchronized void onStopCommand() {
+        serial++;
         active = false;
         pausedByUs = false;
         failures.reset();
     }
 
     /** A new run of the player (a new queue). */
-    void reset() {
+    synchronized void reset() {
         onStopCommand();
         playedUrl = null;
     }
 
     // ------------------------------------------------------------------ what the receiver reports
 
-    Action onState(FCastReceiverState state) {
+    synchronized Action onState(FCastReceiverState state) {
         if (!active || state == null || state.isItemFromElsewhere()) {
             return Action.NONE;
         }
@@ -128,7 +147,8 @@ final class FCastPlayerLogic {
                 }
                 return Action.NONE;
             case PAUSED:
-                if (pausedByUs || pending == FCastReceiverState.Pending.PAUSE || pending == FCastReceiverState.Pending.STOP) {
+                if (pausedByUs || pending == FCastReceiverState.Pending.PAUSE || pending == FCastReceiverState.Pending.STOP
+                        || pending == FCastReceiverState.Pending.RESUME || pending == FCastReceiverState.Pending.SEEK) {
                     return Action.NONE;
                 }
                 if (state.hasEnded()) {
@@ -140,7 +160,7 @@ final class FCastPlayerLogic {
                 }
                 return Action.NONE;
             case IDLE:
-                if (sawPlaying && pending != FCastReceiverState.Pending.STOP && pending != FCastReceiverState.Pending.PLAY) {
+                if (sawPlaying && !ended && pending != FCastReceiverState.Pending.STOP && pending != FCastReceiverState.Pending.PLAY) {
                     active = false;
                     return Action.STOPPED_BY_RECEIVER;
                 }
@@ -154,7 +174,7 @@ final class FCastPlayerLogic {
      * @param type    the event type of the receiver
      * @param itemUrl the URL the receiver names, null if none
      */
-    Action onEvent(int type, String itemUrl) {
+    synchronized Action onEvent(int type, String itemUrl) {
         if (!active || ended || type != FCastMessages.EVENT_MEDIA_ITEM_END) {
             return Action.NONE;
         }
@@ -165,11 +185,14 @@ final class FCastPlayerLogic {
     }
 
     /** The safety net; the player calls it every second or so while an item plays. */
-    Action onTick(FCastReceiverState state) {
+    synchronized Action onTick(FCastReceiverState state) {
         if (!active || ended || pausedByUs || state == null || state.isItemFromElsewhere()
                 || state.getPlayback() != FCastReceiverState.Playback.PLAYING
                 || state.getPending() != FCastReceiverState.Pending.NONE || !state.isNearEnd()) {
             return Action.NONE;
+        }
+        if (state.getPlaybackUpdatedAt() < playedAt) {
+            return Action.NONE; // the state is the old item's: the receiver has not answered our Play yet
         }
         long silent = clock.nowMillis() - state.getPlaybackUpdatedAt();
         return silent >= SILENCE_MILLIS ? end() : Action.NONE;
@@ -188,7 +211,8 @@ final class FCastPlayerLogic {
      *
      * @param hasNext true if an item follows
      */
-    TrackFailurePolicy.Decision onError(boolean hasNext) {
+    synchronized TrackFailurePolicy.Decision onError(boolean hasNext) {
+        serial++;
         active = false;
         return failures.onFailure(hasNext);
     }
@@ -214,7 +238,7 @@ final class FCastPlayerLogic {
      * @param currentVolume the volume the receiver reported, null if unknown
      * @return the volume to send, NaN if nothing is to be sent
      */
-    double onMuteRequested(boolean mute, Double currentVolume) {
+    synchronized double onMuteRequested(boolean mute, Double currentVolume) {
         if (mute) {
             muted = true;
             volumeBeforeMute = currentVolume != null && currentVolume > 0 ? currentVolume : null;
@@ -227,14 +251,14 @@ final class FCastPlayerLogic {
     }
 
     /** A volume the receiver reported: a value above 0 that we did not set ends the mute. */
-    void onVolumeUpdate(double volume) {
+    synchronized void onVolumeUpdate(double volume) {
         if (volume > 0) {
             muted = false;
             volumeBeforeMute = null;
         }
     }
 
-    boolean isMuted(Double currentVolume) {
+    synchronized boolean isMuted(Double currentVolume) {
         return muted && (currentVolume == null || currentVolume == 0.0);
     }
 
