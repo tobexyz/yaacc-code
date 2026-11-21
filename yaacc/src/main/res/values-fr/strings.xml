@@ -303,6 +303,9 @@
     <string name="snapcast_group">Groupe Snapcast</string>
     <string name="snapcast_offline">hors ligne</string>
     <string name="fcast_offline">hors ligne</string>
+    <string name="fcast_play_failed">Le récepteur FCast n’a pas pu lire cet élément</string>
+    <string name="fcast_unreachable">Récepteur FCast injoignable</string>
+    <string name="fcast_item_too_large">L’adresse de cet élément est trop longue pour FCast</string>
     <string name="snapcast_play_not_available">La lecture sur des groupes Snapcast n\'est pas encore disponible</string>
     <string name="snapcast_play_audio_only">Seule la musique peut être lue sur des groupes Snapcast</string>
     <string name="player_track_skipped">Impossible de lire \"%1$s\", piste ignorée</string>

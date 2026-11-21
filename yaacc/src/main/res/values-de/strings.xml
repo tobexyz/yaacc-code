@@ -299,6 +299,9 @@
     <string name="snapcast_group">Snapcast-Gruppe</string>
     <string name="snapcast_offline">offline</string>
     <string name="fcast_offline">offline</string>
+    <string name="fcast_play_failed">Der FCast-Empfänger konnte dieses Element nicht abspielen</string>
+    <string name="fcast_unreachable">FCast-Empfänger nicht erreichbar</string>
+    <string name="fcast_item_too_large">Die Adresse dieses Elements ist für FCast zu lang</string>
     <string name="snapcast_play_not_available">Die Wiedergabe auf Snapcast-Gruppen ist noch nicht verfügbar</string>
     <string name="snapcast_play_audio_only">Auf Snapcast-Gruppen kann nur Musik abgespielt werden</string>
     <string name="player_track_skipped">\"%1$s\" kann nicht abgespielt werden und wird übersprungen</string>

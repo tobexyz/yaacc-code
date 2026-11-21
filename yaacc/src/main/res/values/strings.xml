@@ -304,6 +304,9 @@
     <string name="snapcast_group">Snapcast group</string>
     <string name="snapcast_offline">offline</string>
     <string name="fcast_offline">offline</string>
+    <string name="fcast_play_failed">The FCast receiver could not play this item</string>
+    <string name="fcast_unreachable">FCast receiver not reachable</string>
+    <string name="fcast_item_too_large">The address of this item is too long for FCast</string>
     <string name="snapcast_play_not_available">Playing to Snapcast groups is not available yet</string>
     <string name="snapcast_play_audio_only">Only music can be played to Snapcast groups</string>
     <string name="player_track_skipped">Could not play \"%1$s\", skipped</string>

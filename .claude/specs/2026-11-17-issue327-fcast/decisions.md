@@ -58,6 +58,14 @@ Rule: use v4 when the Android version supports it and the receiver supports it (
 ### D16. More ways to add a receiver: connection URL, QR scan, device name (owner's request, 2026-11-20)
 **Decided (owner): add the QR scan and the input of a device name as alternative connection types.** Tasks 5.5 (connection URL, pasted), 5.6 (QR scan) and 5.7 (device name) in Group 5. Reading the sources showed that both FUTO receivers already show a QR code with an `fcast://r/<base64url JSON>` URL (name, addresses, services, optional `txt` with `v` and `fp`), so the scan needs no protocol work, only the URL parser and a scanner. **Owner's idea (2026-11-20, adopted): no scanner in the app.** The device's own camera or scanner app reads the QR code and opens the `fcast://r/...` link; YAACC registers the `fcast` scheme (task 5.6) and shows a confirmation dialog before anything is added; copy and paste (5.5) is the fallback; an in-app scanner stays an optional follow-up. No camera permission, no new dependency. The `fp` in the URL is the trusted channel for the v4 pin (7.2). The device name is resolved as: IP, then a receiver already discovered, then the system name lookup, then a short `_fcast._tcp` search; the failure text says what was tried.
 
+### D17. Details of the player (Group 4, 2026-11-21, spec author; the owner may veto)
+- **A `Play` carries no volume.** The design said "the current card volume"; sending it would override the volume the receiver's user set. The volume is changed only by the user's volume control or the mute.
+- **Only a picture advances by a timer.** The base class starts a timer from the item duration for every item; for audio and video that would race with the end the receiver reports (event, paused at the duration, silence rule), so `FCastPlayer` keeps the timer for images only.
+- **Another sender's pause or resume is adopted** (the player shows paused or playing); a stop by the receiver stops the player and does not advance.
+- **The URL is not rewritten** (the per-device proxy path of the server-side seeking option is an AVTransport feature and is not offered for FCast).
+- **Leaving:** the player stops the item, waits up to 2 s for the receiver's answer and then closes the session, so no connection is left; the 30 s idle close is only the fallback.
+- **An earlier player of the same receiver is ended first** when a new one is made; the old Stop leaves before the new connection can send a Play.
+
 ### Answers to the earlier questions (owner, 2026-11-20)
 - **Q2:** no receiver hardware; a software receiver on a notebook (D13).
 - **Q3:** music, video and pictures all three are in scope (the design already plays all three).

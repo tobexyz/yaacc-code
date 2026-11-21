@@ -50,6 +50,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.browser.BrowserLauncher;
+import de.yaacc.fcast.discovery.FCastReceiverDevice;
 import de.yaacc.multiroom.SnapcastGroupDevice;
 import de.yaacc.multiroom.SnapcastHub;
 import de.yaacc.multiroom.SnapcastReceivers;
@@ -950,6 +951,30 @@ public class PlayerService extends MediaSessionService {
                 friendlyName, listener -> hub.newFeedController(device, listener));
     }
 
+    /**
+     * Makes the player of an FCast receiver (the seam of the tests). The name of the player shows the receiver like the names of the
+     * other remote players do.
+     */
+    Player newFCastPlayer(UpnpClient upnpClient, FCastReceiverDevice device) {
+        String friendlyName = device.getDetails().getFriendlyName();
+        return new FCastPlayer(upnpClient, device, upnpClient.getContext().getString(R.string.playerNameAvTransport)
+                + "-FCast@" + friendlyName, friendlyName);
+    }
+
+    /**
+     * One player per receiver: an earlier one for the same receiver ends first (it stops its item and closes its connection, so
+     * the receiver is not told two things at once).
+     */
+    Player createFCastPlayer(UpnpClient upnpClient, FCastReceiverDevice device) {
+        String receiverId = device.getReceiverId();
+        for (Player player : getCurrentPlayersOfType(FCastPlayer.class)) {
+            if (receiverId.equals(player.getDeviceId())) {
+                shutdown(player);
+            }
+        }
+        return newFCastPlayer(upnpClient, device);
+    }
+
     /** One player per group: an earlier one for the same group ends first. Music only. */
     @OptIn(markerClass = UnstableApi.class)
     private Player createSnapcastPlayer(UpnpClient upnpClient, SnapcastGroupDevice device,
@@ -991,6 +1016,10 @@ public class PlayerService extends MediaSessionService {
         }
         if (receiverDevice instanceof SnapcastGroupDevice) {
             return createSnapcastPlayer(upnpClient, (SnapcastGroupDevice) receiverDevice, video, image, music);
+        }
+        if (receiverDevice instanceof FCastReceiverDevice) {
+            // music, video and pictures all go to the receiver, which fetches the files itself
+            return createFCastPlayer(upnpClient, (FCastReceiverDevice) receiverDevice);
         }
 
         Player result;
