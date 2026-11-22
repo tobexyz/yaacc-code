@@ -76,6 +76,19 @@ public class YxcPresetsTest {
     }
 
     @Test
+    public void aDabSlotThatHoldsAStationButNoNameIsStillListedByItsSlotNumber() throws Exception {
+        String json = "{\"response_code\":0,\"preset_info\":[{\"band\":\"dab\",\"number\":1},"
+                + "{\"band\":\"unknown\",\"number\":0},{\"band\":\"dab\",\"number\":3,\"text\":\"   \"}]}";
+        List<YxcPresets.Entry> list = new YxcClient(new RecordingTransport().answer("tuner/getPresetInfo?band=dab", json))
+                .getTunerPresets("dab");
+        assertEquals(2, list.size());
+        assertEquals("DAB 1", list.get(0).getLabel());
+        assertEquals(1, list.get(0).getNumber());
+        assertEquals("DAB 3", list.get(1).getLabel());
+        assertEquals(3, list.get(1).getNumber());
+    }
+
+    @Test
     public void aSlotOfTheOtherBandIsNotAnEntryOfThisOne() throws Exception {
         String json = "{\"response_code\":0,\"preset_info\":[{\"band\":\"dab\",\"number\":5,\"text\":\"X\"},"
                 + "{\"band\":\"fm\",\"number\":87550,\"text\":\"Y\"}]}";
