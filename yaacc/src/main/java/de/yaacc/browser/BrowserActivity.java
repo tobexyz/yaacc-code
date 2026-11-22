@@ -212,7 +212,6 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
     @Override
     protected void onResume() {
         super.onResume();
-        de.yaacc.util.ResourceIdTrace.logViewsWithIdZero(getWindow().getDecorView(), 1500); // log level V only
         if (BrowserLauncher.relaunchIfOtherLayout(this, Layout.NEW)) {
             return;
         }
@@ -469,11 +468,5 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
                     ? MenuItem.SHOW_AS_ACTION_ALWAYS
                     : MenuItem.SHOW_AS_ACTION_IF_ROOM);
         }
-    }
-
-    /** At log level V the resources report every request for the resource id 0 with a stack (see {@link de.yaacc.util.ResourceIdTrace}). */
-    @Override
-    public android.content.res.Resources getResources() {
-        return de.yaacc.util.ResourceIdTrace.of(super.getResources());
     }
 }
