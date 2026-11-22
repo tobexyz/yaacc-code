@@ -134,4 +134,19 @@ public class ResourceIdTraceTest {
 
         assertEquals(3, ResourceIdTrace.findViewsWithIdZero(root, 3).size());
     }
+
+    @Test
+    public void theTextOfAViewWithTheIdZeroIsAddedOnlyOnRequest() {
+        android.view.ViewGroup row = Mockito.mock(android.view.ViewGroup.class);
+        android.widget.TextView title = Mockito.mock(android.widget.TextView.class);
+        Mockito.when(row.getId()).thenReturn(0);
+        Mockito.when(row.getChildCount()).thenReturn(1);
+        Mockito.when(row.getChildAt(0)).thenReturn(title);
+        Mockito.when(title.getId()).thenReturn(-1);
+        Mockito.when(title.getText()).thenReturn("Find FCast receivers");
+
+        assertTrue(ResourceIdTrace.findViewsWithIdZero(row, 5, true).get(0).endsWith("[first text: Find FCast receivers]"));
+        assertTrue(!ResourceIdTrace.findViewsWithIdZero(row, 5, false).get(0).contains("first text"));
+        assertTrue(!ResourceIdTrace.findViewsWithIdZero(row, 5).get(0).contains("Find FCast"));
+    }
 }

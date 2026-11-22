@@ -55,7 +55,7 @@ public class SettingsActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        de.yaacc.util.ResourceIdTrace.logViewsWithIdZero(getWindow().getDecorView(), 1500); // log level V only
+        de.yaacc.util.ResourceIdTrace.logViewsWithIdZero(getWindow().getDecorView(), 1500, true); // log level V only; the texts are the settings titles
     }
 
     /** At log level V the resources report every request for the resource id 0 with a stack (see {@link de.yaacc.util.ResourceIdTrace}). */

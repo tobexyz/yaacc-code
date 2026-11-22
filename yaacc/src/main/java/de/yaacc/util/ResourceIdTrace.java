@@ -78,34 +78,63 @@ public final class ResourceIdTrace {
      * Only classes, no text and no ids of other views.
      */
     public static java.util.List<String> findViewsWithIdZero(android.view.View root, int max) {
+        return findViewsWithIdZero(root, max, false);
+    }
+
+    /** As above; with {@code withText} the first text inside the view is added (for the settings screen, whose texts are the app's own). */
+    public static java.util.List<String> findViewsWithIdZero(android.view.View root, int max, boolean withText) {
         java.util.List<String> found = new java.util.ArrayList<>();
-        collect(root, "", found, max, 0);
+        collect(root, "", found, max, 0, withText);
         return found;
     }
 
-    private static void collect(android.view.View view, String path, java.util.List<String> found, int max, int depth) {
+    private static String firstText(android.view.View view, int depth) {
+        if (view instanceof android.widget.TextView && ((android.widget.TextView) view).getText() != null
+                && ((android.widget.TextView) view).getText().length() > 0) {
+            String text = ((android.widget.TextView) view).getText().toString();
+            return text.length() > 40 ? text.substring(0, 40) : text;
+        }
+        if (view instanceof android.view.ViewGroup && depth < 6) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                String text = firstText(group.getChildAt(i), depth + 1);
+                if (text != null) {
+                    return text;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static void collect(android.view.View view, String path, java.util.List<String> found, int max, int depth, boolean withText) {
         if (view == null || found.size() >= max || depth > 60) {
             return;
         }
         String here = path.isEmpty() ? view.getClass().getName() : path + " > " + view.getClass().getName();
         if (view.getId() == 0) {
-            found.add("view with id 0: " + here);
+            String text = withText ? firstText(view, 0) : null;
+            found.add("view with id 0: " + here + (text == null ? "" : " [first text: " + text + "]"));
         }
         if (view instanceof android.view.ViewGroup) {
             android.view.ViewGroup group = (android.view.ViewGroup) view;
             for (int i = 0; i < group.getChildCount() && found.size() < max; i++) {
-                collect(group.getChildAt(i), here, found, max, depth + 1);
+                collect(group.getChildAt(i), here, found, max, depth + 1, withText);
             }
         }
     }
 
     /** At log level V: logs the views with the id 0 of the screen (a moment after it was shown, when its lists are filled). */
     public static void logViewsWithIdZero(final android.view.View root, long delayMillis) {
+        logViewsWithIdZero(root, delayMillis, false);
+    }
+
+    /** As above; {@code withText} adds the first text of each view (only for screens whose texts are the app's own, the settings). */
+    public static void logViewsWithIdZero(final android.view.View root, long delayMillis, final boolean withText) {
         if (root == null || !YaaccLogger.isVerbose()) {
             return;
         }
         root.postDelayed(() -> {
-            java.util.List<String> views = findViewsWithIdZero(root, 20);
+            java.util.List<String> views = findViewsWithIdZero(root, 20, withText);
             if (views.isEmpty()) {
                 YaaccLogger.v(TAG, "no view with the id 0 in the screen");
             }
