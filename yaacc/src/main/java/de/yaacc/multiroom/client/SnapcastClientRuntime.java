@@ -21,33 +21,53 @@ package de.yaacc.multiroom.client;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * What the status screen of the spike reads: the latest status of the running session (or of the last one) and a
+ * What the status screen of the client reads: the latest status of the running session (or of the last one) and a
  * phase text of the service. A process-wide holder, because the screen and the service live apart. Thread safe.
  */
 public final class SnapcastClientRuntime {
 
-    /** The phase of the service around the engine. */
+    /**
+     * The phase of the service around the engine.
+     */
     public enum Phase {
-        /** No session. */
+        /**
+         * No session.
+         */
         IDLE,
-        /** Resolving the address, connecting. */
+        /**
+         * Resolving the address, connecting.
+         */
         CONNECTING,
-        /** The engine runs (it has its own state). */
+        /**
+         * The engine runs (it has its own state).
+         */
         RUNNING,
-        /** The connection was lost and is retried. */
+        /**
+         * The connection was lost and is retried.
+         */
         RECONNECTING,
-        /** Ended by the user. */
+        /**
+         * Ended by the user.
+         */
         STOPPED,
-        /** Ended by a failure of the connection or of the engine. */
+        /**
+         * Ended by a failure of the connection or of the engine.
+         */
         FAILED
     }
 
-    /** Why a session ended on the connection side (typed, no server text). */
+    /**
+     * Why a session ended on the connection side (typed, no server text).
+     */
     public enum Ending {
         NONE, USER, BAD_ADDRESS, UNRESOLVED, CONNECTION_GAVE_UP, SERVER_REFUSED, ENGINE_FAILED, SERVICE_ERROR, NO_AUDIO, DISABLED,
-        /** The service was destroyed without a stop from the user (the system, or the app ending its services). */
+        /**
+         * The service was destroyed without a stop from the user (the system, or the app ending its services).
+         */
         SYSTEM,
-        /** The whole app ended: the exit action or the shutdown (sleep) timer of YAACC. */
+        /**
+         * The whole app ended: the exit action or the shutdown (sleep) timer of YAACC.
+         */
         APP_EXIT,
         /**
          * The system refused to start the foreground service from the background (Android 12 and newer). No failure of a session: the
@@ -56,13 +76,17 @@ public final class SnapcastClientRuntime {
         START_NOT_ALLOWED
     }
 
-    /** An immutable view for the screen. */
+    /**
+     * An immutable view for the screen.
+     */
     public static final class View {
         public final Phase phase;
         public final Ending ending;
         public final EngineStatus engine;
         public final long startedAtMillis;
-        /** What the server says about this client (null before the first answer). */
+        /**
+         * What the server says about this client (null before the first answer).
+         */
         public final ServerSays server;
 
         View(Phase phase, Ending ending, EngineStatus engine, long startedAtMillis) {
@@ -89,12 +113,16 @@ public final class SnapcastClientRuntime {
     private SnapcastClientRuntime() {
     }
 
-    /** The service built the Hello of the session that starts: its client id. */
+    /**
+     * The service built the Hello of the session that starts: its client id.
+     */
     public static void clientId(String id) {
         CLIENT_ID.set(id);
     }
 
-    /** The client id of the session that runs or starts; null when it is not known yet, and after the session ended. */
+    /**
+     * The client id of the session that runs or starts; null when it is not known yet, and after the session ended.
+     */
     public static String clientId() {
         return isActive() ? CLIENT_ID.get() : null;
     }
@@ -119,7 +147,7 @@ public final class SnapcastClientRuntime {
     public static void phaseWhileActive(Phase phase, Ending ending, long startedAtMillis) {
         VIEW.updateAndGet(old -> isActive(old.phase)
                 ? new View(phase, ending, phase == Phase.CONNECTING ? null : old.engine, startedAtMillis,
-                        phase == Phase.CONNECTING ? null : old.server) : old);
+                phase == Phase.CONNECTING ? null : old.server) : old);
     }
 
     private static boolean isActive(Phase p) {
@@ -130,17 +158,23 @@ public final class SnapcastClientRuntime {
         VIEW.updateAndGet(old -> new View(old.phase, old.ending, status, old.startedAtMillis, old.server));
     }
 
-    /** The newest answer of the server about this client. */
+    /**
+     * The newest answer of the server about this client.
+     */
     public static void server(ServerSays says) {
         VIEW.updateAndGet(old -> new View(old.phase, old.ending, old.engine, old.startedAtMillis, says));
     }
 
-    /** The service instance was created (its {@code onCreate}). */
+    /**
+     * The service instance was created (its {@code onCreate}).
+     */
     public static void serviceCreated() {
         SERVICE_ALIVE.set(true);
     }
 
-    /** The service instance was destroyed: it has torn its session down (its {@code onDestroy}). */
+    /**
+     * The service instance was destroyed: it has torn its session down (its {@code onDestroy}).
+     */
     public static void serviceDestroyed() {
         SERVICE_ALIVE.set(false);
     }
@@ -153,7 +187,9 @@ public final class SnapcastClientRuntime {
         return SERVICE_ALIVE.get();
     }
 
-    /** True while a session is starting or running. */
+    /**
+     * True while a session is starting or running.
+     */
     public static boolean isActive() {
         return isActive(VIEW.get().phase);
     }

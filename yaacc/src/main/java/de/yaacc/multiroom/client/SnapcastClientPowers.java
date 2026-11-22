@@ -77,23 +77,27 @@ public final class SnapcastClientPowers {
         Context app = context.getApplicationContext();
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(app);
         try {
-            return SnapcastServerChoices.of(SnapcastHub.getShared(app).newServerListModel().rows(), string(preferences, SnapcastClientSpike.KEY_LAST_HOST));
+            return SnapcastServerChoices.of(SnapcastHub.getShared(app).newServerListModel().rows(), string(preferences, SnapcastClient.KEY_LAST_HOST));
         } catch (RuntimeException unexpected) {
             YaaccLogger.w(SnapcastClientPowers.class.getName(), "Snapcast servers not read: " + unexpected.getClass().getSimpleName());
             return Collections.emptyList();
         }
     }
 
-    /** The server the client uses now: the last one it was connected to, else the first known one; null when none is known. */
+    /**
+     * The server the client uses now: the last one it was connected to, else the first known one; null when none is known.
+     */
     public static SnapcastServerChoices.Choice currentServer(Context context) {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
-        return SnapcastClientServerChoice.resolve(string(preferences, SnapcastClientSpike.KEY_LAST_SERVER), knownServers(context));
+        return SnapcastClientServerChoice.resolve(string(preferences, SnapcastClient.KEY_LAST_SERVER), knownServers(context));
     }
 
-    /** The position of the current server in {@code known} (to mark it in the list); -1 when the list is empty. */
+    /**
+     * The position of the current server in {@code known} (to mark it in the list); -1 when the list is empty.
+     */
     public static int currentServerIndex(Context context, List<SnapcastServerChoices.Choice> known) {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context.getApplicationContext());
-        return SnapcastClientServerChoice.currentIndex(string(preferences, SnapcastClientSpike.KEY_LAST_SERVER), known);
+        return SnapcastClientServerChoice.currentIndex(string(preferences, SnapcastClient.KEY_LAST_SERVER), known);
     }
 
     private static String string(SharedPreferences preferences, String key) {
@@ -109,18 +113,19 @@ public final class SnapcastClientPowers {
         SnapcastClientPower.Store store = new SnapcastClientPower.Store() {
             @Override
             public boolean readSwitchedOn() {
-                return SnapcastClientSpike.isSwitchedOn(preferences::getBoolean);
+                return SnapcastClient.isSwitchedOn(preferences::getBoolean);
             }
 
             @Override
-            @SuppressLint("ApplySharedPref") // commit on purpose: a tap on the switch and the exit of the app can follow each other at once
+            @SuppressLint("ApplySharedPref")
+            // commit on purpose: a tap on the switch and the exit of the app can follow each other at once
             public void writeSwitchedOn(boolean on) {
-                preferences.edit().putBoolean(SnapcastClientSpike.KEY_SWITCHED_ON, on).commit();
+                preferences.edit().putBoolean(SnapcastClient.KEY_SWITCHED_ON, on).commit();
             }
 
             @Override
             public boolean optionEnabled() {
-                return SnapcastClientSpike.isEnabled(preferences::getBoolean);
+                return SnapcastClient.isEnabled(preferences::getBoolean);
             }
 
             @Override
@@ -132,13 +137,13 @@ public final class SnapcastClientPowers {
 
             @Override
             public void writeLastServer(String hostText) {
-                preferences.edit().putString(SnapcastClientSpike.KEY_LAST_SERVER, hostText).apply();
+                preferences.edit().putString(SnapcastClient.KEY_LAST_SERVER, hostText).apply();
             }
 
             @Override
             public int latencyMs() {
                 try {
-                    return preferences.getInt(SnapcastClientSpike.KEY_LAST_LATENCY, 0);
+                    return preferences.getInt(SnapcastClient.KEY_LAST_LATENCY, 0);
                 } catch (RuntimeException damaged) {
                     return 0;
                 }
@@ -147,16 +152,16 @@ public final class SnapcastClientPowers {
             @Override
             public int writeAheadMs() {
                 try {
-                    return preferences.getInt(SnapcastClientSpike.KEY_LAST_WRITE_AHEAD, SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS);
+                    return preferences.getInt(SnapcastClient.KEY_LAST_WRITE_AHEAD, SnapcastClient.DEFAULT_WRITE_AHEAD_MS);
                 } catch (RuntimeException damaged) {
-                    return SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS;
+                    return SnapcastClient.DEFAULT_WRITE_AHEAD_MS;
                 }
             }
 
             @Override
             public boolean flacGuard() {
                 try {
-                    return preferences.getBoolean(SnapcastClientSpike.KEY_LAST_FLAC_GUARD, true);
+                    return preferences.getBoolean(SnapcastClient.KEY_LAST_FLAC_GUARD, true);
                 } catch (RuntimeException damaged) {
                     return true;
                 }
@@ -165,7 +170,7 @@ public final class SnapcastClientPowers {
             @Override
             public String lastEnding() {
                 try {
-                    return preferences.getString(SnapcastClientSpike.KEY_LAST_ENDING, null);
+                    return preferences.getString(SnapcastClient.KEY_LAST_ENDING, null);
                 } catch (RuntimeException damaged) {
                     return null;
                 }
@@ -174,7 +179,7 @@ public final class SnapcastClientPowers {
             @Override
             public boolean endingSeen() {
                 try {
-                    return preferences.getBoolean(SnapcastClientSpike.KEY_LAST_ENDING_SEEN, true);
+                    return preferences.getBoolean(SnapcastClient.KEY_LAST_ENDING_SEEN, true);
                 } catch (RuntimeException damaged) {
                     return true;
                 }
@@ -183,15 +188,15 @@ public final class SnapcastClientPowers {
             @Override
             public void markEndingSeen() {
                 if (!endingSeen()) {
-                    preferences.edit().putBoolean(SnapcastClientSpike.KEY_LAST_ENDING_SEEN, true).apply();
+                    preferences.edit().putBoolean(SnapcastClient.KEY_LAST_ENDING_SEEN, true).apply();
                 }
             }
 
             @Override
             public void recordEnding(String endingName) {
-                preferences.edit().putString(SnapcastClientSpike.KEY_LAST_ENDING, endingName)
-                        .putLong(SnapcastClientSpike.KEY_LAST_ENDING_AT, System.currentTimeMillis())
-                        .putBoolean(SnapcastClientSpike.KEY_LAST_ENDING_SEEN, false).apply();
+                preferences.edit().putString(SnapcastClient.KEY_LAST_ENDING, endingName)
+                        .putLong(SnapcastClient.KEY_LAST_ENDING_AT, System.currentTimeMillis())
+                        .putBoolean(SnapcastClient.KEY_LAST_ENDING_SEEN, false).apply();
             }
         };
         final Restarter restarter = new Restarter(app);

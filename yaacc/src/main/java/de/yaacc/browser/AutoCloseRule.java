@@ -29,52 +29,60 @@ package de.yaacc.browser;
  */
 public final class AutoCloseRule {
 
-    /** What keeps the app open; {@link #NONE} when nothing does. */
+    /**
+     * What keeps the app open; {@link #NONE} when nothing does.
+     */
     public enum Keep {
-        NONE, PLAYER, LOCAL_SERVER, RENDERER, PROXY, SNAPCAST_CLIENT, SNAPCAST_FEED, AUTOSTART
+        NONE, PLAYER, UPNP_SERVER, SNAPCAST_CLIENT, SNAPCAST_CLIENT_SESSION, SNAPCAST_FEED, AUTOSTART
     }
 
-    /** What is running, read when the timer fires. Mutable builder for the timer, read once by the rule. */
+    /**
+     * What is running, read when the timer fires. Mutable builder for the timer, read once by the rule.
+     */
     public static final class Facts {
         private boolean playersActive;
-        private boolean serverEnabled;
-        private boolean rendererEnabled;
-        private boolean proxyEnabled;
+        private boolean upnpServerEnabled;
+        private boolean snapcastClientEnabled;
         private boolean snapcastClientSessionActive;
         private boolean snapcastFeedActive;
         private boolean autostartEnabled;
 
-        /** At least one player exists (of any kind). */
+        /**
+         * At least one player exists (of any kind).
+         */
         public Facts playersActive(boolean value) {
             this.playersActive = value;
             return this;
         }
 
-        /** The UPnP media server is switched on. */
-        public Facts serverEnabled(boolean value) {
-            this.serverEnabled = value;
+        /**
+         * The UPnP media server is switched on.
+         */
+        public Facts upnpServerEnabled(boolean value) {
+            this.upnpServerEnabled = value;
             return this;
         }
 
-        /** The UPnP renderer (receiver) is switched on. */
-        public Facts rendererEnabled(boolean value) {
-            this.rendererEnabled = value;
+        /**
+         * The snapcast client setting is switched on.
+         */
+        public Facts snapcastClientEnabled(boolean value) {
+            this.snapcastClientEnabled = value;
             return this;
         }
 
-        /** The media proxy is switched on. */
-        public Facts proxyEnabled(boolean value) {
-            this.proxyEnabled = value;
-            return this;
-        }
 
-        /** A Snapcast client session is starting or running (not an ended one). */
+        /**
+         * A Snapcast client session is starting or running (not an ended one).
+         */
         public Facts snapcastClientSessionActive(boolean value) {
             this.snapcastClientSessionActive = value;
             return this;
         }
 
-        /** A Snapcast feed (a player that plays into a Snapcast group) exists. */
+        /**
+         * A Snapcast feed (a player that plays into a Snapcast group) exists.
+         */
         public Facts snapcastFeedActive(boolean value) {
             this.snapcastFeedActive = value;
             return this;
@@ -101,7 +109,9 @@ public final class AutoCloseRule {
         return reasonToStay(facts) == Keep.NONE;
     }
 
-    /** @return the first thing that keeps the app open, {@link Keep#NONE} when nothing does; {@link Keep#PLAYER} for no facts */
+    /**
+     * @return the first thing that keeps the app open, {@link Keep#NONE} when nothing does; {@link Keep#PLAYER} for no facts
+     */
     public static Keep reasonToStay(Facts facts) {
         if (facts == null) {
             return Keep.PLAYER;
@@ -109,17 +119,14 @@ public final class AutoCloseRule {
         if (facts.playersActive) {
             return Keep.PLAYER;
         }
-        if (facts.serverEnabled) {
-            return Keep.LOCAL_SERVER;
+        if (facts.upnpServerEnabled) {
+            return Keep.UPNP_SERVER;
         }
-        if (facts.rendererEnabled) {
-            return Keep.RENDERER;
-        }
-        if (facts.proxyEnabled) {
-            return Keep.PROXY;
+        if (facts.snapcastClientEnabled) {
+            return Keep.SNAPCAST_CLIENT;
         }
         if (facts.snapcastClientSessionActive) {
-            return Keep.SNAPCAST_CLIENT;
+            return Keep.SNAPCAST_CLIENT_SESSION;
         }
         if (facts.snapcastFeedActive) {
             return Keep.SNAPCAST_FEED;

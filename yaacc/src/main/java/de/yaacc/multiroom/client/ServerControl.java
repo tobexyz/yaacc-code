@@ -18,6 +18,8 @@
  */
 package de.yaacc.multiroom.client;
 
+import java.net.InetAddress;
+
 import de.yaacc.multiroom.control.MonotonicClock;
 import de.yaacc.multiroom.control.SnapcastException;
 import de.yaacc.multiroom.control.SnapcastOperations;
@@ -26,17 +28,17 @@ import de.yaacc.multiroom.control.SnapcastServerStatus;
 import de.yaacc.multiroom.control.SnapcastTransport;
 import de.yaacc.multiroom.control.SocketTransport;
 
-import java.net.InetAddress;
-
 /**
- * The few calls on the control port of the server that the client spike makes: read the status (to show which group and
+ * The few calls on the control port of the server that the client makes: read the status (to show which group and
  * stream the phone is in) and, on the owner's request, move the phone's group to another stream. Each call opens its own
  * short connection to the address the session resolved (nothing is looked up), runs one call with the usual limits of the
  * control library, and closes. Blocking: never call it on the main thread.
  */
 public final class ServerControl {
 
-    /** The control port of Snapcast. */
+    /**
+     * The control port of Snapcast.
+     */
     public static final int CONTROL_PORT = SocketTransport.DEFAULT_PORT;
 
     private static final int CALL_TIMEOUT_MS = 4_000;
@@ -51,7 +53,9 @@ public final class ServerControl {
         return rpc;
     }
 
-    /** {@code Server.GetStatus}, read for this client id; {@link ServerSays#unreachable} when the call fails. */
+    /**
+     * {@code Server.GetStatus}, read for this client id; {@link ServerSays#unreachable} when the call fails.
+     */
     public static ServerSays fetch(InetAddress address, String clientId) {
         SnapcastRpc rpc = open(new SocketTransport(address, CONTROL_PORT), CALL_TIMEOUT_MS);
         try {
@@ -64,13 +68,21 @@ public final class ServerControl {
         }
     }
 
-    /** What became of a request to move the group of this client. */
+    /**
+     * What became of a request to move the group of this client.
+     */
     public enum MoveResult {
-        /** The server accepted it. */
+        /**
+         * The server accepted it.
+         */
         MOVED,
-        /** The group of this client is not the one that was shown (it was dissolved or formed anew): nothing was changed. */
+        /**
+         * The group of this client is not the one that was shown (it was dissolved or formed anew): nothing was changed.
+         */
         GROUP_CHANGED,
-        /** The server did not answer or refused. */
+        /**
+         * The server did not answer or refused.
+         */
         FAILED
     }
 
@@ -90,7 +102,9 @@ public final class ServerControl {
         return moveGroup(new SocketTransport(address, CONTROL_PORT), clientId, shownGroupId, streamId, CALL_TIMEOUT_MS);
     }
 
-    /** The same over any transport (the tests use one that talks to a script). */
+    /**
+     * The same over any transport (the tests use one that talks to a script).
+     */
     static MoveResult moveGroup(SnapcastTransport transport, String clientId, String shownGroupId, String streamId,
                                 int callTimeoutMs) {
         if (transport == null || clientId == null || shownGroupId == null || shownGroupId.isEmpty() || streamId == null

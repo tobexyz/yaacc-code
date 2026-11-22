@@ -39,7 +39,9 @@ import java.util.Arrays;
  */
 public final class SnapcastEndpoint {
 
-    /** The port of the raw TCP control interface of a snapserver. */
+    /**
+     * The port of the raw TCP control interface of a snapserver.
+     */
     public static final int DEFAULT_CONTROL_PORT = 1705;
 
     private static final int MAX_TEXT_LENGTH = 261; // 253 for a name, brackets, colon and 5 digits, with some room
@@ -66,7 +68,7 @@ public final class SnapcastEndpoint {
     }
 
     /**
-     * As {@link #parse(String)} with another port for an entry that has none (the client spike uses the stream port 1704).
+     * As {@link #parse(String)} with another port for an entry that has none (the client uses the stream port 1704).
      *
      * @param defaultPort 1 to 65535
      */
@@ -172,7 +174,9 @@ public final class SnapcastEndpoint {
         return true;
     }
 
-    /** IPv4 dotted, IPv6 as eight hexadecimal groups (no compression, no zone). */
+    /**
+     * IPv4 dotted, IPv6 as eight hexadecimal groups (no compression, no zone).
+     */
     private static String canonicalText(InetAddress address) {
         byte[] raw = address.getAddress();
         StringBuilder text = new StringBuilder();
@@ -194,7 +198,9 @@ public final class SnapcastEndpoint {
         return text.toString();
     }
 
-    /** @return the port, or -1 when the text is not 1 to 5 digits of a value in 1..65535 */
+    /**
+     * @return the port, or -1 when the text is not 1 to 5 digits of a value in 1..65535
+     */
     private static int parsePort(String text) {
         if (text.isEmpty() || text.length() > 5) {
             return -1;
@@ -210,7 +216,9 @@ public final class SnapcastEndpoint {
         return value >= 1 && value <= 65535 ? value : -1;
     }
 
-    /** @return 4 bytes, or null when the text is not a dotted quad of four decimal numbers 0..255 without leading zeros */
+    /**
+     * @return 4 bytes, or null when the text is not a dotted quad of four decimal numbers 0..255 without leading zeros
+     */
     private static byte[] parseIpv4(String text) {
         String[] parts = text.split("\\.", -1);
         if (parts.length != 4) {
@@ -238,7 +246,9 @@ public final class SnapcastEndpoint {
         return raw;
     }
 
-    /** @return 16 bytes, or null when the text is not an IPv6 literal (no zone id; a trailing IPv4 part is allowed) */
+    /**
+     * @return 16 bytes, or null when the text is not an IPv6 literal (no zone id; a trailing IPv4 part is allowed)
+     */
     private static byte[] parseIpv6(String text) {
         if (text.isEmpty() || text.indexOf('%') >= 0) {
             return null;
@@ -341,7 +351,9 @@ public final class SnapcastEndpoint {
         return false;
     }
 
-    /** The host: a lower-case name, or the canonical text of an IP literal. */
+    /**
+     * The host: a lower-case name, or the canonical text of an IP literal.
+     */
     public String getHost() {
         return host;
     }
@@ -350,17 +362,23 @@ public final class SnapcastEndpoint {
         return port;
     }
 
-    /** The address of an IP literal or of a discovered server; null for a host name (it is resolved by the caller). */
+    /**
+     * The address of an IP literal or of a discovered server; null for a host name (it is resolved by the caller).
+     */
     public InetAddress getAddress() {
         return address;
     }
 
-    /** The key of the server at this endpoint. */
+    /**
+     * The key of the server at this endpoint.
+     */
     public SnapcastServerKey toKey() {
         return SnapcastServerKey.of(this);
     }
 
-    /** {@code host:port}, an IPv6 literal in brackets; reads back through {@link #parse}. */
+    /**
+     * {@code host:port}, an IPv6 literal in brackets; reads back through {@link #parse}.
+     */
     @Override
     public String toString() {
         return host.indexOf(':') >= 0 ? "[" + host + "]:" + port : host + ":" + port;

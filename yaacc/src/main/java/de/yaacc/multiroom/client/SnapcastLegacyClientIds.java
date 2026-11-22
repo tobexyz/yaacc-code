@@ -34,7 +34,7 @@ import de.yaacc.multiroom.protocol.SnapcastConnection;
  * The client ids that builds before task 12.11 gave the servers (task 12.19), computed again from the secret of this install so that
  * the entries they left on the servers are recognised as this phone's. The old Hello id was {@code yaacc-} and the first 16
  * hexadecimal characters of SHA-256(secret, a zero byte, the canonical text of the endpoint the client connected to); the endpoint
- * was the one the client checked from the typed address ({@code SnapcastClientSpike.check}: {@code host[:port]}, the stream port 1704
+ * was the one the client checked from the typed address ({@code SnapcastClient.check}: {@code host[:port]}, the stream port 1704
  * when there was no port), in the canonical form of {@link SnapcastEndpoint#toString()} (host names in lower case, IPv4 dotted, IPv6 as
  * eight groups in brackets). That text is not stored anywhere, so the candidates are the forms the old client could have had for a
  * known server: its host with the stream port 1704 (the choice of the server list), with the control port 1705 and with the port the
@@ -46,7 +46,9 @@ import de.yaacc.multiroom.protocol.SnapcastConnection;
  */
 public final class SnapcastLegacyClientIds {
 
-    /** The most ids returned. */
+    /**
+     * The most ids returned.
+     */
     public static final int MAX_IDS = 64;
 
     private static final String PREFIX = "yaacc-";
@@ -113,7 +115,9 @@ public final class SnapcastLegacyClientIds {
         return ids;
     }
 
-    /** The stream port first (what a typed host gets), then the control port, then the port of the entry itself. */
+    /**
+     * The stream port first (what a typed host gets), then the control port, then the port of the entry itself.
+     */
     private static void addForms(Set<String> texts, SnapcastEndpoint endpoint) {
         if (endpoint == null) {
             return;

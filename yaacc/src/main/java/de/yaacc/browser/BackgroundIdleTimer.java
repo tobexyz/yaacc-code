@@ -60,12 +60,16 @@ public final class BackgroundIdleTimer {
         counterFor(context).onProcessStarted();
     }
 
-    /** Call from {@code onStart} of a browser activity. */
+    /**
+     * Call from {@code onStart} of a browser activity.
+     */
     public static void browserStarted(Context context) {
         counterFor(context).onBrowserStarted();
     }
 
-    /** Call from {@code onStop} of a browser activity. */
+    /**
+     * Call from {@code onStop} of a browser activity.
+     */
     public static void browserStopped(Context context) {
         counterFor(context).onBrowserStopped();
     }
@@ -88,18 +92,17 @@ public final class BackgroundIdleTimer {
         Yaacc yaacc = (Yaacc) appContext;
         UpnpClient client = yaacc.getUpnpClient();
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(appContext);
-        boolean playersActive = client != null && !client.getCurrentPlayers().isEmpty();
+        boolean playersActive = client != null && client.getCurrentPlayers().stream().anyMatch(p -> !(p instanceof SnapcastPlayer) && (p.isPlaying() || p.isPaused()));
         // a player that feeds a Snapcast group is also a player; it is asked on its own so that the rule does not depend on it
-        boolean feedActive = client != null && client.getCurrentPlayers().stream().anyMatch(p -> p instanceof SnapcastPlayer);
+        boolean feedActive = client != null && client.getCurrentPlayers().stream().anyMatch(p -> p instanceof SnapcastPlayer && (p.isPlaying() || p.isPaused()));
         // the renderer and proxy checkboxes count only with the master switch ("UPnP Server"), see IdleFacts
         AutoCloseRule.Facts facts = IdleFacts.of(
                 preferences.getBoolean(appContext.getString(R.string.settings_local_server_chkbx), false),
-                preferences.getBoolean(appContext.getString(R.string.settings_local_server_receiver_chkbx), false),
-                preferences.getBoolean(appContext.getString(R.string.settings_local_server_proxy_chkbx), false),
+                preferences.getBoolean(appContext.getString(R.string.settings_snapcast_client), false),
                 playersActive,
                 SnapcastClientRuntime.isActive(),
                 feedActive,
-                preferences.getBoolean(appContext.getString(R.string.settings_local_server_autostart_chkbx), false));
+                preferences.getBoolean(appContext.getString(R.string.settings_autostart_chkbx), false));
         AutoCloseRule.Keep keep = AutoCloseRule.reasonToStay(facts);
         if (keep == AutoCloseRule.Keep.NONE) {
             YaaccLogger.d(BackgroundIdleTimer.class.getName(), "Idle in background, exiting");

@@ -64,7 +64,7 @@ import de.yaacc.util.NotificationId;
  * The phone as a Snapcast client, for the listen test (task 8.1): a foreground service of type {@code mediaPlayback}
  * that owns the {@link SnapcastConnection}, the {@link SnapcastClientEngine} and the output while a session runs.
  *
- * <p><b>Lifetime.</b> It is started by the app (the spike screen, the switch on the first page, the checkbox of the settings, the
+ * <p><b>Lifetime.</b> It is started by the app (the screen, the switch on the first page, the checkbox of the settings, the
  * restore at the start of the app; all through {@link SnapcastClientPower}). The system never restarts it
  * ({@code START_NOT_STICKY}, not exported) and it lives only while a session is on. A wake lock (partial, with a safety timeout of 8 hours, renewed while the session runs)
  * and a Wi-Fi lock are taken at the start and released at <b>every</b> end: the stop button, an error of the connection or of the engine, the
@@ -107,17 +107,21 @@ public final class SnapcastClientService extends Service {
     private volatile Integer pendingLatencyMs;
     private volatile String serverText; // the server of this session as the start named it (validated by beginSession)
     private final AtomicBoolean serverRemembered = new AtomicBoolean();
-    private volatile int writeAheadMs = SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS;
+    private volatile int writeAheadMs = SnapcastClient.DEFAULT_WRITE_AHEAD_MS;
     private volatile boolean flacGuard = true;
 
     // ---- entry points for the screen
 
-    /** Starts a session. Call from the UI (a foreground service may be started from there). */
+    /**
+     * Starts a session. Call from the UI (a foreground service may be started from there).
+     */
     public static void start(Context context, String hostText, int latencyMs) {
-        start(context, hostText, latencyMs, SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS);
+        start(context, hostText, latencyMs, SnapcastClient.DEFAULT_WRITE_AHEAD_MS);
     }
 
-    /** @param writeAheadMs how far ahead of the playback position the output is kept filled (applied at the start only) */
+    /**
+     * @param writeAheadMs how far ahead of the playback position the output is kept filled (applied at the start only)
+     */
     public static void start(Context context, String hostText, int latencyMs, int writeAheadMs) {
         start(context, hostText, latencyMs, writeAheadMs, true);
     }
@@ -133,7 +137,9 @@ public final class SnapcastClientService extends Service {
         ContextCompat.startForegroundService(context, intent);
     }
 
-    /** Ends the session, if there is one. */
+    /**
+     * Ends the session, if there is one.
+     */
     public static void stop(Context context) {
         try {
             context.startService(new Intent(context, SnapcastClientService.class).setAction(ACTION_STOP));
@@ -142,7 +148,9 @@ public final class SnapcastClientService extends Service {
         }
     }
 
-    /** Changes the manual latency of the running session. */
+    /**
+     * Changes the manual latency of the running session.
+     */
     public static void setLatency(Context context, int latencyMs) {
         try {
             context.startService(new Intent(context, SnapcastClientService.class).setAction(ACTION_LATENCY)
@@ -212,12 +220,12 @@ public final class SnapcastClientService extends Service {
             if (!sessionStarted.compareAndSet(false, true)) {
                 return START_NOT_STICKY; // a session runs already
             }
-            if (!SnapcastClientSpike.isEnabled(PreferenceManager.getDefaultSharedPreferences(this)::getBoolean)) {
+            if (!SnapcastClient.isEnabled(PreferenceManager.getDefaultSharedPreferences(this)::getBoolean)) {
                 endSession(SnapcastClientRuntime.Ending.DISABLED); // "default off" holds for every caller, not only the dialog
                 return START_NOT_STICKY;
             }
-            writeAheadMs = SnapcastClientSpike.clampWriteAhead(
-                    intent.getIntExtra(EXTRA_WRITE_AHEAD_MS, SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS));
+            writeAheadMs = SnapcastClient.clampWriteAhead(
+                    intent.getIntExtra(EXTRA_WRITE_AHEAD_MS, SnapcastClient.DEFAULT_WRITE_AHEAD_MS));
             flacGuard = intent.getBooleanExtra(EXTRA_FLAC_GUARD, true);
             beginSession(intent.getStringExtra(EXTRA_HOST), intent.getIntExtra(EXTRA_LATENCY_MS, 0));
         } catch (RuntimeException unexpected) {
@@ -237,7 +245,7 @@ public final class SnapcastClientService extends Service {
         String text = serverText;
         if (text != null && serverRemembered.compareAndSet(false, true)) {
             try {
-                PreferenceManager.getDefaultSharedPreferences(this).edit().putString(SnapcastClientSpike.KEY_LAST_SERVER, text).apply();
+                PreferenceManager.getDefaultSharedPreferences(this).edit().putString(SnapcastClient.KEY_LAST_SERVER, text).apply();
             } catch (RuntimeException ignored) {
                 // a courtesy: the session goes on
             }
@@ -245,7 +253,7 @@ public final class SnapcastClientService extends Service {
     }
 
     private static int clampLatency(int value) {
-        return Math.max(SnapcastClientSpike.MIN_LATENCY_MS, Math.min(SnapcastClientSpike.MAX_LATENCY_MS, value));
+        return Math.max(SnapcastClient.MIN_LATENCY_MS, Math.min(SnapcastClient.MAX_LATENCY_MS, value));
     }
 
     private void beginSession(String hostText, int latencyMs) {
@@ -258,8 +266,8 @@ public final class SnapcastClientService extends Service {
         } catch (RuntimeException ignored) {
             // a courtesy
         }
-        final SnapcastClientSpike.Request request = SnapcastClientSpike.check(hostText, String.valueOf(latencyMs));
-        if (request.getOutcome() != SnapcastClientSpike.Outcome.OK) {
+        final SnapcastClient.Request request = SnapcastClient.check(hostText, String.valueOf(latencyMs));
+        if (request.getOutcome() != SnapcastClient.Outcome.OK) {
             endSession(SnapcastClientRuntime.Ending.BAD_ADDRESS);
             return;
         }
@@ -280,17 +288,19 @@ public final class SnapcastClientService extends Service {
         }
     }
 
-    /** On the worker: resolve once, build the pieces, start them. */
-    private void connect(SnapcastClientSpike.Request request) {
+    /**
+     * On the worker: resolve once, build the pieces, start them.
+     */
+    private void connect(SnapcastClient.Request request) {
         try {
             InetAddress address = SnapcastResolver.system().resolve(request.getEndpoint());
             HelloMessage hello = HelloMessage.create(SnapcastClientIdentity.deriveId(installSecret()),
-                    SnapcastClientSpike.helloHostName(address, phoneName()),
-                    "YAACC", "Android", "unknown", SnapcastClientSpike.helloVersion(phoneName(), BuildConfig.VERSION_NAME,
+                    SnapcastClient.helloHostName(address, phoneName()),
+                    "YAACC", "Android", "unknown", SnapcastClient.helloVersion(phoneName(), BuildConfig.VERSION_NAME,
                             !SnapcastAddressFilter.isAccepted(address)));
             ClientSession session = ClientSession.assemble(new SocketTransport(address, request.getEndpoint().getPort()), hello,
                     request.getLatencyMs(), AudioTrackSink::new, new DefaultDecoderFactory(new AndroidDecoderFactory()),
-                    SystemClock::elapsedRealtimeNanos, SnapcastClientSpike.engineConfig(writeAheadMs, flacGuard),
+                    SystemClock::elapsedRealtimeNanos, SnapcastClient.engineConfig(writeAheadMs, flacGuard),
                     SnapcastClientService::audioThread,
                     new EngineHost.Observer() {
                         @Override
@@ -412,7 +422,9 @@ public final class SnapcastClientService extends Service {
         return thread;
     }
 
-    /** What the connection reports besides the audio: phases and the end of the retries. */
+    /**
+     * What the connection reports besides the audio: phases and the end of the retries.
+     */
     private final class Lifecycle implements SnapcastConnection.Listener {
         @Override
         public void onServerSettings(ServerSettingsMessage settings) {
@@ -498,7 +510,9 @@ public final class SnapcastClientService extends Service {
         }
     }
 
-    /** Ends the session once, from any thread: locks go first, the blocking parts run on a thread of their own. */
+    /**
+     * Ends the session once, from any thread: locks go first, the blocking parts run on a thread of their own.
+     */
     private void endSession(SnapcastClientRuntime.Ending ending) {
         if (!ended.compareAndSet(false, true)) {
             return;
@@ -528,9 +542,9 @@ public final class SnapcastClientService extends Service {
     private void recordEnding(SnapcastClientRuntime.Ending ending) {
         try {
             PreferenceManager.getDefaultSharedPreferences(this).edit()
-                    .putString(SnapcastClientSpike.KEY_LAST_ENDING, ending.name())
-                    .putLong(SnapcastClientSpike.KEY_LAST_ENDING_AT, System.currentTimeMillis())
-                    .putBoolean(SnapcastClientSpike.KEY_LAST_ENDING_SEEN, false) // unseen until the switch or the dialog showed it
+                    .putString(SnapcastClient.KEY_LAST_ENDING, ending.name())
+                    .putLong(SnapcastClient.KEY_LAST_ENDING_AT, System.currentTimeMillis())
+                    .putBoolean(SnapcastClient.KEY_LAST_ENDING_SEEN, false) // unseen until the switch or the dialog showed it
                     .apply();
             EngineHost h = host;
             if (h != null) {
@@ -566,7 +580,9 @@ public final class SnapcastClientService extends Service {
         }
     }
 
-    /** Closes the connection, ends the engine thread, frees the output. Blocks for up to a few seconds. */
+    /**
+     * Closes the connection, ends the engine thread, frees the output. Blocks for up to a few seconds.
+     */
     private void teardown() {
         SnapcastConnection c;
         EngineHost h;
@@ -615,7 +631,9 @@ public final class SnapcastClientService extends Service {
 
     // ---- locks
 
-    /** The wake lock has a safety timeout of 8 hours; while the session plays it is renewed every 30 minutes. */
+    /**
+     * The wake lock has a safety timeout of 8 hours; while the session plays it is renewed every 30 minutes.
+     */
     private void renewWakeLock() {
         synchronized (lockGuard) {
             if (wakeLock != null && !ended.get()) {
@@ -682,7 +700,9 @@ public final class SnapcastClientService extends Service {
         }
     }
 
-    /** Asks for a refresh from any thread; at most one request waits on the main thread at any time. */
+    /**
+     * Asks for a refresh from any thread; at most one request waits on the main thread at any time.
+     */
     private void requestNotificationRefresh() {
         if (refreshPending.compareAndSet(false, true)) {
             main.post(() -> {
@@ -692,7 +712,9 @@ public final class SnapcastClientService extends Service {
         }
     }
 
-    /** Main thread. Rebuilds the notification only when its text changed (see {@link NotificationPolicy}). */
+    /**
+     * Main thread. Rebuilds the notification only when its text changed (see {@link NotificationPolicy}).
+     */
     private void refreshNotification() {
         if (ended.get()) {
             return;
@@ -753,15 +775,17 @@ public final class SnapcastClientService extends Service {
 
     private String installSecret() {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        String secret = preferences.getString(SnapcastClientSpike.KEY_SECRET, null);
+        String secret = preferences.getString(SnapcastClient.KEY_SECRET, null);
         if (!SnapcastClientIdentity.isSecret(secret)) {
             secret = SnapcastClientIdentity.newSecret(new SecureRandom());
-            preferences.edit().putString(SnapcastClientSpike.KEY_SECRET, secret).apply();
+            preferences.edit().putString(SnapcastClient.KEY_SECRET, secret).apply();
         }
         return secret;
     }
 
-    /** The name the UPnP server announces (the same preference and default as the Snapcast feed uses). */
+    /**
+     * The name the UPnP server announces (the same preference and default as the Snapcast feed uses).
+     */
     private String phoneName() {
         return PreferenceManager.getDefaultSharedPreferences(this).getString(getString(R.string.settings_local_server_name_key), "Yaacc");
     }

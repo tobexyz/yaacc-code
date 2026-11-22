@@ -79,10 +79,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
-import de.yaacc.R;
 import de.yaacc.ExitBroadcastReceiver;
+import de.yaacc.R;
 import de.yaacc.Yaacc;
 import de.yaacc.upnp.UpnpClient;
+import de.yaacc.upnp.callback.openhome.ClingOhControl;
 import de.yaacc.upnp.protocol.UpnpProtocolHandler;
 import de.yaacc.upnp.registry.Registry;
 import de.yaacc.upnp.registry.RegistryImpl;
@@ -102,7 +103,6 @@ import de.yaacc.upnp.server.media.CombinedCaptureService;
 import de.yaacc.upnp.server.media.MediaProjectionHelper;
 import de.yaacc.upnp.server.media.ScreenCastCaptureService;
 import de.yaacc.upnp.server.media.SystemAudioCaptureService;
-import de.yaacc.upnp.callback.openhome.ClingOhControl;
 import de.yaacc.upnp.server.openhome.AndroidOhThreads;
 import de.yaacc.upnp.server.openhome.AndroidOpenHomeHost;
 import de.yaacc.upnp.server.openhome.AndroidOutputSources;
@@ -111,11 +111,11 @@ import de.yaacc.upnp.server.openhome.OpenHomeRenderer;
 import de.yaacc.upnp.server.openhome.OwnOpenHomeStandby;
 import de.yaacc.upnp.server.renderingcontrol.RenderingControlServiceManager;
 import de.yaacc.upnp.server.renderingcontrol.YaaccAudioRenderingControlService;
+import de.yaacc.util.ExitRestartGuard;
+import de.yaacc.util.ExitRestartGuards;
 import de.yaacc.util.InterfaceResolutionHelper;
 import de.yaacc.util.NotificationId;
 import de.yaacc.util.SAFCacheManager;
-import de.yaacc.util.ExitRestartGuard;
-import de.yaacc.util.ExitRestartGuards;
 import de.yaacc.util.YaaccLogger;
 
 /**
@@ -136,7 +136,9 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     public static final String SAF_PATH = "saf";
     public static final int LOCK_TIMEOUT = 5000;
 
-    /** The OpenHome renderer; created with the first device, lives as long as this service. */
+    /**
+     * The OpenHome renderer; created with the first device, lives as long as this service.
+     */
     private OpenHomeRenderer openHomeRenderer;
     private AndroidOutputSources outputSources;
 
@@ -494,7 +496,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         SAFCacheManager cacheManager = SAFCacheManager.getInstance(this);
         boolean isPreloading = cacheManager.isPreloading();
         YaaccLogger.d(getClass().getName(), "showNotification: isPreloading=" + isPreloading + ", cacheSize=" + cacheManager.getCacheSize() + ", filesIndexed=" + cacheFilesIndexed);
-        
+
         if (isPreloading) {
             statusBuilder.append(" | ⏳ ").append(getString(R.string.notification_indexing)).append(": ").append(cacheFilesIndexed);
             if (!cacheCurrentFolder.isEmpty()) {
@@ -787,7 +789,7 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
 
         // Restart server when selected interface changes
-        if (getApplicationContext().getString(R.string.settings_upnp_selected_interface_key).equals(key)) {
+        if (getApplicationContext().getString(R.string.settings_selected_interface_key).equals(key)) {
             YaaccLogger.d(this.getClass().getName(), "Selected interface changed, restarting server");
             if (registry != null) {
                 restartServer();
@@ -1014,7 +1016,9 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         return services.toArray(new LocalService[]{});
     }
 
-    /** What the OpenHome control points are told the renderer can play. */
+    /**
+     * What the OpenHome control points are told the renderer can play.
+     */
     private static final String OPENHOME_PROTOCOL_INFO = "http-get:*:audio/mpeg:*,http-get:*:audio/mp4:*,"
             + "http-get:*:audio/aac:*,http-get:*:audio/flac:*,http-get:*:audio/x-flac:*,http-get:*:audio/ogg:*,"
             + "http-get:*:audio/wav:*,http-get:*:audio/x-wav:*,http-get:*:audio/L16:*";
@@ -1052,7 +1056,9 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
         }
     }
 
-    /** Stops the source list of the OpenHome renderer following the output setting and the groups (task 12.5). */
+    /**
+     * Stops the source list of the OpenHome renderer following the output setting and the groups (task 12.5).
+     */
     private void closeOutputSources() {
         if (outputSources != null) {
             outputSources.close();
