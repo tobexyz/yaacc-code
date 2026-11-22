@@ -306,7 +306,9 @@ public final class FakeFCastTlsReceiver implements AutoCloseable {
                 sendFlatbuf(message);
                 sendFlatbuf(de.yaacc.fcast.protocol.V4Golden.get("statePlaying"));
                 sendFlatbuf(de.yaacc.fcast.protocol.V4Golden.get("progress"));
+                sendFlatbuf(de.yaacc.fcast.protocol.V4Golden.get("tracks"));
                 break;
+            case TRACK_SELECTED:
             case STATE:
             case VOLUME:
             case SPEED:

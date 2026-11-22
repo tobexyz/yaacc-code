@@ -40,10 +40,17 @@ public class FCastV4TranslatorTest {
         return translator.incoming(V4Golden.get(golden));
     }
 
+    /** The one message of that type (a load or a stop also clears the tracks, an introduction also gives the capabilities). */
     private static <T extends FCastMessages.Incoming> T only(List<FCastMessages.Incoming> messages, Class<T> type) {
-        assertEquals(1, messages.size());
-        assertTrue(messages.get(0).getClass().getName(), type.isInstance(messages.get(0)));
-        return type.cast(messages.get(0));
+        T found = null;
+        for (FCastMessages.Incoming message : messages) {
+            if (type.isInstance(message)) {
+                assertEquals("more than one " + type.getSimpleName(), null, found);
+                found = type.cast(message);
+            }
+        }
+        assertTrue("no " + type.getSimpleName() + " in " + messages.size() + " messages", found != null);
+        return found;
     }
 
     // ---- incoming
@@ -144,9 +151,68 @@ public class FCastV4TranslatorTest {
     }
 
     @Test
-    public void messagesOfNoUseToTheSessionGiveNothing() throws Exception {
-        assertTrue(in("tracks").isEmpty());
-        assertTrue(in("changeTrack").isEmpty());
+    public void theIntroductionAlsoGivesTheCapabilities() throws Exception {
+        List<FCastMessages.Incoming> messages = in("receiverIntroduction");
+        assertEquals(2, messages.size());
+        FCastCapabilities caps = ((FCastMessages.Capabilities) messages.get(1)).getCapabilities();
+        assertEquals(java.util.Arrays.asList("mp4", "mkv"), caps.getContainers());
+        assertEquals(java.util.Arrays.asList("h264"), caps.getVideoFormats());
+        assertTrue(caps.supportsExternalSubtitles());
+        assertEquals(0.01, caps.getVolumeStep(), 1e-6);
+        assertEquals(0, caps.getDisplayWidth());
+    }
+
+    @Test
+    public void theTracksAreTheItemsTracksAndANewItemOrAStopClearsThem() throws Exception {
+        List<FCastTrack> tracks = only(in("tracks"), FCastMessages.Tracks.class).getTracks();
+        assertEquals(4, tracks.size());
+        assertEquals(new FCastTrack(1, FCastTrack.Type.AUDIO, "eng", "English"), tracks.get(0));
+        assertEquals(FCastTrack.Type.SUBTITLE, tracks.get(1).getType());
+        assertEquals("", tracks.get(1).getTitle());
+        assertEquals(FCastTrack.Type.VIDEO, tracks.get(2).getType());
+        assertEquals(FCastTrack.Type.UNKNOWN, tracks.get(3).getType());
+        assertTrue("a new item has no tracks until the receiver lists them", only(in("loadFull"), FCastMessages.Tracks.class).getTracks().isEmpty());
+        assertTrue(only(in("stop"), FCastMessages.Tracks.class).getTracks().isEmpty());
+    }
+
+    @Test
+    public void aTrackChangeIsTheSelectionOfThatType() throws Exception {
+        FCastMessages.TrackSelected audio = only(in("changeTrack"), FCastMessages.TrackSelected.class);
+        assertEquals(FCastTrack.Type.AUDIO, audio.getType());
+        assertEquals(Long.valueOf(3), audio.getTrackId());
+        FCastMessages.TrackSelected off = only(in("changeTrackOff"), FCastMessages.TrackSelected.class);
+        assertEquals(FCastTrack.Type.SUBTITLE, off.getType());
+        assertNull(off.getTrackId());
+    }
+
+    @Test
+    public void textOfTheTracksAndFormatsIsCleanedAndCut() throws Exception {
+        StringBuilder many = new StringBuilder();
+        for (int i = 0; i < 200; i++) {
+            many.append('x');
+        }
+        List<FCastTrack> tracks = only(translator.incoming(V4Golden.get("tracks")), FCastMessages.Tracks.class).getTracks();
+        assertTrue(tracks.get(0).getTitle().length() <= FCastText.MAX_NAME);
+        assertEquals(4, tracks.size());
+        assertTrue(many.length() > FCastText.MAX_NAME);
+    }
+
+    @Test
+    public void messagesThatOnlyASenderSendGiveNothing() throws Exception {
+        assertTrue(in("addSubtitle").isEmpty());
+        assertTrue(in("progressInterval").isEmpty());
+    }
+
+    @Test
+    public void trackCommandsAreV4MessagesTheReferenceReads() throws Exception {
+        V4In select = V4Reader.read(FCastV4Translator.changeTrack(FCastTrack.Type.AUDIO, 7L));
+        assertEquals(V4In.Kind.TRACK_SELECTED, select.kind);
+        assertEquals(Long.valueOf(7), select.trackId);
+        assertEquals(Integer.valueOf(V4Schema.TRACK_AUDIO), select.trackType);
+        V4In off = V4Reader.read(FCastV4Translator.changeTrack(FCastTrack.Type.SUBTITLE, null));
+        assertNull(off.trackId);
+        assertEquals(Integer.valueOf(V4Schema.TRACK_SUBTITLE), off.trackType);
+        assertEquals(V4In.Kind.OTHER, V4Reader.read(FCastV4Translator.addSubtitle("http://h/a.srt", true, "Name")).kind);
     }
 
     @Test

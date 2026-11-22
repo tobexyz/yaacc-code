@@ -94,6 +94,15 @@ public final class FbTable extends Table {
         return o == 0 ? null : bb.getLong(o + bb_pos);
     }
 
+    /** The two unsigned 32 bit numbers of an inline struct such as {@code VideoResolution} (width, height), or null if the field is absent. */
+    public long[] u32Pair(int slot) {
+        int o = __offset(slot);
+        if (o == 0) {
+            return null;
+        }
+        return new long[]{bb.getInt(o + bb_pos) & 0xffffffffL, bb.getInt(o + bb_pos + 4) & 0xffffffffL};
+    }
+
     public int vectorLength(int slot) {
         int o = __offset(slot);
         if (o == 0) {

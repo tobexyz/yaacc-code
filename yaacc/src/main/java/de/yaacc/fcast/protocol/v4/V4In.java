@@ -29,7 +29,40 @@ import java.util.List;
 public final class V4In {
     /** The kinds YAACC acts on; everything else is {@link #OTHER} (and is skipped). */
     public enum Kind {
-        LOAD, PROGRESS, VOLUME, STATE, SPEED, RECEIVER_INTRODUCTION, STOP, ERROR, TRACKS, OTHER
+        LOAD, PROGRESS, VOLUME, STATE, SPEED, RECEIVER_INTRODUCTION, STOP, ERROR, TRACKS, TRACK_SELECTED, OTHER
+    }
+
+    /** The capabilities of a {@code ReceiverIntroduction}; lists are as the receiver sent them (the caller cleans them). */
+    public static final class Caps {
+        public final List<String> protocols;
+        public final List<String> containers;
+        public final List<String> videoFormats;
+        public final List<String> audioFormats;
+        public final List<String> subtitleFormats;
+        public final List<String> hdrFormats;
+        public final List<String> imageFormats;
+        public final boolean externalSubtitles;
+        public final boolean mirroring;
+        public final Double volumeStep;
+        public final long displayWidth;
+        public final long displayHeight;
+
+        Caps(List<String> protocols, List<String> containers, List<String> videoFormats, List<String> audioFormats, List<String> subtitleFormats,
+             List<String> hdrFormats, List<String> imageFormats, boolean externalSubtitles, boolean mirroring, Double volumeStep, long displayWidth,
+             long displayHeight) {
+            this.protocols = protocols;
+            this.containers = containers;
+            this.videoFormats = videoFormats;
+            this.audioFormats = audioFormats;
+            this.subtitleFormats = subtitleFormats;
+            this.hdrFormats = hdrFormats;
+            this.imageFormats = imageFormats;
+            this.externalSubtitles = externalSubtitles;
+            this.mirroring = mirroring;
+            this.volumeStep = volumeStep;
+            this.displayWidth = displayWidth;
+            this.displayHeight = displayHeight;
+        }
     }
 
     /** One item of a {@code Load}. */
@@ -73,6 +106,11 @@ public final class V4In {
     public final String appVersion;
     /** {@code TracksAvailable}. */
     public final List<Track> tracks;
+    /** {@code ReceiverIntroduction}: what the receiver can play, or null if it did not say. */
+    public final Caps caps;
+    /** {@code ChangeTrack}: the selected track (null: none) and its type ({@link V4Schema#TRACK_VIDEO} and so on). */
+    public final Long trackId;
+    public final Integer trackType;
 
     /** A track of the receiver's current item. */
     public static final class Track {
@@ -92,6 +130,15 @@ public final class V4In {
 
     V4In(Kind kind, Item item, Integer queueIndex, int queueSize, Double positionSeconds, Double durationSeconds, Double number,
          Integer code, String displayName, String appName, String appVersion, List<Track> tracks) {
+        this(kind, item, queueIndex, queueSize, positionSeconds, durationSeconds, number, code, displayName, appName, appVersion, tracks,
+                null, null, null);
+    }
+
+    V4In(Kind kind, Item item, Integer queueIndex, int queueSize, Double positionSeconds, Double durationSeconds, Double number,
+         Integer code, String displayName, String appName, String appVersion, List<Track> tracks, Caps caps, Long trackId, Integer trackType) {
+        this.caps = caps;
+        this.trackId = trackId;
+        this.trackType = trackType;
         this.kind = kind;
         this.item = item;
         this.queueIndex = queueIndex;

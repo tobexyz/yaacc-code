@@ -154,4 +154,32 @@ public class FCastSheetModelTest {
         assertEquals("fcast://r/abc", FCastSheetTrace.shorten("fcast://r/abc"));
         assertEquals("", FCastSheetTrace.shorten(null));
     }
+
+    // ---- the protocol row (task 7.5) and the tracks section (task 7.4)
+
+    private static final de.yaacc.fcast.protocol.FCastPin.Source LINK = de.yaacc.fcast.protocol.FCastPin.Source.LINK;
+    private static final de.yaacc.fcast.protocol.FCastPin.Source DISCOVERY = de.yaacc.fcast.protocol.FCastPin.Source.DISCOVERY;
+
+    @Test
+    public void theProtocolRowSaysWhatIsInUseAndWhyNotVersion4() {
+        assertEquals(FCastSheetModel.ProtocolText.UNKNOWN, FCastSheetModel.protocolText(0, 0, null, 34));
+        assertEquals(FCastSheetModel.ProtocolText.PLAIN, FCastSheetModel.protocolText(3, 3, null, 34));
+        assertEquals("an older receiver", FCastSheetModel.ProtocolText.PLAIN, FCastSheetModel.protocolText(2, 2, null, 34));
+        assertEquals(FCastSheetModel.ProtocolText.PLAIN_V4_NEEDS_LINK, FCastSheetModel.protocolText(3, 4, null, 34));
+        assertEquals(FCastSheetModel.ProtocolText.PLAIN_V4_NEEDS_ANDROID, FCastSheetModel.protocolText(3, 4, null, 28));
+        assertEquals("API 29 is the first that can do it", FCastSheetModel.ProtocolText.PLAIN_V4_NEEDS_LINK, FCastSheetModel.protocolText(3, 4, null, 29));
+        assertEquals(FCastSheetModel.ProtocolText.SECURE_LINK, FCastSheetModel.protocolText(4, 4, LINK, 34));
+        assertEquals(FCastSheetModel.ProtocolText.SECURE_DISCOVERY, FCastSheetModel.protocolText(4, 4, DISCOVERY, 34));
+        assertEquals(FCastSheetModel.ProtocolText.OTHER, FCastSheetModel.protocolText(5, 5, null, 34));
+    }
+
+    @Test
+    public void theTracksSectionNeedsVersion4AndAnItemAndSomethingToOffer() {
+        assertTrue(FCastSheetModel.showsTracks(4, true, 2, 0, false));
+        assertTrue(FCastSheetModel.showsTracks(4, true, 0, 3, false));
+        assertTrue("subtitle files can be added even if the item has no tracks", FCastSheetModel.showsTracks(4, true, 0, 0, true));
+        assertFalse(FCastSheetModel.showsTracks(4, true, 0, 0, false));
+        assertFalse("nothing plays", FCastSheetModel.showsTracks(4, false, 2, 2, true));
+        assertFalse("version 3 has no tracks", FCastSheetModel.showsTracks(3, true, 2, 2, true));
+    }
 }

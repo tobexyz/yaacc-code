@@ -629,12 +629,12 @@ You play to an FCast receiver like to any receiver: pick it, then play music, vi
 
 ### The settings sheet
 
-The FCast protocol cannot read or change the receiver's own settings, so the sheet shows what can be controlled and known: the **device** (name, address, how it was found, the receiver app and version, the protocol in use with the note that version 3 is unencrypted), **playback** (volume; mute and speed while a player plays; stop), the **connection** (state, *Check connection* with the time it took, *Reconnect*), **troubleshooting** (a trace of what the sheet saw, with addresses shortened to host and path; *Copy trace*) and **manage** (*Remove* for a receiver you added by hand).
+The FCast protocol cannot read or change the receiver's own settings, so the sheet shows what can be controlled and known: the **device** (name, address, how it was found, the receiver app and version, the protocol in use: version 4 says where its key came from, version 3 says that it is unencrypted and, if the receiver offers version 4, what to do to use it; with version 4 also what the receiver says it can play), **playback** (volume; mute and speed while a player plays; stop), **tracks** (version 4, while something plays: the audio track, the subtitle track or *Off*, and *Add subtitle file* by a web address if the receiver takes subtitle files), the **connection** (state, *Check connection* with the time it took, *Reconnect*), **troubleshooting** (a trace of what the sheet saw, with addresses shortened to host and path; *Copy trace*) and **manage** (*Remove* for a receiver you added by hand).
 
 ### FCast limits
 
-* Protocol version 3 only (a receiver of version 1 or 2 may work with fewer functions). Version 4 (TLS and FlatBuffers, audio tracks, subtitles, queue messages) is not supported yet.
-* No playlist is sent to the receiver, no tracks or subtitles, no grouping of receivers, no screen mirroring, no key control of the receiver's screen.
+* Protocol version 3, and version 4 (TLS 1.3 and FlatBuffers) on Android 10 or later for a receiver whose key YAACC knows (see *FCast security*); a receiver of version 1 or 2 may work with fewer functions. Audio and subtitle tracks and subtitle files by address need version 4; the queue messages of version 4 are not used (YAACC keeps the queue).
+* No playlist is sent to the receiver, no grouping of receivers, no screen mirroring, no key control of the receiver's screen.
 * At most 64 discovered receivers are listed, at most 8 connections for cards and sheets are open at once, a connection link may have 4 KB and 16 addresses at most, and the trace of the sheet keeps 50 lines.
 * The protocol has no mute: YAACC sets the volume to 0 and puts it back. A volume that another sender sets ends the mute.
 * The receivers differ in how they report the end of an item. YAACC uses the end event, a paused state at the duration (the Android receiver) and, as a safety net, two seconds without an update near the end. A pause by another sender in the last second can look like the end. What a receiver does with a displayed picture is not known for every receiver.
@@ -647,6 +647,8 @@ The FCast protocol cannot read or change the receiver's own settings, so the she
 * **The item does not play.** The receiver must reach the address of the item; a server that answers only the phone, an address of localhost, or a format the receiver cannot play shows as an error on the phone and the next item is tried (three failures in a row stop the player).
 
 ### FCast security
+
+FCast version 4 is encrypted (TLS 1.3) and identifies the receiver by the fingerprint of its key. YAACC uses it on Android 10 or later for a receiver whose fingerprint it knows: from its **connection link** (the QR code on the receiver's screen, scanned with the camera app or pasted: the strong source, which a network attacker cannot change) or from the receiver's **announcement** (this keeps a listener out, not someone who answers the search with his own key). If the key does not match, YAACC does not connect and does **not** fall back to the unencrypted version: remove the receiver and add it with its link again if it was reinstalled. A receiver added only by its address or name, and every receiver on Android 9 or older, is spoken to in version 3, and the settings sheet says so.
 
 FCast version 3 is neither encrypted nor authenticated. The commands and the **full address of every item**, including any user name or token in it, go in plain text to the receiver you chose, and anyone on the network who can reach a receiver can control it. YAACC sends no cookies or headers and stores no credentials, opens no listening port for FCast, accepts only addresses of the local network from a link or a name, and shows what a link adds before it adds anything. Discovered receivers can be spoofed by any host on the network. Use FCast only inside a network you trust, and do not type in a public address.
 

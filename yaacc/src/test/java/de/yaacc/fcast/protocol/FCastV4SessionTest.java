@@ -161,6 +161,8 @@ public class FCastV4SessionTest {
         assertTrue("the receiver's introduction names it", await(session, s -> "FCast-pc".equals(s.getReceiverName())));
         assertTrue("its volume at connect", await(session, s -> s.getVolume() != null && Math.abs(s.getVolume() - 0.5) < 1e-6));
         assertEquals("a sender introduction was the first message", FakeFCastTlsReceiver.FLATBUF, receiver.packets().get(0).opcode);
+        assertEquals(4, session.getState().getPeerVersion());
+        assertEquals(FCastPin.Source.LINK, session.getState().getPinSource());
     }
 
     @Test
@@ -215,6 +217,59 @@ public class FCastV4SessionTest {
         session.stop();
         awaitReceiver(receiver, V4In.Kind.STOP);
         assertTrue(await(session, s -> s.getPlayback() == FCastReceiverState.Playback.IDLE));
+    }
+
+    @Test
+    public void theTracksAndTheCapabilitiesAreInTheState() throws Exception {
+        FakeFCastTlsReceiver.Keys keys = FakeFCastTlsReceiver.Keys.get(0);
+        FakeFCastTlsReceiver receiver = receiver(keys);
+        FCastSession session = session(receiver, keys.pin(FCastPin.Source.LINK), new Events());
+        session.acquire();
+        session.play(new FCastMessages.PlayRequest("video/mp4", "http://h/a.mp4"));
+
+        assertTrue(await(session, s -> s.getTracks().size() == 4));
+        assertNotNull(session.getState().getCapabilities());
+        assertTrue(session.getState().getCapabilities().supportsExternalSubtitles());
+        assertEquals("eng", session.getState().getTracks().get(0).getLanguage());
+    }
+
+    @Test
+    public void selectingATrackIsSentAndTheReceiversAnswerIsTheSelection() throws Exception {
+        FakeFCastTlsReceiver.Keys keys = FakeFCastTlsReceiver.Keys.get(0);
+        FakeFCastTlsReceiver receiver = receiver(keys);
+        FCastSession session = session(receiver, keys.pin(FCastPin.Source.LINK), new Events());
+        session.acquire();
+        session.play(new FCastMessages.PlayRequest("video/mp4", "http://h/a.mp4"));
+        assertTrue(await(session, s -> s.getTracks().size() == 4));
+
+        session.changeTrack(FCastTrack.Type.AUDIO, 1L);
+
+        awaitReceiver(receiver, V4In.Kind.TRACK_SELECTED);
+        assertEquals(Long.valueOf(1), last(receiver, V4In.Kind.TRACK_SELECTED).trackId);
+        assertTrue(await(session, s -> Long.valueOf(1).equals(s.getSelectedAudio())));
+
+        session.changeTrack(FCastTrack.Type.SUBTITLE, 2L);
+        assertTrue(await(session, s -> Long.valueOf(2).equals(s.getSelectedSubtitle())));
+        session.changeTrack(FCastTrack.Type.SUBTITLE, null);
+        assertTrue(await(session, s -> s.getSelectedSubtitle() == null));
+    }
+
+    @Test
+    public void aSubtitleByAddressIsSentAsTheReferenceMessage() throws Exception {
+        FakeFCastTlsReceiver.Keys keys = FakeFCastTlsReceiver.Keys.get(0);
+        FakeFCastTlsReceiver receiver = receiver(keys);
+        FCastSession session = session(receiver, keys.pin(FCastPin.Source.LINK), new Events());
+        session.acquire();
+
+        session.addSubtitle("http://h/a.srt", true, "English");
+
+        long end = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(WAIT);
+        while (receiver.flatbufs().size() < 2 && System.nanoTime() < end) {
+            Thread.sleep(5);
+        }
+        List<byte[]> sent = receiver.flatbufs();
+        assertEquals(2, sent.size()); // the introduction, then the subtitle
+        assertTrue(java.util.Arrays.equals(de.yaacc.fcast.protocol.v4.V4Writer.addSubtitleSource("http://h/a.srt", true, "English"), sent.get(1)));
     }
 
     @Test

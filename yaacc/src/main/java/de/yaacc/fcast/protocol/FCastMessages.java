@@ -287,6 +287,51 @@ public final class FCastMessages {
         }
     }
 
+    /** {@code TracksAvailable} of a v4 receiver: the tracks of the item it plays now (empty when there is none). */
+    public static final class Tracks implements Incoming {
+        private final java.util.List<FCastTrack> tracks;
+
+        Tracks(java.util.List<FCastTrack> tracks) {
+            this.tracks = java.util.Collections.unmodifiableList(new java.util.ArrayList<>(tracks));
+        }
+
+        public java.util.List<FCastTrack> getTracks() {
+            return tracks;
+        }
+    }
+
+    /** {@code ChangeTrack} relayed by a v4 receiver: the track of a type that is selected now ({@code null}: none). */
+    public static final class TrackSelected implements Incoming {
+        private final FCastTrack.Type type;
+        private final Long trackId;
+
+        TrackSelected(FCastTrack.Type type, Long trackId) {
+            this.type = type;
+            this.trackId = trackId;
+        }
+
+        public FCastTrack.Type getType() {
+            return type;
+        }
+
+        public Long getTrackId() {
+            return trackId;
+        }
+    }
+
+    /** What a v4 receiver can play, from its {@code ReceiverIntroduction}. */
+    public static final class Capabilities implements Incoming {
+        private final FCastCapabilities capabilities;
+
+        Capabilities(FCastCapabilities capabilities) {
+            this.capabilities = capabilities;
+        }
+
+        public FCastCapabilities getCapabilities() {
+            return capabilities;
+        }
+    }
+
     /**
      * Parses the packet of a receiver.
      *

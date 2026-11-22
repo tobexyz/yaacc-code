@@ -207,6 +207,19 @@ public final class FCastSession implements AutoCloseable {
         });
     }
 
+    /**
+     * Selects an audio or subtitle track of the item (version 4 only; the error says so otherwise). {@code id} null switches the subtitles
+     * off. The state shows the selection when the receiver confirms it.
+     */
+    public void changeTrack(final FCastTrack.Type type, final Long id) {
+        post(() -> commandV4(() -> FCastV4Translator.changeTrack(type, id)));
+    }
+
+    /** Gives the receiver a subtitle file by its address (version 4 only), and selects it if {@code select}. */
+    public void addSubtitle(final String url, final boolean select, final String name) {
+        post(() -> commandV4(() -> FCastV4Translator.addSubtitle(url, select, name)));
+    }
+
     /** Subscribes to an event type, e.g. {@link FCastMessages#EVENT_MEDIA_ITEM_END} (version 3 receivers only). */
     public void subscribe(final int eventType) {
         post(() -> command(FCastOpcode.SUBSCRIBE_EVENT, FCastReceiverState.Pending.NONE, () -> FCastMessages.subscribeEvent(eventType), null));
@@ -215,6 +228,28 @@ public final class FCastSession implements AutoCloseable {
     /** Builds the body of a command (may refuse). */
     private interface Body {
         String get() throws FCastProtocolException;
+    }
+
+    private interface V4Body {
+        byte[] get() throws FCastProtocolException;
+    }
+
+    /** A command that only version 4 has: it is refused with a text when the receiver is spoken to in v3. */
+    private void commandV4(V4Body body) {
+        if (closed) {
+            return;
+        }
+        touch();
+        if (!ensureConnected()) {
+            return;
+        }
+        try {
+            connection.sendV4(body.get());
+        } catch (FCastProtocolException e) {
+            fail(e.getKind() == FCastProtocolException.Kind.UNSUPPORTED ? "tracks and subtitles need the secure protocol (version 4) of the receiver"
+                    : e.getMessage());
+        }
+        armIdle();
     }
 
     private void command(FCastOpcode opcode, FCastReceiverState.Pending pending, Body body, String playedUrl) {
@@ -290,7 +325,8 @@ public final class FCastSession implements AutoCloseable {
             }
             connectedAt = clock.nowMillis();
             subscribedToEnd = false;
-            publish(state.toBuilder().link(FCastReceiverState.Link.CONNECTED).protocolVersion(made.getNegotiatedVersion()));
+            publish(state.toBuilder().link(FCastReceiverState.Link.CONNECTED).protocolVersion(made.getNegotiatedVersion())
+                    .pinSource(made.getPinSource()).tracks(null).capabilities(null));
             return true;
         } catch (FCastSecurityException e) {
             connection = null;
@@ -369,7 +405,7 @@ public final class FCastSession implements AutoCloseable {
         if (message instanceof FCastMessages.Version) {
             FCastConnection c = connection;
             if (c != null) {
-                b.protocolVersion(c.getNegotiatedVersion());
+                b.protocolVersion(c.getNegotiatedVersion()).peerVersion(((FCastMessages.Version) message).getVersion()).pinSource(c.getPinSource());
                 // the end of an item also comes as an event (both reference receivers); only a version 3 receiver has events,
                 // and only now, after its Version, is the version known
                 if (c.getNegotiatedVersion() >= 3 && !subscribedToEnd) {
@@ -422,6 +458,13 @@ public final class FCastSession implements AutoCloseable {
             listener.onPlayUpdate(update, next);
         } else if (message instanceof FCastMessages.Event) {
             listener.onMediaItemEvent((FCastMessages.Event) message);
+        } else if (message instanceof FCastMessages.Tracks) {
+            publish(b.tracks(((FCastMessages.Tracks) message).getTracks()));
+        } else if (message instanceof FCastMessages.TrackSelected) {
+            FCastMessages.TrackSelected selected = (FCastMessages.TrackSelected) message;
+            publish(b.selectedTrack(selected.getType(), selected.getTrackId()));
+        } else if (message instanceof FCastMessages.Capabilities) {
+            publish(b.capabilities(((FCastMessages.Capabilities) message).getCapabilities()));
         }
     }
 

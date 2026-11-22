@@ -132,8 +132,8 @@ public class FCastLinkActivity extends AppCompatActivity {
             }
 
             @Override
-            public String note() {
-                return context.getString(R.string.fcast_link_note);
+            public String note(boolean withKey) {
+                return context.getString(withKey ? R.string.fcast_link_note_v4 : R.string.fcast_link_note);
             }
         });
         dialog = new AlertDialog.Builder(this)

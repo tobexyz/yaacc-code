@@ -283,6 +283,11 @@ public final class FCastConnection implements AutoCloseable {
         return peer == 0 ? FCastMessages.MAX_VERSION : Math.min(peer, FCastMessages.MAX_VERSION);
     }
 
+    /** Where the pinned key came from, or null if the connection is not secured. */
+    public FCastPin.Source getPinSource() {
+        return secure && config.pin != null ? config.pin.getSource() : null;
+    }
+
     /** True if this connection runs inside TLS 1.3 (protocol v4, pinned key). */
     public boolean isSecure() {
         return secure;
@@ -319,6 +324,20 @@ public final class FCastConnection implements AutoCloseable {
             return enqueueBytes(FCastPacketCodec.encodeBinary(FCastOpcode.FLATBUF.code(), message, FCastPacketCodec.MAX_PACKET_V4));
         }
         return enqueue(opcode, body);
+    }
+
+    /**
+     * Queues a message that only version 4 has (tracks, subtitles). Never blocks.
+     *
+     * @param message a serialized {@code Packet} made by the v4 writer
+     * @return false if the connection is closed
+     * @throws FCastProtocolException {@code UNSUPPORTED} on a connection that is not version 4
+     */
+    public boolean sendV4(byte[] message) throws FCastProtocolException {
+        if (!secure) {
+            throw new FCastProtocolException(FCastProtocolException.Kind.UNSUPPORTED, "this receiver is not connected with version 4");
+        }
+        return enqueueBytes(FCastPacketCodec.encodeBinary(FCastOpcode.FLATBUF.code(), message, FCastPacketCodec.MAX_PACKET_V4));
     }
 
     /** The messages a caller may send; the handshake and the heartbeat are the connection's own business. */

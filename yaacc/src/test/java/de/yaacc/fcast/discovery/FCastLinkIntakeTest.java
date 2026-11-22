@@ -109,8 +109,8 @@ public class FCastLinkIntakeTest {
         }
 
         @Override
-        public String note() {
-            return "NOTE";
+        public String note(boolean withKey) {
+            return withKey ? "NOTE WITH KEY" : "NOTE";
         }
     };
 
@@ -119,6 +119,23 @@ public class FCastLinkIntakeTest {
         String message = FCastLinkText.message(intake.accept(link("192.168.0.2")).getParsed(), WORDS);
 
         assertEquals("Name: FCast-pc\n\nAddresses:\n  192.168.0.2:46899\n\nNOTE", message);
+    }
+
+    @Test
+    public void aLinkThatCarriesTheKeyGetsTheNoteOfTheEncryptedProtocol() {
+        String key = java.util.Base64.getEncoder().encodeToString(new byte[32]);
+        String json = "{\"name\":\"FCast-pc\",\"addresses\":[\"192.168.0.2\"],\"services\":[{\"port\":46899,\"type\":0}],\"txt\":{\"v\":\"4\",\"fp\":\"" + key + "\"}}";
+        String data = FCastConnectionUrl.PREFIX + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.UTF_8));
+
+        assertTrue(FCastLinkText.message(intake.accept(data).getParsed(), WORDS).endsWith("NOTE WITH KEY"));
+    }
+
+    @Test
+    public void aKeyThatIsNotAKeyDoesNotChangeTheNote() {
+        String json = "{\"name\":\"FCast-pc\",\"addresses\":[\"192.168.0.2\"],\"services\":[{\"port\":46899,\"type\":0}],\"txt\":{\"fp\":\"short\"}}";
+        String data = FCastConnectionUrl.PREFIX + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.UTF_8));
+
+        assertTrue(FCastLinkText.message(intake.accept(data).getParsed(), WORDS).endsWith("\nNOTE"));
     }
 
     @Test

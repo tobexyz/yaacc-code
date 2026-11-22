@@ -32,8 +32,12 @@ public final class FCastLinkText {
         /** The heading of the list of addresses. */
         String addresses();
 
-        /** The note: nothing is played before the user chooses the receiver; version 3 is unencrypted. */
-        String note();
+        /**
+         * The note: nothing is played before the user chooses the receiver; version 3 is unencrypted.
+         *
+         * @param withKey true if the link carries the receiver's key (version 4, encrypted, from Android 10)
+         */
+        String note(boolean withKey);
     }
 
     private FCastLinkText() {
@@ -47,7 +51,8 @@ public final class FCastLinkText {
         for (FCastEndpoint endpoint : parsed.getEndpoints()) {
             text.append("  ").append(endpoint).append('\n');
         }
-        text.append('\n').append(words.note());
+        boolean withKey = de.yaacc.fcast.protocol.FCastPin.parse(parsed.getHints().getFingerprint(), de.yaacc.fcast.protocol.FCastPin.Source.LINK) != null;
+        text.append('\n').append(words.note(withKey));
         return text.toString();
     }
 }

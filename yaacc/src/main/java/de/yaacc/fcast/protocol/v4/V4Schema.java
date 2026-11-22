@@ -112,6 +112,22 @@ public final class V4Schema {
     public static final int ERROR_KIND = 4;
     public static final int ERROR_PACKET_NUM = 6;
 
+    // ReceiverCapabilities and what is inside
+    public static final int CAPS_MEDIA = 4;
+    public static final int CAPS_DISPLAY = 6;
+    public static final int CAPS_AUDIO = 8;
+    public static final int MEDIA_PROTOCOLS = 4;
+    public static final int MEDIA_CONTAINERS = 6;
+    public static final int MEDIA_VIDEO_FORMATS = 8;
+    public static final int MEDIA_AUDIO_FORMATS = 10;
+    public static final int MEDIA_SUBTITLE_FORMATS = 12;
+    public static final int MEDIA_HDR_FORMATS = 14;
+    public static final int MEDIA_IMAGE_FORMATS = 16;
+    public static final int MEDIA_EXTERNAL_SUBTITLES = 18;
+    public static final int MEDIA_MIRRORING = 20;
+    public static final int AUDIO_VOLUME_STEP = 4;
+    public static final int DISPLAY_RESOLUTION = 4;
+
     // TracksAvailable, MediaTrack, ChangeTrack, AddSubtitleSource, SetProgressUpdateInterval (task 7.4)
     public static final int TRACKS_TRACKS = 4;
     public static final int TRACK_ID = 4;

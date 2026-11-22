@@ -49,12 +49,15 @@ import java.util.concurrent.RejectedExecutionException;
 import de.yaacc.R;
 import de.yaacc.fcast.FCastReceiverLinks;
 import de.yaacc.fcast.FCastSheetModel;
+import de.yaacc.fcast.FCastTrackChoices;
 import de.yaacc.fcast.FCastSheetTrace;
 import de.yaacc.fcast.discovery.FCastEndpoint;
 import de.yaacc.fcast.discovery.FCastHub;
 import de.yaacc.fcast.discovery.FCastReceiverDevice;
+import de.yaacc.fcast.protocol.FCastCapabilities;
 import de.yaacc.fcast.protocol.FCastReceiverState;
 import de.yaacc.fcast.protocol.FCastSession;
+import de.yaacc.fcast.protocol.FCastTrack;
 import de.yaacc.fcast.protocol.FCastText;
 import de.yaacc.player.FCastPlayer;
 import de.yaacc.player.Player;
@@ -98,6 +101,14 @@ final class FCastSettingsSheet {
 
     private final TextView appValue;
     private final TextView protocolValue;
+    private final TextView protocolNote;
+    private final View formatsRow;
+    private final View tracksSection;
+    private final TextView audioValue;
+    private final View audioRow;
+    private final TextView subtitleValue;
+    private final View subtitleRow;
+    private final Button addSubtitle;
     private final TextView stateValue;
     private final TextView checkResult;
     private final TextView traceView;
@@ -118,6 +129,7 @@ final class FCastSettingsSheet {
     private FCastReceiverState.Link lastLink;
     private FCastReceiverState.Playback lastPlayback;
     private int lastVersion = -1;
+    private int lastTrackCount = -1;
     private int lastErrorSerial = -1;
     private String lastTitle = "";
 
@@ -165,6 +177,19 @@ final class FCastSettingsSheet {
         body.addView(valueRow(R.string.fcast_sheet_app, appValue, pad, density));
         protocolValue = new TextView(context);
         body.addView(valueRow(R.string.fcast_sheet_protocol, protocolValue, pad, density));
+        protocolNote = new TextView(context);
+        protocolNote.setTextSize(12);
+        protocolNote.setPadding(pad, 0, pad, (int) (4 * density));
+        protocolNote.setVisibility(View.GONE);
+        body.addView(protocolNote);
+        TextView formatsValue = new TextView(context);
+        formatsValue.setText(R.string.fcast_sheet_formats_show);
+        formatsRow = valueRow(R.string.fcast_sheet_formats, formatsValue, pad, density);
+        formatsRow.setClickable(true);
+        formatsRow.setFocusable(true);
+        formatsRow.setOnClickListener(v -> showFormats());
+        formatsRow.setVisibility(View.GONE);
+        body.addView(formatsRow);
 
         // ---- playback
         body.addView(section(R.string.fcast_sheet_section_playback, pad, density));
@@ -197,6 +222,29 @@ final class FCastSettingsSheet {
         stop.setText(R.string.fcast_sheet_stop);
         stop.setOnClickListener(v -> stopPlayback());
         body.addView(stop, buttonParams(pad));
+
+        tracksSection = section(R.string.fcast_sheet_section_tracks, pad, density);
+        tracksSection.setVisibility(View.GONE);
+        body.addView(tracksSection);
+        audioValue = new TextView(context);
+        audioRow = valueRow(R.string.fcast_sheet_audio, audioValue, pad, density);
+        audioRow.setClickable(true);
+        audioRow.setFocusable(true);
+        audioRow.setOnClickListener(v -> chooseTrack(FCastTrack.Type.AUDIO));
+        audioRow.setVisibility(View.GONE);
+        body.addView(audioRow);
+        subtitleValue = new TextView(context);
+        subtitleRow = valueRow(R.string.fcast_sheet_subtitles, subtitleValue, pad, density);
+        subtitleRow.setClickable(true);
+        subtitleRow.setFocusable(true);
+        subtitleRow.setOnClickListener(v -> chooseTrack(FCastTrack.Type.SUBTITLE));
+        subtitleRow.setVisibility(View.GONE);
+        body.addView(subtitleRow);
+        addSubtitle = new Button(context);
+        addSubtitle.setText(R.string.fcast_sheet_add_subtitle);
+        addSubtitle.setOnClickListener(v -> askSubtitleAddress());
+        addSubtitle.setVisibility(View.GONE);
+        body.addView(addSubtitle, buttonParams(pad));
 
         // ---- connection
         body.addView(section(R.string.fcast_sheet_section_connection, pad, density));
@@ -380,6 +428,8 @@ final class FCastSettingsSheet {
             int index = FCastSheetModel.nearestSpeed(speed == null ? 1.0 : speed);
             speedValue.setText(FCastSheetModel.speedLabels().get(Math.max(0, index)));
         }
+        showTracks(state);
+        formatsRow.setVisibility(state.getCapabilities() != null ? View.VISIBLE : View.GONE);
         List<String> lines = trace.lines();
         traceView.setText(lines.isEmpty() ? context.getString(R.string.fcast_sheet_trace_empty) : trace.text());
         shownOnce = true;
@@ -439,11 +489,42 @@ final class FCastSettingsSheet {
     }
 
     private String protocolText(FCastReceiverState state) {
-        int version = state.getProtocolVersion();
-        if (version <= 0) {
-            return context.getString(R.string.fcast_sheet_not_known);
+        FCastSheetModel.ProtocolText kind = FCastSheetModel.protocolText(state.getProtocolVersion(), state.getPeerVersion(), state.getPinSource(),
+                android.os.Build.VERSION.SDK_INT);
+        int noteRes = 0;
+        String text;
+        switch (kind) {
+            case PLAIN_V4_NEEDS_LINK:
+                noteRes = R.string.fcast_sheet_protocol_note_link;
+                text = context.getString(R.string.fcast_sheet_protocol_v3);
+                break;
+            case PLAIN_V4_NEEDS_ANDROID:
+                noteRes = R.string.fcast_sheet_protocol_note_android;
+                text = context.getString(R.string.fcast_sheet_protocol_v3);
+                break;
+            case PLAIN:
+                text = context.getString(R.string.fcast_sheet_protocol_v3);
+                break;
+            case SECURE_LINK:
+                text = context.getString(R.string.fcast_sheet_protocol_v4_link);
+                break;
+            case SECURE_DISCOVERY:
+                text = context.getString(R.string.fcast_sheet_protocol_v4_discovery);
+                break;
+            case OTHER:
+                text = context.getString(R.string.fcast_sheet_protocol_other, state.getProtocolVersion());
+                break;
+            case UNKNOWN:
+            default:
+                text = context.getString(R.string.fcast_sheet_not_known);
         }
-        return version == 3 ? context.getString(R.string.fcast_sheet_protocol_v3) : context.getString(R.string.fcast_sheet_protocol_other, version);
+        if (noteRes != 0) {
+            protocolNote.setText(noteRes);
+            protocolNote.setVisibility(View.VISIBLE);
+        } else {
+            protocolNote.setVisibility(View.GONE);
+        }
+        return text;
     }
 
     private int kindText() {
@@ -494,6 +575,148 @@ final class FCastSettingsSheet {
                     current.setSpeed(FCastSheetModel.SPEEDS.get(which));
                 })
                 .show();
+    }
+
+    private final FCastTrackChoices.Labels trackLabels = new FCastTrackChoices.Labels() {
+        @Override
+        public String off() {
+            return context.getString(R.string.fcast_sheet_subtitles_off);
+        }
+
+        @Override
+        public String track(long id) {
+            return context.getString(R.string.fcast_sheet_track_number, (int) Math.min(id, Integer.MAX_VALUE));
+        }
+
+        @Override
+        public String language(String code) {
+            String name = new java.util.Locale(code).getDisplayLanguage();
+            return name == null || name.isEmpty() || name.equalsIgnoreCase(code) ? null : name;
+        }
+
+        @Override
+        public String group(FCastTrackChoices.Group group) {
+            switch (group) {
+                case PROTOCOLS:
+                    return context.getString(R.string.fcast_caps_protocols);
+                case CONTAINERS:
+                    return context.getString(R.string.fcast_caps_containers);
+                case VIDEO:
+                    return context.getString(R.string.fcast_caps_video);
+                case AUDIO:
+                    return context.getString(R.string.fcast_caps_audio);
+                case SUBTITLES:
+                    return context.getString(R.string.fcast_caps_subtitles);
+                case HDR:
+                    return context.getString(R.string.fcast_caps_hdr);
+                case IMAGES:
+                    return context.getString(R.string.fcast_caps_images);
+                case EXTERNAL_SUBTITLES:
+                    return context.getString(R.string.fcast_caps_external_subtitles);
+                case SCREEN:
+                default:
+                    return context.getString(R.string.fcast_caps_screen);
+            }
+        }
+
+        @Override
+        public String yes() {
+            return context.getString(R.string.fcast_caps_yes);
+        }
+
+        @Override
+        public String no() {
+            return context.getString(R.string.fcast_caps_no);
+        }
+
+        @Override
+        public String screen(int width, int height) {
+            return width + " \u00d7 " + height;
+        }
+    };
+
+    /** The tracks section: audio and subtitle pickers and the button for a subtitle file (version 4, an item that plays or is paused). */
+    private void showTracks(FCastReceiverState state) {
+        List<FCastTrackChoices.Choice> audio = FCastTrackChoices.audio(state.getTracks(), trackLabels);
+        List<FCastTrackChoices.Choice> subtitles = FCastTrackChoices.subtitles(state.getTracks(), trackLabels);
+        boolean external = state.getCapabilities() != null && state.getCapabilities().supportsExternalSubtitles();
+        boolean active = state.getPlayback() == FCastReceiverState.Playback.PLAYING || state.getPlayback() == FCastReceiverState.Playback.PAUSED;
+        boolean show = FCastSheetModel.showsTracks(state.getProtocolVersion(), active, audio.size(), subtitles.size() - 1, external);
+        tracksSection.setVisibility(show ? View.VISIBLE : View.GONE);
+        audioRow.setVisibility(show && !audio.isEmpty() ? View.VISIBLE : View.GONE);
+        subtitleRow.setVisibility(show && subtitles.size() > 1 ? View.VISIBLE : View.GONE);
+        addSubtitle.setVisibility(show && external ? View.VISIBLE : View.GONE);
+        int audioIndex = FCastTrackChoices.selectedIndex(audio, state.getSelectedAudio());
+        audioValue.setText(audioIndex < 0 ? "" : audio.get(audioIndex).getLabel());
+        int subtitleIndex = FCastTrackChoices.selectedIndex(subtitles, state.getSelectedSubtitle());
+        subtitleValue.setText(subtitles.get(Math.max(0, subtitleIndex)).getLabel());
+        if (state.getTracks().size() != lastTrackCount) {
+            lastTrackCount = state.getTracks().size();
+            trace.add("tracks: " + lastTrackCount);
+        }
+    }
+
+    private void chooseTrack(final FCastTrack.Type type) {
+        final FCastSession session = session();
+        if (session == null) {
+            return;
+        }
+        FCastReceiverState state = session.getState();
+        final List<FCastTrackChoices.Choice> choices = type == FCastTrack.Type.AUDIO ? FCastTrackChoices.audio(state.getTracks(), trackLabels)
+                : FCastTrackChoices.subtitles(state.getTracks(), trackLabels);
+        if (choices.isEmpty()) {
+            return;
+        }
+        Long selectedId = type == FCastTrack.Type.AUDIO ? state.getSelectedAudio() : state.getSelectedSubtitle();
+        String[] labels = new String[choices.size()];
+        for (int i = 0; i < labels.length; i++) {
+            labels[i] = choices.get(i).getLabel();
+        }
+        new AlertDialog.Builder(context)
+                .setTitle(type == FCastTrack.Type.AUDIO ? R.string.fcast_sheet_audio : R.string.fcast_sheet_subtitles)
+                .setSingleChoiceItems(labels, FCastTrackChoices.selectedIndex(choices, selectedId), (picker, which) -> {
+                    picker.dismiss();
+                    session.changeTrack(type, choices.get(which).getId());
+                    trace.add("track selected: " + type);
+                })
+                .show();
+    }
+
+    private void askSubtitleAddress() {
+        final FCastSession session = session();
+        if (session == null) {
+            return;
+        }
+        final android.widget.EditText input = new android.widget.EditText(context);
+        input.setSingleLine(true);
+        input.setHint(R.string.fcast_sheet_add_subtitle_hint);
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        final AlertDialog ask = new AlertDialog.Builder(context)
+                .setTitle(R.string.fcast_sheet_add_subtitle_title)
+                .setView(input)
+                .setPositiveButton(R.string.fcast_sheet_add_subtitle_ok, null)
+                .setNegativeButton(android.R.string.cancel, null)
+                .create();
+        ask.setOnShowListener(d -> ask.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String text = input.getText().toString().trim();
+            if (!FCastTrackChoices.isAcceptableSubtitleUrl(text)) {
+                input.setError(context.getString(R.string.fcast_sheet_add_subtitle_bad));
+                return;
+            }
+            session.addSubtitle(text, true, null);
+            trace.add("subtitle file added: " + FCastSheetTrace.shorten(text));
+            ask.dismiss();
+        }));
+        ask.show();
+    }
+
+    private void showFormats() {
+        FCastSession session = session();
+        FCastCapabilities caps = session == null ? null : session.getState().getCapabilities();
+        String text = caps == null ? context.getString(R.string.fcast_sheet_formats_none)
+                : String.join("\n", FCastTrackChoices.capabilityLines(caps, trackLabels));
+        new AlertDialog.Builder(context).setTitle(R.string.fcast_sheet_formats_title).setMessage(text)
+                .setPositiveButton(android.R.string.ok, null).show();
     }
 
     private void checkConnection() {

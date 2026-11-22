@@ -436,6 +436,34 @@ public class FCastSessionTest {
     // ---- errors
 
     @Test
+    public void aVersion3ConnectionShowsThePeersVersionAndNoKey() throws Exception {
+        FakeFCastReceiver.Options options = new FakeFCastReceiver.Options();
+        options.greetingVersion = 4; // a receiver that offers 4 but is spoken to in 3 (no key known)
+        FakeFCastReceiver receiver = receiver(options);
+        FCastSession session = session(connectorTo(receiver.port()), new Events(), fastSession());
+        session.acquire();
+
+        session.connect();
+
+        assertTrue(await(session, s -> s.getLink() == FCastReceiverState.Link.CONNECTED && s.getPeerVersion() == 4, WAIT));
+        assertEquals(3, session.getState().getProtocolVersion());
+        assertEquals(null, session.getState().getPinSource());
+    }
+
+    @Test
+    public void trackCommandsOnAVersion3ConnectionSayThatTheyNeedVersion4() throws Exception {
+        FakeFCastReceiver receiver = receiver(new FakeFCastReceiver.Options());
+        Events events = new Events();
+        FCastSession session = session(connectorTo(receiver.port()), events, fastSession());
+        session.acquire();
+
+        session.changeTrack(FCastTrack.Type.AUDIO, 1L);
+
+        assertTrue(await(session, s -> s.getLastError() != null && s.getLastError().contains("version 4"), WAIT));
+        assertEquals(3, session.getState().getProtocolVersion());
+    }
+
+    @Test
     public void aRefusedSecureConnectionEndsInFailedWithTheReasonAndIsNotRetried() throws Exception {
         final java.util.concurrent.atomic.AtomicInteger attempts = new java.util.concurrent.atomic.AtomicInteger();
         FCastSession.Connector refusing = listener -> {

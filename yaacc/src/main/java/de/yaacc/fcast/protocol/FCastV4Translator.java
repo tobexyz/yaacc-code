@@ -57,6 +57,15 @@ final class FCastV4Translator {
             case RECEIVER_INTRODUCTION:
                 out.add(new FCastMessages.Initial(FCastText.clean(in.displayName, FCastText.MAX_NAME), FCastText.clean(in.appName, FCastText.MAX_NAME),
                         FCastText.clean(in.appVersion, FCastText.MAX_NAME), null));
+                if (in.caps != null) {
+                    out.add(new FCastMessages.Capabilities(capabilities(in.caps)));
+                }
+                break;
+            case TRACKS:
+                out.add(new FCastMessages.Tracks(tracks(in.tracks)));
+                break;
+            case TRACK_SELECTED:
+                out.add(new FCastMessages.TrackSelected(trackType(in.trackType), in.trackId));
                 break;
             case LOAD: {
                 V4In.Item item = in.item;
@@ -64,6 +73,7 @@ final class FCastV4Translator {
                 state = null;
                 position = null;
                 duration = null;
+                out.add(new FCastMessages.Tracks(Collections.<FCastTrack>emptyList())); // the tracks of the old item are gone
                 speed = item.speed == null ? null : FCastText.clamp(item.speed, FCastMessages.MIN_REPORTED_SPEED, FCastMessages.MAX_REPORTED_SPEED);
                 out.add(new FCastMessages.PlayUpdate(0L, new FCastMessages.PlayData(FCastText.clean(item.container, FCastText.MAX_URL), itemUrl,
                         FCastText.clean(item.title, FCastMessages.MAX_TITLE), FCastText.clean(item.thumbnailUrl, FCastText.MAX_URL),
@@ -108,6 +118,50 @@ final class FCastV4Translator {
         return out;
     }
 
+    private static final int MAX_FORMAT = 32;
+
+    private static FCastCapabilities capabilities(V4In.Caps caps) {
+        return new FCastCapabilities(formats(caps.protocols), formats(caps.containers), formats(caps.videoFormats), formats(caps.audioFormats),
+                formats(caps.subtitleFormats), formats(caps.hdrFormats), formats(caps.imageFormats), caps.externalSubtitles, caps.mirroring,
+                caps.volumeStep == null ? null : FCastText.clamp(caps.volumeStep, 0.0, 1.0),
+                (int) Math.min(caps.displayWidth, 100_000), (int) Math.min(caps.displayHeight, 100_000));
+    }
+
+    private static List<String> formats(List<String> raw) {
+        List<String> clean = new ArrayList<>(raw.size());
+        for (String item : raw) {
+            String text = FCastText.clean(item, MAX_FORMAT);
+            if (text != null && !text.isEmpty()) {
+                clean.add(text);
+            }
+        }
+        return clean;
+    }
+
+    private static List<FCastTrack> tracks(List<V4In.Track> raw) {
+        List<FCastTrack> list = new ArrayList<>(raw.size());
+        for (V4In.Track track : raw) {
+            list.add(new FCastTrack(track.id, trackType(track.type), FCastText.clean(track.language, 16), FCastText.clean(track.title, FCastText.MAX_NAME)));
+        }
+        return list;
+    }
+
+    private static FCastTrack.Type trackType(Integer v4Type) {
+        if (v4Type == null) {
+            return FCastTrack.Type.UNKNOWN;
+        }
+        switch (v4Type) {
+            case V4Schema.TRACK_VIDEO:
+                return FCastTrack.Type.VIDEO;
+            case V4Schema.TRACK_AUDIO:
+                return FCastTrack.Type.AUDIO;
+            case V4Schema.TRACK_SUBTITLE:
+                return FCastTrack.Type.SUBTITLE;
+            default:
+                return FCastTrack.Type.UNKNOWN;
+        }
+    }
+
     private void applyState(int v4State, List<FCastMessages.Incoming> out) {
         switch (v4State) {
             case V4Schema.STATE_PLAYING:
@@ -133,6 +187,7 @@ final class FCastV4Translator {
                 position = null;
                 duration = null;
                 out.add(new FCastMessages.PlaybackUpdate(0L, FCastMessages.STATE_IDLE, null, null, null, null));
+                out.add(new FCastMessages.Tracks(Collections.<FCastTrack>emptyList()));
         }
     }
 
@@ -187,6 +242,17 @@ final class FCastV4Translator {
 
     private static Double optDouble(JSONObject json, String key) throws JSONException {
         return json.has(key) && !json.isNull(key) ? Double.valueOf(json.getDouble(key)) : null;
+    }
+
+    /** {@code ChangeTrack}: selects the track {@code id} of the type, or none ({@code id} null; subtitles). */
+    static byte[] changeTrack(FCastTrack.Type type, Long id) {
+        return V4Writer.changeTrack(id, type == FCastTrack.Type.AUDIO ? V4Schema.TRACK_AUDIO : type == FCastTrack.Type.VIDEO ? V4Schema.TRACK_VIDEO
+                : V4Schema.TRACK_SUBTITLE);
+    }
+
+    /** {@code AddSubtitleSource}. */
+    static byte[] addSubtitle(String url, boolean select, String name) {
+        return V4Writer.addSubtitleSource(url, select, FCastText.clean(name, FCastText.MAX_NAME));
     }
 
     /** The sender's introduction (name, application, version), sent once after the TLS handshake. */

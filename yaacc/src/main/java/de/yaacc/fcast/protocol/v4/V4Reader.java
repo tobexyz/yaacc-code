@@ -33,6 +33,8 @@ import de.yaacc.fcast.protocol.FCastProtocolException;
 public final class V4Reader {
     /** The most tracks read from one {@code TracksAvailable}. */
     public static final int MAX_TRACKS = 256;
+    /** The most format names read from one list of the capabilities. */
+    public static final int MAX_FORMATS = 128;
 
     private V4Reader() {
     }
@@ -79,7 +81,13 @@ public final class V4Reader {
                 }
                 return new V4In(V4In.Kind.RECEIVER_INTRODUCTION, null, null, 0, null, null, null, null,
                         info.string(V4Schema.DEVICE_DISPLAY_NAME), info.string(V4Schema.DEVICE_APP_NAME),
-                        info.string(V4Schema.DEVICE_APP_VERSION), null);
+                        info.string(V4Schema.DEVICE_APP_VERSION), null, readCaps(payload.table(V4Schema.RECEIVER_CAPABILITIES)), null, null);
+            }
+            case V4Schema.MSG_CHANGE_TRACK: {
+                Long id = payload.u32(V4Schema.CHANGE_TRACK_ID);
+                Integer trackType = payload.u8(V4Schema.CHANGE_TRACK_TYPE);
+                return new V4In(V4In.Kind.TRACK_SELECTED, null, null, 0, null, null, null, null, null, null, null, null, null, id,
+                        trackType == null ? V4Schema.TRACK_VIDEO : trackType);
             }
             case V4Schema.MSG_ERROR: {
                 Integer kind = payload.u8(V4Schema.ERROR_KIND);
@@ -90,6 +98,48 @@ public final class V4Reader {
             default:
                 return V4In.of(V4In.Kind.OTHER);
         }
+    }
+
+    private static V4In.Caps readCaps(FbTable caps) {
+        if (caps == null) {
+            return null;
+        }
+        FbTable media = caps.table(V4Schema.CAPS_MEDIA);
+        FbTable audio = caps.table(V4Schema.CAPS_AUDIO);
+        FbTable display = caps.table(V4Schema.CAPS_DISPLAY);
+        long[] size = display == null ? null : display.u32Pair(V4Schema.DISPLAY_RESOLUTION);
+        Float step = audio == null ? null : audio.f32(V4Schema.AUDIO_VOLUME_STEP);
+        if (media == null) {
+            return new V4In.Caps(strings(null, 0), strings(null, 0), strings(null, 0), strings(null, 0), strings(null, 0), strings(null, 0),
+                    strings(null, 0), false, false, finite(step), size == null ? 0 : size[0], size == null ? 0 : size[1]);
+        }
+        Boolean external = media.bool(V4Schema.MEDIA_EXTERNAL_SUBTITLES);
+        Boolean mirroring = media.bool(V4Schema.MEDIA_MIRRORING);
+        return new V4In.Caps(strings(media, V4Schema.MEDIA_PROTOCOLS), strings(media, V4Schema.MEDIA_CONTAINERS),
+                strings(media, V4Schema.MEDIA_VIDEO_FORMATS), strings(media, V4Schema.MEDIA_AUDIO_FORMATS),
+                strings(media, V4Schema.MEDIA_SUBTITLE_FORMATS), strings(media, V4Schema.MEDIA_HDR_FORMATS),
+                strings(media, V4Schema.MEDIA_IMAGE_FORMATS), external != null && external, mirroring != null && mirroring, finite(step),
+                size == null ? 0 : size[0], size == null ? 0 : size[1]);
+    }
+
+    private static Double finite(Float value) {
+        return value == null || value.isNaN() || value.isInfinite() ? null : Double.valueOf(value);
+    }
+
+    /** The strings of a vector field, at most {@value #MAX_FORMATS} of them (a receiver lists a few dozen at most). */
+    private static List<String> strings(FbTable table, int slot) {
+        List<String> list = new ArrayList<>();
+        if (table == null) {
+            return list;
+        }
+        int count = Math.min(table.vectorLength(slot), MAX_FORMATS);
+        for (int i = 0; i < count; i++) {
+            String value = table.stringAt(slot, i);
+            if (value != null) {
+                list.add(value);
+            }
+        }
+        return list;
     }
 
     private static V4In number(V4In.Kind kind, Float value) {

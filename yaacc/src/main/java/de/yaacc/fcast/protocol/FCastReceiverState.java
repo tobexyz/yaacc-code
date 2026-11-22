@@ -70,6 +70,12 @@ public final class FCastReceiverState {
     private final long playbackUpdatedAt;
     private final String lastError;
     private final int errorSerial;
+    private final java.util.List<FCastTrack> tracks;
+    private final Long selectedAudio;
+    private final Long selectedSubtitle;
+    private final FCastCapabilities capabilities;
+    private final int peerVersion;
+    private final FCastPin.Source pinSource;
 
     private FCastReceiverState(Builder b) {
         this.link = b.link;
@@ -90,6 +96,42 @@ public final class FCastReceiverState {
         this.playbackUpdatedAt = b.playbackUpdatedAt;
         this.lastError = b.lastError;
         this.errorSerial = b.errorSerial;
+        this.tracks = b.tracks;
+        this.selectedAudio = b.selectedAudio;
+        this.selectedSubtitle = b.selectedSubtitle;
+        this.capabilities = b.capabilities;
+        this.peerVersion = b.peerVersion;
+        this.pinSource = b.pinSource;
+    }
+
+    /** The highest version the receiver said it speaks ({@code Version}), 0 before it said. More than {@link #getProtocolVersion()} when the connection is not secured. */
+    public int getPeerVersion() {
+        return peerVersion;
+    }
+
+    /** Where the key of a secured connection came from, null if the connection is not secured. */
+    public FCastPin.Source getPinSource() {
+        return pinSource;
+    }
+
+    /** The tracks of the item the receiver plays (version 4 only), empty if it said none. */
+    public java.util.List<FCastTrack> getTracks() {
+        return tracks;
+    }
+
+    /** The audio track that is selected, or null if the receiver did not say. */
+    public Long getSelectedAudio() {
+        return selectedAudio;
+    }
+
+    /** The subtitle track that is selected, or null for none. */
+    public Long getSelectedSubtitle() {
+        return selectedSubtitle;
+    }
+
+    /** What the receiver can play (version 4 only), or null. */
+    public FCastCapabilities getCapabilities() {
+        return capabilities;
     }
 
     public Builder toBuilder() {
@@ -226,6 +268,12 @@ public final class FCastReceiverState {
         private long playbackUpdatedAt;
         private String lastError;
         private int errorSerial;
+        private java.util.List<FCastTrack> tracks = java.util.Collections.emptyList();
+        private Long selectedAudio;
+        private Long selectedSubtitle;
+        private FCastCapabilities capabilities;
+        private int peerVersion;
+        private FCastPin.Source pinSource;
 
         Builder() {
         }
@@ -249,6 +297,45 @@ public final class FCastReceiverState {
             playbackUpdatedAt = s.playbackUpdatedAt;
             lastError = s.lastError;
             errorSerial = s.errorSerial;
+            tracks = s.tracks;
+            selectedAudio = s.selectedAudio;
+            selectedSubtitle = s.selectedSubtitle;
+            capabilities = s.capabilities;
+            peerVersion = s.peerVersion;
+            pinSource = s.pinSource;
+        }
+
+        public Builder peerVersion(int version) {
+            this.peerVersion = version;
+            return this;
+        }
+
+        public Builder pinSource(FCastPin.Source source) {
+            this.pinSource = source;
+            return this;
+        }
+
+        /** The tracks of the item; the selection is cleared (a new list is a new item). */
+        public Builder tracks(java.util.List<FCastTrack> tracks) {
+            this.tracks = tracks == null ? java.util.Collections.<FCastTrack>emptyList() : java.util.Collections.unmodifiableList(new java.util.ArrayList<>(tracks));
+            this.selectedAudio = null;
+            this.selectedSubtitle = null;
+            return this;
+        }
+
+        /** The track of a type that the receiver has selected now (null id: none). */
+        public Builder selectedTrack(FCastTrack.Type type, Long id) {
+            if (type == FCastTrack.Type.AUDIO) {
+                this.selectedAudio = id;
+            } else if (type == FCastTrack.Type.SUBTITLE) {
+                this.selectedSubtitle = id;
+            }
+            return this;
+        }
+
+        public Builder capabilities(FCastCapabilities capabilities) {
+            this.capabilities = capabilities;
+            return this;
         }
 
         public Builder link(Link link) {

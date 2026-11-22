@@ -122,6 +122,52 @@ public final class FCastSheetModel {
         }
     }
 
+    /** What the "protocol" row of the sheet says. */
+    public enum ProtocolText {
+        /** Not connected yet. */
+        UNKNOWN,
+        /** Version 3 (or older): unencrypted, and the receiver does not offer more. */
+        PLAIN,
+        /** Version 3 although the receiver offers 4: the key is not known (the receiver was added by its address). */
+        PLAIN_V4_NEEDS_LINK,
+        /** Version 3 although the receiver offers 4: this Android is older than 10. */
+        PLAIN_V4_NEEDS_ANDROID,
+        /** Version 4, the key came from the receiver's link. */
+        SECURE_LINK,
+        /** Version 4, the key came from the announcement of the receiver. */
+        SECURE_DISCOVERY,
+        /** Another version number. */
+        OTHER
+    }
+
+    /**
+     * @param version  the version the connection speaks (0: not connected)
+     * @param peer     the version the receiver said it speaks (0: not said)
+     * @param keySource where the key of a secured connection came from, null if not secured
+     * @param sdk      the Android API level of this device
+     */
+    public static ProtocolText protocolText(int version, int peer, de.yaacc.fcast.protocol.FCastPin.Source keySource, int sdk) {
+        if (version <= 0) {
+            return ProtocolText.UNKNOWN;
+        }
+        if (version == 4) {
+            return keySource == de.yaacc.fcast.protocol.FCastPin.Source.LINK ? ProtocolText.SECURE_LINK : ProtocolText.SECURE_DISCOVERY;
+        }
+        if (version == 3 || version < 3) {
+            if (peer >= 4) {
+                return sdk < de.yaacc.fcast.protocol.FCastConnection.MIN_SDK_FOR_V4 ? ProtocolText.PLAIN_V4_NEEDS_ANDROID
+                        : ProtocolText.PLAIN_V4_NEEDS_LINK;
+            }
+            return ProtocolText.PLAIN;
+        }
+        return ProtocolText.OTHER;
+    }
+
+    /** Does the sheet show the tracks section: version 4 and something plays or is paused, and there are tracks or subtitle files can be added. */
+    public static boolean showsTracks(int version, boolean itemActive, int audioChoices, int subtitleTracks, boolean externalSubtitles) {
+        return version == 4 && itemActive && (audioChoices > 0 || subtitleTracks > 0 || externalSubtitles);
+    }
+
     private FCastSheetModel() {
     }
 

@@ -129,6 +129,34 @@ public class V4ReaderTest {
     }
 
     @Test
+    public void theCapabilitiesOfTheReceiver() throws Exception {
+        V4In.Caps caps = read("receiverIntroduction").caps;
+        assertNotNull(caps);
+        assertEquals(Arrays.asList("http", "https"), caps.protocols);
+        assertEquals(Arrays.asList("mp4", "mkv"), caps.containers);
+        assertEquals(Arrays.asList("h264"), caps.videoFormats);
+        assertEquals(Arrays.asList("aac", "opus"), caps.audioFormats);
+        assertEquals(Arrays.asList("srt", "vtt"), caps.subtitleFormats);
+        assertTrue(caps.hdrFormats.isEmpty());
+        assertEquals(Arrays.asList("png", "jpeg"), caps.imageFormats);
+        assertTrue(caps.externalSubtitles);
+        assertEquals(false, caps.mirroring);
+        assertEquals(0.01, caps.volumeStep, 1e-6);
+        assertEquals(0, caps.displayWidth);
+    }
+
+    @Test
+    public void aTrackChangeNamesTheTypeAndTheTrackOrNone() throws Exception {
+        V4In audio = read("changeTrack");
+        assertEquals(V4In.Kind.TRACK_SELECTED, audio.kind);
+        assertEquals(Long.valueOf(3), audio.trackId);
+        assertEquals(Integer.valueOf(V4Schema.TRACK_AUDIO), audio.trackType);
+        V4In off = read("changeTrackOff");
+        assertNull(off.trackId);
+        assertEquals(Integer.valueOf(V4Schema.TRACK_SUBTITLE), off.trackType);
+    }
+
+    @Test
     public void theTracksOfTheItem() throws Exception {
         V4In in = read("tracks");
         assertEquals(V4In.Kind.TRACKS, in.kind);
@@ -147,7 +175,6 @@ public class V4ReaderTest {
 
     @Test
     public void messagesThatASenderSendsAreOtherWhenTheyComeFromAReceiver() throws Exception {
-        assertEquals(V4In.Kind.OTHER, read("changeTrack").kind);
         assertEquals(V4In.Kind.OTHER, read("addSubtitle").kind);
         assertEquals(V4In.Kind.OTHER, read("progressInterval").kind);
     }
