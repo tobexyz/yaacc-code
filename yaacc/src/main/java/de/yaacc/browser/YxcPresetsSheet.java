@@ -123,7 +123,7 @@ final class YxcPresetsSheet {
                 post(() -> showMessage(R.string.yxc_presets_failed));
                 return;
             }
-            YxcPresetActions.Lists lists = YxcPresetActions.load(client, state.getCapabilities());
+            YxcPresetActions.Lists lists = YxcPresetActions.load(client, state.getCapabilities()).forSource(state); // what belongs to the selected source
             post(() -> render(lists));
         });
     }

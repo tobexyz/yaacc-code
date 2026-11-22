@@ -65,6 +65,28 @@ public final class YxcPresetActions {
             return recent.isEmpty() && net.isEmpty() && fm.isEmpty() && dab.isEmpty();
         }
 
+        /**
+         * The lists that belong to the selected source: the tuner shows the presets of its band (both bands while the band is not
+         * known) and nothing else; a network source shows the recently played items and the presets of the network source; any other
+         * input (HDMI, optical, Bluetooth, a link, nothing known) has no favorites of its own and shows everything, so that a tap can
+         * start something.
+         */
+        public Lists forSource(YxcDeviceState state) {
+            if (state == null || state.getInput() == null) {
+                return this;
+            }
+            if (YxcNowPlaying.TUNER_INPUT.equalsIgnoreCase(state.getInput())) {
+                YxcTunerInfo tuner = state.getTuner();
+                boolean showFm = tuner == null || !tuner.isDab();
+                boolean showDab = tuner == null || tuner.isDab();
+                return new Lists(none(), none(), showFm ? fm : none(), showDab ? dab : none(), failed);
+            }
+            if (YxcSourceControls.isNetworkSource(state)) {
+                return new Lists(recent, net, none(), none(), failed);
+            }
+            return this;
+        }
+
         /** True when nothing could be read because the device did not answer. */
         public boolean isFailed() {
             return failed;
@@ -76,6 +98,24 @@ public final class YxcPresetActions {
     }
 
     private YxcPresetActions() {
+    }
+
+    /**
+     * Does the star of the row have something to show for the selected source: the tuner needs tuner presets, a network source needs
+     * presets of the network source or a list of recent items, every other input shows everything the device lists.
+     */
+    public static boolean offered(YxcDeviceState state) {
+        if (state == null || !state.isReachable() || !state.isPowerOn() || state.getCapabilities() == null) {
+            return false;
+        }
+        YxcSourceCapabilities caps = state.getCapabilities();
+        if (state.getInput() != null && YxcNowPlaying.TUNER_INPUT.equalsIgnoreCase(state.getInput())) {
+            return caps.getTunerPresets() > 0;
+        }
+        if (YxcSourceControls.isNetworkSource(state)) {
+            return caps.getNetPresets() > 0 || caps.hasRecent();
+        }
+        return caps.getNetPresets() > 0 || caps.hasRecent() || caps.getTunerPresets() > 0;
     }
 
     /** Reads the lists the device says it has ({@code caps}); a list that cannot be read is left out. */

@@ -133,4 +133,60 @@ public class YxcPresetActionsTest {
         transport.failWith(new IOException("down"));
         assertEquals(YxcPresetActions.Result.FAILED, YxcPresetActions.recall(new YxcClient(transport), entry));
     }
+
+    // ---- the lists follow the selected source
+
+    private static YxcPresetActions.Lists everything() throws Exception {
+        return YxcPresetActions.load(new YxcClient(device("net_radio")), caps());
+    }
+
+    @Test
+    public void whileTheTunerPlaysOnFmOnlyTheFmPresetsAreListed() throws Exception {
+        YxcDeviceState state = YxcSourceControlsTest.tuner("c_tunerPlayInfo_fm").withCapabilities(caps());
+        YxcPresetActions.Lists lists = everything().forSource(state);
+        assertEquals(1, lists.fm().size());
+        assertTrue(lists.dab().isEmpty());
+        assertTrue(lists.net().isEmpty());
+        assertTrue(lists.recent().isEmpty());
+    }
+
+    @Test
+    public void whileTheTunerPlaysDabOnlyTheDabPresetsAreListed() throws Exception {
+        YxcDeviceState state = YxcSourceControlsTest.tuner("c_tunerPlayInfo_dab").withCapabilities(caps());
+        YxcPresetActions.Lists lists = everything().forSource(state);
+        assertEquals(5, lists.dab().size());
+        assertTrue(lists.fm().isEmpty());
+        assertTrue(lists.net().isEmpty());
+        assertTrue(lists.recent().isEmpty());
+    }
+
+    @Test
+    public void whileANetworkSourcePlaysTheRecentItemsAndTheNetPresetsAreListedAndNoTunerPresets() throws Exception {
+        YxcDeviceState state = YxcSourceControlsTest.net("net_radio", "on", "c_playInfo_net_radio").withCapabilities(caps());
+        YxcPresetActions.Lists lists = everything().forSource(state);
+        assertEquals(2, lists.net().size());
+        assertEquals(2, lists.recent().size());
+        assertTrue(lists.fm().isEmpty());
+        assertTrue(lists.dab().isEmpty());
+    }
+
+    @Test
+    public void anotherInputOrNoKnownSourceShowsEverything() throws Exception {
+        YxcPresetActions.Lists all = everything();
+        YxcDeviceState hdmi = YxcSourceControlsTest.net("hdmi1", "on", "c_playInfo_net_radio").withCapabilities(caps());
+        assertEquals(all, all.forSource(hdmi));
+        assertEquals(all, all.forSource(null));
+        assertEquals(all, all.forSource(YxcDeviceState.unknown()));
+    }
+
+    @Test
+    public void theStarIsOfferedOnlyWhenTheSelectedSourceHasSomethingToShow() throws Exception {
+        YxcSourceCapabilities caps = caps();
+        assertTrue(YxcPresetActions.offered(YxcSourceControlsTest.tuner("c_tunerPlayInfo_fm").withCapabilities(caps)));
+        assertTrue(YxcPresetActions.offered(YxcSourceControlsTest.net("net_radio", "on", "c_playInfo_net_radio").withCapabilities(caps)));
+        assertTrue(YxcPresetActions.offered(YxcSourceControlsTest.net("hdmi1", "on", "c_playInfo_net_radio").withCapabilities(caps)));
+        assertFalse("off", YxcPresetActions.offered(YxcSourceControlsTest.net("net_radio", "standby", "c_playInfo_net_radio").withCapabilities(caps)));
+        assertFalse("no capabilities", YxcPresetActions.offered(YxcSourceControlsTest.net("net_radio", "on", "c_playInfo_net_radio")));
+        assertFalse(YxcPresetActions.offered(null));
+    }
 }
