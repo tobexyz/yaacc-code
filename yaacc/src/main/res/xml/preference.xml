@@ -26,14 +26,14 @@
             android:entries="@array/browser_layout_entries"
             android:entryValues="@array/browser_layout_values"
             android:key="@string/settings_browser_layout_key"
-            android:summary="%s"
+            app:useSimpleSummaryProvider="true"
             android:title="@string/settings_browser_layout_title" />
         <ListPreference
             android:defaultValue="dark"
             android:entries="@array/theme_entries"
             android:entryValues="@array/theme_values"
             android:key="@string/settings_theme_key"
-            android:summary="%s"
+            app:useSimpleSummaryProvider="true"
             android:title="@string/settings_theme_title" />
         <ListPreference
             android:defaultValue="E"
