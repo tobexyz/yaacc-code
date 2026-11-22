@@ -4,9 +4,10 @@ RUN useradd --system --no-create-home --uid 10001 rig
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --no-input -r requirements.txt
-COPY fcast_rig.py .
+COPY fcast_rig.py fcast_v4.py ./
 USER 10001
 EXPOSE 46899/tcp
 # mDNS needs the host's network (see docker-compose.yml); the arguments are given by "docker compose run" or the compose file
-ENTRYPOINT ["python3", "-I", "fcast_rig.py"]
+# no -I: the isolated mode would not find fcast_v4.py next to the script
+ENTRYPOINT ["python3", "-s", "fcast_rig.py"]
 CMD ["--host", "0.0.0.0", "--port", "46899", "--name", "YAACC test rig"]

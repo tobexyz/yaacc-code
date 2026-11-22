@@ -4,7 +4,8 @@
 """
 A small test receiver for the FCast protocol, for YAACC's developers (issue #327).
 
-It speaks FCast protocol v3 (plain JSON over TCP, port 46899 by default) without any media player: it announces itself
+It speaks FCast protocol v3 (plain JSON over TCP, port 46899 by default) and, with `--speaks 4`, v4 (TLS 1.3 with a self-signed key,
+FlatBuffers; see fcast_v4.py) without any media player: it announces itself
 as an `_fcast._tcp` service (optional, needs the `zeroconf` package), logs every message it receives in readable form,
 answers the handshake like the Android and the desktop receivers do, plays a made-up track (it only moves a clock, nothing
 is fetched or shown) and reports its state to every connected sender. It can also misbehave on purpose.
@@ -15,6 +16,7 @@ that is not valid, a second `Version`, or an opcode it does not know (below prot
 """
 import argparse
 import json
+import os
 import logging
 import math
 import socket
@@ -24,7 +26,13 @@ import sys
 import threading
 import time
 
+try:    # FCast v4 needs the packages `flatbuffers` and `cryptography` (requirements.txt); v1 to v3 work without them
+    import fcast_v4 as v4
+except ImportError:
+    v4 = None
+
 MAX_PACKET = 32000          # protocol v3: opcode + body
+MAX_PACKET_V4 = 512 * 1024  # protocol v4
 SERVICE_TYPE = "_fcast._tcp.local."
 MIN_RATE, MAX_RATE = 1.0 / 16.0, 16.0   # what the desktop receiver clamps the speed to
 
@@ -57,7 +65,7 @@ def reject_constant(name):
 
 def effective_greeting(options):
     """The Version sent first: what was asked for, else the version the rig speaks (so a v2 rig greets with 2)."""
-    return options.greeting if options.greeting is not None else min(3, options.speaks)
+    return options.greeting if options.greeting is not None else options.speaks
 
 
 def read_exact(sock, count):
@@ -70,7 +78,7 @@ def read_exact(sock, count):
     return bytes(data)
 
 
-def read_packet(sock):
+def read_packet(sock, limit=MAX_PACKET):
     """One packet as (opcode, body bytes or None); None at a clean end; OversizeError over the limit."""
     first = sock.recv(1)
     if not first:
@@ -78,8 +86,8 @@ def read_packet(sock):
     size = struct.unpack("<I", first + read_exact(sock, 3))[0]
     if size < 1:
         raise ValueError("packet without opcode (size 0)")
-    if size > MAX_PACKET:
-        raise OversizeError("packet of %d bytes is over the limit of %d" % (size, MAX_PACKET))
+    if size > limit:
+        raise OversizeError("packet of %d bytes is over the limit of %d" % (size, limit))
     payload = read_exact(sock, size)
     return payload[0], (payload[1:] if size > 1 else None)
 
@@ -131,6 +139,8 @@ class Receiver:
         self.volume = 1.0
         self.play_data = None
         self.load_token = 0
+        self.tracks = []          # v4: the tracks of the loaded item (id, type, language, title)
+        self.selected = {}        # v4: the selected track of a type
         self._ticker = threading.Thread(target=self._tick, name="rig-clock", daemon=True)
         self._ticker.start()
 
@@ -154,8 +164,45 @@ class Receiver:
         with self.lock:
             targets = list(self.sessions)
         for session in targets:
-            if session.version >= SINCE.get(name, 1):
+            if session.version >= 4:
+                session.send_v4_event(name, body)
+            elif session.version >= SINCE.get(name, 1):
                 session.send(OP[name], body)
+
+    def broadcast_v4(self, message):
+        with self.lock:
+            targets = [x for x in self.sessions if x.version >= 4]
+        for session in targets:
+            session.send_message(message)
+
+    def default_tracks(self):
+        """What the rig says an item has: two audio tracks and two subtitle tracks (the first audio track is selected)."""
+        self.tracks = [(1, v4.TRACK_AUDIO, "eng", "English"), (2, v4.TRACK_AUDIO, "deu", "Deutsch"),
+                       (3, v4.TRACK_SUBTITLE, "eng", "English"), (4, v4.TRACK_SUBTITLE, "deu", "Deutsch")] if v4 else []
+        self.selected = {v4.TRACK_AUDIO: 1} if v4 else {}
+
+    def change_track(self, track_id, kind):
+        with self.lock:
+            if self.play_data is None:
+                return
+            if track_id is not None and not any(t[0] == track_id and t[1] == kind for t in self.tracks):
+                return
+            self.selected[kind] = track_id
+        self.broadcast_v4(v4.change_track(track_id, kind))
+
+    def add_subtitle(self, url, select, name):
+        with self.lock:
+            if self.play_data is None:
+                return
+            track_id = max([t[0] for t in self.tracks] + [0]) + 1
+            self.tracks.append((track_id, v4.TRACK_SUBTITLE, "und", name or "External subtitle"))
+            tracks = list(self.tracks)
+            if select:
+                self.selected[v4.TRACK_SUBTITLE] = track_id
+        log.info("subtitle file %s added as track %d", url, track_id)
+        self.broadcast_v4(v4.tracks_available(tracks))
+        if select:
+            self.broadcast_v4(v4.change_track(track_id, v4.TRACK_SUBTITLE))
 
     def _tick(self):
         while True:
@@ -186,9 +233,12 @@ class Receiver:
         if item is not None:
             body["event"]["item"] = item
         with self.lock:
-            targets = [x for x in self.sessions if x.version >= 3 and event_type in x.subscribed]
+            targets = [x for x in self.sessions if 3 <= x.version < 4 and event_type in x.subscribed]
+            ended = [x for x in self.sessions if x.version >= 4] if event_type == 1 else []
         for session in targets:
             session.send(OP["event"], body)
+        for session in ended:   # a v4 receiver says it with the state
+            session.send_v4_event("event", body)
 
     # ---- operations of the senders
     def play(self, message):
@@ -208,6 +258,8 @@ class Receiver:
             self.duration = self.options.duration
             if volume is not None:
                 self.volume = volume
+            if v4:
+                self.default_tracks()
             self.load_token += 1
             token = self.load_token
         self.broadcast("play_update", {"generationTime": int(time.time() * 1000), "playData": message})
@@ -275,10 +327,74 @@ class Session(socketserver.BaseRequestHandler):
         self.alive = True
         self.handler_thread = None
         self.subscribed = set()
+        self.max_packet = MAX_PACKET
+        self.v4_state = None      # the last state sent to a v4 sender (it gets a state message only when it changes)
+        self.v4_speed = None
+
+    def send_message(self, message):
+        """A v4 message (the bytes of a Packet) in a Flatbuf packet."""
+        if self.options.behaviour == "silent" or len(message) + 1 > MAX_PACKET_V4:
+            return
+        data = struct.pack("<I", 1 + len(message)) + bytes([v4.FLATBUF]) + message
+        try:
+            with self.write_lock:
+                self.request.sendall(data)
+            log.info("[%s] -> flatbuf %s", self.peer, _describe(message))
+        except OSError:
+            self.alive = False
+
+    def send_v4_event(self, name, body):
+        """What a change of the shared state means for a v4 sender (the rig keeps its state the v3 way)."""
+        if name == "playback_update":
+            now = body.get("state", 0)
+            mapped = {0: v4.IDLE, 1: v4.PLAYING, 2: v4.PAUSED}.get(now, v4.IDLE)
+            if mapped != self.v4_state:
+                self.v4_state = mapped
+                self.send_message(v4.state(mapped))
+            if now != 0:
+                self.send_message(v4.progress(body.get("time", 0.0), body.get("duration", 0.0)))
+                if body.get("speed") != self.v4_speed:
+                    self.v4_speed = body.get("speed")
+                    self.send_message(v4.speed(self.v4_speed or 1.0))
+        elif name == "volume_update":
+            self.send_message(v4.volume(body.get("volume", 0.0)))
+        elif name == "play_update":
+            data = body.get("playData") or {}
+            meta = data.get("metadata") or {}
+            self.v4_state = None
+            self.v4_speed = None
+            self.send_message(v4.load(data.get("container", ""), data.get("url", ""), data.get("time"), data.get("volume"),
+                                      data.get("speed"), meta.get("title"), meta.get("thumbnailUrl")))
+            self.send_tracks()
+        elif name == "event":
+            if (body.get("event") or {}).get("type") == 1:
+                self.v4_state = v4.ENDED
+                self.send_message(v4.state(v4.ENDED))
+        elif name == "playback_error":
+            self.send_message(v4.error(v4.ERROR_UNSUPPORTED_FORMAT))
+
+    def send_tracks(self):
+        with self.receiver.lock:
+            tracks = list(self.receiver.tracks)
+            selected = dict(self.receiver.selected)
+        if not tracks:
+            return
+        self.send_message(v4.tracks_available(tracks))
+        for kind, track_id in selected.items():
+            self.send_message(v4.change_track(track_id, kind))
 
     def send(self, opcode, body=None):
         if self.options.behaviour == "silent":
             return
+        if self.version >= 4:
+            if opcode in (OP["ping"], OP["pong"]):
+                try:
+                    with self.write_lock:
+                        self.request.sendall(struct.pack("<I", 1) + bytes([opcode]))
+                    log.info("[%s] -> %s", self.peer, OP_NAME[opcode])
+                except OSError:
+                    self.alive = False
+            return   # the other opcodes of v3 do not exist in v4
         try:
             data = encode_packet(opcode, body)
         except (ValueError, TypeError, RecursionError) as e:
@@ -318,7 +434,7 @@ class Session(socketserver.BaseRequestHandler):
                 log.info("[%s] -> (oversize packet announced on purpose)", self.peer)
             while self.alive:
                 try:
-                    packet = read_packet(self.request)
+                    packet = read_packet(self.request, self.max_packet)
                 except OversizeError as e:
                     log.warning("[%s] %s: closing", self.peer, e)
                     return
@@ -342,8 +458,70 @@ class Session(socketserver.BaseRequestHandler):
         finally:
             self.alive = False
             self.receiver.remove(self)
+            try:
+                self.request.close()   # after a TLS upgrade this is the TLS socket: the server only closes the plain one it handed over
+            except OSError:
+                pass
+
+    def handle_packet_v4(self, opcode, raw):
+        """A packet inside TLS. Like the desktop receiver, a message it does not understand is answered with an Error, not the end of the session."""
+        if opcode == OP["ping"]:
+            self.send(OP["pong"])
+            return
+        if opcode == OP["pong"]:
+            return
+        if opcode == OP["version"]:
+            raise BadMessage("a second Version")
+        if opcode != v4.FLATBUF:
+            log.info("[%s] <- opcode %d is not a v4 opcode: answering with an error", self.peer, opcode)
+            self.send_message(v4.error(0))
+            return
+        try:
+            message = v4.read(raw or b"")
+        except v4.Bad as e:
+            log.warning("[%s] a Flatbuf packet that is not valid (%s): answering with an error", self.peer, e)
+            self.send_message(v4.error(v4.ERROR_MALFORMED))
+            return
+        log.info("[%s] <- flatbuf %s", self.peer, {k: v for k, v in message.items() if v is not None and k != "tracks"})
+        receiver = self.receiver
+        kind = message["kind"]
+        if kind == "sender_introduction":
+            pass
+        elif kind == "load":
+            body = {"container": message["container"], "url": message["url"]}
+            for source, key in (("time", "time"), ("volume", "volume"), ("speed", "speed")):
+                if message.get(source) is not None:
+                    body[key] = message[source]
+            if message.get("title") or message.get("thumbnail"):
+                body["metadata"] = {"type": 0, "title": message.get("title"), "thumbnailUrl": message.get("thumbnail")}
+            receiver.play(body)
+        elif kind == "state":
+            if message["state"] == v4.PAUSED:
+                receiver.set_state(2)
+            elif message["state"] == v4.PLAYING:
+                receiver.set_state(1)
+            else:
+                receiver.set_state(0)
+        elif kind == "stop":
+            receiver.set_state(0)
+        elif kind == "progress":
+            if message.get("position") is not None:
+                receiver.seek(message["position"])
+        elif kind == "volume":
+            receiver.set_volume(max(0.0, min(1.0, message["volume"])))
+        elif kind == "speed":
+            receiver.set_speed(max(MIN_RATE, min(MAX_RATE, message["speed"])))
+        elif kind == "change_track":
+            receiver.change_track(message["id"], message["type"])
+        elif kind == "add_subtitle":
+            receiver.add_subtitle(message["url"], message["select"], message["name"])
+        else:
+            log.info("[%s] (not handled by the rig)", self.peer)
 
     def handle_packet(self, opcode, raw):
+        if self.version >= 4:
+            self.handle_packet_v4(opcode, raw)
+            return
         name = OP_NAME.get(opcode)
         if name is None:
             raise BadMessage("unknown opcode %d" % opcode)
@@ -414,7 +592,10 @@ class Session(socketserver.BaseRequestHandler):
         if isinstance(theirs, bool) or not isinstance(theirs, int) or theirs < 1:
             raise BadMessage("illegal version %r" % (theirs,))
         if theirs >= 4:
-            raise BadMessage("the sender asks for version %d: the rig speaks up to 3 and has no TLS" % theirs)
+            if self.options.speaks < 4 or v4 is None:
+                raise BadMessage("the sender asks for version %d: the rig speaks up to %d (--speaks 4 gives it TLS)" % (theirs, min(3, self.options.speaks)))
+            self.start_v4()
+            return
         self.version = min(theirs, self.options.speaks)
         self.settled = True
         receiver = self.receiver
@@ -431,6 +612,34 @@ class Session(socketserver.BaseRequestHandler):
             busy = receiver.state != 0
         if busy and self.version >= 1:
             self.send(OP["playback_update"], receiver.playback_update())
+
+    def start_v4(self):
+        """The TLS 1.3 upgrade in place (the sender is the client), then what a v4 receiver says to a new sender."""
+        self.request.settimeout(5)
+        try:
+            self.request = self.server.tls.wrap_socket(self.request, server_side=True)
+        except (OSError, ValueError) as e:   # ssl.SSLError is an OSError: the sender refused the key, or did not speak TLS 1.3
+            raise BadMessage("the TLS handshake failed: %s" % e)
+        self.request.settimeout(None)
+        self.version = 4
+        self.settled = True
+        self.max_packet = MAX_PACKET_V4
+        receiver = self.receiver
+        log.info("[%s] TLS %s, version settled on 4", self.peer, self.request.version())
+        self.send_message(v4.receiver_introduction(self.options.name, "yaacc-test-rig", "1"))
+        self.send_message(v4.volume(receiver.volume))
+        with receiver.lock:
+            data = receiver.play_data
+            busy = receiver.state != 0
+            update = receiver.playback_update()
+        if data is not None:
+            meta = data.get("metadata") or {}
+            self.send_message(v4.load(data.get("container", ""), data.get("url", ""), data.get("time"), data.get("volume"), data.get("speed"),
+                                      meta.get("title"), meta.get("thumbnailUrl")))
+            self.v4_state = None
+            if busy:
+                self.send_v4_event("playback_update", update)
+            self.send_tracks()
 
     def _heartbeat(self):
         mode = self.options.heartbeat
@@ -457,17 +666,32 @@ class Session(socketserver.BaseRequestHandler):
                 time.sleep(2.0)
 
 
+def _describe(message):
+    try:
+        found = v4.read(message)
+        return {k: v for k, v in found.items() if v is not None and k != "tracks"}
+    except v4.Bad:
+        return "(not readable)"
+
+
 class Server(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
 
     def __init__(self, address, options):
         self.options = options
+        self.fingerprint = None
+        self.tls = None
+        if options.speaks >= 4:
+            if v4 is None:
+                raise SystemExit("--speaks 4 needs the packages in requirements.txt (pip install -r requirements.txt)")
+            cert, key, self.fingerprint = v4.make_identity(options.cert_dir)
+            self.tls = v4.tls_context(cert, key)
         self.receiver = Receiver(options)
         super().__init__(address, Session)
 
 
-def advertise(options, port):
+def advertise(options, port, fingerprint=None):
     try:
         from zeroconf import IPVersion, ServiceInfo, Zeroconf
     except ImportError:
@@ -478,7 +702,8 @@ def advertise(options, port):
         packed = [socket.inet_aton(a) for a in addresses]
         info = ServiceInfo(
             SERVICE_TYPE, "%s.%s" % (options.name, SERVICE_TYPE), addresses=packed, port=port,
-            properties={"version": str(effective_greeting(options) or 3), "appName": "yaacc-test-rig", "appVersion": "1"},
+            properties=dict({"version": str(effective_greeting(options) or 3), "appName": "yaacc-test-rig", "appVersion": "1"},
+                            **({"v": "4", "fp": fingerprint} if fingerprint else {})),
             server=options.name.replace(" ", "-") + ".local.")
         zc = Zeroconf(ip_version=IPVersion.V4Only)
         zc.register_service(info)
@@ -497,7 +722,11 @@ def parse(argv):
     p.add_argument("--address", action="append", help="IPv4 address to announce (repeat for more; default: this host's)")
     p.add_argument("--no-advertise", action="store_true", help="do not announce the service by mDNS")
     p.add_argument("--greeting", type=int, default=None, help="Version sent first on connect and announced by mDNS: default the version the rig speaks (3: like the Android receiver); 4: like the desktop receiver, which then expects 3; 0: none")
-    p.add_argument("--speaks", type=int, default=3, choices=(1, 2, 3), help="highest protocol version the rig speaks (1, 2: no Initial)")
+    p.add_argument("--speaks", type=int, default=3, choices=(1, 2, 3, 4),
+                   help="highest protocol version the rig speaks (1, 2: no Initial; 4: TLS 1.3 and FlatBuffers for a sender that asks for 4, "
+                        "v3 for the others, like the desktop receiver; announces `v` and `fp` by mDNS and prints the connection link)")
+    p.add_argument("--cert-dir", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), ".rig-cert"),
+                   help="where the rig keeps its self-signed key for --speaks 4 (made once, so that its fingerprint stays the same between runs)")
     p.add_argument("--behaviour", default="normal", choices=("normal", "slow", "silent", "oversize", "ignore-pings"),
                    help="misbehave on purpose: slow (each answer waits --slow-seconds), silent (answers nothing), "
                         "oversize (announces a packet over 32000 bytes), ignore-pings")
@@ -526,7 +755,12 @@ def main(argv=None):
     port = server.server_address[1]
     log.info("test receiver '%s' listening on %s:%d (protocol up to v%d, behaviour %s, heartbeat %s)",
              options.name, options.host, port, options.speaks, options.behaviour, options.heartbeat)
-    registration = None if options.no_advertise else advertise(options, port)
+    if server.fingerprint:
+        addresses = options.address or [socket.gethostbyname(socket.gethostname())]
+        log.info("key fingerprint (fp): %s", server.fingerprint)
+        log.info("connection link (the text of the QR code a receiver shows; paste it into YAACC's Add receiver): %s",
+                 v4.connection_url(options.name, addresses, port, server.fingerprint))
+    registration = None if options.no_advertise else advertise(options, port, server.fingerprint)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
