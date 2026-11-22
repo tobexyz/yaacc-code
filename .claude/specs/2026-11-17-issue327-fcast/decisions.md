@@ -123,6 +123,9 @@ Rule: use v4 when the Android version supports it and the receiver supports it (
 **Cycle 2:** the translator tests of the error classes were missing from the commit (an edit that did not apply); they are in now (one per fatal kind, one per clamp or refused kind, the border before and after playing), and a state of Buffering no longer counts as started, so an error during buffering still fails the item.
 **Not done (suggestions):** dropping v3 JSON opcodes inside TLS, a total deadline for the handshake, a possession-of-key test, a text for the switch being off in the sheet note, the subtitle address from an UPnP item, unpinned transitive Python packages of the rig.
 
+### D30. Task 6.2 closed (owner, 2026-11-22)
+The owner reports that the gate works: playing music, video and pictures, the controls of the card (also from a second YAACC instance, after the fix of D22), and, after Group 7, **protocol v4 with both ways of learning the key: the mDNS announcement and the scanned QR code** with a real receiver. He closed the task; the remaining points listed in D22 are not pursued unless he reports a problem. Also changed the same day on his request: the sheet shows the mute symbol of the other cards, and the commits carry no `Claude-Session` trailer (the project setting has an empty attribution).
+
 ### Answers to the earlier questions (owner, 2026-11-20)
 - **Q2:** no receiver hardware; a software receiver on a notebook (D13).
 - **Q3:** music, video and pictures all three are in scope (the design already plays all three).
