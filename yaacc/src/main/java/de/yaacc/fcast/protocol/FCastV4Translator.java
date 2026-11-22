@@ -48,6 +48,7 @@ final class FCastV4Translator {
     private Double duration;
     private Double speed;
     private String itemUrl;
+    private boolean started;        // the receiver said Playing or Paused for this item (Buffering is on the way, not started)
 
     /** @return the messages for the session (may be empty) */
     List<FCastMessages.Incoming> incoming(byte[] body) throws FCastProtocolException {
@@ -71,6 +72,7 @@ final class FCastV4Translator {
                 V4In.Item item = in.item;
                 itemUrl = FCastText.clean(item.url, FCastText.MAX_URL);
                 state = null;
+                started = false;
                 position = null;
                 duration = null;
                 out.add(new FCastMessages.Tracks(Collections.<FCastTrack>emptyList())); // the tracks of the old item are gone
@@ -112,7 +114,7 @@ final class FCastV4Translator {
                 // only an error that comes before the item has started playing fails the item (the receiver could not load it); a seek or a
                 // volume that was clamped, a subtitle file that was refused and the like come while it plays: shown, no reason to skip it
                 boolean itemFatal = kind == 1 || kind == 5 || kind == 6 || kind == 12;
-                boolean beforePlaying = state == null || state == FCastMessages.STATE_IDLE;
+                boolean beforePlaying = !started;
                 String text = "the receiver reported: " + name;
                 out.add(itemFatal && beforePlaying ? new FCastMessages.PlaybackError(text) : new FCastMessages.Notice(text));
                 break;
@@ -172,10 +174,12 @@ final class FCastV4Translator {
             case V4Schema.STATE_PLAYING:
             case V4Schema.STATE_BUFFERING: // v3 has no buffering: the receiver is on its way to playing
                 state = FCastMessages.STATE_PLAYING;
+                started |= v4State == V4Schema.STATE_PLAYING;
                 emitUpdate(out);
                 break;
             case V4Schema.STATE_PAUSED:
                 state = FCastMessages.STATE_PAUSED;
+                started = true;
                 emitUpdate(out);
                 break;
             case V4Schema.STATE_ENDED:
@@ -189,6 +193,7 @@ final class FCastV4Translator {
                 break;
             default:
                 state = FCastMessages.STATE_IDLE;
+                started = false;
                 position = null;
                 duration = null;
                 out.add(new FCastMessages.PlaybackUpdate(0L, FCastMessages.STATE_IDLE, null, null, null, null));

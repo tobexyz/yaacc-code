@@ -197,6 +197,64 @@ public class FCastV4TranslatorTest {
         assertTrue(many.length() > FCastText.MAX_NAME);
     }
 
+    private static byte[] errorMessage(int kind) {
+        com.google.flatbuffers.FlatBufferBuilder b = new com.google.flatbuffers.FlatBufferBuilder(64);
+        b.startTable(2);
+        b.addByte(0, (byte) kind, 0);
+        int payload = b.endTable();
+        b.startTable(2);
+        b.addByte(0, (byte) V4Schema.MSG_ERROR, 0);
+        b.addOffset(1, payload, 0);
+        b.finish(b.endTable());
+        return b.sizedByteArray();
+    }
+
+    @Test
+    public void everyErrorThatMeansTheReceiverCouldNotLoadTheItemFailsItBeforeItPlays() throws Exception {
+        for (int kind : new int[]{1, 5, 6, 12}) { // ResourceNotFound, UnsupportedFormat, MalformedBody, Internal
+            FCastV4Translator fresh = new FCastV4Translator();
+            fresh.incoming(V4Golden.get("loadFull"));
+            FCastMessages.PlaybackError error = only(fresh.incoming(errorMessage(kind)), FCastMessages.PlaybackError.class);
+            assertTrue("kind " + kind, error.getMessage().contains(V4Schema.ERROR_KINDS[kind]));
+        }
+    }
+
+    @Test
+    public void aClampOrARefusedStateIsAlwaysOnlyANotice() throws Exception {
+        for (int kind : new int[]{0, 2, 3, 4, 7, 8, 9, 10, 11}) { // InvalidOpcode, Seek/Volume/RateOutOfRange, InvalidState, queue errors
+            FCastV4Translator fresh = new FCastV4Translator();
+            fresh.incoming(V4Golden.get("loadFull"));
+            assertTrue("before playing, kind " + kind, fresh.incoming(errorMessage(kind)).get(0) instanceof FCastMessages.Notice);
+            fresh.incoming(V4Golden.get("statePlaying"));
+            assertTrue("while playing, kind " + kind, fresh.incoming(errorMessage(kind)).get(0) instanceof FCastMessages.Notice);
+        }
+    }
+
+    @Test
+    public void anItemErrorWhilePlayingOrPausedIsOnlyANoticeButWhileBufferingItStillFailsTheItem() throws Exception {
+        FCastV4Translator buffering = new FCastV4Translator();
+        buffering.incoming(V4Golden.get("loadFull"));
+        buffering.incoming(V4Golden.get("stateBuffering"));
+        assertTrue(buffering.incoming(errorMessage(5)).get(0) instanceof FCastMessages.PlaybackError);
+        buffering.incoming(V4Golden.get("statePlaying"));
+        assertTrue(buffering.incoming(errorMessage(5)).get(0) instanceof FCastMessages.Notice);
+        FCastV4Translator paused = new FCastV4Translator();
+        paused.incoming(V4Golden.get("loadFull"));
+        paused.incoming(V4Golden.get("statePaused"));
+        assertTrue(paused.incoming(errorMessage(5)).get(0) instanceof FCastMessages.Notice);
+    }
+
+    @Test
+    public void aNewLoadAndAnIdleMakeTheNextErrorAFailureAgain() throws Exception {
+        in("loadFull");
+        in("statePlaying");
+        in("loadFull");
+        assertTrue(translator.incoming(errorMessage(5)).get(0) instanceof FCastMessages.PlaybackError);
+        in("statePlaying");
+        in("stateIdle");
+        assertTrue(translator.incoming(errorMessage(5)).get(0) instanceof FCastMessages.PlaybackError);
+    }
+
     @Test
     public void messagesThatOnlyASenderSendGiveNothing() throws Exception {
         assertTrue(in("addSubtitle").isEmpty());
