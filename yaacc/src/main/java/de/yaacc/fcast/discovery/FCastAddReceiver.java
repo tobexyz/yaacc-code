@@ -85,6 +85,14 @@ public final class FCastAddReceiver {
         /** Stores a receiver added by hand. */
         FCastStoredReceivers.AddResult store(FCastEndpoint endpoint, String name);
 
+        /**
+         * Stores a receiver added from a link that carried the receiver's key ({@code fp}); the key is kept for the secure protocol
+         * (task 7.2). The default ignores the key.
+         */
+        default FCastStoredReceivers.AddResult store(FCastEndpoint endpoint, String name, de.yaacc.fcast.protocol.FCastPin pin) {
+            return store(endpoint, name);
+        }
+
         /** True while the search for receivers by mDNS runs (the switch is on and the dialog counts as a page). */
         boolean isDiscoveryRunning();
 
@@ -214,7 +222,9 @@ public final class FCastAddReceiver {
             // the first address of the link that answers, in the order of the link
             for (int i = 0; i < group.size() && i < answered.size(); i++) {
                 if (Boolean.TRUE.equals(answered.get(i))) {
-                    return store(group.get(i), parsed.getParsed().getName());
+                    return store(group.get(i), parsed.getParsed().getName(),
+                            de.yaacc.fcast.protocol.FCastPin.parse(parsed.getParsed().getHints().getFingerprint(),
+                                    de.yaacc.fcast.protocol.FCastPin.Source.LINK));
                 }
             }
         }
@@ -310,7 +320,11 @@ public final class FCastAddReceiver {
     }
 
     private Result store(FCastEndpoint endpoint, String name) {
-        FCastStoredReceivers.AddResult stored = environment.store(endpoint, name);
+        return store(endpoint, name, null);
+    }
+
+    private Result store(FCastEndpoint endpoint, String name, de.yaacc.fcast.protocol.FCastPin pin) {
+        FCastStoredReceivers.AddResult stored = pin == null ? environment.store(endpoint, name) : environment.store(endpoint, name, pin);
         Result result;
         switch (stored) {
             case ADDED:

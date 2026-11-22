@@ -28,6 +28,8 @@ public final class FCastSettings {
     public static final String KEY_MANUAL_RECEIVERS = "fcast_manual_receivers";
     /** The key of the list of the receivers that were selected in the last run (shown as offline until they are seen). */
     public static final String KEY_REMEMBERED_RECEIVERS = "fcast_remembered_receivers";
+    /** The key of the keys (fingerprints) that came with the links of receivers, one per receiver (task 7.2). */
+    public static final String KEY_RECEIVER_PINS = "fcast_receiver_pins";
     /** What a value that can not be read counts as: off (never search because of a damaged value). */
     public static final boolean DISCOVERY_UNREADABLE = false;
 

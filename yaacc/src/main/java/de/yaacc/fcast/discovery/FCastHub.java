@@ -63,6 +63,7 @@ public final class FCastHub implements FCastReceiverSource {
     private final FCastDiscoveryLog discoveryLog = new FCastDiscoveryLog();
     private final FCastNsd nsd;
     private final FCastStoredReceivers manualReceivers;
+    private final FCastPins pins;
     private final FCastReceivers receivers;
     private final SnapcastDiscoveryGate gate;
     private final SharedPreferences.OnSharedPreferenceChangeListener settingListener;
@@ -71,6 +72,8 @@ public final class FCastHub implements FCastReceiverSource {
         this.context = context.getApplicationContext();
         this.manualReceivers = new FCastStoredReceivers(new SnapcastPreferencesStorage(this.context, FCastSettings.KEY_MANUAL_RECEIVERS),
                 FCastStoredReceivers.MAX_MANUAL);
+        this.pins = new FCastPins(new FCastPinStore(new SnapcastPreferencesStorage(this.context, FCastSettings.KEY_RECEIVER_PINS)),
+                directory::find);
         FCastStoredReceivers remembered = new FCastStoredReceivers(
                 new SnapcastPreferencesStorage(this.context, FCastSettings.KEY_REMEMBERED_RECEIVERS), FCastStoredReceivers.MAX_REMEMBERED);
         this.nsd = new FCastNsd(this.context, directory, discoveryLog);
@@ -146,6 +149,18 @@ public final class FCastHub implements FCastReceiverSource {
         }
     }
 
+    /** Adds a receiver from a link and keeps the key the link carried (task 7.2). */
+    public FCastStoredReceivers.AddResult addManual(FCastEndpoint endpoint, String name, de.yaacc.fcast.protocol.FCastPin pin) {
+        synchronized (manualReceivers) {
+            return pins.remember(endpoint, pin, addManual(endpoint, name));
+        }
+    }
+
+    /** The key a connection to this receiver is pinned to, or null if it is not known to offer the secure protocol (it is then spoken to in v3). */
+    public de.yaacc.fcast.protocol.FCastPin pinFor(FCastEndpoint endpoint) {
+        return pins.pinFor(endpoint);
+    }
+
     /** Removes a receiver that was added by hand. @return true if it was in the list */
     public boolean removeManual(FCastEndpoint endpoint) {
         synchronized (manualReceivers) {
@@ -153,6 +168,7 @@ public final class FCastHub implements FCastReceiverSource {
             if (removed) {
                 directory.setManual(manualReceivers.list());
             }
+            pins.forget(endpoint);
             return removed;
         }
     }
@@ -290,6 +306,11 @@ public final class FCastHub implements FCastReceiverSource {
             @Override
             public FCastStoredReceivers.AddResult store(FCastEndpoint endpoint, String name) {
                 return addManual(endpoint, name);
+            }
+
+            @Override
+            public FCastStoredReceivers.AddResult store(FCastEndpoint endpoint, String name, de.yaacc.fcast.protocol.FCastPin pin) {
+                return addManual(endpoint, name, pin);
             }
 
             @Override

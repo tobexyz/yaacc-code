@@ -86,6 +86,15 @@ public class FCastAddReceiverTest {
         }
 
         @Override
+        public FCastStoredReceivers.AddResult store(FCastEndpoint endpoint, String name, de.yaacc.fcast.protocol.FCastPin pin) {
+            calls.add("store " + endpoint + " " + name + " key " + pin.toBase64());
+            if (storeResult == FCastStoredReceivers.AddResult.ADDED) {
+                stored.add(endpoint + "|" + name + "|" + pin.getSource());
+            }
+            return storeResult;
+        }
+
+        @Override
         public boolean isDiscoveryRunning() {
             return discoveryRunning;
         }
@@ -170,6 +179,39 @@ public class FCastAddReceiverTest {
         assertEquals(Outcome.ADDED, result.getOutcome());
         assertEquals(Arrays.asList("probe 192.168.0.239:46899", "probe 10.0.0.7:46899", "store 10.0.0.7:46899 FCast-pc"), calls);
         assertEquals("FCast-pc", result.getName());
+    }
+
+    @Test
+    public void theKeyOfALinkIsHandedToTheStoreAsALinkKey() {
+        String key = java.util.Base64.getEncoder().encodeToString(new byte[32]);
+        reachable.add("192.168.0.239:46899");
+        String text = link("{\"name\":\"FCast-pc\",\"addresses\":[\"192.168.0.239\"],\"services\":[{\"port\":46899,\"type\":0}],"
+                + "\"txt\":{\"v\":\"4\",\"fp\":\"" + key + "\"}}");
+
+        FCastAddReceiver.Result result = add.add(text);
+
+        assertEquals(Outcome.ADDED, result.getOutcome());
+        assertEquals(Collections.singletonList("192.168.0.239:46899|FCast-pc|LINK"), stored);
+        assertTrue(calls.contains("store 192.168.0.239:46899 FCast-pc key " + key));
+    }
+
+    @Test
+    public void aLinkWithAKeyThatIsNotAKeyIsAddedWithoutOne() {
+        reachable.add("192.168.0.239:46899");
+        String text = link("{\"name\":\"FCast-pc\",\"addresses\":[\"192.168.0.239\"],\"services\":[{\"port\":46899,\"type\":0}],"
+                + "\"txt\":{\"v\":\"4\",\"fp\":\"short\"}}");
+
+        assertEquals(Outcome.ADDED, add.add(text).getOutcome());
+        assertEquals(Collections.singletonList("192.168.0.239:46899|FCast-pc"), stored);
+    }
+
+    @Test
+    public void aLinkWithoutAKeyIsStoredAsBefore() {
+        reachable.add("192.168.0.239:46899");
+        String text = link("{\"name\":\"FCast-pc\",\"addresses\":[\"192.168.0.239\"],\"services\":[{\"port\":46899,\"type\":0}]}");
+
+        assertEquals(Outcome.ADDED, add.add(text).getOutcome());
+        assertEquals(Collections.singletonList("192.168.0.239:46899|FCast-pc"), stored);
     }
 
     @Test

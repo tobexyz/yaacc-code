@@ -53,8 +53,10 @@ public final class FCastMessages {
     public static final double MAX_REPORTED_SPEED = 16.0;
     /** Text YAACC sends (a title). */
     public static final int MAX_TITLE = 200;
-    /** The highest protocol version this code speaks. Never raise it before the TLS upgrade exists (docs/tech.md). */
+    /** The highest version of the plain JSON protocol this code speaks (v1 to v3); v4 is {@link #V4}. */
     public static final int MAX_VERSION = 3;
+    /** Version 4 (TLS 1.3 and FlatBuffers); only a connection with a pinned key speaks it (D24). */
+    public static final int V4 = 4;
 
     private FCastMessages() {
     }

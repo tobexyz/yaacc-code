@@ -31,6 +31,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.net.ssl.SSLSocket;
+
 /**
  * One TCP connection to one FCast receiver, protocol v3 (docs/tech.md, "FCast"; design.md, section 1).
  *
@@ -94,7 +96,17 @@ public final class FCastConnection implements AutoCloseable {
         public long tickMillis = 250;
         public int writeQueueCapacity = 64;
         public int listenerQueueCapacity = 256;
+        /**
+         * The fingerprint of a receiver that is known to offer v4 (task 7.2, D24), or null. With a pin and a platform that can do
+         * TLS 1.3 the connection speaks v4 and refuses everything else; without one it speaks v3 as before.
+         */
+        public FCastPin pin;
+        /** The Android API level of this device; v4 is attempted from {@link #MIN_SDK_FOR_V4}. 0 in unit tests unless set. */
+        public int platformSdk = android.os.Build.VERSION.SDK_INT;
     }
+
+    /** The first Android API level with TLS 1.3 in {@code SSLContext} (no TLS provider library is added, D3). */
+    public static final int MIN_SDK_FOR_V4 = 29;
 
     private static final String TAG = FCastConnection.class.getName();
 
@@ -113,6 +125,7 @@ public final class FCastConnection implements AutoCloseable {
 
     private volatile Socket socket;
     private volatile int peerVersion;           // 0 until the receiver's Version arrived
+    private volatile boolean secure;            // true once the TLS upgrade of a v4 connection is done
     private volatile boolean initialSent;
     private volatile long writeStartedAt;       // 0 when no write is going on
     private FCastHeartbeat heartbeat;
@@ -156,12 +169,12 @@ public final class FCastConnection implements AutoCloseable {
             s.setTcpNoDelay(true);
             s.setKeepAlive(true);
         } catch (IOException e) {
-            try {
-                s.close();
-            } catch (IOException ignored) {
-                // nothing to close
-            }
+            closeQuietly(s);
             throw e;
+        }
+        boolean v4 = config.pin != null && config.platformSdk >= MIN_SDK_FOR_V4;
+        if (v4) {
+            s = upgradeToV4(s); // closes the socket on failure
         }
         socket = s;
         connectedAt = clock.nowMillis();
@@ -172,12 +185,69 @@ public final class FCastConnection implements AutoCloseable {
         writer = daemon("fcast-writer", this::writeLoop);
         dispatcher = daemon("fcast-dispatcher", this::dispatchLoop);
         watchdog = daemon("fcast-watchdog", this::watchLoop);
-        // the sender's Version goes first, before anything the receiver says
-        enqueue(FCastOpcode.VERSION, FCastMessages.version(FCastMessages.MAX_VERSION));
+        if (v4) {
+            // the Version packets were exchanged in plaintext, the introductions are the codec's business (task 7.3)
+            initialSent = true;
+            deliver(() -> listener.onMessage(new FCastMessages.Version(FCastMessages.V4)));
+        } else {
+            // the sender's Version goes first, before anything the receiver says
+            enqueue(FCastOpcode.VERSION, FCastMessages.version(FCastMessages.MAX_VERSION));
+        }
         reader.start();
         writer.start();
         dispatcher.start();
         watchdog.start();
+    }
+
+    /**
+     * The start of a v4 connection (docs/tech.md, "FCast v4"): our {@code Version 4} in plaintext at once, the receiver's
+     * {@code Version} as the first packet, then TLS 1.3 with the pinned key. Anything else is an error of the connection, never
+     * a fall back to v3: the receiver is known to offer v4 and the plaintext version exchange can be changed by an attacker.
+     */
+    private Socket upgradeToV4(Socket plain) throws IOException {
+        try {
+            int timeout = (int) config.connectTimeoutMillis;
+            plain.setSoTimeout(timeout);
+            plain.getOutputStream().write(FCastPacketCodec.encode(FCastOpcode.VERSION.code(), FCastMessages.version(FCastMessages.V4)));
+            plain.getOutputStream().flush();
+            FCastPacket first;
+            try {
+                first = new FCastFrameReader(plain.getInputStream()).read();
+            } catch (FCastProtocolException e) {
+                throw new FCastSecurityException(FCastSecurityException.Kind.DOWNGRADE,
+                        "the receiver did not answer with a version: " + e.getMessage());
+            }
+            if (first == null || first.getOpcode() != FCastOpcode.VERSION) {
+                throw new FCastSecurityException(FCastSecurityException.Kind.DOWNGRADE,
+                        "the receiver did not start with its version");
+            }
+            FCastMessages.Incoming answer;
+            try {
+                answer = FCastMessages.parse(first);
+            } catch (FCastProtocolException e) {
+                throw new FCastSecurityException(FCastSecurityException.Kind.DOWNGRADE, "the receiver's version is not readable");
+            }
+            int version = answer instanceof FCastMessages.Version ? ((FCastMessages.Version) answer).getVersion() : 0;
+            if (version < FCastMessages.V4) {
+                throw new FCastSecurityException(FCastSecurityException.Kind.DOWNGRADE,
+                        "the receiver is known to offer version 4 but answered with version " + version);
+            }
+            peerVersion = version;
+            SSLSocket tls = FCastTls.upgrade(plain, target.getHostString(), target.getPort(), config.pin, timeout);
+            secure = true;
+            return tls;
+        } catch (IOException e) {
+            closeQuietly(plain);
+            throw e;
+        }
+    }
+
+    private static void closeQuietly(Socket s) {
+        try {
+            s.close();
+        } catch (IOException ignored) {
+            // nothing to close
+        }
     }
 
     private static Thread daemon(String name, Runnable body) {
@@ -198,8 +268,16 @@ public final class FCastConnection implements AutoCloseable {
 
     /** The version this connection speaks: the smaller of the receiver's and {@link FCastMessages#MAX_VERSION}; 3 until the receiver said. */
     public int getNegotiatedVersion() {
+        if (secure) {
+            return FCastMessages.V4;
+        }
         int peer = peerVersion;
         return peer == 0 ? FCastMessages.MAX_VERSION : Math.min(peer, FCastMessages.MAX_VERSION);
+    }
+
+    /** True if this connection runs inside TLS 1.3 (protocol v4, pinned key). */
+    public boolean isSecure() {
+        return secure;
     }
 
     public boolean isClosed() {
@@ -217,6 +295,10 @@ public final class FCastConnection implements AutoCloseable {
      *                                to a version 1 receiver), {@code TOO_LARGE} if the message does not fit into a packet
      */
     public boolean send(FCastOpcode opcode, String body) throws FCastProtocolException {
+        if (secure) {
+            throw new FCastProtocolException(FCastProtocolException.Kind.UNSUPPORTED,
+                    "the messages of version 4 are not available through this call");
+        }
         if (!isCommandOpcode(opcode)) {
             throw new FCastProtocolException(FCastProtocolException.Kind.UNSUPPORTED,
                     opcode + " is sent by the connection itself, not by a caller");

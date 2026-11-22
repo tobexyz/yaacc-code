@@ -436,6 +436,25 @@ public class FCastSessionTest {
     // ---- errors
 
     @Test
+    public void aRefusedSecureConnectionEndsInFailedWithTheReasonAndIsNotRetried() throws Exception {
+        final java.util.concurrent.atomic.AtomicInteger attempts = new java.util.concurrent.atomic.AtomicInteger();
+        FCastSession.Connector refusing = listener -> {
+            attempts.incrementAndGet();
+            throw new FCastSecurityException(FCastSecurityException.Kind.PIN_MISMATCH, "key");
+        };
+        FCastSession session = session(new CountingConnector(refusing), new Events(), fastSession());
+        session.acquire();
+
+        session.connect();
+
+        assertTrue(await(session, s -> s.getLink() == FCastReceiverState.Link.FAILED && s.getLastError() != null, WAIT));
+        assertTrue("the user is told that the key does not match: " + session.getState().getLastError(),
+                session.getState().getLastError().contains("key"));
+        Thread.sleep(300);
+        assertEquals("a refused key is not tried again by itself", 1, attempts.get());
+    }
+
+    @Test
     public void aReceiverThatCanNotBeReachedFailsWithATextAndTheNextCommandTriesAgain() throws Exception {
         int port;
         try (ServerSocket socket = new ServerSocket(0, 1, InetAddress.getByAddress(new byte[]{127, 0, 0, 1}))) {

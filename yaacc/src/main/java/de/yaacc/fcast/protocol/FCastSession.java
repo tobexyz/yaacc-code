@@ -292,11 +292,30 @@ public final class FCastSession implements AutoCloseable {
             subscribedToEnd = false;
             publish(state.toBuilder().link(FCastReceiverState.Link.CONNECTED).protocolVersion(made.getNegotiatedVersion()));
             return true;
+        } catch (FCastSecurityException e) {
+            connection = null;
+            publish(state.toBuilder().link(FCastReceiverState.Link.FAILED).playback(FCastReceiverState.Playback.UNKNOWN, null, null, null)
+                    .pending(FCastReceiverState.Pending.NONE).error(FCastText.clean(securityText(e), 200)));
+            return false;
         } catch (IOException e) {
             connection = null;
             publish(state.toBuilder().link(FCastReceiverState.Link.FAILED).playback(FCastReceiverState.Playback.UNKNOWN, null, null, null)
                     .pending(FCastReceiverState.Pending.NONE).error("could not connect to the receiver (" + e.getClass().getSimpleName() + ")"));
             return false;
+        }
+    }
+
+    /** What the user reads when a secure connection was refused (the cause is in the exception, not in a stack trace). */
+    private static String securityText(FCastSecurityException e) {
+        switch (e.getKind()) {
+            case PIN_MISMATCH:
+                return "the receiver's key is not the one that was announced: not connected (remove and add the receiver again if it was reinstalled)";
+            case DOWNGRADE:
+                return "the receiver is known to offer the secure protocol but did not use it: not connected";
+            case TLS_UNSUPPORTED:
+                return "this device can not make the secure connection: not connected";
+            default:
+                return "the secure connection to the receiver could not be made";
         }
     }
 
