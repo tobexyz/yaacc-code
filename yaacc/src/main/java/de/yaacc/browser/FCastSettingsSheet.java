@@ -197,21 +197,18 @@ final class FCastSettingsSheet {
         volumeRow.setOrientation(LinearLayout.HORIZONTAL);
         volumeRow.setGravity(Gravity.CENTER_VERTICAL);
         volumeRow.setPadding(pad, 0, pad, 0);
-        TextView volumeLabel = new TextView(context);
-        volumeLabel.setText(R.string.fcast_sheet_volume);
-        volumeRow.addView(volumeLabel);
+        // the mute symbol and the slider side by side, as on the cards of the other receivers (the symbol only with a player: the mute is emulated by it)
+        mute = SnapcastMuteToggle.create(context, context.getString(R.string.fcast_sheet_mute));
+        muteRow = mute;
+        volumeRow.addView(mute);
         volume = new SeekBar(context);
         volume.setMax(100);
+        volume.setContentDescription(context.getString(R.string.fcast_sheet_volume));
         volumeRow.addView(volume, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         volumeText = new TextView(context);
         volumeText.setMinWidth((int) (44 * density));
         volumeRow.addView(volumeText);
         body.addView(volumeRow);
-        mute = new CheckBox(context);
-        mute.setText(R.string.fcast_sheet_mute);
-        mute.setPadding(pad, 0, pad, 0);
-        muteRow = mute;
-        body.addView(mute);
         speedValue = new TextView(context);
         speedRow = valueRow(R.string.fcast_sheet_speed, speedValue, pad, density);
         speedRow.setClickable(true);
@@ -424,6 +421,7 @@ final class FCastSettingsSheet {
         FCastPlayer current = player;
         if (current != null) {
             mute.setChecked(current.getMute());
+            SnapcastMuteToggle.syncState(context, mute);
             Double speed = state.getSpeed();
             int index = FCastSheetModel.nearestSpeed(speed == null ? 1.0 : speed);
             speedValue.setText(FCastSheetModel.speedLabels().get(Math.max(0, index)));
