@@ -70,6 +70,9 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-livedata:2.8.0'
     implementation 'androidx.viewpager2:viewpager2:1.1.0'
     implementation 'org.mp4parser:isoparser:1.9.56'
+    // FlatBuffers runtime for protocol v4 of FCast (decision D23): pure Java, Apache-2.0, released 2025-02-11; only the tables of the
+    // protocol that YAACC uses are written by hand on top of it (no flatc, no generated sources)
+    implementation 'com.google.flatbuffers:flatbuffers-java:25.2.10'
     implementation 'com.github.chrisbanes:PhotoView:2.3.0'
 
 }

@@ -22,10 +22,22 @@ package de.yaacc.fcast.protocol;
 public final class FCastPacket {
     private final int opcode;
     private final String body;
+    private final byte[] raw;
 
     public FCastPacket(int opcode, String body) {
+        this(opcode, body, null);
+    }
+
+    /** A packet whose body is binary (the {@code Flatbuf} packet of v4): the bytes, no text. */
+    public FCastPacket(int opcode, String body, byte[] raw) {
         this.opcode = opcode;
         this.body = body;
+        this.raw = raw;
+    }
+
+    /** The bytes of a binary body, or null (a text body, or no body). */
+    public byte[] getRaw() {
+        return raw;
     }
 
     /** The wire value of the opcode (0 to 255). */
@@ -45,6 +57,6 @@ public final class FCastPacket {
     @Override
     public String toString() {
         FCastOpcode known = getOpcode();
-        return "FCastPacket{" + (known == null ? "opcode " + opcode : known) + (body == null ? "" : ", " + body.length() + " chars") + "}";
+        return "FCastPacket{" + (known == null ? "opcode " + opcode : known) + (body == null ? (raw == null ? "" : ", " + raw.length + " bytes") : ", " + body.length() + " chars") + "}";
     }
 }

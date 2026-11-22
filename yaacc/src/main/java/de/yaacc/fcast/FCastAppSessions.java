@@ -23,6 +23,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import de.yaacc.fcast.discovery.FCastEndpoint;
 import de.yaacc.fcast.protocol.FCastConnection;
+import de.yaacc.fcast.protocol.FCastPin;
 import de.yaacc.fcast.protocol.FCastSession;
 import de.yaacc.multiroom.control.MonotonicClock;
 
@@ -32,12 +33,29 @@ public final class FCastAppSessions {
     private FCastAppSessions() {
     }
 
+    /** Where the key of a receiver comes from (task 7.2): the hub; null for a receiver that is spoken to in v3. */
+    public interface PinSource {
+        FCastPin pinFor(FCastEndpoint endpoint);
+    }
+
     public static FCastSession create(final FCastEndpoint target, FCastSession.Listener listener, ScheduledExecutorService executor,
                                       final String appVersion) {
+        return create(target, listener, executor, appVersion, null);
+    }
+
+    /**
+     * @param pins asked at every connection attempt (a key stored since the last one counts); with a key and Android 10 or later the
+     *             connection speaks v4 and is refused if the key does not match, without a key it speaks v3 (decision D24)
+     */
+    public static FCastSession create(final FCastEndpoint target, FCastSession.Listener listener, ScheduledExecutorService executor,
+                                      final String appVersion, final PinSource pins) {
         final MonotonicClock clock = MonotonicClock.SYSTEM;
-        FCastSession.Connector connector = connectionListener -> FCastSession.connectorFor(
-                new InetSocketAddress(target.getHost(), target.getPort()), new FCastConnection.Config(), clock,
-                "YAACC", "YAACC", appVersion).connect(connectionListener);
+        FCastSession.Connector connector = connectionListener -> {
+            FCastConnection.Config config = new FCastConnection.Config();
+            config.pin = pins == null ? null : pins.pinFor(target);
+            return FCastSession.connectorFor(new InetSocketAddress(target.getHost(), target.getPort()), config, clock,
+                    "YAACC", "YAACC", appVersion).connect(connectionListener);
+        };
         return new FCastSession(connector, listener, new FCastSession.Config(), clock, executor);
     }
 }

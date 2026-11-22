@@ -31,7 +31,35 @@ public final class FCastPacketCodec {
     /** The most bytes of a body. */
     public static final int MAX_BODY = MAX_PACKET - 1;
 
+    /** The most bytes of a packet of version 4 (after the size field). */
+    public static final int MAX_PACKET_V4 = 512 * 1024;
+
     private FCastPacketCodec() {
+    }
+
+    /**
+     * A packet with a binary body (version 4).
+     *
+     * @throws FCastProtocolException {@code TOO_LARGE} if it is over {@code maxPacket}
+     */
+    public static byte[] encodeBinary(int opcode, byte[] body, int maxPacket) throws FCastProtocolException {
+        if (opcode < 0 || opcode > 255) {
+            throw new FCastProtocolException(FCastProtocolException.Kind.UNSUPPORTED, "opcode " + opcode + " is not a byte");
+        }
+        byte[] data = body == null ? new byte[0] : body;
+        if (data.length > maxPacket - 1) {
+            throw new FCastProtocolException(FCastProtocolException.Kind.TOO_LARGE,
+                    "a body of " + data.length + " bytes does not fit into a packet (at most " + (maxPacket - 1) + ")");
+        }
+        int size = 1 + data.length;
+        byte[] packet = new byte[4 + size];
+        packet[0] = (byte) size;
+        packet[1] = (byte) (size >> 8);
+        packet[2] = (byte) (size >> 16);
+        packet[3] = (byte) (size >> 24);
+        packet[4] = (byte) opcode;
+        System.arraycopy(data, 0, packet, 5, data.length);
+        return packet;
     }
 
     /**

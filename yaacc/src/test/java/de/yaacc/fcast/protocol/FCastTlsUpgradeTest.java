@@ -171,14 +171,30 @@ public class FCastTlsUpgradeTest {
     }
 
     @Test
-    public void theV3CommandsAreNotAvailableOnASecuredConnection() throws Exception {
+    public void aCommandOnASecuredConnectionGoesOutAsAFlatbufPacketNotAsJson() throws Exception {
+        FakeFCastTlsReceiver.Keys keys = FakeFCastTlsReceiver.Keys.get(0);
+        FakeFCastTlsReceiver receiver = receiver(keys, new FakeFCastTlsReceiver.Options());
+        FCastConnection connection = connection(receiver, keys.pin(FCastPin.Source.LINK), 29, new Recorder());
+        connection.connect();
+        awaitTrue(() -> receiver.protocols().size() == 1);
+
+        assertTrue(connection.send(FCastOpcode.PAUSE, null));
+
+        awaitTrue(() -> receiver.flatbufs().size() >= 2); // our introduction, then the pause
+        for (Packet packet : receiver.packets()) {
+            assertEquals("every packet inside TLS is a Flatbuf packet", FakeFCastTlsReceiver.FLATBUF, packet.opcode);
+        }
+    }
+
+    @Test
+    public void anOpcodeThatTheConnectionSendsItselfIsRefusedToACallerOnASecuredConnectionToo() throws Exception {
         FakeFCastTlsReceiver.Keys keys = FakeFCastTlsReceiver.Keys.get(0);
         FakeFCastTlsReceiver receiver = receiver(keys, new FakeFCastTlsReceiver.Options());
         FCastConnection connection = connection(receiver, keys.pin(FCastPin.Source.LINK), 29, new Recorder());
         connection.connect();
         try {
-            connection.send(FCastOpcode.PAUSE, null);
-            fail("a v3 command must not be sent into a v4 connection");
+            connection.send(FCastOpcode.VERSION, "{\"version\":3}");
+            fail("the handshake is the connection's own business");
         } catch (FCastProtocolException expected) {
             assertEquals(FCastProtocolException.Kind.UNSUPPORTED, expected.getKind());
         }

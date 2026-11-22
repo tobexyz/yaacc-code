@@ -14,6 +14,13 @@ Copyright (c) 2012-15 OpenHome Ltd.
 OpenHome is a name of OpenHome Ltd.; YAACC is not affiliated with, authorized or endorsed by it. Linn and other product names that
 appear in the documentation are trademarks of their owners and are used to name the devices only.
 
+## FlatBuffers (library of the app, FCast protocol v4)
+
+The app uses the Java runtime `com.google.flatbuffers:flatbuffers-java` (version 25.2.10, <https://github.com/google/flatbuffers>) to read and write the
+messages of version 4 of the FCast protocol. It is licensed under the Apache License 2.0 (`licenses/Apache-2.0.txt`). The message tables of the protocol that
+YAACC uses are written by hand against the published schema (`fcast.fbs` of <https://github.com/futo-org/fcast>, MIT licence); no code generated from it and no
+FCast code is part of the app. FlatBuffers is a project of Google; FCast is a trademark of FUTO; YAACC is not affiliated with either.
+
 ## Snapcast (test rig; no Snapcast code in the app)
 
 The Docker test rig in `tools/snapcast-rig/` builds the Snapcast server and client from the upstream repository <https://github.com/snapcast/snapcast>

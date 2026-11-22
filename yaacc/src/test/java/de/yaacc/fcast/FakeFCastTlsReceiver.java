@@ -50,6 +50,8 @@ import de.yaacc.fcast.protocol.FCastPin;
  * answers {@code Ping} with {@code Pong} and records what it reads. Port 0, like the other fakes.
  */
 public final class FakeFCastTlsReceiver implements AutoCloseable {
+    /** The opcode of a version 4 message. */
+    public static final int FLATBUF = 20;
 
     /** A self-signed key pair of the kind the receivers make (ECDSA P-256), with the pin a receiver would announce. */
     public static final class Keys {
@@ -132,6 +134,10 @@ public final class FakeFCastTlsReceiver implements AutoCloseable {
         public boolean garbageFirst;
         /** If true it closes the connection right after the sender's {@code Version}. */
         public boolean closeAfterVersion;
+        /** If true, after the handshake it sends what a v4 receiver sends (its introduction and the volume). */
+        public boolean welcome;
+        /** If true it repeats what the sender asks for (a load, a state, a volume, a speed, a seek) like a v4 receiver relays it, and starts to play a loaded item. */
+        public boolean relay;
     }
 
     private final ServerSocket server;
@@ -142,6 +148,7 @@ public final class FakeFCastTlsReceiver implements AutoCloseable {
     private final List<Integer> senderVersions = Collections.synchronizedList(new ArrayList<Integer>());
     private final List<String> protocols = Collections.synchronizedList(new ArrayList<String>());
     private final List<Packet> packets = Collections.synchronizedList(new ArrayList<Packet>());
+    private final List<byte[]> flatbufs = Collections.synchronizedList(new ArrayList<byte[]>());
     private final List<Socket> sockets = Collections.synchronizedList(new ArrayList<Socket>());
     private volatile OutputStream secureOut;
     private volatile boolean closed;
@@ -177,6 +184,22 @@ public final class FakeFCastTlsReceiver implements AutoCloseable {
     /** What was read after the set-up, plain or secured. */
     public List<Packet> packets() {
         return new ArrayList<>(packets);
+    }
+
+    /** The bodies of the {@code Flatbuf} packets the sender sent after the handshake. */
+    public List<byte[]> flatbufs() {
+        return new ArrayList<>(flatbufs);
+    }
+
+    /** Sends a {@code Flatbuf} packet (a serialized message) through the secured stream. */
+    public void sendFlatbuf(byte[] message) throws IOException {
+        OutputStream out = secureOut;
+        if (out == null) {
+            throw new IllegalStateException("no secured connection");
+        }
+        synchronized (out) {
+            Wire.write(out, FLATBUF, message);
+        }
     }
 
     /** Sends a packet through the secured stream. */
@@ -237,6 +260,10 @@ public final class FakeFCastTlsReceiver implements AutoCloseable {
                 in = tls.getInputStream();
                 out = tls.getOutputStream();
                 secureOut = out;
+                if (options.welcome) {
+                    sendFlatbuf(de.yaacc.fcast.protocol.V4Golden.get("receiverIntroduction"));
+                    sendFlatbuf(de.yaacc.fcast.protocol.V4Golden.get("volume"));
+                }
             }
             while (!closed) {
                 Packet packet = Wire.read(in);
@@ -244,6 +271,12 @@ public final class FakeFCastTlsReceiver implements AutoCloseable {
                     return;
                 }
                 packets.add(packet);
+                if (packet.opcode == FLATBUF && packet.raw != null) {
+                    flatbufs.add(packet.raw);
+                    if (options.relay) {
+                        relay(packet.raw);
+                    }
+                }
                 if (packet.opcode == FakeFCastReceiver.Op.PING) {
                     synchronized (out) {
                         Wire.write(out, FakeFCastReceiver.Op.PONG, null);
@@ -258,6 +291,43 @@ public final class FakeFCastTlsReceiver implements AutoCloseable {
             } catch (IOException ignored) {
                 // closing
             }
+        }
+    }
+
+    private void relay(byte[] message) throws IOException {
+        de.yaacc.fcast.protocol.v4.V4In in;
+        try {
+            in = de.yaacc.fcast.protocol.v4.V4Reader.read(message);
+        } catch (de.yaacc.fcast.protocol.FCastProtocolException e) {
+            return;
+        }
+        switch (in.kind) {
+            case LOAD:
+                sendFlatbuf(message);
+                sendFlatbuf(de.yaacc.fcast.protocol.V4Golden.get("statePlaying"));
+                sendFlatbuf(de.yaacc.fcast.protocol.V4Golden.get("progress"));
+                break;
+            case STATE:
+            case VOLUME:
+            case SPEED:
+            case PROGRESS:
+                sendFlatbuf(message);
+                break;
+            case OTHER:
+                break;
+            default:
+                break;
+        }
+        if (isStop(message)) {
+            sendFlatbuf(de.yaacc.fcast.protocol.V4Golden.get("stateIdle"));
+        }
+    }
+
+    private static boolean isStop(byte[] message) {
+        try {
+            return de.yaacc.fcast.protocol.v4.V4Reader.read(message).kind == de.yaacc.fcast.protocol.v4.V4In.Kind.STOP;
+        } catch (de.yaacc.fcast.protocol.FCastProtocolException e) {
+            return false;
         }
     }
 

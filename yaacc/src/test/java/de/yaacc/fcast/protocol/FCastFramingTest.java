@@ -283,14 +283,15 @@ public class FCastFramingTest {
 
     @Test
     public void theOpcodeNumbersAreTheWireValues() {
-        int[] expected = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19};
+        int[] expected = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21};
         FCastOpcode[] all = FCastOpcode.values();
         assertEquals(expected.length, all.length);
         for (int i = 0; i < all.length; i++) {
             assertEquals(expected[i], all[i].code());
             assertEquals(all[i], FCastOpcode.fromCode(expected[i]));
         }
-        assertNull(FCastOpcode.fromCode(20)); // Flatbuf exists only from v4
+        assertNull(FCastOpcode.fromCode(22));
+        assertEquals(4, FCastOpcode.FLATBUF.sinceVersion()); // Flatbuf exists only from v4
         assertNull(FCastOpcode.fromCode(-1));
     }
 

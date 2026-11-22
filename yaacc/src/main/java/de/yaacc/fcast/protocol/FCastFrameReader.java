@@ -37,9 +37,22 @@ import java.nio.ByteBuffer;
  */
 public final class FCastFrameReader {
     private final InputStream in;
+    private final int maxPacket;
+    private final boolean binaryFlatbuf;
 
+    /** The reader of versions 1 to 3: packets of at most {@link FCastPacketCodec#MAX_PACKET} bytes, every body is text. */
     public FCastFrameReader(InputStream in) {
+        this(in, FCastPacketCodec.MAX_PACKET, false);
+    }
+
+    /**
+     * @param maxPacket     the most bytes after the size field ({@link FCastPacketCodec#MAX_PACKET_V4} for version 4)
+     * @param binaryFlatbuf true for version 4: the bodies of the {@code Flatbuf} and {@code Resource} opcodes are bytes, not text
+     */
+    public FCastFrameReader(InputStream in, int maxPacket, boolean binaryFlatbuf) {
         this.in = in;
+        this.maxPacket = maxPacket;
+        this.binaryFlatbuf = binaryFlatbuf;
     }
 
     /**
@@ -63,9 +76,9 @@ public final class FCastFrameReader {
         if (size == 0) {
             throw new FCastProtocolException(FCastProtocolException.Kind.EMPTY_PACKET, "a packet without an opcode (size 0)");
         }
-        if (size > FCastPacketCodec.MAX_PACKET) {
+        if (size > maxPacket) {
             throw new FCastProtocolException(FCastProtocolException.Kind.OVERSIZE,
-                    "a packet of " + size + " bytes is over the limit of " + FCastPacketCodec.MAX_PACKET);
+                    "a packet of " + size + " bytes is over the limit of " + maxPacket);
         }
         int opcode = in.read();
         if (opcode < 0) {
@@ -84,6 +97,9 @@ public final class FCastFrameReader {
                         "the stream ended inside a body (" + done + " of " + bodyLength + " bytes)");
             }
             done += n;
+        }
+        if (binaryFlatbuf && (opcode == FCastOpcode.FLATBUF.code() || opcode == FCastOpcode.RESOURCE.code())) {
+            return new FCastPacket(opcode, null, bytes);
         }
         try {
             String body = StandardCharsets.UTF_8.newDecoder()

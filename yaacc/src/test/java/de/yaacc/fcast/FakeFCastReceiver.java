@@ -86,10 +86,17 @@ public final class FakeFCastReceiver implements AutoCloseable {
         public final int opcode;
         /** The body text, or null if the packet had none. */
         public final String body;
+        /** The body bytes (version 4 packets are binary), or null if the packet had none. */
+        public final byte[] raw;
 
         public Packet(int opcode, String body) {
+            this(opcode, body, null);
+        }
+
+        public Packet(int opcode, String body, byte[] raw) {
             this.opcode = opcode;
             this.body = body;
+            this.raw = raw;
         }
 
         public JSONObject json() throws Exception {
@@ -176,6 +183,7 @@ public final class FakeFCastReceiver implements AutoCloseable {
                     done += n;
                 }
                 body = new String(bytes, StandardCharsets.UTF_8);
+                return new Packet(opcode, body, bytes);
             }
             return new Packet(opcode, body);
         }

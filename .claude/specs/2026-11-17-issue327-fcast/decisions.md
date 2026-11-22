@@ -108,6 +108,13 @@ Rule: use v4 when the Android version supports it and the receiver supports it (
 ### D26. Order of the work (Group 7)
 7.2 (TLS and version choice, with the stored `fp`) first, because it is the part with security meaning and can be tested with `Version` messages alone; 7.3 (FlatBuffers codec, translator, `FakeFCastReceiver` v4) second; 7.4 (tracks, subtitles) and 7.5 (sheet, docs) after; 7.6 (rig) can be done after 7.3 so the owner has a v4 test receiver. The security review stays postponed as decided (D21 area), the general reviewer gates every task group as before.
 
+### D27. Details of 7.2 and 7.3 (2026-11-22, spec author)
+- **The key of a link is now stored** (`FCastPinStore`, one line per receiver, at most 32; D20 said the hints were not stored in phase 1). A receiver that was added by its address and later by its link gets the key then (the add counts as done); a different key from a new link replaces the old one (the user did it on purpose). Removing a receiver removes its key. The stored key wins over the announced one: a receiver that announces another key is refused until the user adds it again.
+- **v4 is attempted only with a key and API 29 or later; the key is asked at every connection attempt** (`FCastAppSessions.PinSource`), so a link added while a session exists applies at its next connection.
+- **The first message inside TLS is our `SenderIntroduction`**, then commands. We send no `SetProgressUpdateInterval` (the receiver's default of 500 ms is enough for the position display) and no queue messages.
+- **`Buffering` is shown as playing**, `Ended` as an update Paused at the duration plus the end event of the item (the v3 behaviour of the Android receiver), a `StopPlayback` or `Idle` as idle.
+- **Not yet checked with a real v4 receiver:** how the desktop receiver reports pictures and what it does with a `Load` while an item is Ended; the owner's gate (task 6.2 style) for v4 is task 7.6 and the rig, plus the owner's own receiver.
+
 ### Answers to the earlier questions (owner, 2026-11-20)
 - **Q2:** no receiver hardware; a software receiver on a notebook (D13).
 - **Q3:** music, video and pictures all three are in scope (the design already plays all three).

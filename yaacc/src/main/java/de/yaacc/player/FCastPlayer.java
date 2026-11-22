@@ -119,7 +119,8 @@ public class FCastPlayer extends AbstractPlayer {
 
     /** The session of this player; tests replace the way to the receiver. */
     protected FCastSession createSession(FCastSession.Listener listener, ScheduledExecutorService executor) {
-        return FCastAppSessions.create(endpoint, listener, executor, BuildConfig.VERSION_NAME);
+        return FCastAppSessions.create(endpoint, listener, executor, BuildConfig.VERSION_NAME,
+                de.yaacc.fcast.discovery.FCastHub.getShared(getContext())::pinFor);
     }
 
     /** For tests: the decisions of this player. */

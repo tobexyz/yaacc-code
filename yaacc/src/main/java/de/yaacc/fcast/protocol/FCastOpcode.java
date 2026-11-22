@@ -19,7 +19,7 @@
 package de.yaacc.fcast.protocol;
 
 /**
- * The opcodes of FCast protocol v1 to v3 (see {@code docs/tech.md}, "FCast"). The numbers are the wire values. An opcode a
+ * The opcodes of FCast protocol v1 to v4 (see {@code docs/tech.md}, "FCast"). The numbers are the wire values. An opcode a
  * receiver sends that is not in this list is not an error here: {@link FCastPacket} keeps the raw number and
  * {@link #fromCode} answers null.
  */
@@ -43,7 +43,11 @@ public enum FCastOpcode {
     SET_PLAYLIST_ITEM(16),
     SUBSCRIBE_EVENT(17),
     UNSUBSCRIBE_EVENT(18),
-    EVENT(19);
+    EVENT(19),
+    /** Version 4: the body is a FlatBuffers {@code Packet} (binary). */
+    FLATBUF(20),
+    /** Version 4: companion resources (not used by YAACC). */
+    RESOURCE(21);
 
     private final int code;
 
@@ -55,9 +59,9 @@ public enum FCastOpcode {
         return code;
     }
 
-    /** The first protocol version that has this opcode: 1 for the codes up to 8, 2 up to 13, 3 up to 19. */
+    /** The first protocol version that has this opcode: 1 for the codes up to 8, 2 up to 13, 3 up to 19, 4 from 20. */
     public int sinceVersion() {
-        return code <= 8 ? 1 : code <= 13 ? 2 : 3;
+        return code <= 8 ? 1 : code <= 13 ? 2 : code <= 19 ? 3 : 4;
     }
 
     /** @return the opcode with this wire value, or null if the protocol (up to v3) has none */

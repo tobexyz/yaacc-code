@@ -216,7 +216,7 @@ public final class FCastHub implements FCastReceiverSource {
                 return thread;
             });
             links = new FCastReceiverLinks((endpoint, listener, ex) ->
-                    FCastAppSessions.create(endpoint, listener, ex, de.yaacc.BuildConfig.VERSION_NAME), executor);
+                    FCastAppSessions.create(endpoint, listener, ex, de.yaacc.BuildConfig.VERSION_NAME, this::pinFor), executor);
         }
         return links;
     }

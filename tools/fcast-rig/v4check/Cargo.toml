@@ -1,0 +1,12 @@
+[package]
+name = "fcast-v4-check"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Not part of the app. A scratch check of YAACC's hand-written FlatBuffers code against the reference implementation of FCast v4
+# (see README.md). Edit the path to your clone of https://github.com/futo-org/fcast (commit ea3982b3 or later).
+[workspace]
+
+[dependencies]
+fcast-protocol = { path = "../../../../fcast/crates/fcast-protocol" }

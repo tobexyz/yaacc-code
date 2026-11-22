@@ -26,6 +26,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -126,6 +127,7 @@ public final class FCastConnection implements AutoCloseable {
     private volatile Socket socket;
     private volatile int peerVersion;           // 0 until the receiver's Version arrived
     private volatile boolean secure;            // true once the TLS upgrade of a v4 connection is done
+    private final FCastV4Translator translator = new FCastV4Translator(); // reader thread only
     private volatile boolean initialSent;
     private volatile long writeStartedAt;       // 0 when no write is going on
     private FCastHeartbeat heartbeat;
@@ -186,8 +188,14 @@ public final class FCastConnection implements AutoCloseable {
         dispatcher = daemon("fcast-dispatcher", this::dispatchLoop);
         watchdog = daemon("fcast-watchdog", this::watchLoop);
         if (v4) {
-            // the Version packets were exchanged in plaintext, the introductions are the codec's business (task 7.3)
+            // the Version packets were exchanged in plaintext; our introduction goes first inside TLS (the receiver sends its own)
             initialSent = true;
+            try {
+                enqueueBytes(FCastPacketCodec.encodeBinary(FCastOpcode.FLATBUF.code(),
+                        FCastV4Translator.senderIntroduction(senderName, appName, appVersion), FCastPacketCodec.MAX_PACKET_V4));
+            } catch (FCastProtocolException impossible) {
+                throw new IOException(impossible);
+            }
             deliver(() -> listener.onMessage(new FCastMessages.Version(FCastMessages.V4)));
         } else {
             // the sender's Version goes first, before anything the receiver says
@@ -295,10 +303,6 @@ public final class FCastConnection implements AutoCloseable {
      *                                to a version 1 receiver), {@code TOO_LARGE} if the message does not fit into a packet
      */
     public boolean send(FCastOpcode opcode, String body) throws FCastProtocolException {
-        if (secure) {
-            throw new FCastProtocolException(FCastProtocolException.Kind.UNSUPPORTED,
-                    "the messages of version 4 are not available through this call");
-        }
         if (!isCommandOpcode(opcode)) {
             throw new FCastProtocolException(FCastProtocolException.Kind.UNSUPPORTED,
                     opcode + " is sent by the connection itself, not by a caller");
@@ -306,6 +310,13 @@ public final class FCastConnection implements AutoCloseable {
         if (opcode.sinceVersion() > getNegotiatedVersion()) {
             throw new FCastProtocolException(FCastProtocolException.Kind.UNSUPPORTED,
                     opcode + " does not exist in protocol version " + getNegotiatedVersion() + " of this receiver");
+        }
+        if (secure) {
+            byte[] message = FCastV4Translator.outgoing(opcode, body);
+            if (message == null) {
+                return !closed.get();
+            }
+            return enqueueBytes(FCastPacketCodec.encodeBinary(FCastOpcode.FLATBUF.code(), message, FCastPacketCodec.MAX_PACKET_V4));
         }
         return enqueue(opcode, body);
     }
@@ -330,7 +341,10 @@ public final class FCastConnection implements AutoCloseable {
     }
 
     private boolean enqueue(FCastOpcode opcode, String body) throws FCastProtocolException {
-        byte[] packet = FCastPacketCodec.encode(opcode.code(), body);
+        return enqueueBytes(FCastPacketCodec.encode(opcode.code(), body));
+    }
+
+    private boolean enqueueBytes(byte[] packet) {
         if (closed.get()) {
             return false;
         }
@@ -354,7 +368,7 @@ public final class FCastConnection implements AutoCloseable {
     private void readLoop() {
         try {
             InputStream in = socket.getInputStream();
-            FCastFrameReader frames = new FCastFrameReader(in);
+            FCastFrameReader frames = secure ? new FCastFrameReader(in, FCastPacketCodec.MAX_PACKET_V4, true) : new FCastFrameReader(in);
             while (!closed.get()) {
                 FCastPacket packet;
                 try {
@@ -396,6 +410,10 @@ public final class FCastConnection implements AutoCloseable {
             YaaccLogger.d(TAG, "FCast: an unknown opcode " + packet.getOpcodeCode() + " was skipped");
             return;
         }
+        if (opcode == FCastOpcode.FLATBUF) {
+            handleFlatbuf(packet.getRaw());
+            return;
+        }
         if (opcode == FCastOpcode.PING) {
             if (getNegotiatedVersion() >= 2) {
                 sendQuietly(FCastOpcode.PONG, null);
@@ -421,6 +439,26 @@ public final class FCastConnection implements AutoCloseable {
             sendInitialIfDue();
         }
         deliver(() -> listener.onMessage(message));
+    }
+
+    private void handleFlatbuf(byte[] body) {
+        if (!secure) {
+            YaaccLogger.w(TAG, "FCast: a Flatbuf packet outside version 4 was dropped");
+            return;
+        }
+        List<FCastMessages.Incoming> messages;
+        try {
+            messages = translator.incoming(body);
+        } catch (FCastProtocolException e) {
+            YaaccLogger.w(TAG, "FCast: a v4 message was dropped: " + e.getMessage());
+            return;
+        } catch (RuntimeException | StackOverflowError e) {
+            YaaccLogger.w(TAG, "FCast: a v4 message was dropped: " + e.getClass().getSimpleName());
+            return;
+        }
+        for (FCastMessages.Incoming message : messages) {
+            deliver(() -> listener.onMessage(message));
+        }
     }
 
     /** Our {@code Initial}, once, when the receiver speaks version 3 (see the class comment). */
