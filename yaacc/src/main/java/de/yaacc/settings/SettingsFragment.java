@@ -132,10 +132,12 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                 getString(R.string.settings_renderer_output_group_option)});
         output.setEntryValues(new CharSequence[]{SnapcastRendererOutput.VALUE_DEVICE, SnapcastRendererOutput.VALUE_GROUP});
         group.setVisible(SnapcastRendererOutput.VALUE_GROUP.equals(output.getValue()));
+        showRendererOutputSummary(output, SnapcastRendererOutput.VALUE_GROUP.equals(output.getValue()));
         updateRendererGroupSummary(group);
         output.setOnPreferenceChangeListener((preference, newValue) -> {
             boolean isGroup = SnapcastRendererOutput.VALUE_GROUP.equals(newValue);
             group.setVisible(isGroup);
+            showRendererOutputSummary(output, isGroup);
             if (isGroup && !SnapcastRendererOutput.isCanonicalGroupId(
                     PreferenceManager.getDefaultSharedPreferences(requireContext())
                             .getString(SnapcastRendererOutput.KEY_GROUP, null))) {
@@ -191,7 +193,13 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         output.setValue(SnapcastRendererOutput.VALUE_GROUP.equals(stored) ? SnapcastRendererOutput.VALUE_GROUP
                 : SnapcastRendererOutput.VALUE_DEVICE); // an unknown value shows as this device, as the renderer reads it (damaged)
         group.setVisible(SnapcastRendererOutput.VALUE_GROUP.equals(output.getValue()));
+        showRendererOutputSummary(output, SnapcastRendererOutput.VALUE_GROUP.equals(output.getValue()));
         updateRendererGroupSummary(group);
+    }
+
+    /** The text under the output: what the group does (with its disclosures) only while the group is chosen, else what this device plays. */
+    private void showRendererOutputSummary(ListPreference output, boolean group) {
+        output.setSummary(group ? R.string.settings_renderer_output_summary : R.string.settings_renderer_output_summary_device);
     }
 
     private void updateRendererGroupSummary(androidx.preference.Preference group) {

@@ -148,6 +148,9 @@ public final class YxcPresets {
                 label = detail;
                 detail = null;
             }
+            if (label == null && !fm) {
+                label = "DAB " + (i + 1); // a DAB slot that holds a station but no name: the slot number, so that it can still be recalled
+            }
             if (label == null) {
                 continue;
             }
