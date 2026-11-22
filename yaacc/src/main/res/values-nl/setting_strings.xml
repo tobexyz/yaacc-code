@@ -139,6 +139,7 @@
     <string name="settings_snapcast_client_switched_on_summary_off">Deze telefoon is niet verbonden met een Snapcast-server.</string>
     <string name="settings_renderer_output_title">Uitvoer</string>
     <string name="settings_renderer_output_summary">Snapcast-groep: de ontvanger voedt alleen de groep (alleen audio), deze telefoon is stil. De audio wordt onversleuteld naar de server gestuurd. Elk apparaat dat de ontvanger kan bereiken, kan het volume en het dempen van de hele groep wijzigen.</string>
+    <string name="settings_renderer_output_summary_device">Dit apparaat speelt audio, afbeeldingen en video\'s af.</string>
     <string name="settings_renderer_output_device">Dit apparaat</string>
     <string name="settings_renderer_output_group_option">Snapcast-groep (alleen audio)</string>
     <string name="settings_renderer_output_group_title">Snapcast-groep</string>
