@@ -71,6 +71,7 @@ public class FCastDocsGuardTest {
 
         assertTrue(settings.contains("key: " + FCastSettings.KEY_DISCOVERY));
         assertTrue(settings.contains("key: settings_fcast_receivers"));
+        assertTrue(settings.contains("key: " + FCastSettings.KEY_V4));
         assertTrue(settings.contains("| **FCast**"));
     }
 

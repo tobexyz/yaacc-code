@@ -115,6 +115,9 @@ Rule: use v4 when the Android version supports it and the receiver supports it (
 - **`Buffering` is shown as playing**, `Ended` as an update Paused at the duration plus the end event of the item (the v3 behaviour of the Android receiver), a `StopPlayback` or `Idle` as idle.
 - **Not yet checked with a real v4 receiver:** how the desktop receiver reports pictures and what it does with a `Load` while an item is Ended; the owner's gate (task 6.2 style) for v4 is task 7.6 and the rig, plus the owner's own receiver.
 
+### D28. A switch for version 4 (2026-11-22, spec author; the owner may veto)
+*Settings* > *FCast* > *Use the encrypted version 4*, **on by default** (`settings_fcast_v4`). Off: no receiver has a key to connect with, everything is spoken in version 3 (the stored keys stay). Why: version 4 was checked against the reference's own bytes, against a rig written independently and against a real TLS 1.3 handshake, but **not against the official desktop receiver** yet. A found desktop receiver announces `v` 4 and `fp`, so with the switch on it is spoken to in v4 on Android 10 or later; if that does not work with a real receiver, the owner can go back to version 3 without a new build. The error of a refused key is never answered with v3 by the app itself (D24), only by this switch.
+
 ### Answers to the earlier questions (owner, 2026-11-20)
 - **Q2:** no receiver hardware; a software receiver on a notebook (D13).
 - **Q3:** music, video and pictures all three are in scope (the design already plays all three).

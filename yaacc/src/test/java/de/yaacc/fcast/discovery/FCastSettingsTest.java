@@ -163,4 +163,42 @@ public class FCastSettingsTest {
         }
         assertTrue(english.size() > 60);
     }
+
+    @Test
+    public void theVersion4SwitchIsOnByDefaultAndADamagedValueKeepsItOn() {
+        assertTrue(FCastSettings.isV4Enabled((key, def) -> def));
+        assertTrue(FCastSettings.isV4Enabled(null));
+        assertTrue(FCastSettings.isV4Enabled((key, def) -> {
+            throw new ClassCastException("damaged");
+        }));
+        assertFalse(FCastSettings.isV4Enabled((key, def) -> KEY_V4.equals(key) ? false : def));
+    }
+
+    private static final String KEY_V4 = FCastSettings.KEY_V4;
+
+    @Test
+    public void theVersion4KeyIsAStringResourceAndTheScreenUsesItWithTheDefaultOfTheCode() throws Exception {
+        String english = read("values/setting_strings.xml");
+        assertTrue(english.contains("<string name=\"" + KEY_V4 + "\" translatable=\"false\">" + KEY_V4 + "</string>"));
+        String xml = read("xml/preference.xml");
+        int at = xml.indexOf("android:key=\"@string/" + KEY_V4 + "\"");
+        assertTrue(at > 0);
+        String element = xml.substring(xml.lastIndexOf("<CheckBoxPreference", at), xml.indexOf("/>", at));
+        assertTrue(element, element.contains("android:defaultValue=\"" + FCastSettings.V4_DEFAULT + "\""));
+    }
+
+    @Test
+    public void everyLanguageHasTheVersion4TextsAndTheyAreNotEnglishCopies() throws Exception {
+        String english = read("values/setting_strings.xml");
+        for (String locale : new String[]{"de", "es", "fr", "nl", "pt", "zh"}) {
+            String text = read("values-" + locale + "/setting_strings.xml");
+            for (String name : new String[]{"settings_fcast_v4_title", "settings_fcast_v4_summary"}) {
+                java.util.regex.Matcher own = java.util.regex.Pattern.compile("<string name=\"" + name + "\">([^<]*)</string>").matcher(text);
+                java.util.regex.Matcher base = java.util.regex.Pattern.compile("<string name=\"" + name + "\">([^<]*)</string>").matcher(english);
+                assertTrue(locale + " " + name, own.find());
+                assertTrue(base.find());
+                assertFalse(locale + " " + name + " is the English text", own.group(1).equals(base.group(1)));
+            }
+        }
+    }
 }

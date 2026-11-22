@@ -30,6 +30,10 @@ public final class FCastSettings {
     public static final String KEY_REMEMBERED_RECEIVERS = "fcast_remembered_receivers";
     /** The key of the keys (fingerprints) that came with the links of receivers, one per receiver (task 7.2). */
     public static final String KEY_RECEIVER_PINS = "fcast_receiver_pins";
+    /** The key of the switch for the encrypted version 4 (task 7.2; the same as the name of its string resource). */
+    public static final String KEY_V4 = "settings_fcast_v4";
+    /** The default of the version 4 switch: on. A value that can not be read counts as on too (never go back to the plain version because of a damaged value). */
+    public static final boolean V4_DEFAULT = true;
     /** What a value that can not be read counts as: off (never search because of a damaged value). */
     public static final boolean DISCOVERY_UNREADABLE = false;
 
@@ -50,6 +54,18 @@ public final class FCastSettings {
             return source.getBoolean(KEY_DISCOVERY, DISCOVERY_DEFAULT);
         } catch (RuntimeException damaged) {
             return DISCOVERY_UNREADABLE;
+        }
+    }
+
+    /** @return whether receivers whose key is known are spoken to in the encrypted version 4 (on Android 10 and later) */
+    public static boolean isV4Enabled(BooleanSource source) {
+        if (source == null) {
+            return V4_DEFAULT;
+        }
+        try {
+            return source.getBoolean(KEY_V4, V4_DEFAULT);
+        } catch (RuntimeException damaged) {
+            return V4_DEFAULT;
         }
     }
 

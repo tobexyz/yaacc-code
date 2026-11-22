@@ -191,12 +191,28 @@ public final class FakeFCastTlsReceiver implements AutoCloseable {
         return new ArrayList<>(flatbufs);
     }
 
-    /** Sends a {@code Flatbuf} packet (a serialized message) through the secured stream. */
-    public void sendFlatbuf(byte[] message) throws IOException {
+    /** The secured stream, waiting a little for the handshake of the server side to finish (the sender can be ready a moment before). */
+    private OutputStream awaitSecureOut() {
+        long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         OutputStream out = secureOut;
+        while (out == null && System.nanoTime() < end) {
+            try {
+                Thread.sleep(5);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            out = secureOut;
+        }
         if (out == null) {
             throw new IllegalStateException("no secured connection");
         }
+        return out;
+    }
+
+    /** Sends a {@code Flatbuf} packet (a serialized message) through the secured stream. */
+    public void sendFlatbuf(byte[] message) throws IOException {
+        OutputStream out = awaitSecureOut();
         synchronized (out) {
             Wire.write(out, FLATBUF, message);
         }
@@ -204,10 +220,7 @@ public final class FakeFCastTlsReceiver implements AutoCloseable {
 
     /** Sends a packet through the secured stream. */
     public void sendSecure(int opcode, String body) throws IOException {
-        OutputStream out = secureOut;
-        if (out == null) {
-            throw new IllegalStateException("no secured connection");
-        }
+        OutputStream out = awaitSecureOut();
         synchronized (out) {
             Wire.write(out, opcode, body == null ? null : body.getBytes(StandardCharsets.UTF_8));
         }

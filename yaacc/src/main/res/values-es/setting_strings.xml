@@ -150,7 +150,9 @@
     <string name="settings_fcast_about_title">Acerca de FCast</string>
     <string name="settings_fcast_about_summary">YAACC puede reproducir en receptores FCast de su red. Esta aplicación es una implementación comunitaria independiente del protocolo FCast. No está afiliada a FUTO. FCast es una marca registrada de FUTO.</string>
     <string name="settings_fcast_discovery_title">Buscar receptores FCast</string>
-    <string name="settings_fcast_discovery_summary">Busca receptores FCast en la red local; activado por defecto. Envía consultas mDNS y muestra cada dispositivo que se anuncia. Los anuncios no están autenticados: cualquiera en la red puede anunciar un receptor. No se reproduce nada en un receptor antes de que lo elija. Los datos se envían sin cifrar (protocolo v3).</string>
+    <string name="settings_fcast_discovery_summary">Busca receptores FCast en la red local; activado por defecto. Envía consultas mDNS y enumera cada dispositivo que se anuncia. Los anuncios no están autenticados: cualquiera en la red puede anunciar un receptor. No se reproduce nada en un receptor antes de que lo seleccione. Los datos se envían sin cifrar con la versión 3 del protocolo y cifrados con la versión 4 (véase abajo).</string>
     <string name="settings_fcast_receivers_title">Receptores FCast</string>
     <string name="settings_fcast_receivers_summary">Añadir un receptor por dirección, nombre de dispositivo o enlace de conexión, o quitarlo</string>
+    <string name="settings_fcast_v4_title">Usar la versión 4 cifrada</string>
+    <string name="settings_fcast_v4_summary">Desde Android 10, con un receptor cuya clave se conoce (por su enlace de conexión o su anuncio) se usa la versión 4 cifrada de FCast. Una clave que no coincide se rechaza y nunca se responde con la versión sin cifrar. Desactívelo para usar siempre la versión 3 sin cifrar, por ejemplo si un receptor no funciona con la versión 4. Con un receptor añadido solo por su dirección siempre se usa la versión 3.</string>
 </resources>

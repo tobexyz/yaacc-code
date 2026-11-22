@@ -72,8 +72,9 @@ public final class FCastHub implements FCastReceiverSource {
         this.context = context.getApplicationContext();
         this.manualReceivers = new FCastStoredReceivers(new SnapcastPreferencesStorage(this.context, FCastSettings.KEY_MANUAL_RECEIVERS),
                 FCastStoredReceivers.MAX_MANUAL);
+        final SharedPreferences pinPreferences = PreferenceManager.getDefaultSharedPreferences(this.context);
         this.pins = new FCastPins(new FCastPinStore(new SnapcastPreferencesStorage(this.context, FCastSettings.KEY_RECEIVER_PINS)),
-                directory::find);
+                directory::find, () -> FCastSettings.isV4Enabled(pinPreferences::getBoolean));
         FCastStoredReceivers remembered = new FCastStoredReceivers(
                 new SnapcastPreferencesStorage(this.context, FCastSettings.KEY_REMEMBERED_RECEIVERS), FCastStoredReceivers.MAX_REMEMBERED);
         this.nsd = new FCastNsd(this.context, directory, discoveryLog);

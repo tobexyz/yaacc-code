@@ -185,6 +185,23 @@ public class FCastPinsTest {
         assertNull(pins.pinFor(endpoint("192.168.0.239")));
     }
 
+    @Test
+    public void whenTheSwitchIsOffNoReceiverHasAKeyAndEverythingIsSpokenInV3() throws Exception {
+        final boolean[] on = {true};
+        FCastPins switched = new FCastPins(store, directory::find, () -> on[0]);
+        announce("192.168.0.239", "4", KEY_A);
+        store.put(endpoint("192.168.0.240"), pin(KEY_A, FCastPin.Source.LINK));
+        assertNotNull(switched.pinFor(endpoint("192.168.0.239")));
+        assertNotNull(switched.pinFor(endpoint("192.168.0.240")));
+
+        on[0] = false;
+
+        assertNull(switched.pinFor(endpoint("192.168.0.239")));
+        assertNull(switched.pinFor(endpoint("192.168.0.240")));
+        on[0] = true;
+        assertNotNull("the keys are kept while it is off", switched.pinFor(endpoint("192.168.0.240")));
+    }
+
     // ---- adding with a key from a link
 
     @Test

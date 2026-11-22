@@ -144,6 +144,11 @@
             android:key="@string/settings_fcast_discovery"
             android:summary="@string/settings_fcast_discovery_summary"
             android:title="@string/settings_fcast_discovery_title" />
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:key="@string/settings_fcast_v4"
+            android:summary="@string/settings_fcast_v4_summary"
+            android:title="@string/settings_fcast_v4_title" />
         <Preference
             android:key="@string/settings_fcast_receivers"
             android:summary="@string/settings_fcast_receivers_summary"

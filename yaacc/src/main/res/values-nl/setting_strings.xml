@@ -150,7 +150,9 @@
     <string name="settings_fcast_about_title">Over FCast</string>
     <string name="settings_fcast_about_summary">YAACC kan afspelen op FCast-ontvangers in uw netwerk. Deze toepassing is een onafhankelijke community-implementatie van het FCast-protocol. Ze is niet gelieerd aan FUTO. FCast is een geregistreerd handelsmerk van FUTO.</string>
     <string name="settings_fcast_discovery_title">FCast-ontvangers zoeken</string>
-    <string name="settings_fcast_discovery_summary">Zoekt in het lokale netwerk naar FCast-ontvangers; standaard aan. Het stuurt mDNS-verzoeken en toont elk apparaat dat zich meldt. Meldingen worden niet geauthenticeerd: iedereen in het netwerk kan een ontvanger aankondigen. Er wordt niets op een ontvanger afgespeeld voordat u die kiest. De gegevens worden onversleuteld verzonden (protocol v3).</string>
+    <string name="settings_fcast_discovery_summary">Zoekt in het lokale netwerk naar FCast-ontvangers; standaard aan. Het stuurt mDNS-verzoeken en toont elk apparaat dat zich meldt. Aankondigingen worden niet geauthenticeerd: iedereen in het netwerk kan een ontvanger aankondigen. Er wordt niets op een ontvanger afgespeeld voordat u hem selecteert. Gegevens worden onversleuteld verstuurd met protocolversie 3 en versleuteld met versie 4 (zie hieronder).</string>
     <string name="settings_fcast_receivers_title">FCast-ontvangers</string>
     <string name="settings_fcast_receivers_summary">Een ontvanger toevoegen via adres, apparaatnaam of verbindingslink, of verwijderen</string>
+    <string name="settings_fcast_v4_title">De versleutelde versie 4 gebruiken</string>
+    <string name="settings_fcast_v4_summary">Vanaf Android 10 wordt met een ontvanger waarvan de sleutel bekend is (uit zijn verbindingslink of zijn aankondiging) de versleutelde FCast-versie 4 gesproken. Een sleutel die niet past wordt geweigerd en nooit beantwoord met de onversleutelde versie. Zet dit uit om altijd de onversleutelde versie 3 te gebruiken, bijvoorbeeld als een ontvanger niet met versie 4 werkt. Met een ontvanger die alleen via zijn adres is toegevoegd wordt altijd versie 3 gesproken.</string>
 </resources>

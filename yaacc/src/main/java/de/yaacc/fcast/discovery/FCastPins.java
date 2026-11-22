@@ -38,15 +38,22 @@ public final class FCastPins {
 
     private final FCastPinStore store;
     private final Directory directory;
+    private final java.util.function.BooleanSupplier enabled;
 
     public FCastPins(FCastPinStore store, Directory directory) {
+        this(store, directory, () -> true);
+    }
+
+    /** @param enabled the switch "use the encrypted version 4": off, no receiver has a key to connect with (everything is spoken in v3) */
+    public FCastPins(FCastPinStore store, Directory directory, java.util.function.BooleanSupplier enabled) {
         this.store = store;
         this.directory = directory;
+        this.enabled = enabled;
     }
 
     /** @return the key to pin the connection to, or null if the receiver is not known to offer v4 */
     public FCastPin pinFor(FCastEndpoint endpoint) {
-        if (endpoint == null) {
+        if (endpoint == null || !enabled.getAsBoolean()) {
             return null;
         }
         FCastPin stored = store.get(endpoint);
