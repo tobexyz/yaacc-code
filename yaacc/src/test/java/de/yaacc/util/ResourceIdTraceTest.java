@@ -98,4 +98,40 @@ public class ResourceIdTraceTest {
         assertSame(base, ResourceIdTrace.of(base));
         assertNull(ResourceIdTrace.of(null));
     }
+
+    @Test
+    public void theViewsWithTheIdZeroAreFoundWithTheirPathOfClasses() {
+        android.view.ViewGroup root = Mockito.mock(android.view.ViewGroup.class);
+        android.view.ViewGroup list = Mockito.mock(android.view.ViewGroup.class);
+        android.view.View zero = Mockito.mock(android.view.View.class);
+        android.view.View other = Mockito.mock(android.view.View.class);
+        Mockito.when(root.getId()).thenReturn(5);
+        Mockito.when(list.getId()).thenReturn(7);
+        Mockito.when(zero.getId()).thenReturn(0);
+        Mockito.when(other.getId()).thenReturn(-1);
+        Mockito.when(root.getChildCount()).thenReturn(1);
+        Mockito.when(root.getChildAt(0)).thenReturn(list);
+        Mockito.when(list.getChildCount()).thenReturn(2);
+        Mockito.when(list.getChildAt(0)).thenReturn(other);
+        Mockito.when(list.getChildAt(1)).thenReturn(zero);
+
+        List<String> found = ResourceIdTrace.findViewsWithIdZero(root, 10);
+
+        assertEquals(1, found.size());
+        assertTrue(found.get(0).startsWith("view with id 0: "));
+        assertTrue("the path has the root, the list and the view", found.get(0).split(" > ").length == 3);
+    }
+
+    @Test
+    public void theSearchIsBoundedAndSurvivesAnEmptyTree() {
+        assertTrue(ResourceIdTrace.findViewsWithIdZero(null, 10).isEmpty());
+        android.view.ViewGroup root = Mockito.mock(android.view.ViewGroup.class);
+        android.view.View zero = Mockito.mock(android.view.View.class);
+        Mockito.when(root.getId()).thenReturn(0);
+        Mockito.when(zero.getId()).thenReturn(0);
+        Mockito.when(root.getChildCount()).thenReturn(50);
+        Mockito.when(root.getChildAt(Mockito.anyInt())).thenReturn(zero);
+
+        assertEquals(3, ResourceIdTrace.findViewsWithIdZero(root, 3).size());
+    }
 }

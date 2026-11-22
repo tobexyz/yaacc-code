@@ -212,6 +212,7 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
     @Override
     protected void onResume() {
         super.onResume();
+        de.yaacc.util.ResourceIdTrace.logViewsWithIdZero(getWindow().getDecorView(), 1500); // log level V only
         if (BrowserLauncher.relaunchIfOtherLayout(this, Layout.NEW)) {
             return;
         }

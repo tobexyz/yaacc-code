@@ -72,6 +72,49 @@ public final class ResourceIdTrace {
                 new Throwable("who asked for resource id 0"));
     }
 
+    /**
+     * The views of a view tree whose id is exactly 0, as one line each: the class of the view and the classes of its ancestors up to the
+     * root (a view with the id 0 is what makes the system's content capture ask for the name of resource 0). At most {@code max} lines.
+     * Only classes, no text and no ids of other views.
+     */
+    public static java.util.List<String> findViewsWithIdZero(android.view.View root, int max) {
+        java.util.List<String> found = new java.util.ArrayList<>();
+        collect(root, "", found, max, 0);
+        return found;
+    }
+
+    private static void collect(android.view.View view, String path, java.util.List<String> found, int max, int depth) {
+        if (view == null || found.size() >= max || depth > 60) {
+            return;
+        }
+        String here = path.isEmpty() ? view.getClass().getName() : path + " > " + view.getClass().getName();
+        if (view.getId() == 0) {
+            found.add("view with id 0: " + here);
+        }
+        if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) view;
+            for (int i = 0; i < group.getChildCount() && found.size() < max; i++) {
+                collect(group.getChildAt(i), here, found, max, depth + 1);
+            }
+        }
+    }
+
+    /** At log level V: logs the views with the id 0 of the screen (a moment after it was shown, when its lists are filled). */
+    public static void logViewsWithIdZero(final android.view.View root, long delayMillis) {
+        if (root == null || !YaaccLogger.isVerbose()) {
+            return;
+        }
+        root.postDelayed(() -> {
+            java.util.List<String> views = findViewsWithIdZero(root, 20);
+            if (views.isEmpty()) {
+                YaaccLogger.v(TAG, "no view with the id 0 in the screen");
+            }
+            for (String line : views) {
+                YaaccLogger.v(TAG, line);
+            }
+        }, delayMillis);
+    }
+
     /** For the tests: starts counting again. */
     static synchronized void reset() {
         reports = 0;
