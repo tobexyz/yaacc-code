@@ -575,4 +575,6 @@
     <string name="fcast_sheet_protocol_note_link">Este recetor oferece a versão 4 cifrada. Adicione-o novamente com a sua ligação de conexão (o código QR no seu ecrã) para a usar.</string>
     <string name="fcast_sheet_protocol_note_android">Este recetor oferece a versão 4 cifrada, que requer Android 10 ou posterior.</string>
     <string name="fcast_link_note_v4">O recetor será adicionado à sua lista de recetores FCast. Nada é reproduzido nele até o selecionar. Esta ligação contém a chave do recetor: a partir do Android 10 a ligação é cifrada (protocolo v4).</string>
+    <string name="fcast_key_refused">A chave do recetor não é a que foi anunciada, por isso o YAACC não se ligou. Se o recetor foi reinstalado, remova-o e adicione-o novamente com a sua ligação.</string>
+    <string name="fcast_secure_failed">Não foi possível estabelecer a ligação cifrada (versão 4) ao recetor, por isso o YAACC não se ligou. Pode desativar a versão 4 em Definições > FCast.</string>
 </resources>

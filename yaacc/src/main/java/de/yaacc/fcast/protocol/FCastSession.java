@@ -298,7 +298,7 @@ public final class FCastSession implements AutoCloseable {
         if (existing != null && !existing.isClosed()) {
             return true;
         }
-        publish(state.toBuilder().link(state.getLink() == FCastReceiverState.Link.RECONNECTING ? FCastReceiverState.Link.RECONNECTING
+        publish(state.toBuilder().securityFailure(null).link(state.getLink() == FCastReceiverState.Link.RECONNECTING ? FCastReceiverState.Link.RECONNECTING
                 : FCastReceiverState.Link.CONNECTING));
         final int mine = ++generation;
         try {
@@ -330,7 +330,7 @@ public final class FCastSession implements AutoCloseable {
             return true;
         } catch (FCastSecurityException e) {
             connection = null;
-            publish(state.toBuilder().link(FCastReceiverState.Link.FAILED).playback(FCastReceiverState.Playback.UNKNOWN, null, null, null)
+            publish(state.toBuilder().securityFailure(e.getKind()).link(FCastReceiverState.Link.FAILED).playback(FCastReceiverState.Playback.UNKNOWN, null, null, null)
                     .pending(FCastReceiverState.Pending.NONE).error(FCastText.clean(securityText(e), 200)));
             return false;
         } catch (IOException e) {
@@ -458,6 +458,8 @@ public final class FCastSession implements AutoCloseable {
             listener.onPlayUpdate(update, next);
         } else if (message instanceof FCastMessages.Event) {
             listener.onMediaItemEvent((FCastMessages.Event) message);
+        } else if (message instanceof FCastMessages.Notice) {
+            publish(b.error(((FCastMessages.Notice) message).getMessage()));
         } else if (message instanceof FCastMessages.Tracks) {
             publish(b.tracks(((FCastMessages.Tracks) message).getTracks()));
         } else if (message instanceof FCastMessages.TrackSelected) {

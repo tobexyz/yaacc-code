@@ -31,6 +31,11 @@ import java.nio.ByteOrder;
  * length of a vector is checked against the buffer, so a hostile length can not make a loop run.
  */
 public final class FbTable extends Table {
+    /** The characters of strings that one buffer may make the reader decode, in bytes (offsets may share one string many times). */
+    public static final int BUDGET_BYTES = 256 * 1024;
+
+    private long[] budget = {BUDGET_BYTES};
+
     private FbTable() {
     }
 
@@ -47,6 +52,11 @@ public final class FbTable extends Table {
         return new FbTable().at(bb, offset);
     }
 
+    private FbTable at(ByteBuffer buffer, int position, long[] shared) {
+        this.budget = shared;
+        return at(buffer, position);
+    }
+
     private FbTable at(ByteBuffer buffer, int position) {
         __reset(position, buffer); // also reads the vtable that the accessors use
         return this;
@@ -57,14 +67,26 @@ public final class FbTable extends Table {
         return __offset(slot) != 0;
     }
 
-    public String string(int slot) {
+    /**
+     * A text field. The length is checked <b>before</b> the text is decoded: it may not be over {@code maxBytes}, and all texts of one
+     * buffer together may not be over {@link #BUDGET_BYTES} (a buffer can point many fields at one long string).
+     */
+    public String string(int slot, int maxBytes) {
         int o = __offset(slot);
-        return o == 0 ? null : __string(o + bb_pos);
+        if (o == 0) {
+            return null;
+        }
+        int position = o + bb_pos;
+        int length = bb.getInt(position + bb.getInt(position));
+        if (length < 0 || length > maxBytes || (budget[0] -= length) < 0) {
+            throw new IllegalArgumentException("a text longer than the limit");
+        }
+        return __string(position);
     }
 
     public FbTable table(int slot) {
         int o = __offset(slot);
-        return o == 0 ? null : new FbTable().at(bb, __indirect(o + bb_pos));
+        return o == 0 ? null : new FbTable().at(bb, __indirect(o + bb_pos), budget);
     }
 
     /** An unsigned byte (a {@code ubyte}, an enum or the type of a union). */
@@ -120,14 +142,19 @@ public final class FbTable extends Table {
         if (o == 0 || index < 0 || index >= vectorLength(slot)) {
             throw new IndexOutOfBoundsException("no element " + index);
         }
-        return new FbTable().at(bb, __indirect(__vector(o) + index * 4));
+        return new FbTable().at(bb, __indirect(__vector(o) + index * 4), budget);
     }
 
-    public String stringAt(int slot, int index) {
+    public String stringAt(int slot, int index, int maxBytes) {
         int o = __offset(slot);
         if (o == 0 || index < 0 || index >= vectorLength(slot)) {
             throw new IndexOutOfBoundsException("no element " + index);
         }
-        return __string(__vector(o) + index * 4);
+        int position = __vector(o) + index * 4;
+        int length = bb.getInt(position + bb.getInt(position));
+        if (length < 0 || length > maxBytes || (budget[0] -= length) < 0) {
+            throw new IllegalArgumentException("a text longer than the limit");
+        }
+        return __string(position);
     }
 }

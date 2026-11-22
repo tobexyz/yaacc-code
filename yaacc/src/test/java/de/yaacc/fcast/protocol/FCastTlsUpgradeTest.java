@@ -200,6 +200,33 @@ public class FCastTlsUpgradeTest {
         }
     }
 
+    @Test
+    public void aSecuredConnectionToAReceiverThatStopsReadingEndsWithAWriteTimeoutAndDoesNotHangInClose() throws Exception {
+        FakeFCastTlsReceiver.Keys keys = FakeFCastTlsReceiver.Keys.get(0);
+        FakeFCastTlsReceiver.Options options = new FakeFCastTlsReceiver.Options();
+        options.stopReadingAfterHandshake = true;
+        FakeFCastTlsReceiver receiver = receiver(keys, options);
+        Recorder recorder = new Recorder();
+        FCastConnection.Config config = config(keys.pin(FCastPin.Source.LINK), 29);
+        config.writeTimeoutMillis = 500;
+        FCastConnection connection = new FCastConnection(new InetSocketAddress("127.0.0.1", receiver.port()), recorder, config,
+                MonotonicClock.SYSTEM, "Test", "YAACC", "1");
+        toClose.add(connection);
+        connection.connect();
+        StringBuilder big = new StringBuilder("http://h/");
+        for (int i = 0; i < 400_000; i++) {
+            big.append('x');
+        }
+        byte[] message = de.yaacc.fcast.protocol.v4.V4Writer.load("audio/mpeg", big.toString(), null, null, null, null, null);
+        for (int i = 0; i < 60 && !connection.isClosed(); i++) {
+            connection.sendV4(message); // 24 MB in all: more than the buffers of the connection take
+        }
+
+        assertTrue("the end is reported although the TLS socket is stuck in a write", recorder.closed.await(8, TimeUnit.SECONDS));
+        assertTrue(recorder.reason == FCastConnection.CloseReason.WRITE_TIMEOUT || recorder.reason == FCastConnection.CloseReason.WRITE_OVERFLOW);
+        assertTrue("all threads end", connection.awaitTermination(5_000));
+    }
+
     // ------------------------------------------------------------------ the wrong key
 
     @Test

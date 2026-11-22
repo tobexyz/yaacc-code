@@ -567,4 +567,6 @@
     <string name="fcast_sheet_protocol_note_link">此接收器支持加密的版本 4。请使用其连接链接（其屏幕上的二维码）重新添加以使用。</string>
     <string name="fcast_sheet_protocol_note_android">此接收器支持加密的版本 4，需要 Android 10 或更高版本。</string>
     <string name="fcast_link_note_v4">该接收器将被添加到您的 FCast 接收器列表。在您选择它之前不会在其上播放任何内容。此链接包含接收器的密钥：在 Android 10 及更高版本上，连接已加密（协议 v4）。</string>
+    <string name="fcast_key_refused">接收器的密钥与所公告的不一致，因此 YAACC 没有连接。如果接收器已重新安装，请将其删除，并使用其连接链接重新添加。</string>
+    <string name="fcast_secure_failed">无法与接收器建立加密连接（版本 4），因此 YAACC 没有连接。您可以在设置 > FCast 中关闭版本 4。</string>
 </resources>

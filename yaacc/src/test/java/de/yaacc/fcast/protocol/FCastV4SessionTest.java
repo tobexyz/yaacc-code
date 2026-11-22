@@ -65,7 +65,7 @@ public class FCastV4SessionTest {
         executor.shutdownNow();
     }
 
-    private static final class Events implements FCastSession.Listener {
+    private static class Events implements FCastSession.Listener {
         final List<FCastMessages.Event> events = Collections.synchronizedList(new ArrayList<FCastMessages.Event>());
         final List<FCastMessages.PlayUpdate> playUpdates = Collections.synchronizedList(new ArrayList<FCastMessages.PlayUpdate>());
 
@@ -255,6 +255,49 @@ public class FCastV4SessionTest {
     }
 
     @Test
+    public void aRepeatedTrackListKeepsTheSelection() throws Exception {
+        FakeFCastTlsReceiver.Keys keys = FakeFCastTlsReceiver.Keys.get(0);
+        FakeFCastTlsReceiver receiver = receiver(keys);
+        FCastSession session = session(receiver, keys.pin(FCastPin.Source.LINK), new Events());
+        session.acquire();
+        session.play(new FCastMessages.PlayRequest("video/mp4", "http://h/a.mp4"));
+        assertTrue(await(session, s -> s.getTracks().size() == 4));
+        session.changeTrack(FCastTrack.Type.AUDIO, 1L);
+        session.changeTrack(FCastTrack.Type.SUBTITLE, 2L);
+        assertTrue(await(session, s -> Long.valueOf(1).equals(s.getSelectedAudio()) && Long.valueOf(2).equals(s.getSelectedSubtitle())));
+
+        receiver.sendFlatbuf(de.yaacc.fcast.protocol.V4Golden.get("tracks")); // the same list again, as a receiver does after a subtitle file
+        receiver.sendFlatbuf(de.yaacc.fcast.protocol.V4Golden.get("volume")); // a message behind it: when this is seen, the list was handled
+
+        assertTrue(await(session, s -> s.getVolume() != null && Math.abs(s.getVolume() - 0.5) < 1e-6));
+        assertEquals(Long.valueOf(1), session.getState().getSelectedAudio());
+        assertEquals(Long.valueOf(2), session.getState().getSelectedSubtitle());
+    }
+
+    @Test
+    public void anErrorWhileTheItemPlaysIsShownAndDoesNotStopIt() throws Exception {
+        FakeFCastTlsReceiver.Keys keys = FakeFCastTlsReceiver.Keys.get(0);
+        FakeFCastTlsReceiver receiver = receiver(keys);
+        final List<String> failures = Collections.synchronizedList(new ArrayList<String>());
+        Events events = new Events() {
+            @Override
+            public void onPlaybackError(String message) {
+                failures.add(message);
+            }
+        };
+        FCastSession session = session(receiver, keys.pin(FCastPin.Source.LINK), events);
+        session.acquire();
+        session.play(new FCastMessages.PlayRequest("video/mp4", "http://h/a.mp4"));
+        assertTrue(await(session, s -> s.getPlayback() == FCastReceiverState.Playback.PLAYING));
+
+        receiver.sendFlatbuf(de.yaacc.fcast.protocol.V4Golden.get("error"));
+
+        assertTrue(await(session, s -> s.getLastError() != null && s.getLastError().contains("UnsupportedFormat")));
+        assertTrue("no failure of the item", failures.isEmpty());
+        assertEquals(FCastReceiverState.Playback.PLAYING, session.getState().getPlayback());
+    }
+
+    @Test
     public void aSubtitleByAddressIsSentAsTheReferenceMessage() throws Exception {
         FakeFCastTlsReceiver.Keys keys = FakeFCastTlsReceiver.Keys.get(0);
         FakeFCastTlsReceiver receiver = receiver(keys);
@@ -317,6 +360,7 @@ public class FCastV4SessionTest {
 
         assertTrue(await(session, s -> s.getLink() == FCastReceiverState.Link.FAILED && s.getLastError() != null));
         assertNotNull(session.getState().getLastError());
+        assertEquals(FCastSecurityException.Kind.PIN_MISMATCH, session.getState().getSecurityFailure());
         Thread.sleep(200);
         assertEquals(1, receiver.accepted());
         assertTrue(receiver.flatbufs().isEmpty());

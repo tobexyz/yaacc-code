@@ -43,6 +43,7 @@ import de.yaacc.fcast.discovery.FCastEndpoint;
 import de.yaacc.fcast.discovery.FCastReceiverDevice;
 import de.yaacc.fcast.protocol.FCastMessages;
 import de.yaacc.fcast.protocol.FCastReceiverState;
+import de.yaacc.fcast.protocol.FCastSecurityException;
 import de.yaacc.fcast.protocol.FCastSession;
 import de.yaacc.multiroom.control.MonotonicClock;
 import de.yaacc.upnp.UpnpClient;
@@ -168,7 +169,9 @@ public class FCastPlayer extends AbstractPlayer {
         if (state.getLink() == FCastReceiverState.Link.FAILED && state.getErrorSerial() != handledErrorSerial) {
             handledErrorSerial = state.getErrorSerial();
             YaaccLogger.d(TAG, "FCast receiver not reachable");
-            toast(R.string.fcast_unreachable);
+            FCastSecurityException.Kind refused = state.getSecurityFailure();
+            toast(refused == null ? R.string.fcast_unreachable
+                    : refused == FCastSecurityException.Kind.PIN_MISMATCH ? R.string.fcast_key_refused : R.string.fcast_secure_failed);
             logic.onStopCommand();
             itemOnReceiver = false;
             whenFree(this::stop, 0);

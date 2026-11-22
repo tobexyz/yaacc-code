@@ -33,6 +33,9 @@ import de.yaacc.fcast.protocol.FCastProtocolException;
 public final class V4Reader {
     /** The most tracks read from one {@code TracksAvailable}. */
     public static final int MAX_TRACKS = 256;
+    /** The longest text of an item (an address, a title) in bytes, and of a name or a format token. */
+    static final int TEXT_ITEM = 16 * 1024;
+    static final int TEXT_NAME = 1024;
     /** The most format names read from one list of the capabilities. */
     public static final int MAX_FORMATS = 128;
 
@@ -80,8 +83,8 @@ public final class V4Reader {
                     return V4In.of(V4In.Kind.RECEIVER_INTRODUCTION);
                 }
                 return new V4In(V4In.Kind.RECEIVER_INTRODUCTION, null, null, 0, null, null, null, null,
-                        info.string(V4Schema.DEVICE_DISPLAY_NAME), info.string(V4Schema.DEVICE_APP_NAME),
-                        info.string(V4Schema.DEVICE_APP_VERSION), null, readCaps(payload.table(V4Schema.RECEIVER_CAPABILITIES)), null, null);
+                        info.string(V4Schema.DEVICE_DISPLAY_NAME, TEXT_NAME), info.string(V4Schema.DEVICE_APP_NAME, TEXT_NAME),
+                        info.string(V4Schema.DEVICE_APP_VERSION, TEXT_NAME), null, readCaps(payload.table(V4Schema.RECEIVER_CAPABILITIES)), null, null);
             }
             case V4Schema.MSG_CHANGE_TRACK: {
                 Long id = payload.u32(V4Schema.CHANGE_TRACK_ID);
@@ -134,7 +137,7 @@ public final class V4Reader {
         }
         int count = Math.min(table.vectorLength(slot), MAX_FORMATS);
         for (int i = 0; i < count; i++) {
-            String value = table.stringAt(slot, i);
+            String value = table.stringAt(slot, i, TEXT_NAME);
             if (value != null) {
                 list.add(value);
             }
@@ -179,8 +182,8 @@ public final class V4Reader {
     private static V4In.Item readItem(FbTable item) {
         Float volume = item.f32(V4Schema.ITEM_VOLUME);
         Float speed = item.f32(V4Schema.ITEM_SPEED);
-        return new V4In.Item(item.string(V4Schema.ITEM_CONTAINER), item.string(V4Schema.ITEM_SOURCE_URL), item.string(V4Schema.ITEM_TITLE),
-                item.string(V4Schema.ITEM_THUMBNAIL_URL), seconds(item.timeMicros(V4Schema.ITEM_START_TIME)),
+        return new V4In.Item(item.string(V4Schema.ITEM_CONTAINER, TEXT_ITEM), item.string(V4Schema.ITEM_SOURCE_URL, TEXT_ITEM), item.string(V4Schema.ITEM_TITLE, TEXT_ITEM),
+                item.string(V4Schema.ITEM_THUMBNAIL_URL, TEXT_ITEM), seconds(item.timeMicros(V4Schema.ITEM_START_TIME)),
                 volume == null || volume.isNaN() || volume.isInfinite() ? null : Double.valueOf(volume),
                 speed == null || speed.isNaN() || speed.isInfinite() ? null : Double.valueOf(speed));
     }
@@ -202,7 +205,7 @@ public final class V4Reader {
                     type = V4Schema.TRACK_SUBTITLE;
                 }
             }
-            tracks.add(new V4In.Track(id == null ? 0 : id, track.string(V4Schema.TRACK_ISO_639), track.string(V4Schema.TRACK_TITLE), type));
+            tracks.add(new V4In.Track(id == null ? 0 : id, track.string(V4Schema.TRACK_ISO_639, TEXT_NAME), track.string(V4Schema.TRACK_TITLE, TEXT_NAME), type));
         }
         return new V4In(V4In.Kind.TRACKS, null, null, 0, null, null, null, null, null, null, null, tracks);
     }

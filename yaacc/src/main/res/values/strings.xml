@@ -576,4 +576,6 @@
     <string name="fcast_sheet_protocol_note_link">This receiver offers the encrypted version 4. Add it again with its connection link (the QR code on its screen) to use it.</string>
     <string name="fcast_sheet_protocol_note_android">This receiver offers the encrypted version 4, which needs Android 10 or later.</string>
     <string name="fcast_link_note_v4">The receiver will be added to your list of FCast receivers. Nothing is played on it until you select it. This link carries the receiver’s key: on Android 10 or later the connection is encrypted (protocol v4).</string>
+    <string name="fcast_key_refused">The receiver’s key is not the one that was announced, so YAACC did not connect. If the receiver was reinstalled, remove it and add it again with its connection link.</string>
+    <string name="fcast_secure_failed">The encrypted connection (version 4) to the receiver could not be made, so YAACC did not connect. You can turn version 4 off in Settings > FCast.</string>
 </resources>

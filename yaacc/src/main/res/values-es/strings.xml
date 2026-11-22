@@ -575,4 +575,6 @@
     <string name="fcast_sheet_protocol_note_link">Este receptor ofrece la versión 4 cifrada. Añádalo de nuevo con su enlace de conexión (el código QR de su pantalla) para usarla.</string>
     <string name="fcast_sheet_protocol_note_android">Este receptor ofrece la versión 4 cifrada, que requiere Android 10 o posterior.</string>
     <string name="fcast_link_note_v4">El receptor se añadirá a su lista de receptores FCast. No se reproduce nada en él hasta que lo seleccione. Este enlace contiene la clave del receptor: desde Android 10 la conexión está cifrada (protocolo v4).</string>
+    <string name="fcast_key_refused">La clave del receptor no es la anunciada, por eso YAACC no se conectó. Si el receptor se reinstaló, elimínelo y añádalo de nuevo con su enlace de conexión.</string>
+    <string name="fcast_secure_failed">No se pudo establecer la conexión cifrada (versión 4) con el receptor, por eso YAACC no se conectó. Puede desactivar la versión 4 en Ajustes > FCast.</string>
 </resources>

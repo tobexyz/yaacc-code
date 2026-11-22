@@ -109,7 +109,12 @@ final class FCastV4Translator {
             case ERROR: {
                 int kind = in.code == null ? 0 : in.code;
                 String name = kind >= 0 && kind < V4Schema.ERROR_KINDS.length ? V4Schema.ERROR_KINDS[kind] : "error " + kind;
-                out.add(new FCastMessages.PlaybackError("the receiver reported: " + name));
+                // only an error that comes before the item has started playing fails the item (the receiver could not load it); a seek or a
+                // volume that was clamped, a subtitle file that was refused and the like come while it plays: shown, no reason to skip it
+                boolean itemFatal = kind == 1 || kind == 5 || kind == 6 || kind == 12;
+                boolean beforePlaying = state == null || state == FCastMessages.STATE_IDLE;
+                String text = "the receiver reported: " + name;
+                out.add(itemFatal && beforePlaying ? new FCastMessages.PlaybackError(text) : new FCastMessages.Notice(text));
                 break;
             }
             default:

@@ -134,6 +134,8 @@ public final class FakeFCastTlsReceiver implements AutoCloseable {
         public boolean garbageFirst;
         /** If true it closes the connection right after the sender's {@code Version}. */
         public boolean closeAfterVersion;
+        /** If true it finishes the handshake and then reads nothing more (a receiver that stalls: the sender's writes block). */
+        public boolean stopReadingAfterHandshake;
         /** If true, after the handshake it sends what a v4 receiver sends (its introduction and the volume). */
         public boolean welcome;
         /** If true it repeats what the sender asks for (a load, a state, a volume, a speed, a seek) like a v4 receiver relays it, and starts to play a loaded item. */
@@ -277,6 +279,10 @@ public final class FakeFCastTlsReceiver implements AutoCloseable {
                     sendFlatbuf(de.yaacc.fcast.protocol.V4Golden.get("receiverIntroduction"));
                     sendFlatbuf(de.yaacc.fcast.protocol.V4Golden.get("volume"));
                 }
+            }
+            if (options.stopReadingAfterHandshake) {
+                Thread.sleep(30_000);
+                return;
             }
             while (!closed) {
                 Packet packet = Wire.read(in);

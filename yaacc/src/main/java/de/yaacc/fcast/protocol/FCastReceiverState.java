@@ -76,6 +76,7 @@ public final class FCastReceiverState {
     private final FCastCapabilities capabilities;
     private final int peerVersion;
     private final FCastPin.Source pinSource;
+    private final FCastSecurityException.Kind securityFailure;
 
     private FCastReceiverState(Builder b) {
         this.link = b.link;
@@ -102,6 +103,12 @@ public final class FCastReceiverState {
         this.capabilities = b.capabilities;
         this.peerVersion = b.peerVersion;
         this.pinSource = b.pinSource;
+        this.securityFailure = b.securityFailure;
+    }
+
+    /** Why the secured connection was refused (the last attempt), or null. */
+    public FCastSecurityException.Kind getSecurityFailure() {
+        return securityFailure;
     }
 
     /** The highest version the receiver said it speaks ({@code Version}), 0 before it said. More than {@link #getProtocolVersion()} when the connection is not secured. */
@@ -274,6 +281,7 @@ public final class FCastReceiverState {
         private FCastCapabilities capabilities;
         private int peerVersion;
         private FCastPin.Source pinSource;
+        private FCastSecurityException.Kind securityFailure;
 
         Builder() {
         }
@@ -303,6 +311,12 @@ public final class FCastReceiverState {
             capabilities = s.capabilities;
             peerVersion = s.peerVersion;
             pinSource = s.pinSource;
+            securityFailure = s.securityFailure;
+        }
+
+        public Builder securityFailure(FCastSecurityException.Kind kind) {
+            this.securityFailure = kind;
+            return this;
         }
 
         public Builder peerVersion(int version) {
@@ -315,12 +329,28 @@ public final class FCastReceiverState {
             return this;
         }
 
-        /** The tracks of the item; the selection is cleared (a new list is a new item). */
+        /**
+         * The tracks of the item. A selection stays if its track is still in the list (a receiver sends the list again for the same item,
+         * for example after a subtitle file was added); an empty list (a new item, a stop) clears it.
+         */
         public Builder tracks(java.util.List<FCastTrack> tracks) {
             this.tracks = tracks == null ? java.util.Collections.<FCastTrack>emptyList() : java.util.Collections.unmodifiableList(new java.util.ArrayList<>(tracks));
-            this.selectedAudio = null;
-            this.selectedSubtitle = null;
+            if (selectedAudio != null && !contains(FCastTrack.Type.AUDIO, selectedAudio)) {
+                selectedAudio = null;
+            }
+            if (selectedSubtitle != null && !contains(FCastTrack.Type.SUBTITLE, selectedSubtitle)) {
+                selectedSubtitle = null;
+            }
             return this;
+        }
+
+        private boolean contains(FCastTrack.Type type, long id) {
+            for (FCastTrack track : tracks) {
+                if (track.getType() == type && track.getId() == id) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /** The track of a type that the receiver has selected now (null id: none). */

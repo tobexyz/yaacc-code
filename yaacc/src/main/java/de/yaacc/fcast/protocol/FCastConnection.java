@@ -125,6 +125,7 @@ public final class FCastConnection implements AutoCloseable {
     private final Object heartbeatLock = new Object();
 
     private volatile Socket socket;
+    private volatile Socket plainSocket;        // under the TLS socket of a v4 connection: closing a TLS socket can wait for a stalled write
     private volatile int peerVersion;           // 0 until the receiver's Version arrived
     private volatile boolean secure;            // true once the TLS upgrade of a v4 connection is done
     private final FCastV4Translator translator = new FCastV4Translator(); // reader thread only
@@ -175,9 +176,11 @@ public final class FCastConnection implements AutoCloseable {
             throw e;
         }
         boolean v4 = config.pin != null && config.platformSdk >= MIN_SDK_FOR_V4;
+        Socket underneath = s;
         if (v4) {
             s = upgradeToV4(s); // closes the socket on failure
         }
+        plainSocket = underneath;
         socket = s;
         connectedAt = clock.nowMillis();
         synchronized (heartbeatLock) {
@@ -589,6 +592,10 @@ public final class FCastConnection implements AutoCloseable {
     private void close(CloseReason reason, String detail) {
         if (!closed.compareAndSet(false, true)) {
             return;
+        }
+        Socket under = plainSocket;
+        if (under != null) {
+            closeQuietly(under); // first: a write that is stuck in the TLS socket ends at once, the TLS close would wait for it
         }
         Socket s = socket;
         if (s != null) {

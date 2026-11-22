@@ -287,6 +287,19 @@ public final class FCastMessages {
         }
     }
 
+    /** A message of a v4 receiver that is no failure of the item (a seek or volume that was clamped, a refused subtitle file): shown, nothing more. */
+    public static final class Notice implements Incoming {
+        private final String message;
+
+        Notice(String message) {
+            this.message = message;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+    }
+
     /** {@code TracksAvailable} of a v4 receiver: the tracks of the item it plays now (empty when there is none). */
     public static final class Tracks implements Incoming {
         private final java.util.List<FCastTrack> tracks;

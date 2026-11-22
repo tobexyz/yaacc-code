@@ -231,6 +231,73 @@ public class V4ReaderTest {
     }
 
     @Test
+    public void manyFieldsPointingAtOneHugeStringAreRefusedNotDecodedOverAndOver() throws Exception {
+        // a buffer of about 40 KB whose 256 track titles are all the same text of 30 KB: decoded 256 times it would be 7.7 MB
+        com.google.flatbuffers.FlatBufferBuilder b = new com.google.flatbuffers.FlatBufferBuilder(64 * 1024);
+        StringBuilder big = new StringBuilder();
+        for (int i = 0; i < 30_000; i++) {
+            big.append('x');
+        }
+        int title = b.createString(big);
+        int lang = b.createString("eng");
+        int[] tracks = new int[256];
+        for (int i = 0; i < tracks.length; i++) {
+            b.startTable(5);
+            b.addInt(0, i + 1, 0);
+            b.addOffset(1, lang, 0);
+            b.addOffset(2, title, 0);
+            tracks[i] = b.endTable();
+        }
+        int vector = b.createVectorOfTables(tracks);
+        b.startTable(1);
+        b.addOffset(0, vector, 0);
+        int payload = b.endTable();
+        b.startTable(2);
+        b.addByte(0, (byte) V4Schema.MSG_TRACKS_AVAILABLE, 0);
+        b.addOffset(1, payload, 0);
+        b.finish(b.endTable());
+        try {
+            V4Reader.read(b.sizedByteArray());
+            fail("a title of 30 KB is over the limit of a name");
+        } catch (FCastProtocolException expected) {
+            assertEquals(FCastProtocolException.Kind.BAD_BODY, expected.getKind());
+        }
+    }
+
+    @Test
+    public void manyAllowedStringsThatTogetherExceedTheBudgetAreRefused() throws Exception {
+        com.google.flatbuffers.FlatBufferBuilder b = new com.google.flatbuffers.FlatBufferBuilder(4096);
+        StringBuilder medium = new StringBuilder();
+        for (int i = 0; i < 1024; i++) {
+            medium.append('y');
+        }
+        int title = b.createString(medium); // each title alone is allowed (1024 bytes), 256 of them are 262,912 bytes: over the budget of one buffer
+        int lang = b.createString("eng");
+        int[] tracks = new int[256];
+        for (int i = 0; i < tracks.length; i++) {
+            b.startTable(5);
+            b.addInt(0, i + 1, 0);
+            b.addOffset(1, lang, 0);
+            b.addOffset(2, title, 0);
+            tracks[i] = b.endTable();
+        }
+        int vector = b.createVectorOfTables(tracks);
+        b.startTable(1);
+        b.addOffset(0, vector, 0);
+        int payload = b.endTable();
+        b.startTable(2);
+        b.addByte(0, (byte) V4Schema.MSG_TRACKS_AVAILABLE, 0);
+        b.addOffset(1, payload, 0);
+        b.finish(b.endTable());
+        try {
+            V4Reader.read(b.sizedByteArray());
+            fail("the budget of one buffer is " + FbTable.BUDGET_BYTES + " bytes of text");
+        } catch (FCastProtocolException expected) {
+            assertEquals(FCastProtocolException.Kind.BAD_BODY, expected.getKind());
+        }
+    }
+
+    @Test
     public void aHostileVectorLengthIsRefusedNotLooped() throws Exception {
         byte[] bytes = V4Golden.get("tracks");
         // the length word of the tracks vector: find it (4 tracks) and make it enormous

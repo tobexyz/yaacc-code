@@ -575,4 +575,6 @@
     <string name="fcast_sheet_protocol_note_link">Ce récepteur propose la version 4 chiffrée. Ajoutez-le à nouveau avec son lien de connexion (le code QR sur son écran) pour l’utiliser.</string>
     <string name="fcast_sheet_protocol_note_android">Ce récepteur propose la version 4 chiffrée, qui nécessite Android 10 ou plus récent.</string>
     <string name="fcast_link_note_v4">Le récepteur sera ajouté à votre liste de récepteurs FCast. Rien n’y est lu tant que vous ne l’avez pas sélectionné. Ce lien contient la clé du récepteur : à partir d’Android 10, la connexion est chiffrée (protocole v4).</string>
+    <string name="fcast_key_refused">La clé du récepteur n’est pas celle qui a été annoncée, YAACC ne s’est donc pas connecté. Si le récepteur a été réinstallé, supprimez-le et ajoutez-le à nouveau avec son lien de connexion.</string>
+    <string name="fcast_secure_failed">La connexion chiffrée (version 4) avec le récepteur n’a pas pu être établie, YAACC ne s’est donc pas connecté. Vous pouvez désactiver la version 4 dans Paramètres > FCast.</string>
 </resources>
