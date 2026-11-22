@@ -621,7 +621,7 @@ Snapcast is free software under the GNU General Public License version 3 or, at 
 
 ### The row
 
-A receiver is one card. It shows "FCast", the address, the state (not reachable, idle, playing or paused, with the title) and the volume. An idle card has no connection (YAACC connects when you use the receiver and closes it about half a minute later), so the state of a receiver that nothing plays to is shown only while a connection is open. Play, pause and stop act on the player of the receiver, so they do nothing while nothing plays to it (the sheet has *Stop* for what another sender plays). The volume slider works at any time (a connection is made for it); the mute symbol and the speed work while a player plays to the receiver. The gear opens the settings sheet.
+A receiver is one card. It shows "FCast", the address, the state (not reachable, idle, playing or paused, with the title) and the volume. An idle card has no connection (YAACC connects when you use the receiver and closes it about half a minute later), so the state of a receiver that nothing plays to is shown only while a connection is open. Play, pause and stop act on the player of the receiver, and while nothing of this app plays to the receiver they act on what another sender plays (a second YAACC, the receiver's own app): pause, resume or stop is sent to the receiver. The card shows the receiver's state once a connection is open (after your first tap, or while the sheet is open). The volume slider works at any time (a connection is made for it); the mute symbol and the speed work while a player plays to the receiver. The gear opens the settings sheet.
 
 ### Playing
 
