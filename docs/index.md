@@ -621,7 +621,7 @@ Snapcast is free software under the GNU General Public License version 3 or, at 
 
 ### The row
 
-A receiver is one card. It shows "FCast", the address, the state (not reachable, idle, playing or paused, with the title) and the volume. An idle card has no connection (YAACC connects when you use the receiver and closes it about half a minute later), so the state of a receiver that nothing plays to is shown only while a connection is open. Play, pause and stop act on the player of the receiver. The volume slider works at any time (a connection is made for it); the mute symbol and the speed work while a player plays to the receiver. The gear opens the settings sheet.
+A receiver is one card. It shows "FCast", the address, the state (not reachable, idle, playing or paused, with the title) and the volume. An idle card has no connection (YAACC connects when you use the receiver and closes it about half a minute later), so the state of a receiver that nothing plays to is shown only while a connection is open. Play, pause and stop act on the player of the receiver, so they do nothing while nothing plays to it (the sheet has *Stop* for what another sender plays). The volume slider works at any time (a connection is made for it); the mute symbol and the speed work while a player plays to the receiver. The gear opens the settings sheet.
 
 ### Playing
 
@@ -633,8 +633,9 @@ The FCast protocol cannot read or change the receiver's own settings, so the she
 
 ### FCast limits
 
-* Protocol version 3 only. Version 4 (TLS and FlatBuffers, audio tracks, subtitles, queue messages) is not supported yet.
+* Protocol version 3 only (a receiver of version 1 or 2 may work with fewer functions). Version 4 (TLS and FlatBuffers, audio tracks, subtitles, queue messages) is not supported yet.
 * No playlist is sent to the receiver, no tracks or subtitles, no grouping of receivers, no screen mirroring, no key control of the receiver's screen.
+* At most 64 discovered receivers are listed, at most 8 connections for cards and sheets are open at once, a connection link may have 4 KB and 16 addresses at most, and the trace of the sheet keeps 50 lines.
 * The protocol has no mute: YAACC sets the volume to 0 and puts it back. A volume that another sender sets ends the mute.
 * The receivers differ in how they report the end of an item. YAACC uses the end event, a paused state at the duration (the Android receiver) and, as a safety net, two seconds without an update near the end. A pause by another sender in the last second can look like the end. What a receiver does with a displayed picture is not known for every receiver.
 * Tested by the author with FCast receivers on his own devices, in automated tests and with a test receiver. Other receivers, devices and networks have not been tested.
