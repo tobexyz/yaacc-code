@@ -173,6 +173,61 @@ public class FCastAddReceiverTest {
     }
 
     @Test
+    public void theAddressesOfALinkAreAskedForAtOnceAndTheFirstOfTheLinkThatAnswersWins() {
+        reachable.add("192.168.0.239:46899");
+        reachable.add("10.0.0.7:46899");
+        String text = link("{\"name\":\"FCast-pc\",\"addresses\":[\"172.17.0.1\",\"172.18.0.1\",\"10.0.0.7\",\"192.168.0.239\"],\"services\":[{\"port\":46899,\"type\":0}]}");
+        List<List<FCastEndpoint>> asked = new ArrayList<>();
+        FCastAddReceiver parallel = new FCastAddReceiver(new FCastAddReceiver.Environment() {
+            @Override
+            public List<FCastDirectory.Entry> receivers() {
+                return new ArrayList<>();
+            }
+
+            @Override
+            public boolean answers(FCastEndpoint endpoint) {
+                throw new AssertionError("one at a time must not be used");
+            }
+
+            @Override
+            public List<Boolean> answersAll(List<FCastEndpoint> endpoints) {
+                asked.add(endpoints);
+                List<Boolean> results = new ArrayList<>();
+                for (FCastEndpoint endpoint : endpoints) {
+                    results.add(reachable.contains(endpoint.toString()));
+                }
+                return results;
+            }
+
+            @Override
+            public InetAddress lookup(String host) throws IOException {
+                throw new IOException("unused");
+            }
+
+            @Override
+            public FCastStoredReceivers.AddResult store(FCastEndpoint endpoint, String name) {
+                stored.add(endpoint + "|" + name);
+                return FCastStoredReceivers.AddResult.ADDED;
+            }
+
+            @Override
+            public boolean isDiscoveryRunning() {
+                return false;
+            }
+
+            @Override
+            public void pause(long millis) {
+            }
+        });
+
+        assertEquals(Outcome.ADDED, parallel.add(text).getOutcome());
+
+        assertEquals("one question for all four addresses", 1, asked.size());
+        assertEquals(4, asked.get(0).size());
+        assertEquals("the first address of the link that answers, not the fastest", "10.0.0.7:46899|FCast-pc", stored.get(0));
+    }
+
+    @Test
     public void aConnectionUrlWhoseAddressesAllFailIsNotAddedAndSaysSo() {
         String text = link("{\"name\":\"FCast-pc\",\"addresses\":[\"192.168.0.239\",\"10.0.0.7\"],\"services\":[{\"port\":46899,\"type\":0}]}");
 

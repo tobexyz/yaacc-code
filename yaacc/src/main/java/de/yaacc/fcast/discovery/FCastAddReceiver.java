@@ -61,6 +61,19 @@ public final class FCastAddReceiver {
         /** Whether something answers a TCP connection at this address (a few seconds at most). */
         boolean answers(FCastEndpoint endpoint);
 
+        /**
+         * Whether something answers at each of the addresses. The default asks one after another; the app asks all at the same time
+         * (a link lists every address of the receiver's computer, among them the ones of its virtual networks that the phone can not
+         * reach, and each of those costs the whole timeout).
+         */
+        default java.util.List<Boolean> answersAll(java.util.List<FCastEndpoint> endpoints) {
+            java.util.List<Boolean> results = new ArrayList<>();
+            for (FCastEndpoint endpoint : endpoints) {
+                results.add(answers(endpoint));
+            }
+            return results;
+        }
+
         /** The system's name lookup; throws if the name is unknown or the lookup is too slow. */
         InetAddress lookup(String host) throws IOException;
 
@@ -180,15 +193,16 @@ public final class FCastAddReceiver {
             result.linkProblem = parsed.getProblem();
             return result;
         }
-        int tried = 0;
-        for (FCastEndpoint endpoint : parsed.getParsed().getEndpoints()) {
-            tried++;
-            if (environment.answers(endpoint)) {
-                return store(endpoint, parsed.getParsed().getName());
+        List<FCastEndpoint> endpoints = parsed.getParsed().getEndpoints();
+        List<Boolean> answered = environment.answersAll(endpoints);
+        // the first address of the link that answers, in the order of the link
+        for (int i = 0; i < endpoints.size() && i < answered.size(); i++) {
+            if (Boolean.TRUE.equals(answered.get(i))) {
+                return store(endpoints.get(i), parsed.getParsed().getName());
             }
         }
         Result result = new Result(Outcome.UNREACHABLE);
-        result.triedAddresses = tried;
+        result.triedAddresses = endpoints.size();
         return result;
     }
 

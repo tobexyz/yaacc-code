@@ -184,7 +184,7 @@ public final class FCastHub implements FCastReceiverSource {
         return directory.snapshot();
     }
 
-    private static final int PROBE_TIMEOUT_MILLIS = 3_000;
+    private static final int PROBE_TIMEOUT_MILLIS = 2_000;
 
     private FCastReceiverLinks links;
 
@@ -226,6 +226,37 @@ public final class FCastHub implements FCastReceiverSource {
                 } catch (IOException | RuntimeException unreachable) {
                     return false;
                 }
+            }
+
+            @Override
+            public List<Boolean> answersAll(List<FCastEndpoint> endpoints) {
+                // all at the same time: the answer takes as long as the slowest timeout, not the sum of them
+                final List<Boolean> results = new java.util.ArrayList<>();
+                java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(
+                        Math.max(1, Math.min(endpoints.size(), 16)), runnable -> {
+                            Thread thread = new Thread(runnable, "fcast-probe");
+                            thread.setDaemon(true);
+                            return thread;
+                        });
+                try {
+                    List<java.util.concurrent.Future<Boolean>> futures = new java.util.ArrayList<>();
+                    for (final FCastEndpoint endpoint : endpoints) {
+                        futures.add(pool.submit(() -> answers(endpoint)));
+                    }
+                    for (java.util.concurrent.Future<Boolean> future : futures) {
+                        try {
+                            results.add(future.get(PROBE_TIMEOUT_MILLIS + 1_000L, java.util.concurrent.TimeUnit.MILLISECONDS));
+                        } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException failed) {
+                            results.add(false);
+                        } catch (InterruptedException interrupted) {
+                            Thread.currentThread().interrupt();
+                            results.add(false);
+                        }
+                    }
+                } finally {
+                    pool.shutdownNow();
+                }
+                return results;
             }
 
             @Override
