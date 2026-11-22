@@ -20,6 +20,8 @@ package de.yaacc.browser;
 
 import android.view.KeyEvent;
 
+import de.yaacc.player.PlayerVolumeKeys;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -80,6 +82,24 @@ final class VolumeKeyHosts {
     /** @return true when a Snapcast group took the key; false leaves it to the system */
     static boolean onKeyDown(int keyCode) {
         return onKeyDown(keyCode, false);
+    }
+
+    /**
+     * The key of a page with receiver rows: a Snapcast group of the page first, then (best effort) the one active player of YAACC that
+     * plays to a receiver ({@link PlayerVolumeKeys}); false leaves the key to the system.
+     */
+    static boolean onKeyDown(int keyCode, android.content.Context context, java.util.Collection<? extends de.yaacc.player.Player> players) {
+        if (onKeyDown(keyCode, false)) {
+            return true;
+        }
+        boolean up = keyCode == KeyEvent.KEYCODE_VOLUME_UP;
+        if ((up || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) && PlayerVolumeKeys.onKeyDown(context, up, players)) {
+            synchronized (TAKEN_DOWN) {
+                TAKEN_DOWN.add(keyCode); // its up is taken too
+            }
+            return true;
+        }
+        return false;
     }
 
     /**

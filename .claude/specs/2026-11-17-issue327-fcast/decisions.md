@@ -129,6 +129,9 @@ The owner reports that the gate works: playing music, video and pictures, the co
 ### D31. Hardware volume keys with the player in front (owner's report, 2026-11-22)
 The player screen (`AVTransportPlayerActivity`) left the volume keys to the system, which changes the phone's volume; for an FCast receiver nothing happened on the receiver. Now, when the player of the screen is an FCast player, the keys change the receiver's volume by 5 percent per press (`FCastPlayerLogic.stepVolume`), the slider of the screen follows, and the key is taken (down and up); every other player is unchanged. Tasks 1.4 and 1.6 were closed by the owner (1.6 dropped), so the task list has no open task.
 
+### D32. Volume keys on the receivers page, best effort (owner's proposal, narrowed with him, 2026-11-22)
+On the receivers page (both layouts) the hardware volume keys go, in this order: (1) a Snapcast group that has the focus (as before); (2) **the one active player of YAACC** (playing or paused) if it plays to a remote receiver (UPnP renderer, OpenHome, FCast, Snapcast group) and can be asked for its volume: 5 percent per press, on a worker thread, with a short message "receiver: volume %" (the system bar does not show for a taken key); (3) otherwise the system. No active player, more than one, or an active local player (the phone's own stream, which the system handles) leave the keys to the system. A receiver that another sender plays is not touched, and nothing is polled. Implemented in `PlayerVolumeKeys` and `VolumeKeyHosts.onKeyDown(keyCode, context, players)`; the player screen of an FCast receiver has its own handling (D31).
+
 ### Answers to the earlier questions (owner, 2026-11-20)
 - **Q2:** no receiver hardware; a software receiver on a notebook (D13).
 - **Q3:** music, video and pictures all three are in scope (the design already plays all three).
