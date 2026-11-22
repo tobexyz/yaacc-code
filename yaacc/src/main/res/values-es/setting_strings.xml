@@ -90,9 +90,9 @@
     <string name="settings_local_server_serve_video_off">servir video está deshabilitado</string>
     <string name="settings_local_server_serve_video_on">servir video está habilitado</string>
     <string name="settings_local_server_name">nombre de red para el servidor local</string>
-    <string name="settings_local_server_autostart_title">servidor de inicio automático al arrancar</string>
-    <string name="settings_local_server_autostart_deactivated">No se inicia nada después del arranque; la aplicación se cierra sola cuando está inactiva.</string>
-    <string name="settings_local_server_autostart_activated">Los servicios activados se inician después del arranque; la aplicación no se cierra automáticamente.</string>
+    <string name="settings_autostart_title">inicio automático al arrancar</string>
+    <string name="settings_autostart_deactivated">No se inicia nada después del arranque; la aplicación se cierra sola cuando está inactiva.</string>
+    <string name="settings_autostart_activated">Los servicios activados se inician después del arranque; la aplicación no se cierra automáticamente.</string>
     <string name="settings_sending_upnp_alive_interval">enviando notificaciones activas UPnP</string>
     <string name="settings_category_playing">comportamiento de reproducción multimedia</string>
     <string name="settings_replay_title">Repetir en los reproductores nuevos</string>
@@ -116,11 +116,11 @@
     <string name="settings_local_server_serve_screen_cast_title">transmisión de pantalla</string>
     <string name="settings_local_server_serve_screen_cast_off">La transmisión de pantalla está deshabilitada</string>
     <string name="settings_local_server_serve_screen_cast_on">La transmisión de pantalla está habilitada</string>
-    <string name="settings_upnp_if_filter_names">Interfaces incluidas en la lista negra para la detección de interfaces de red UPnP</string>
-    <string name="settings_upnp_selected_interface_title">Interfaz de red UPnP</string>
-    <string name="settings_upnp_selected_interface_summary">Seleccione una interfaz de red específica para UPnP (vacío = autodetección)</string>
-    <string name="settings_upnp_selected_interface_none">Detección automática (mejor esfuerzo)</string>
-    <string name="settings_upnp_selected_interface_blacklisted_warning">⚠️ La interfaz seleccionada está en la lista negra; ¡para utilizarla, elimínela de la lista!</string>
+    <string name="settings_if_filter_names">Interfaces incluidas en la lista negra para la detección de interfaces de red</string>
+    <string name="settings_selected_interface_title">Interfaz de red</string>
+    <string name="settings_selected_interface_summary">Seleccione una interfaz de red específica (vacío = autodetección)</string>
+    <string name="settings_selected_interface_none">Detección automática (mejor esfuerzo)</string>
+    <string name="settings_selected_interface_blacklisted_warning">⚠️ La interfaz seleccionada está en la lista negra; ¡para utilizarla, elimínela de la lista!</string>
     <string name="settings_snapcast_category">Snapcast</string>
     <string name="settings_snapcast_play_experimental_title">Reproducir en grupos de Snapcast</string>
     <string name="settings_snapcast_play_experimental_summary">La música del reproductor se envía a un servidor de Snapcast para que la reproduzca un grupo. El audio se envía sin cifrar al servidor.</string>
@@ -130,10 +130,10 @@
     <string name="settings_snapcast_servers_summary">Añadir servidores por dirección o quitarlos</string>
     <string name="settings_snapcast_about_title">Qué necesita Snapcast</string>
     <string name="settings_snapcast_about_summary">YAACC reproduce en un servidor Snapcast existente; necesita uno accesible en su red.</string>
-    <string name="settings_snapcast_client_spike_title">Cliente Snapcast</string>
-    <string name="settings_snapcast_client_spike_summary">Permite que este teléfono actúe como cliente Snapcast: añade el interruptor del cliente Snapcast a la primera página y su tarjeta. Desactivado por defecto. El audio y el control se envían sin cifrar.</string>
-    <string name="settings_snapcast_client_spike_open_title">Detalles del cliente Snapcast</string>
-    <string name="settings_snapcast_client_spike_open_summary">Muestra el estado de la conexión, los valores de sincronización y el registro de eventos de este cliente, para solucionar problemas.</string>
+    <string name="settings_snapcast_client_title">Cliente Snapcast</string>
+    <string name="settings_snapcast_client_summary">Permite que este teléfono actúe como cliente Snapcast: añade el interruptor del cliente Snapcast a la primera página y su tarjeta. Desactivado por defecto. El audio y el control se envían sin cifrar.</string>
+    <string name="settings_snapcast_client_open_title">Detalles del cliente Snapcast</string>
+    <string name="settings_snapcast_client_open_summary">Muestra el estado de la conexión, los valores de sincronización y el registro de eventos de este cliente, para solucionar problemas.</string>
     <string name="settings_snapcast_client_switched_on_title">Conectado al servidor Snapcast</string>
     <string name="settings_snapcast_client_switched_on_summary_on">Este teléfono está conectado a un servidor Snapcast y reproduce como cliente.</string>
     <string name="settings_snapcast_client_switched_on_summary_off">Este teléfono no está conectado a un servidor Snapcast.</string>

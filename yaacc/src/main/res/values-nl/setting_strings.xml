@@ -90,9 +90,9 @@
     <string name="settings_local_server_serve_video_off">video weergeven is uitgeschakeld</string>
     <string name="settings_local_server_serve_video_on">video weergeven is ingeschakeld</string>
     <string name="settings_local_server_name">netwerknaam voor lokale server</string>
-    <string name="settings_local_server_autostart_title">autostart-server bij het opstarten</string>
-    <string name="settings_local_server_autostart_deactivated">er start niets na het opstarten; de app sluit zichzelf bij inactiviteit</string>
-    <string name="settings_local_server_autostart_activated">de ingeschakelde diensten starten na het opstarten; de app wordt dan nooit automatisch gesloten</string>
+    <string name="settings_autostart_title">autostart bij het opstarten</string>
+    <string name="settings_autostart_deactivated">er start niets na het opstarten; de app sluit zichzelf bij inactiviteit</string>
+    <string name="settings_autostart_activated">de ingeschakelde diensten starten na het opstarten; de app wordt dan nooit automatisch gesloten</string>
     <string name="settings_sending_upnp_alive_interval">UPnP-livemeldingen verzenden</string>
     <string name="settings_category_playing">gedrag bij het afspelen van media</string>
     <string name="settings_replay_title">Herhalen voor nieuwe spelers</string>
@@ -116,11 +116,11 @@
     <string name="settings_local_server_serve_screen_cast_title">schermcaststream</string>
     <string name="settings_local_server_serve_screen_cast_off">Schermcaststream is uitgeschakeld</string>
     <string name="settings_local_server_serve_screen_cast_on">Schermcaststream is ingeschakeld</string>
-    <string name="settings_upnp_if_filter_names">Interfaces die op de zwarte lijst staan ​​voor UPnP-netwerkinterfacedetectie</string>
-    <string name="settings_upnp_selected_interface_title">UPnP-netwerkinterface</string>
-    <string name="settings_upnp_selected_interface_summary">Selecteer een specifieke netwerkinterface voor UPnP (leeg = automatisch detecteren)</string>
-    <string name="settings_upnp_selected_interface_none">Automatische detectie (naar beste vermogen)</string>
-    <string name="settings_upnp_selected_interface_blacklisted_warning">⚠️ De geselecteerde interface staat op de zwarte lijst; verwijder deze van de lijst om hem te kunnen gebruiken!</string>
+    <string name="settings_if_filter_names">Interfaces die op de zwarte lijst staan ​​voor netwerkinterfacedetectie</string>
+    <string name="settings_selected_interface_title">Netwerkinterface</string>
+    <string name="settings_selected_interface_summary">Selecteer een specifieke netwerkinterface (leeg = automatisch detecteren)</string>
+    <string name="settings_selected_interface_none">Automatische detectie (naar beste vermogen)</string>
+    <string name="settings_selected_interface_blacklisted_warning">⚠️ De geselecteerde interface staat op de zwarte lijst; verwijder deze van de lijst om hem te kunnen gebruiken!</string>
     <string name="settings_snapcast_category">Snapcast</string>
     <string name="settings_snapcast_play_experimental_title">Afspelen op Snapcast-groepen</string>
     <string name="settings_snapcast_play_experimental_summary">De muziek van de speler wordt naar een Snapcast-server gestuurd zodat een groep deze afspeelt. De audio wordt onversleuteld naar de server gestuurd.</string>
@@ -130,10 +130,10 @@
     <string name="settings_snapcast_servers_summary">Servers op adres toevoegen of verwijderen</string>
     <string name="settings_snapcast_about_title">Wat Snapcast nodig heeft</string>
     <string name="settings_snapcast_about_summary">YAACC speelt af naar een bestaande Snapcast-server; er moet er een bereikbaar zijn in uw netwerk.</string>
-    <string name="settings_snapcast_client_spike_title">Snapcast-client</string>
-    <string name="settings_snapcast_client_spike_summary">Laat deze telefoon als Snapcast-client werken: voegt de schakelaar van de Snapcast-client toe aan de eerste pagina en zijn kaart. Standaard uit. Audio en besturing worden onversleuteld verzonden.</string>
-    <string name="settings_snapcast_client_spike_open_title">Details van de Snapcast-client</string>
-    <string name="settings_snapcast_client_spike_open_summary">Toont de verbindingsstatus, de synchronisatiewaarden en het gebeurtenissenspoor van deze client, voor het opsporen van problemen.</string>
+    <string name="settings_snapcast_client_title">Snapcast-client</string>
+    <string name="settings_snapcast_client_summary">Laat deze telefoon als Snapcast-client werken: voegt de schakelaar van de Snapcast-client toe aan de eerste pagina en zijn kaart. Standaard uit. Audio en besturing worden onversleuteld verzonden.</string>
+    <string name="settings_snapcast_client_open_title">Details van de Snapcast-client</string>
+    <string name="settings_snapcast_client_open_summary">Toont de verbindingsstatus, de synchronisatiewaarden en het gebeurtenissenspoor van deze client, voor het opsporen van problemen.</string>
     <string name="settings_snapcast_client_switched_on_title">Verbonden met de Snapcast-server</string>
     <string name="settings_snapcast_client_switched_on_summary_on">Deze telefoon is verbonden met een Snapcast-server en speelt als client.</string>
     <string name="settings_snapcast_client_switched_on_summary_off">Deze telefoon is niet verbonden met een Snapcast-server.</string>

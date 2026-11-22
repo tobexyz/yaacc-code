@@ -38,8 +38,10 @@ import androidx.appcompat.app.AppCompatDelegate;
 import androidx.core.app.NotificationCompat;
 import androidx.preference.PreferenceManager;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
@@ -52,13 +54,11 @@ import java.util.stream.Collectors;
 import de.yaacc.browser.BackgroundIdleTimer;
 import de.yaacc.browser.BrowserLauncher;
 import de.yaacc.multiroom.SnapcastHub;
+import de.yaacc.multiroom.client.SnapcastClient;
 import de.yaacc.multiroom.client.SnapcastClientPowers;
 import de.yaacc.multiroom.client.SnapcastClientRestore;
 import de.yaacc.player.Player;
 import de.yaacc.player.PlayerService;
-import java.io.File;
-import java.util.List;
-
 import de.yaacc.settings.ThemeChoice;
 import de.yaacc.share.IncomingCache;
 import de.yaacc.share.LaunchNonces;
@@ -70,12 +70,12 @@ import de.yaacc.share.UnclaimedShares;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.server.ServerAutostart;
 import de.yaacc.upnp.server.YaaccUpnpServerService;
-import de.yaacc.util.SAFCacheManager;
 import de.yaacc.util.ExitHandoff;
 import de.yaacc.util.ExitRestartGuard;
 import de.yaacc.util.ExitRestartGuards;
 import de.yaacc.util.ExitSequence;
 import de.yaacc.util.NotificationId;
+import de.yaacc.util.SAFCacheManager;
 import de.yaacc.util.SafPermissionManager;
 import de.yaacc.util.ShutdownTimerListener;
 import de.yaacc.util.YaaccLogger;
@@ -151,7 +151,7 @@ public class Yaacc extends Application {
         removeLegacyProxyLinks(preferences);
         // The boot receiver follows the setting "autostart on boot" (disabled in the manifest): synchronised here so that an
         // installation that existed before has the right state after the first start of the app.
-        ServerAutostart.applySetting(this, preferences.getBoolean(getString(R.string.settings_local_server_autostart_chkbx), false));
+        ServerAutostart.applySetting(this, preferences.getBoolean(getString(R.string.settings_autostart_chkbx), false));
         sweepIncomingCopies();
         startShareSweeper();
         registerActivityLifecycleCallbacks(new UserStartCallbacks());
@@ -410,7 +410,7 @@ public class Yaacc extends Application {
                 // close every share (held files, links) first, so that a failure further down cannot
                 // leave a descriptor open or a share reachable
                 .add(ExitSequence.STEP_SHARES, this::closeShares)
-                // written before the process ends, and before the services go (the spike dialog finds the reason)
+                // written before the process ends, and before the services go (the dialog finds the reason)
                 .add(ExitSequence.STEP_SNAPCAST_NOTE, this::recordSnapcastClientEnding)
                 .run();
         if (!first.allSucceeded()) {
@@ -419,7 +419,9 @@ public class Yaacc extends Application {
         exitPlayersThenContinue();
     }
 
-    /** Ends every active player on a thread of its own and goes on with {@link #continueExit} on the main thread. */
+    /**
+     * Ends every active player on a thread of its own and goes on with {@link #continueExit} on the main thread.
+     */
     private void exitPlayersThenContinue() {
         final Handler main = new Handler(Looper.getMainLooper());
         List<String> names = new ArrayList<>();
@@ -454,7 +456,9 @@ public class Yaacc extends Application {
         });
     }
 
-    /** The rest of the exit, on the main thread, after the players ended (or the bound was up). */
+    /**
+     * The rest of the exit, on the main thread, after the players ended (or the bound was up).
+     */
     private void continueExit(boolean playersEnded) {
         ExitSequence.Result rest = new ExitSequence()
                 .add(ExitSequence.STEP_SERVICES, () -> stopServices(playersEnded))
@@ -535,8 +539,11 @@ public class Yaacc extends Application {
         clearCache();
     }
 
-    /** The services of the app that must be gone before the process ends, and the feeds that give a group its stream back. */
-    @SuppressWarnings("deprecation") // getRunningServices still lists the caller's own services, which is all that is asked here
+    /**
+     * The services of the app that must be gone before the process ends, and the feeds that give a group its stream back.
+     */
+    @SuppressWarnings("deprecation")
+    // getRunningServices still lists the caller's own services, which is all that is asked here
     private boolean servicesOrFeedsStillRunning() {
         try {
             SnapcastHub hub = SnapcastHub.peekShared();
@@ -561,16 +568,17 @@ public class Yaacc extends Application {
 
     /**
      * The exit action and the shutdown (sleep) timer end the whole process, and with it a running Snapcast client session,
-     * without a word: keep the reason where the spike dialog finds it (written at once, the process ends right after).
+     * without a word: keep the reason where the dialog finds it (written at once, the process ends right after).
      */
-    @android.annotation.SuppressLint("ApplySharedPref") // commit on purpose: the process ends right after
+    @android.annotation.SuppressLint("ApplySharedPref")
+    // commit on purpose: the process ends right after
     private void recordSnapcastClientEnding() {
         try {
             if (de.yaacc.multiroom.client.SnapcastClientRuntime.isActive()) {
                 androidx.preference.PreferenceManager.getDefaultSharedPreferences(this).edit()
-                        .putString(de.yaacc.multiroom.client.SnapcastClientSpike.KEY_LAST_ENDING,
+                        .putString(SnapcastClient.KEY_LAST_ENDING,
                                 de.yaacc.multiroom.client.SnapcastClientRuntime.Ending.APP_EXIT.name())
-                        .putLong(de.yaacc.multiroom.client.SnapcastClientSpike.KEY_LAST_ENDING_AT, System.currentTimeMillis())
+                        .putLong(SnapcastClient.KEY_LAST_ENDING_AT, System.currentTimeMillis())
                         .commit();
             }
         } catch (RuntimeException ignored) {

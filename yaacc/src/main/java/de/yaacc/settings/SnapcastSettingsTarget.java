@@ -18,7 +18,7 @@
  */
 package de.yaacc.settings;
 
-import de.yaacc.multiroom.client.SnapcastClientSpike;
+import de.yaacc.multiroom.client.SnapcastClient;
 
 /**
  * Which part of the settings screen the gear on the first page opens: the screen is one scrolling list, so "directly" means scrolled
@@ -27,16 +27,22 @@ import de.yaacc.multiroom.client.SnapcastClientSpike;
  */
 public final class SnapcastSettingsTarget {
 
-    /** The extra of the intent that opens the settings. */
+    /**
+     * The extra of the intent that opens the settings.
+     */
     public static final String EXTRA_SCROLL_TO = "de.yaacc.settings.SCROLL_TO";
 
-    /** The checkbox of the client: the first entry of its section that is shown while the option is on. */
-    public static final String SNAPCAST_CLIENT = SnapcastClientSpike.KEY_SWITCHED_ON;
+    /**
+     * The checkbox of the client: the first entry of its section that is shown while the option is on.
+     */
+    public static final String SNAPCAST_CLIENT = SnapcastClient.KEY_SWITCHED_ON;
 
     private SnapcastSettingsTarget() {
     }
 
-    /** @return the key of the entry to scroll to; null for no request or a key that is not allowed */
+    /**
+     * @return the key of the entry to scroll to; null for no request or a key that is not allowed
+     */
     public static String scrollKey(String requested) {
         return SNAPCAST_CLIENT.equals(requested) ? SNAPCAST_CLIENT : null;
     }

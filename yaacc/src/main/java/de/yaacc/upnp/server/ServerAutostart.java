@@ -19,16 +19,16 @@
 package de.yaacc.upnp.server;
 
 import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
-import de.yaacc.util.YaaccLogger;
+import android.content.pm.PackageManager;
 
 import androidx.preference.PreferenceManager;
 
 import de.yaacc.R;
+import de.yaacc.util.YaaccLogger;
 
 /**
  * The boot receiver. It is switched by the setting "autostart on boot": the component is enabled when the setting is ticked and
@@ -62,8 +62,8 @@ public class ServerAutostart extends BroadcastReceiver {
                 .getDefaultSharedPreferences(context);
 
         if (preferences.getBoolean(
-                context.getString(R.string.settings_local_server_autostart_chkbx), false) && "android.intent.action.BOOT_COMPLETED".equals(intent.getAction())) {
-            YaaccLogger.d(this.getClass().toString(), "Starting YAACC server on device start");
+                context.getString(R.string.settings_autostart_chkbx), false) && "android.intent.action.BOOT_COMPLETED".equals(intent.getAction())) {
+            YaaccLogger.d(this.getClass().toString(), "Starting YAACC on device start");
             Intent serviceIntent = new Intent(context, YaaccUpnpServerService.class);
             try {
                 context.startForegroundService(serviceIntent);
@@ -72,7 +72,7 @@ public class ServerAutostart extends BroadcastReceiver {
                 YaaccLogger.w(this.getClass().getName(), "Boot start of the server service was refused: " + e.getClass().getSimpleName());
             }
         } else {
-            YaaccLogger.d(this.getClass().toString(), "Not starting YAACC server on device start");
+            YaaccLogger.d(this.getClass().toString(), "Not starting YAACC on device start");
         }
     }
 

@@ -31,8 +31,8 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.Toast;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.preference.PreferenceManager;
@@ -44,25 +44,25 @@ import java.util.concurrent.RejectedExecutionException;
 
 import de.yaacc.R;
 import de.yaacc.multiroom.SnapcastHub;
+import de.yaacc.multiroom.client.SnapcastClient;
 import de.yaacc.multiroom.client.SnapcastClientPower;
 import de.yaacc.multiroom.client.SnapcastClientPowerTexts;
 import de.yaacc.multiroom.client.SnapcastClientPowers;
 import de.yaacc.multiroom.client.SnapcastClientRuntime;
 import de.yaacc.multiroom.client.SnapcastClientService;
-import de.yaacc.multiroom.client.SnapcastClientSpike;
 import de.yaacc.multiroom.client.SnapcastClientStatusText;
 import de.yaacc.multiroom.client.SnapcastClientTraceReport;
 import de.yaacc.multiroom.ui.SnapcastServerChoices;
 import de.yaacc.multiroom.ui.SnapcastServerListModel;
 
 /**
- * The test screen of the client spike: the address of the server, the manual latency, Start, Stop and a live status
+ * The test screen of the client: the address of the server, the manual latency, Start, Stop and a live status
  * text with the numbers to report after a listen test. Thin Android glue; the checks are in
- * {@link SnapcastClientSpike} and the text in {@link SnapcastClientStatusText}. The status is read from the process-wide
+ * {@link SnapcastClient} and the text in {@link SnapcastClientStatusText}. The status is read from the process-wide
  * {@link SnapcastClientRuntime}, so the screen can be closed (and the screen switched off) while the service runs, and
  * shows the current state when it is opened again.
  */
-final class SnapcastClientSpikeDialog {
+final class SnapcastClientDialog {
 
     private static final long REFRESH_MS = 500L;
 
@@ -83,7 +83,7 @@ final class SnapcastClientSpikeDialog {
     private final TextView lastEnding;
     private final TextView stateLine;
     private final ExecutorService worker = Executors.newSingleThreadExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "snapcast-client-spike");
+        Thread thread = new Thread(runnable, "snapcast-client");
         thread.setDaemon(true);
         return thread;
     });
@@ -110,13 +110,13 @@ final class SnapcastClientSpikeDialog {
                 SnapcastClientPowers.of(context).markEndingSeen(); // it is on the screen now
             }
             lastEnding.setText(de.yaacc.multiroom.client.SessionEndingText.of(
-                    preferences.getString(SnapcastClientSpike.KEY_LAST_ENDING, null),
-                    preferences.getLong(SnapcastClientSpike.KEY_LAST_ENDING_AT, 0), System.currentTimeMillis()));
+                    preferences.getString(SnapcastClient.KEY_LAST_ENDING, null),
+                    preferences.getLong(SnapcastClient.KEY_LAST_ENDING_AT, 0), System.currentTimeMillis()));
             main.postDelayed(this, REFRESH_MS);
         }
     };
 
-    private SnapcastClientSpikeDialog(Context context) {
+    private SnapcastClientDialog(Context context) {
         this.context = context;
         this.preferences = PreferenceManager.getDefaultSharedPreferences(context);
         float density = context.getResources().getDisplayMetrics().density;
@@ -135,7 +135,7 @@ final class SnapcastClientSpikeDialog {
         host.setHint(R.string.snapcast_client_host_hint);
         host.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         host.setFilters(new InputFilter[]{new InputFilter.LengthFilter(300)});
-        host.setText(preferences.getString(SnapcastClientSpike.KEY_LAST_HOST, ""));
+        host.setText(preferences.getString(SnapcastClient.KEY_LAST_HOST, ""));
         root.addView(host, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         Button chooseServer = new Button(context);
@@ -170,7 +170,7 @@ final class SnapcastClientSpikeDialog {
         latency.setHint(R.string.snapcast_client_latency_hint);
         latency.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED);
         latency.setFilters(new InputFilter[]{new InputFilter.LengthFilter(8)});
-        latency.setText(String.valueOf(preferences.getInt(SnapcastClientSpike.KEY_LAST_LATENCY, 0)));
+        latency.setText(String.valueOf(preferences.getInt(SnapcastClient.KEY_LAST_LATENCY, 0)));
         root.addView(latency, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         writeAhead = new EditText(context);
@@ -178,13 +178,13 @@ final class SnapcastClientSpikeDialog {
         writeAhead.setHint(R.string.snapcast_client_write_ahead_hint);
         writeAhead.setInputType(InputType.TYPE_CLASS_NUMBER);
         writeAhead.setFilters(new InputFilter[]{new InputFilter.LengthFilter(4)});
-        writeAhead.setText(String.valueOf(preferences.getInt(SnapcastClientSpike.KEY_LAST_WRITE_AHEAD,
-                SnapcastClientSpike.DEFAULT_WRITE_AHEAD_MS)));
+        writeAhead.setText(String.valueOf(preferences.getInt(SnapcastClient.KEY_LAST_WRITE_AHEAD,
+                SnapcastClient.DEFAULT_WRITE_AHEAD_MS)));
         root.addView(writeAhead, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         flacGuard = new android.widget.CheckBox(context);
         flacGuard.setText(R.string.snapcast_client_flac_guard);
-        flacGuard.setChecked(preferences.getBoolean(SnapcastClientSpike.KEY_LAST_FLAC_GUARD, true));
+        flacGuard.setChecked(preferences.getBoolean(SnapcastClient.KEY_LAST_FLAC_GUARD, true));
         root.addView(flacGuard, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         LinearLayout buttons = new LinearLayout(context);
@@ -251,9 +251,11 @@ final class SnapcastClientSpikeDialog {
         });
     }
 
-    /** Opens the screen. */
+    /**
+     * Opens the screen.
+     */
     static void show(Context context) {
-        SnapcastClientSpikeDialog opened = new SnapcastClientSpikeDialog(context);
+        SnapcastClientDialog opened = new SnapcastClientDialog(context);
         opened.dialog.show();
         opened.shown = true;
         opened.refresh.run();
@@ -285,10 +287,12 @@ final class SnapcastClientSpikeDialog {
         }
     }
 
-    /** The servers to choose from (task 11.7): the server list of the settings and the address used last. Off the main thread. */
+    /**
+     * The servers to choose from (task 11.7): the server list of the settings and the address used last. Off the main thread.
+     */
     private List<SnapcastServerChoices.Choice> knownChoices() {
         List<SnapcastServerListModel.Row> rows = SnapcastHub.getShared(context).newServerListModel().rows();
-        return SnapcastServerChoices.of(rows, preferences.getString(SnapcastClientSpike.KEY_LAST_HOST, ""));
+        return SnapcastServerChoices.of(rows, preferences.getString(SnapcastClient.KEY_LAST_HOST, ""));
     }
 
     /**
@@ -343,16 +347,18 @@ final class SnapcastClientSpikeDialog {
         }
     }
 
-    /** An IP literal outside the local ranges gets a warning (a host name is not looked up here; that is the user's choice). */
+    /**
+     * An IP literal outside the local ranges gets a warning (a host name is not looked up here; that is the user's choice).
+     */
     private void showWarningIfPublic(String text) {
         de.yaacc.multiroom.discovery.SnapcastEndpoint endpoint = de.yaacc.multiroom.discovery.SnapcastEndpoint
                 .parse(text.trim(), de.yaacc.multiroom.protocol.SnapcastConnection.DEFAULT_PORT);
-        boolean isPublic = endpoint != null && SnapcastClientSpike.localityOf(endpoint) == SnapcastClientSpike.Locality.PUBLIC;
+        boolean isPublic = endpoint != null && SnapcastClient.localityOf(endpoint) == SnapcastClient.Locality.PUBLIC;
         warning.setVisibility(isPublic ? android.view.View.VISIBLE : android.view.View.GONE);
     }
 
     private void onStart() {
-        SnapcastClientSpike.Request request = SnapcastClientSpike.check(host.getText().toString(), latency.getText().toString());
+        SnapcastClient.Request request = SnapcastClient.check(host.getText().toString(), latency.getText().toString());
         host.setError(null);
         latency.setError(null);
         switch (request.getOutcome()) {
@@ -369,7 +375,7 @@ final class SnapcastClientSpikeDialog {
                 break;
         }
         writeAhead.setError(null);
-        Integer ahead = SnapcastClientSpike.parseWriteAhead(writeAhead.getText().toString());
+        Integer ahead = SnapcastClient.parseWriteAhead(writeAhead.getText().toString());
         if (ahead == null) {
             writeAhead.setError(context.getString(R.string.snapcast_client_error_invalid_write_ahead));
             return;
@@ -377,11 +383,11 @@ final class SnapcastClientSpikeDialog {
         writeAhead.setText(String.valueOf(ahead)); // the value that is applied (clamped to 40..350), not what was typed
         // the typed address is the one the client uses from now on (the chosen/last server of task 12.10); it stays a known server through
         // KEY_LAST_HOST, so the choice is found again even when the address is in no server list
-        preferences.edit().putString(SnapcastClientSpike.KEY_LAST_HOST, host.getText().toString().trim())
-                .putString(SnapcastClientSpike.KEY_LAST_SERVER, host.getText().toString().trim())
-                .putInt(SnapcastClientSpike.KEY_LAST_LATENCY, request.getLatencyMs())
-                .putInt(SnapcastClientSpike.KEY_LAST_WRITE_AHEAD, ahead)
-                .putBoolean(SnapcastClientSpike.KEY_LAST_FLAC_GUARD, flacGuard.isChecked()).apply();
+        preferences.edit().putString(SnapcastClient.KEY_LAST_HOST, host.getText().toString().trim())
+                .putString(SnapcastClient.KEY_LAST_SERVER, host.getText().toString().trim())
+                .putInt(SnapcastClient.KEY_LAST_LATENCY, request.getLatencyMs())
+                .putInt(SnapcastClient.KEY_LAST_WRITE_AHEAD, ahead)
+                .putBoolean(SnapcastClient.KEY_LAST_FLAC_GUARD, flacGuard.isChecked()).apply();
         // the values above are saved: the power API reads them back, re-checks the option and the server, sets the state and starts
         SnapcastClientPower.Outcome outcome = SnapcastClientPowers.of(context).setOn(true);
         String reason = SnapcastClientPowerTexts.refusalText(context, outcome);
@@ -391,21 +397,25 @@ final class SnapcastClientSpikeDialog {
     }
 
     private void onApplyLatency() {
-        Integer value = SnapcastClientSpike.parseLatency(latency.getText().toString());
+        Integer value = SnapcastClient.parseLatency(latency.getText().toString());
         if (value == null) {
             latency.setError(context.getString(R.string.snapcast_client_error_invalid_latency));
             return;
         }
-        preferences.edit().putInt(SnapcastClientSpike.KEY_LAST_LATENCY, value).apply();
+        preferences.edit().putInt(SnapcastClient.KEY_LAST_LATENCY, value).apply();
         SnapcastClientService.setLatency(context, value);
     }
 
-    /** Device model and API level for the report; the model name is the device's, never the server's. */
+    /**
+     * Device model and API level for the report; the model name is the device's, never the server's.
+     */
     private static String deviceDescription() {
         return android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL + " / API " + android.os.Build.VERSION.SDK_INT;
     }
 
-    /** Puts the summary, the status text and the event trace on the clipboard, to paste into a report. */
+    /**
+     * Puts the summary, the status text and the event trace on the clipboard, to paste into a report.
+     */
     private void onCopyTrace() {
         SnapcastClientRuntime.View view = SnapcastClientRuntime.get();
         if (view.engine == null || view.engine.trace == null || view.engine.trace.size() == 0) {
@@ -421,7 +431,9 @@ final class SnapcastClientSpikeDialog {
         Toast.makeText(context, R.string.snapcast_client_trace_copied, Toast.LENGTH_SHORT).show();
     }
 
-    /** Lists the streams the server named, asks, and moves the group of this phone to the chosen one (Group.SetStream). */
+    /**
+     * Lists the streams the server named, asks, and moves the group of this phone to the chosen one (Group.SetStream).
+     */
     private void onMoveGroup() {
         final de.yaacc.multiroom.client.ServerSays says = SnapcastClientRuntime.get().server;
         if (says == null || !says.isClientFound() || says.getStreams().isEmpty()) {

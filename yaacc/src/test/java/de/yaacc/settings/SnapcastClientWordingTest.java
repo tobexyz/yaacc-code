@@ -46,9 +46,9 @@ public class SnapcastClientWordingTest {
 
     private static final String[] LOCALES = {"values", "values-de", "values-es", "values-fr", "values-nl", "values-pt", "values-zh"};
 
-    private static final String FEATURE_TITLE = "settings_snapcast_client_spike_title";
+    private static final String FEATURE_TITLE = "settings_snapcast_client_title";
     private static final String STATE_TITLE = "settings_snapcast_client_switched_on_title";
-    private static final String DETAILS_TITLE = "settings_snapcast_client_spike_open_title";
+    private static final String DETAILS_TITLE = "settings_snapcast_client_open_title";
     private static final String DIALOG_TITLE = "snapcast_client_title";
 
     /**
@@ -82,7 +82,9 @@ public class SnapcastClientWordingTest {
         return new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
     }
 
-    /** All translatable strings of the two string files of a locale (the key-name entries are not user-visible). */
+    /**
+     * All translatable strings of the two string files of a locale (the key-name entries are not user-visible).
+     */
     private static Map<String, String> userVisible(String locale) throws Exception {
         Map<String, String> result = new LinkedHashMap<>();
         for (String file : new String[]{"strings.xml", "setting_strings.xml"}) {
@@ -144,8 +146,8 @@ public class SnapcastClientWordingTest {
         // the two on/off texts of the state differ and the summaries of the three entries are no copy of a title
         assertNotEquals(locale, texts.get("settings_snapcast_client_switched_on_summary_on"),
                 texts.get("settings_snapcast_client_switched_on_summary_off"));
-        assertNotEquals(locale, feature, texts.get("settings_snapcast_client_spike_summary"));
-        assertNotEquals(locale, details, texts.get("settings_snapcast_client_spike_open_summary"));
+        assertNotEquals(locale, feature, texts.get("settings_snapcast_client_summary"));
+        assertNotEquals(locale, details, texts.get("settings_snapcast_client_open_summary"));
     }
 
     // ---- no listen test, no spike in any user-visible text of the seven locales --------------------------------------
@@ -183,9 +185,9 @@ public class SnapcastClientWordingTest {
                 texts.get("settings_snapcast_client_switched_on_summary_on"));
         assertEquals("This phone is not connected to a Snapcast server.",
                 texts.get("settings_snapcast_client_switched_on_summary_off"));
-        assertTrue(texts.get("settings_snapcast_client_spike_summary").contains("Off by default"));
-        assertTrue(texts.get("settings_snapcast_client_spike_summary").contains("unencrypted"));
-        assertTrue(texts.get("settings_snapcast_client_spike_open_summary").contains("troubleshooting"));
+        assertTrue(texts.get("settings_snapcast_client_summary").contains("Off by default"));
+        assertTrue(texts.get("settings_snapcast_client_summary").contains("unencrypted"));
+        assertTrue(texts.get("settings_snapcast_client_open_summary").contains("troubleshooting"));
         assertTrue("the refusal sends the user to the details", texts.get("snapcast_client_refused_no_server")
                 .endsWith("in the Snapcast client details."));
     }
@@ -225,16 +227,16 @@ public class SnapcastClientWordingTest {
     @Test
     public void theThreeEntriesKeepTheirKeysAndOrder() throws Exception {
         String xml = read("src/main/res/xml/preference.xml");
-        int feature = xml.indexOf("@string/settings_snapcast_client_spike\"");
+        int feature = xml.indexOf("@string/settings_snapcast_client\"");
         int state = xml.indexOf("@string/settings_snapcast_client_switched_on\"");
-        int details = xml.indexOf("@string/settings_snapcast_client_spike_open\"");
+        int details = xml.indexOf("@string/settings_snapcast_client_open\"");
         assertTrue(feature > 0 && state > feature && details > state);
         assertTrue(xml.contains("android:title=\"@string/" + FEATURE_TITLE + "\""));
         assertTrue(xml.contains("android:title=\"@string/" + STATE_TITLE + "\""));
         assertTrue(xml.contains("android:title=\"@string/" + DETAILS_TITLE + "\""));
         String keys = read("src/main/res/values/setting_strings.xml");
-        assertTrue(keys.contains("<string name=\"settings_snapcast_client_spike\" translatable=\"false\">settings_snapcast_client_spike</string>"));
+        assertTrue(keys.contains("<string name=\"settings_snapcast_client\" translatable=\"false\">settings_snapcast_client</string>"));
         assertTrue(keys.contains("<string name=\"settings_snapcast_client_switched_on\" translatable=\"false\">settings_snapcast_client_switched_on</string>"));
-        assertTrue(keys.contains("<string name=\"settings_snapcast_client_spike_open\" translatable=\"false\">settings_snapcast_client_spike_open</string>"));
+        assertTrue(keys.contains("<string name=\"settings_snapcast_client_open\" translatable=\"false\">settings_snapcast_client_open</string>"));
     }
 }

@@ -18,7 +18,6 @@
 package de.yaacc.browser;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -29,78 +28,52 @@ import org.junit.Test;
  */
 public class IdleFactsTest {
 
-    private static AutoCloseRule.Keep keep(boolean master, boolean receiver, boolean proxy) {
-        return AutoCloseRule.reasonToStay(IdleFacts.of(master, receiver, proxy, false, false, false, false));
-    }
-
-    @Test
-    public void masterOffWithTheRendererTickedMayClose() {
-        // the owner's log: 'staying open: RENDERER' with the master switch off
-        assertEquals(AutoCloseRule.Keep.NONE, keep(false, true, false));
-        assertTrue(AutoCloseRule.mayCloseNow(IdleFacts.of(false, true, false, false, false, false, false)));
-    }
-
-    @Test
-    public void masterOffWithTheProxyTickedMayClose() {
-        assertEquals(AutoCloseRule.Keep.NONE, keep(false, false, true));
-    }
-
-    @Test
-    public void masterOffWithEverySubSwitchTickedMayClose() {
-        assertEquals(AutoCloseRule.Keep.NONE, keep(false, true, true));
-    }
-
     @Test
     public void masterOnOnlyKeepsTheAppAsTheLocalServer() {
-        assertEquals(AutoCloseRule.Keep.LOCAL_SERVER, keep(true, false, false));
-    }
-
-    @Test
-    public void masterOnWithTheRendererKeepsTheApp() {
-        // the master switch is the first reason in the rule's order, so the log names it
-        assertEquals(AutoCloseRule.Keep.LOCAL_SERVER, keep(true, true, false));
-    }
-
-    @Test
-    public void masterOnWithTheProxyKeepsTheApp() {
-        assertEquals(AutoCloseRule.Keep.LOCAL_SERVER, keep(true, false, true));
+        assertEquals(AutoCloseRule.Keep.UPNP_SERVER, AutoCloseRule.reasonToStay(IdleFacts.of(true, false, false, false, false, false)));
     }
 
     @Test
     public void aPlayerKeepsTheAppWhateverTheMasterSwitchSays() {
         assertEquals(AutoCloseRule.Keep.PLAYER,
-                AutoCloseRule.reasonToStay(IdleFacts.of(false, false, false, true, false, false, false)));
+                AutoCloseRule.reasonToStay(IdleFacts.of(false, false, true, false, false, false)));
+    }
+
+    @Test
+    public void aSnapcastClientKeepsTheAppWithTheMasterSwitchOff() {
+        assertEquals(AutoCloseRule.Keep.SNAPCAST_CLIENT,
+                AutoCloseRule.reasonToStay(IdleFacts.of(false, true, false, false, false, false)));
     }
 
     @Test
     public void aSnapcastClientSessionKeepsTheAppWithTheMasterSwitchOff() {
-        assertEquals(AutoCloseRule.Keep.SNAPCAST_CLIENT,
-                AutoCloseRule.reasonToStay(IdleFacts.of(false, true, true, false, true, false, false)));
+        assertEquals(AutoCloseRule.Keep.SNAPCAST_CLIENT_SESSION,
+                AutoCloseRule.reasonToStay(IdleFacts.of(false, false, false, true, false, false)));
     }
 
     @Test
     public void aSnapcastFeedKeepsTheAppWithTheMasterSwitchOff() {
         assertEquals(AutoCloseRule.Keep.SNAPCAST_FEED,
-                AutoCloseRule.reasonToStay(IdleFacts.of(false, true, true, false, false, true, false)));
+                AutoCloseRule.reasonToStay(IdleFacts.of(false, false, false, false, true, false)));
     }
 
     @Test
     public void autostartTickedStillKeepsTheAppWithTheMasterSwitchOff() {
         assertEquals(AutoCloseRule.Keep.AUTOSTART,
-                AutoCloseRule.reasonToStay(IdleFacts.of(false, true, true, false, false, false, true)));
+                AutoCloseRule.reasonToStay(IdleFacts.of(false, false, false, false, false, true)));
     }
 
     @Test
     public void autostartComesAfterTheRunningThings() {
-        assertEquals(AutoCloseRule.Keep.LOCAL_SERVER,
-                AutoCloseRule.reasonToStay(IdleFacts.of(true, false, false, false, false, false, true)));
-        assertEquals(AutoCloseRule.Keep.SNAPCAST_CLIENT,
-                AutoCloseRule.reasonToStay(IdleFacts.of(false, false, false, false, true, false, true)));
+        assertEquals(AutoCloseRule.Keep.UPNP_SERVER,
+                AutoCloseRule.reasonToStay(IdleFacts.of(true, false, false, false, false, true)));
+        assertEquals(AutoCloseRule.Keep.SNAPCAST_CLIENT_SESSION,
+                AutoCloseRule.reasonToStay(IdleFacts.of(false, false, false, true, false, true)));
     }
 
     @Test
     public void nothingTickedMayClose() {
         assertEquals(AutoCloseRule.Keep.NONE,
-                AutoCloseRule.reasonToStay(IdleFacts.of(false, false, false, false, false, false, false)));
+                AutoCloseRule.reasonToStay(IdleFacts.of(false, false, false, false, false, false)));
     }
 }
