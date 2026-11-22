@@ -612,3 +612,31 @@ Reviewing: commit `3fc13788` (the fixes of the six cycle 1 Warnings, D29). I rea
 
 ### Verdict: FAIL
 Zero Critical, one Warning: the tests for the error classes that the hand-over names are missing, so the fix of cycle 1 Warning 2 is correct in the code but only partly pinned. The other five fixes are correct and tested. Adding the translator tests (about ten cases) makes this a PASS for the general review; the security review is still postponed by the owner.
+
+## Group 7 (phase 2), cycle 3 — 2026-11-22
+Reviewing: commit `930c4e21` (the tests of the error classes and the `started` flag of `FCastV4Translator`); cycle 2 had one Warning (the translator tests named in the hand-over were not in the tree).
+
+**The tests exist now** (`FCastV4TranslatorTest`, 27 tests, was 23; the tree is clean, HEAD is `930c4e21`). The helper `errorMessage(kind)` builds a `Packet` with an `Error` table whose slot 0 is the kind (slots as in `fcast.fbs`: kind, then `packet_num`), so every one of the 13 kinds is reachable, not only the golden kind 5.
+- `everyErrorThatMeansTheReceiverCouldNotLoadTheItemFailsItBeforeItPlays`: after a `Load` and with no state, kinds 1, 5, 6 and 12 each give a `PlaybackError` that names the kind.
+- `aClampOrARefusedStateIsAlwaysOnlyANotice`: kinds 0, 2, 3, 4, 7, 8, 9, 10, 11 give a `Notice`, both right after the `Load` and after `Playing`. Together with the first test every kind of the schema is classified.
+- `anItemErrorWhilePlayingOrPausedIsOnlyANoticeButWhileBufferingItStillFailsTheItem`: kind 5 after `Buffering` is a `PlaybackError`, after `Playing` a `Notice`; after `Paused` a `Notice`.
+- `aNewLoadAndAnIdleMakeTheNextErrorAFailureAgain`: a second `Load` after `Playing`, and an `Idle` after `Playing`, reset the border.
+
+**The `started` flag is correct.** It is set only by `Playing` (`started |= v4State == STATE_PLAYING`, so `Buffering` does not set it) and by `Paused`; `Load` and `Idle` or a stop (the `default` branch of `applyState`) clear it; `Ended` leaves it set (an error after an item ended is only a notice). The error rule reads `itemFatal && !started`. This closes Suggestion 1 of cycle 2: an `Error` that the receiver sends while it buffers fails the item, so the player skips it as in v3 instead of stopping on the following `Idle`. No other code reads `started`; the session side (`Notice` becomes `lastError`, no `onPlaybackError`) is unchanged and still covered by `anErrorWhileTheItemPlaysIsShownAndDoesNotStopIt`.
+
+### Critical
+- none
+
+### Warning
+- none
+
+### Suggestion
+1. The suggestions of cycle 1 that D29 lists as not done (v3 JSON opcodes inside TLS, a total handshake deadline, a possession-of-key test, the sheet note when the switch is off, the subtitle address from a UPnP item, unpinned transitive Python packages of the rig) and the security notes of cycle 1 (Suggestion 9) stand; none blocks. The toast of `FCastPlayer` for a refused key is still not reached by a test (cycle 2, Suggestion 2).
+2. Not verified here, owner's gate: a run against the official desktop receiver, Conscrypt on a real Android 10 or later device (close with a stalled write, the cause chain of a pin failure), the Docker build of the rig.
+
+### Tests
+- [x] All tests passing. `./gradlew --offline -q :yaacc:testDebugUnitTest --tests 'de.yaacc.fcast.*' --tests 'de.yaacc.player.*'`: exit 0, 69 classes, 1025 tests, 0 failures, 0 errors, 2 skipped (`FCastRigV4ManualTest`, by design). `FCastV4TranslatorTest` 27, `FCastPlayerTest` 37.
+- [x] Coverage adequate for the change: the error classes (all 13 kinds), the border of the fatal rule (no state, buffering, playing, paused, new load, idle), the text budget, the TLS close with a stalled write, the kept selection and the reason of a refused key are pinned. I did not run mutants on the new tests; reading them, a change of the fatal set, of `started` for `Buffering`, or of the reset on `Load` or `Idle` fails one of them.
+
+### Verdict: PASS
+Zero Critical, zero Warning, all tests passing. The six Warnings of cycle 1 and the one of cycle 2 are fixed and pinned. Group 7 passes its general review in cycle 3 of 3; the security review is postponed by the owner.
