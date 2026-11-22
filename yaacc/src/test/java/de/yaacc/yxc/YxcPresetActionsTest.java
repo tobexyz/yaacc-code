@@ -189,4 +189,21 @@ public class YxcPresetActionsTest {
         assertFalse("no capabilities", YxcPresetActions.offered(YxcSourceControlsTest.net("net_radio", "on", "c_playInfo_net_radio")));
         assertFalse(YxcPresetActions.offered(null));
     }
+
+    @Test
+    public void whileTheTunerPlaysAndTheBandIsNotKnownBothBandsAreListed() throws Exception {
+        YxcDeviceState unknownBand = YxcSourceControlsTest.tuner("c_tunerPlayInfo_fm").withCapabilities(caps())
+                .withTunerInfo(YxcTunerInfo.fromJson(new org.json.JSONObject("{\"response_code\":0}")));
+        YxcPresetActions.Lists lists = everything().forSource(unknownBand);
+        assertEquals(1, lists.fm().size());
+        assertEquals(5, lists.dab().size());
+        assertTrue(lists.net().isEmpty());
+    }
+
+    @Test
+    public void theTunerInputIsRecognizedByTheZoneInput() throws Exception {
+        assertTrue(YxcPresetActions.isTunerInput(YxcSourceControlsTest.tuner("c_tunerPlayInfo_dab")));
+        assertFalse(YxcPresetActions.isTunerInput(YxcSourceControlsTest.net("hdmi1", "on", "c_playInfo_net_radio")));
+        assertFalse(YxcPresetActions.isTunerInput(null));
+    }
 }

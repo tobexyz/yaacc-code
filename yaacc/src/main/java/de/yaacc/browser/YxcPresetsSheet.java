@@ -123,6 +123,17 @@ final class YxcPresetsSheet {
                 post(() -> showMessage(R.string.yxc_presets_failed));
                 return;
             }
+            // the monitor's picture can be a moment old (a band that was just switched): ask the device again for the input and the band
+            try {
+                state = state.withZone(client.getZoneStatus("main"));
+                if (de.yaacc.yxc.YxcPresetActions.isTunerInput(state)) {
+                    state = state.withTunerInfo(client.getTunerPlayInfo());
+                } else {
+                    state = state.withPlayInfo(client.getPlayInfo());
+                }
+            } catch (de.yaacc.yxc.YxcException stale) {
+                // keep the monitor's picture; a band that is not known shows both bands
+            }
             YxcPresetActions.Lists lists = YxcPresetActions.load(client, state.getCapabilities()).forSource(state); // what belongs to the selected source
             post(() -> render(lists));
         });

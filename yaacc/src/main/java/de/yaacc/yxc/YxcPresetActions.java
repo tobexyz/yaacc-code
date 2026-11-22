@@ -77,8 +77,9 @@ public final class YxcPresetActions {
             }
             if (YxcNowPlaying.TUNER_INPUT.equalsIgnoreCase(state.getInput())) {
                 YxcTunerInfo tuner = state.getTuner();
-                boolean showFm = tuner == null || !tuner.isDab();
-                boolean showDab = tuner == null || tuner.isDab();
+                boolean bandKnown = tuner != null && (tuner.isFm() || tuner.isDab());
+                boolean showFm = !bandKnown || tuner.isFm();
+                boolean showDab = !bandKnown || tuner.isDab();
                 return new Lists(none(), none(), showFm ? fm : none(), showDab ? dab : none(), failed);
             }
             if (YxcSourceControls.isNetworkSource(state)) {
@@ -98,6 +99,11 @@ public final class YxcPresetActions {
     }
 
     private YxcPresetActions() {
+    }
+
+    /** True while the zone's input is the tuner. */
+    public static boolean isTunerInput(YxcDeviceState state) {
+        return state != null && state.getInput() != null && YxcNowPlaying.TUNER_INPUT.equalsIgnoreCase(state.getInput());
     }
 
     /**
