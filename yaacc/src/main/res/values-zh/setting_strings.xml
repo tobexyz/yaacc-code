@@ -138,9 +138,10 @@
     <string name="settings_snapcast_client_switched_on_summary_on">本手机已连接到 Snapcast 服务器，并作为客户端播放。</string>
     <string name="settings_snapcast_client_switched_on_summary_off">本手机未连接到 Snapcast 服务器。</string>
     <string name="settings_renderer_output_title">输出</string>
-    <string name="settings_renderer_output_summary">音频以未加密方式发送到服务器。任何能访问该接收器的设备都可以更改整个组的音量和静音。Snapcast 组：只有该组播放，本手机保持静音；音量和静音即该组的音量和静音。</string>
+    <string name="settings_renderer_output_summary">Snapcast 组：接收器只向该组输送音频（仅限音频），本手机保持静音。音频以未加密方式发送到服务器。任何能访问该接收器的设备都可以更改整个组的音量和静音。</string>
+    <string name="settings_renderer_output_summary_device">由本设备播放音频、图像和视频。</string>
     <string name="settings_renderer_output_device">此设备</string>
-    <string name="settings_renderer_output_group_option">Snapcast 组</string>
+    <string name="settings_renderer_output_group_option">Snapcast 组（仅音频）</string>
     <string name="settings_renderer_output_group_title">Snapcast 组</string>
     <string name="settings_renderer_output_group_none">尚未选择组。点按以选择服务器和组。</string>
     <string name="settings_renderer_output_group_server">服务器 %1$s 上的组。点按以更改。</string>
