@@ -535,4 +535,15 @@ public class FCastPlayerLogicTest {
         assertFalse(FCastPlayerLogic.isImage(null));
         assertFalse(FCastPlayerLogic.isImage("application/octet-stream"));
     }
+
+    @Test
+    public void aVolumeKeyMovesTheVolumeByOneStepAndStaysBetween0And100() {
+        assertEquals(55, FCastPlayerLogic.stepVolume(50, true));
+        assertEquals(45, FCastPlayerLogic.stepVolume(50, false));
+        assertEquals(100, FCastPlayerLogic.stepVolume(98, true));
+        assertEquals(100, FCastPlayerLogic.stepVolume(100, true));
+        assertEquals(0, FCastPlayerLogic.stepVolume(3, false));
+        assertEquals(0, FCastPlayerLogic.stepVolume(0, false));
+        assertEquals(5, FCastPlayerLogic.stepVolume(0, true));
+    }
 }

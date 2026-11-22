@@ -126,6 +126,9 @@ Rule: use v4 when the Android version supports it and the receiver supports it (
 ### D30. Task 6.2 closed (owner, 2026-11-22)
 The owner reports that the gate works: playing music, video and pictures, the controls of the card (also from a second YAACC instance, after the fix of D22), and, after Group 7, **protocol v4 with both ways of learning the key: the mDNS announcement and the scanned QR code** with a real receiver. He closed the task; the remaining points listed in D22 are not pursued unless he reports a problem. Also changed the same day on his request: the sheet shows the mute symbol of the other cards, and the commits carry no `Claude-Session` trailer (the project setting has an empty attribution).
 
+### D31. Hardware volume keys with the player in front (owner's report, 2026-11-22)
+The player screen (`AVTransportPlayerActivity`) left the volume keys to the system, which changes the phone's volume; for an FCast receiver nothing happened on the receiver. Now, when the player of the screen is an FCast player, the keys change the receiver's volume by 5 percent per press (`FCastPlayerLogic.stepVolume`), the slider of the screen follows, and the key is taken (down and up); every other player is unchanged. Tasks 1.4 and 1.6 were closed by the owner (1.6 dropped), so the task list has no open task.
+
 ### Answers to the earlier questions (owner, 2026-11-20)
 - **Q2:** no receiver hardware; a software receiver on a notebook (D13).
 - **Q3:** music, video and pictures all three are in scope (the design already plays all three).

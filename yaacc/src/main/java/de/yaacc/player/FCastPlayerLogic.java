@@ -219,6 +219,15 @@ final class FCastPlayerLogic {
 
     // ------------------------------------------------------------------ volume and mute
 
+    /** The step of one press of a hardware volume key, in percent. */
+    static final int VOLUME_KEY_STEP = 5;
+
+    /** The volume in percent after a press of a hardware volume key: one step up or down, kept between 0 and 100. */
+    static int stepVolume(int currentPercent, boolean up) {
+        int next = currentPercent + (up ? VOLUME_KEY_STEP : -VOLUME_KEY_STEP);
+        return Math.max(0, Math.min(100, next));
+    }
+
     /** 0 to 100 (the app) to 0.0 to 1.0 (the protocol). */
     static double toProtocolVolume(int percent) {
         return FCastText.clamp(percent / 100.0, 0.0, 1.0);
