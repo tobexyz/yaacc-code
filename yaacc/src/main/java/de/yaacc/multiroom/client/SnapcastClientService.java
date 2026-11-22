@@ -109,6 +109,10 @@ public final class SnapcastClientService extends Service {
     private final AtomicBoolean serverRemembered = new AtomicBoolean();
     private volatile int writeAheadMs = SnapcastClient.DEFAULT_WRITE_AHEAD_MS;
     private volatile boolean flacGuard = true;
+    private volatile int lastLatencyMs;
+    private final SessionRestartPolicy restartPolicy = new SessionRestartPolicy();
+    private volatile boolean restartScheduled;
+    private final Runnable restartTask = this::restartNow;
 
     // ---- entry points for the screen
 
@@ -181,7 +185,12 @@ public final class SnapcastClientService extends Service {
         }
         String action = intent.getAction();
         if (ACTION_STOP.equals(action)) {
-            if (sessionStarted.get()) {
+            if (restartScheduled) {
+                main.removeCallbacks(restartTask); // the user stops while the next session waits to start
+                restartScheduled = false;
+                stopForeground(STOP_FOREGROUND_REMOVE);
+                stopSelf();
+            } else if (sessionStarted.get()) {
                 endSession(SnapcastClientRuntime.Ending.USER);
             } else {
                 stopSelf();
@@ -212,6 +221,9 @@ public final class SnapcastClientService extends Service {
             // session that is "connecting"; for a second Start it is the text that is shown already (and the policy is told),
             // so a rejected Start does not change what the user sees (review S20 of Group 8)
             showForeground(sessionStarted.get() ? currentForegroundText() : getString(R.string.snapcast_client_notification_connecting));
+            if (ended.get() && restartScheduled) {
+                return START_NOT_STICKY; // the next session starts by itself in a moment
+            }
             if (ended.get()) {
                 // this instance is still tearing down the session before: the pending stop removes the notification again
                 Toast.makeText(this, R.string.snapcast_client_busy, Toast.LENGTH_LONG).show();
@@ -257,6 +269,7 @@ public final class SnapcastClientService extends Service {
     }
 
     private void beginSession(String hostText, int latencyMs) {
+        lastLatencyMs = latencyMs;
         startedAtMillis = System.currentTimeMillis();
         try {
             NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
@@ -524,15 +537,63 @@ public final class SnapcastClientService extends Service {
         recordEnding(ending);
         SnapcastClientRuntime.phase(ending == SnapcastClientRuntime.Ending.USER ? SnapcastClientRuntime.Phase.STOPPED
                 : SnapcastClientRuntime.Phase.FAILED, ending, startedAtMillis);
+        // the switch says "connected": a failure that can get better is followed by a new session (a few times, then the
+        // failure stays as it is), see SessionRestartPolicy
+        final boolean restart = restartPolicy.shouldRestart(ending, isSwitchedOn(), SystemClock.elapsedRealtime());
         Thread teardown = new Thread(() -> {
             teardown();
             main.post(() -> {
+                if (restart) {
+                    restartScheduled = true;
+                    main.postDelayed(restartTask, SessionRestartPolicy.DELAY_MILLIS);
+                    return;
+                }
                 stopForeground(STOP_FOREGROUND_REMOVE);
                 stopSelf();
             });
         }, "snapcast-client-teardown");
         teardown.setDaemon(true);
         teardown.start();
+    }
+
+    private boolean isSwitchedOn() {
+        try {
+            android.content.SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
+            return SnapcastClient.isEnabled(preferences::getBoolean) && SnapcastClient.isSwitchedOn(preferences::getBoolean);
+        } catch (RuntimeException unreadable) {
+            return false;
+        }
+    }
+
+    /**
+     * Main thread, after the pause: the old session is gone, the service is still in the foreground. Starts the next
+     * session in place (the switch decides again now: the user may have switched the client off in the meantime).
+     */
+    private void restartNow() {
+        restartScheduled = false;
+        String server = serverText;
+        if (server == null || !isSwitchedOn()) {
+            stopForeground(STOP_FOREGROUND_REMOVE);
+            stopSelf();
+            return;
+        }
+        ExecutorService oldWorker = worker;
+        if (oldWorker != null) {
+            oldWorker.shutdownNow();
+        }
+        host = null;
+        connection = null;
+        sink = null;
+        serverPoll = null;
+        pendingLatencyMs = null;
+        serverRemembered.set(false);
+        ended.set(false);
+        try {
+            showForeground(getString(R.string.snapcast_client_notification_connecting));
+            beginSession(server, lastLatencyMs);
+        } catch (RuntimeException unexpected) {
+            endSession(SnapcastClientRuntime.Ending.SERVICE_ERROR);
+        }
     }
 
     /**
@@ -609,6 +670,8 @@ public final class SnapcastClientService extends Service {
 
     @Override
     public void onDestroy() {
+        main.removeCallbacks(restartTask);
+        restartScheduled = false;
         boolean firstEnd = ended.compareAndSet(false, true); // before the locks: nothing takes them again after this
         releaseLocks(); // first, as in endSession (S25); the record below must not keep a lock held
         if (firstEnd) {
