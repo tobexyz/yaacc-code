@@ -469,4 +469,10 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
                     : MenuItem.SHOW_AS_ACTION_IF_ROOM);
         }
     }
+
+    /** At log level V the resources report every request for the resource id 0 with a stack (see {@link de.yaacc.util.ResourceIdTrace}). */
+    @Override
+    public android.content.res.Resources getResources() {
+        return de.yaacc.util.ResourceIdTrace.of(super.getResources());
+    }
 }

@@ -705,4 +705,10 @@ public class Yaacc extends Application {
     public void removeShutdownTimerListener(ShutdownTimerListener listener) {
         shutdownTimerListeners.remove(listener);
     }
+
+    /** At log level V the resources report every request for the resource id 0 with a stack (see {@link de.yaacc.util.ResourceIdTrace}). */
+    @Override
+    public android.content.res.Resources getResources() {
+        return de.yaacc.util.ResourceIdTrace.of(super.getResources());
+    }
 }
