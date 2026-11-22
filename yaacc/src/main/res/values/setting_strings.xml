@@ -190,9 +190,9 @@
     <string name="settings_snapcast_client" translatable="false">settings_snapcast_client</string>
     <string name="settings_snapcast_client_open" translatable="false">settings_snapcast_client_open</string>
     <string name="settings_renderer_output_title">Output</string>
-    <string name="settings_renderer_output_summary">The audio is sent unencrypted to the server. Any device that can reach the receiver can change the volume and mute of the whole group. Snapcast group: only the group plays, this phone stays silent; volume and mute are the group\'s.</string>
+    <string name="settings_renderer_output_summary">Snapcast group: the receiver only feeds the group (audio only), this phone stays silent. The audio is sent unencrypted to the server. Any device that can reach the receiver can change the volume and mute of the whole group.</string>
     <string name="settings_renderer_output_device">This device</string>
-    <string name="settings_renderer_output_group_option">Snapcast group</string>
+    <string name="settings_renderer_output_group_option">Snapcast group (audio only)</string>
     <string name="settings_renderer_output_group_title">Snapcast group</string>
     <string name="settings_renderer_output_group_none">No group chosen. Tap to choose a server and a group.</string>
     <string name="settings_renderer_output_group_server">Group on server %1$s. Tap to change.</string>
