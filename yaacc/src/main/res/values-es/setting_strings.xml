@@ -137,6 +137,7 @@
     <string name="settings_snapcast_client_switched_on_title">Conectado al servidor Snapcast</string>
     <string name="settings_snapcast_client_switched_on_summary_on">Este teléfono está conectado a un servidor Snapcast y reproduce como cliente.</string>
     <string name="settings_snapcast_client_switched_on_summary_off">Este teléfono no está conectado a un servidor Snapcast.</string>
+    <string name="settings_snapcast_client_switched_on_summary_waiting">Activado, pero ahora mismo sin conexión con un servidor. Los detalles del cliente dicen por qué.</string>
     <string name="settings_renderer_output_title">Salida</string>
     <string name="settings_renderer_output_summary">El audio se envía sin cifrar al servidor. Cualquier dispositivo que pueda llegar al receptor puede cambiar el volumen y el silencio de todo el grupo. Grupo Snapcast: solo suena el grupo, este teléfono calla; volumen y silencio son los del grupo.</string>
     <string name="settings_renderer_output_device">Este dispositivo</string>

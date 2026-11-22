@@ -1282,6 +1282,38 @@ public class SnapcastConnectionTest {
     }
 
     @Test
+    public void theConnectionOfThePhonesOwnClientKeepsTryingWhereTheDefaultGivesUpAfterFive() throws Exception {
+        ManualScheduler scheduler = new ManualScheduler();
+        FakeServer server = serve(connection -> handshake(connection));
+        Recorder recorder = new Recorder();
+        SnapcastTransportHolder holder = new SnapcastTransportHolder(server, 0);
+        SnapcastConnection connection = connect(holder, de.yaacc.multiroom.client.ClientSession.connectionConfig().readTimeoutMs(25)
+                .connectTimeoutMs(5_000).backoffInitialMs(1000).backoffMaxMs(30_000), new ManualClock(1_000_000), scheduler, recorder);
+        connection.start();
+        recorder.next(ServerSettingsMessage.class);
+        recorder.next(CodecHeaderMessage.class);
+        recorder.next(SnapcastConnection.Loss.class);
+
+        holder.transport.failFromNow(1000);
+        for (int i = 0; i < 40; i++) {
+            scheduler.runNext(); // the server stays away for 40 tries: more than 10 minutes
+        }
+
+        long waitEnd = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+        while (scheduler.pending() == 0 && System.nanoTime() < waitEnd) {
+            Thread.sleep(5); // the last try runs on its own thread and schedules the next one when it has failed
+        }
+        assertNotEquals("the client has not given up", SnapcastConnection.State.GAVE_UP, connection.getState());
+        assertEquals("a try is always scheduled", 1, scheduler.pending());
+        assertEquals("the pause grows to 30 seconds and stays there", Long.valueOf(30_000L), scheduler.delays.get(scheduler.delays.size() - 1));
+        assertNull("no report of a give-up", recorder.events.poll());
+        // the server is back: the next try connects
+        holder.transport.failFromNow(0);
+        scheduler.runNext();
+        recorder.next(ServerSettingsMessage.class);
+    }
+
+    @Test
     public void aServerThatComesBackIsFoundAgainAndItsNextLossIsReportedAgain() throws Exception {
         ManualScheduler scheduler = new ManualScheduler();
         FakeServer server = serve(connection -> handshake(connection));

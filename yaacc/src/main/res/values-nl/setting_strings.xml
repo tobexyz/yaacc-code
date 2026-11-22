@@ -137,6 +137,7 @@
     <string name="settings_snapcast_client_switched_on_title">Verbonden met de Snapcast-server</string>
     <string name="settings_snapcast_client_switched_on_summary_on">Deze telefoon is verbonden met een Snapcast-server en speelt als client.</string>
     <string name="settings_snapcast_client_switched_on_summary_off">Deze telefoon is niet verbonden met een Snapcast-server.</string>
+    <string name="settings_snapcast_client_switched_on_summary_waiting">Ingeschakeld, maar op dit moment niet met een server verbonden. De clientdetails zeggen waarom.</string>
     <string name="settings_renderer_output_title">Uitvoer</string>
     <string name="settings_renderer_output_summary">De audio wordt onversleuteld naar de server gestuurd. Elk apparaat dat de ontvanger kan bereiken, kan het volume en het dempen van de hele groep wijzigen. Snapcast-groep: alleen de groep speelt, deze telefoon is stil; volume en dempen zijn die van de groep.</string>
     <string name="settings_renderer_output_device">Dit apparaat</string>

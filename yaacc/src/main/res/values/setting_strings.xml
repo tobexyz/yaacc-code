@@ -186,6 +186,7 @@
     <string name="settings_snapcast_client_switched_on_title">Connected to the Snapcast server</string>
     <string name="settings_snapcast_client_switched_on_summary_on">This phone is connected to a Snapcast server and plays as a client.</string>
     <string name="settings_snapcast_client_switched_on_summary_off">This phone is not connected to a Snapcast server.</string>
+    <string name="settings_snapcast_client_switched_on_summary_waiting">Switched on, but not connected to a server right now. The client details say why.</string>
     <string name="settings_snapcast_client_switched_on" translatable="false">settings_snapcast_client_switched_on</string>
     <string name="settings_snapcast_client" translatable="false">settings_snapcast_client</string>
     <string name="settings_snapcast_client_open" translatable="false">settings_snapcast_client_open</string>
