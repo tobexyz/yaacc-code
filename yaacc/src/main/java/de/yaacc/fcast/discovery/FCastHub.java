@@ -229,6 +229,25 @@ public final class FCastHub implements FCastReceiverSource {
             }
 
             @Override
+            public List<FCastSubnet> localSubnets() {
+                List<FCastSubnet> subnets = new java.util.ArrayList<>();
+                try {
+                    // the interface the app uses (its setting, else the first usable one): a receiver on the same network is reached through it
+                    de.yaacc.util.InterfaceResolutionHelper.InterfaceHolder holder = de.yaacc.util.InterfaceResolutionHelper.getNetworkInterface(context);
+                    if (holder != null && holder.networkInterface != null) {
+                        for (java.net.InterfaceAddress address : holder.networkInterface.getInterfaceAddresses()) {
+                            if (address.getAddress() != null && !address.getAddress().isLoopbackAddress()) {
+                                subnets.add(new FCastSubnet(address.getAddress(), address.getNetworkPrefixLength()));
+                            }
+                        }
+                    }
+                } catch (RuntimeException unreadable) {
+                    // no networks known: the addresses are tried in the order of the link
+                }
+                return subnets;
+            }
+
+            @Override
             public List<Boolean> answersAll(List<FCastEndpoint> endpoints) {
                 // all at the same time: the answer takes as long as the slowest timeout, not the sum of them
                 final List<Boolean> results = new java.util.ArrayList<>();

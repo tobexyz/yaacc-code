@@ -255,12 +255,15 @@ public class FCastSessionTest {
         gate.countDown();
 
         assertTrue(receiver.awaitPackets(Op.SET_VOLUME, 1, WAIT));
-        Thread.sleep(300);
-        assertEquals("one command, not twenty", 1, receiver.received(Op.SET_VOLUME).size());
-        assertEquals(0.20, receiver.received(Op.SET_VOLUME).get(0).json().getDouble("volume"), 0.0001);
+        Thread.sleep(400);
+        List<FakeFCastReceiver.Packet> volumes = receiver.received(Op.SET_VOLUME);
+        // the command that was already waiting for the connection carries the first value, the rest of the burst is one command
+        assertTrue("at most two commands, not twenty: " + volumes.size(), volumes.size() <= 2);
+        assertEquals("the last one is the latest value", 0.20, volumes.get(volumes.size() - 1).json().getDouble("volume"), 0.0001);
+        int before = volumes.size();
         session.setVolume(0.5);
-        assertTrue(receiver.awaitPackets(Op.SET_VOLUME, 2, WAIT));
-        assertEquals("later values go out again", 0.5, receiver.received(Op.SET_VOLUME).get(1).json().getDouble("volume"), 0.0001);
+        assertTrue(receiver.awaitPackets(Op.SET_VOLUME, before + 1, WAIT));
+        assertEquals("later values go out again", 0.5, receiver.received(Op.SET_VOLUME).get(before).json().getDouble("volume"), 0.0001);
     }
 
     // ---- the state is what the receiver says

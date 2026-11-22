@@ -227,6 +227,106 @@ public class FCastAddReceiverTest {
         assertEquals("the first address of the link that answers, not the fastest", "10.0.0.7:46899|FCast-pc", stored.get(0));
     }
 
+    /** An environment that records which groups of addresses were asked for, with the phone on 192.168.0.0/24. */
+    private FCastAddReceiver nearFirst(List<List<String>> asked) {
+        return new FCastAddReceiver(new FCastAddReceiver.Environment() {
+            @Override
+            public List<FCastDirectory.Entry> receivers() {
+                return new ArrayList<>();
+            }
+
+            @Override
+            public boolean answers(FCastEndpoint endpoint) {
+                throw new AssertionError("answersAll is used");
+            }
+
+            @Override
+            public List<FCastSubnet> localSubnets() {
+                try {
+                    return Collections.singletonList(new FCastSubnet(InetAddress.getByAddress(parse("192.168.0.57")), 24));
+                } catch (java.net.UnknownHostException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+
+            @Override
+            public List<Boolean> answersAll(List<FCastEndpoint> endpoints) {
+                List<String> group = new ArrayList<>();
+                List<Boolean> results = new ArrayList<>();
+                for (FCastEndpoint endpoint : endpoints) {
+                    group.add(endpoint.toString());
+                    results.add(reachable.contains(endpoint.toString()));
+                }
+                asked.add(group);
+                return results;
+            }
+
+            @Override
+            public InetAddress lookup(String host) throws IOException {
+                throw new IOException("unused");
+            }
+
+            @Override
+            public FCastStoredReceivers.AddResult store(FCastEndpoint endpoint, String name) {
+                stored.add(endpoint + "|" + name);
+                return FCastStoredReceivers.AddResult.ADDED;
+            }
+
+            @Override
+            public boolean isDiscoveryRunning() {
+                return false;
+            }
+
+            @Override
+            public void pause(long millis) {
+            }
+        });
+    }
+
+    private static String sixAddressLink() {
+        return link("{\"name\":\"FCast-pc\",\"addresses\":[\"172.19.0.1\",\"192.168.122.1\",\"172.20.0.1\",\"172.18.0.1\",\"172.17.0.1\",\"192.168.0.239\"],"
+                + "\"services\":[{\"port\":46899,\"type\":0}]}");
+    }
+
+    @Test
+    public void theAddressesOnTheNetworkOfThePhoneAreTriedFirstAndTheOthersOnlyIfNoneAnswers() {
+        reachable.add("192.168.0.239:46899");
+        reachable.add("172.19.0.1:46899"); // would answer too, but is not asked
+        List<List<String>> asked = new ArrayList<>();
+
+        FCastAddReceiver.Result result = nearFirst(asked).add(sixAddressLink());
+
+        assertEquals(Outcome.ADDED, result.getOutcome());
+        assertEquals("only the address of the phone's network was asked", Collections.singletonList(Collections.singletonList("192.168.0.239:46899")), asked);
+        assertEquals("192.168.0.239:46899|FCast-pc", stored.get(0));
+    }
+
+    @Test
+    public void whenNoNearAddressAnswersTheOthersAreTriedInTheOrderOfTheLink() {
+        reachable.add("172.20.0.1:46899");
+        reachable.add("172.18.0.1:46899");
+        List<List<String>> asked = new ArrayList<>();
+
+        FCastAddReceiver.Result result = nearFirst(asked).add(sixAddressLink());
+
+        assertEquals(Outcome.ADDED, result.getOutcome());
+        assertEquals(2, asked.size());
+        assertEquals(Collections.singletonList("192.168.0.239:46899"), asked.get(0));
+        assertEquals(Arrays.asList("172.19.0.1:46899", "192.168.122.1:46899", "172.20.0.1:46899", "172.18.0.1:46899", "172.17.0.1:46899"), asked.get(1));
+        assertEquals("the first of the link among those that answer", "172.20.0.1:46899|FCast-pc", stored.get(0));
+    }
+
+    @Test
+    public void whenNothingAnswersAllSixWereTried() {
+        List<List<String>> asked = new ArrayList<>();
+
+        FCastAddReceiver.Result result = nearFirst(asked).add(sixAddressLink());
+
+        assertEquals(Outcome.UNREACHABLE, result.getOutcome());
+        assertEquals(6, result.getTriedAddresses());
+        assertEquals(2, asked.size());
+    }
+
     @Test
     public void aConnectionUrlWhoseAddressesAllFailIsNotAddedAndSaysSo() {
         String text = link("{\"name\":\"FCast-pc\",\"addresses\":[\"192.168.0.239\",\"10.0.0.7\"],\"services\":[{\"port\":46899,\"type\":0}]}");

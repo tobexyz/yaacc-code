@@ -77,6 +77,11 @@ public final class FCastAddReceiver {
         /** The system's name lookup; throws if the name is unknown or the lookup is too slow. */
         InetAddress lookup(String host) throws IOException;
 
+        /** The networks of the phone's network interface; the addresses of a link that are in one of them are tried first. Empty if unknown. */
+        default List<FCastSubnet> localSubnets() {
+            return Collections.emptyList();
+        }
+
         /** Stores a receiver added by hand. */
         FCastStoredReceivers.AddResult store(FCastEndpoint endpoint, String name);
 
@@ -193,16 +198,28 @@ public final class FCastAddReceiver {
             result.linkProblem = parsed.getProblem();
             return result;
         }
-        List<FCastEndpoint> endpoints = parsed.getParsed().getEndpoints();
-        List<Boolean> answered = environment.answersAll(endpoints);
-        // the first address of the link that answers, in the order of the link
-        for (int i = 0; i < endpoints.size() && i < answered.size(); i++) {
-            if (Boolean.TRUE.equals(answered.get(i))) {
-                return store(endpoints.get(i), parsed.getParsed().getName());
+        List<FCastEndpoint> all = parsed.getParsed().getEndpoints();
+        // the receiver is normally on the network the phone uses: its addresses of that network first, the others (a virtual network of
+        // its computer, another interface) only if none of those answers
+        List<FCastSubnet> subnets = environment.localSubnets();
+        List<FCastEndpoint> near = FCastSubnet.inside(subnets, all);
+        List<FCastEndpoint> far = FCastSubnet.outside(subnets, all);
+        int tried = 0;
+        for (List<FCastEndpoint> group : java.util.Arrays.asList(near, far)) {
+            if (group.isEmpty()) {
+                continue;
+            }
+            tried += group.size();
+            List<Boolean> answered = environment.answersAll(group);
+            // the first address of the link that answers, in the order of the link
+            for (int i = 0; i < group.size() && i < answered.size(); i++) {
+                if (Boolean.TRUE.equals(answered.get(i))) {
+                    return store(group.get(i), parsed.getParsed().getName());
+                }
             }
         }
         Result result = new Result(Outcome.UNREACHABLE);
-        result.triedAddresses = endpoints.size();
+        result.triedAddresses = tried;
         return result;
     }
 
