@@ -1344,6 +1344,14 @@ final class ReceiverRowBinder {
         if (isLocalDevice(device) || device instanceof SnapcastGroupDevice
                 || device instanceof de.yaacc.fcast.discovery.FCastReceiverDevice) {
             Player player = primaryPlayer(device);
+            if (player == null && device instanceof de.yaacc.fcast.discovery.FCastReceiverDevice) {
+                // no player of this app: the receiver plays what another sender started (a second YAACC, the receiver's own app)
+                fcastRows.controlWithoutPlayer((de.yaacc.fcast.discovery.FCastReceiverDevice) device,
+                        ACTION_PLAY.equals(action) ? de.yaacc.fcast.FCastCardTransport.Action.PLAY
+                                : ACTION_PAUSE.equals(action) ? de.yaacc.fcast.FCastCardTransport.Action.PAUSE
+                                : de.yaacc.fcast.FCastCardTransport.Action.STOP);
+                return;
+            }
             if (player == null) return;
 
             switch (action) {

@@ -24,6 +24,7 @@ import android.view.View;
 import android.widget.SeekBar;
 
 import de.yaacc.R;
+import de.yaacc.fcast.FCastCardTransport;
 import de.yaacc.fcast.FCastReceiverLinks;
 import de.yaacc.fcast.FCastRowText;
 import de.yaacc.fcast.discovery.FCastHub;
@@ -194,6 +195,36 @@ final class FCastRowBinder {
         }
         try {
             link.getSession().setVolume(Math.max(0, Math.min(100, percent)) / 100.0);
+        } finally {
+            link.close();
+        }
+    }
+
+    /**
+     * A button of the card when no player of this app plays to the receiver (another sender started the playback): the command goes
+     * through a link that is opened for it and given back at once, so the connection stays a little longer and the card then shows the
+     * receiver's state. What is sent is decided by {@link FCastCardTransport}.
+     */
+    void controlWithoutPlayer(FCastReceiverDevice device, FCastCardTransport.Action action) {
+        FCastReceiverLinks.Link link = FCastHub.getShared(context).links().open(device.getEndpoint());
+        if (link == null) {
+            return; // too many receivers are open at once
+        }
+        try {
+            FCastSession session = link.getSession();
+            switch (FCastCardTransport.commandFor(action, session.getState().getPlayback())) {
+                case RESUME:
+                    session.resume();
+                    break;
+                case PAUSE:
+                    session.pause();
+                    break;
+                case STOP:
+                    session.stop();
+                    break;
+                default:
+                    break;
+            }
         } finally {
             link.close();
         }
