@@ -21,6 +21,7 @@ package org.fourthline.cling.support.contentdirectory;
 public enum ContentDirectoryErrorCode {
 	
 	NO_SUCH_OBJECT(701, "The specified ObjectID is invalid"),
+	UNSUPPORTED_SEARCH_CRITERIA(708, "Unsupported or invalid search criteria"),
 	UNSUPPORTED_SORT_CRITERIA(709, "Unsupported or invalid sort criteria"),
     CANNOT_PROCESS(720, "Cannot process the request");
 

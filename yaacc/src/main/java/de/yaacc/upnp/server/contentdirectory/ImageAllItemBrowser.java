@@ -52,10 +52,7 @@ public class ImageAllItemBrowser extends ContentBrowser {
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         Item result = null;
-        String[] projection = {MediaStore.Images.Media._ID,
-                MediaStore.Images.Media.DISPLAY_NAME,
-                MediaStore.Images.Media.MIME_TYPE, MediaStore.Images.Media.SIZE,
-                MediaStore.Images.Media.DATE_TAKEN};
+        String[] projection = projection();
         // only an image in the media paths: the id is a consecutive number any host of the network can count through
         String selection = MediaStore.Images.Media._ID + "=? and (" + makeLikeClause(MediaStore.Images.Media.DATA, getMediaPathes().size()) + ")";
         List<String> selectionArgsList = new ArrayList<>();
@@ -70,48 +67,63 @@ public class ImageAllItemBrowser extends ContentBrowser {
 
             if (mImageCursor != null && mImageCursor.getCount() > 0) {
                 mImageCursor.moveToFirst();
-                @SuppressLint("Range") String id = mImageCursor.getString(mImageCursor
-                        .getColumnIndex(MediaStore.Images.ImageColumns._ID));
-                @SuppressLint("Range") String name = mImageCursor
-                        .getString(mImageCursor
-                                .getColumnIndex(MediaStore.Images.ImageColumns.DISPLAY_NAME));
-                @SuppressLint("Range") Long size = Long.valueOf(mImageCursor.getString(mImageCursor
-                        .getColumnIndex(MediaStore.Images.ImageColumns.SIZE)));
-                @SuppressLint("Range") String dateTakenStr = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN));
-                @SuppressLint("Range") Long dateTaken = dateTakenStr != null ? Long.valueOf(dateTakenStr) : null;
-                @SuppressLint("Range") String mimeTypeSTring = mImageCursor.getString(mImageCursor
-                        .getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE));
-                YaaccLogger.d(getClass().getName(),
-                        "Mimetype: "
-                                + mimeTypeSTring);
-                MimeType mimeType = MimeType
-                        .valueOf(mimeTypeSTring);
-                // file parameter only needed for media players which decide the
-                // ability of playing a file by the file extension
-                String uri = "http://" + contentDirectory.getIpAddress() + ":"
-                        + YaaccUpnpServerService.PORT + "/?id=" + id + "&f=file." + MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType.toString());
-                String albumArtUri = "http://" + contentDirectory.getIpAddress() + ":"
-                        + YaaccUpnpServerService.PORT + "/thumb/" + id;
-                
-                result = createPhoto(
-                    ContentDirectoryIDs.IMAGE_ALL_PREFIX.getId() + id,
-                    ContentDirectoryIDs.IMAGES_FOLDER.getId(),
-                    name,
-                    "",
-                    false,
-                    mimeType,
-                    uri,
-                    size,
-                    albumArtUri,
-                    dateTaken
-                );
-
-                YaaccLogger.d(getClass().getName(), "Image: " + id + " Name: " + name
-                        + " uri: " + uri);
+                result = itemFrom(contentDirectory, mImageCursor);
             } else {
                 YaaccLogger.d(getClass().getName(), "Item " + myId + "  not found.");
             }
         }
+        return result;
+    }
+
+    /** The columns an item is built from. */
+    static String[] projection() {
+        return new String[]{MediaStore.Images.Media._ID,
+                MediaStore.Images.Media.DISPLAY_NAME,
+                MediaStore.Images.Media.MIME_TYPE, MediaStore.Images.Media.SIZE,
+                MediaStore.Images.Media.DATE_TAKEN};
+    }
+
+    /** The item of the row the cursor is on (the columns of {@link #projection()}); the same for a browse and for a search. */
+    Item itemFrom(YaaccContentDirectory contentDirectory, Cursor mImageCursor) {
+        Item result;
+        @SuppressLint("Range") String id = mImageCursor.getString(mImageCursor
+                .getColumnIndex(MediaStore.Images.ImageColumns._ID));
+        @SuppressLint("Range") String name = mImageCursor
+                .getString(mImageCursor
+                        .getColumnIndex(MediaStore.Images.ImageColumns.DISPLAY_NAME));
+        @SuppressLint("Range") Long size = Long.valueOf(mImageCursor.getString(mImageCursor
+                .getColumnIndex(MediaStore.Images.ImageColumns.SIZE)));
+        @SuppressLint("Range") String dateTakenStr = mImageCursor.getString(mImageCursor.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN));
+        @SuppressLint("Range") Long dateTaken = dateTakenStr != null ? Long.valueOf(dateTakenStr) : null;
+        @SuppressLint("Range") String mimeTypeSTring = mImageCursor.getString(mImageCursor
+                .getColumnIndex(MediaStore.Images.ImageColumns.MIME_TYPE));
+        YaaccLogger.d(getClass().getName(),
+                "Mimetype: "
+                        + mimeTypeSTring);
+        MimeType mimeType = MimeType
+                .valueOf(mimeTypeSTring);
+        // file parameter only needed for media players which decide the
+        // ability of playing a file by the file extension
+        String uri = "http://" + contentDirectory.getIpAddress() + ":"
+                + YaaccUpnpServerService.PORT + "/?id=" + id + "&f=file." + MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType.toString());
+        String albumArtUri = "http://" + contentDirectory.getIpAddress() + ":"
+                + YaaccUpnpServerService.PORT + "/thumb/" + id;
+        
+        result = createPhoto(
+            ContentDirectoryIDs.IMAGE_ALL_PREFIX.getId() + id,
+            ContentDirectoryIDs.IMAGES_FOLDER.getId(),
+            name,
+            "",
+            false,
+            mimeType,
+            uri,
+            size,
+            albumArtUri,
+            dateTaken
+        );
+
+        YaaccLogger.d(getClass().getName(), "Image: " + id + " Name: " + name
+                + " uri: " + uri);
         return result;
     }
 
