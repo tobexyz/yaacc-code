@@ -26,6 +26,7 @@ import de.yaacc.util.YaaccLogger;
 
 import androidx.preference.PreferenceManager;
 
+import de.yaacc.upnp.search.SearchExpression;
 import org.fourthline.cling.binding.annotations.UpnpAction;
 import org.fourthline.cling.binding.annotations.UpnpInputArgument;
 import org.fourthline.cling.binding.annotations.UpnpOutputArgument;
@@ -84,6 +85,7 @@ import de.yaacc.util.SafBrowseGate;
         @UpnpStateVariable(name = "A_ARG_TYPE_ObjectID", sendEvents = false, datatype = "string"),
         @UpnpStateVariable(name = "A_ARG_TYPE_Result", sendEvents = false, datatype = "string"),
         @UpnpStateVariable(name = "A_ARG_TYPE_BrowseFlag", sendEvents = false, datatype = "string", allowedValuesEnum = BrowseFlag.class),
+        @UpnpStateVariable(name = "A_ARG_TYPE_SearchCriteria", sendEvents = false, datatype = "string"),
         @UpnpStateVariable(name = "A_ARG_TYPE_Filter", sendEvents = false, datatype = "string"),
         @UpnpStateVariable(name = "A_ARG_TYPE_SortCriteria", sendEvents = false, datatype = "string"),
         @UpnpStateVariable(name = "A_ARG_TYPE_Index", sendEvents = false, datatype = "ui4"),
@@ -123,6 +125,9 @@ public class YaaccContentDirectory {
             createTestContentDirectory();
         }
         this.searchCapabilities = new CSVString();
+        for (String property : ContentSearch.capabilities().split(",")) {
+            this.searchCapabilities.add(property);
+        }
         this.sortCapabilities = new CSVString();
         this.sortCapabilities.add(SortSupport.PROPERTY_TITLE);
         this.sortCapabilities.add(SortSupport.PROPERTY_DATE);
@@ -357,6 +362,64 @@ public class YaaccContentDirectory {
         }
     }
 
+    /**
+     * The Search action (issue #336): the music, videos and images of the media store inside the media paths whose properties match
+     * the criteria; the container only says where the search starts (the root searches everything). The files of the SAF folders are
+     * not searched.
+     */
+    @UpnpAction(out = {
+            @UpnpOutputArgument(name = "Result", stateVariable = "A_ARG_TYPE_Result", getterName = "getResult"),
+            @UpnpOutputArgument(name = "NumberReturned", stateVariable = "A_ARG_TYPE_Count", getterName = "getCount"),
+            @UpnpOutputArgument(name = "TotalMatches", stateVariable = "A_ARG_TYPE_Count", getterName = "getTotalMatches"),
+            @UpnpOutputArgument(name = "UpdateID", stateVariable = "A_ARG_TYPE_UpdateID", getterName = "getContainerUpdateID")})
+    public BrowseResult search(
+            @UpnpInputArgument(name = "ContainerID", stateVariable = "A_ARG_TYPE_ObjectID") String containerId,
+            @UpnpInputArgument(name = "SearchCriteria", stateVariable = "A_ARG_TYPE_SearchCriteria") String searchCriteria,
+            @UpnpInputArgument(name = "Filter") String filter,
+            @UpnpInputArgument(name = "StartingIndex", stateVariable = "A_ARG_TYPE_Index") UnsignedIntegerFourBytes firstResult,
+            @UpnpInputArgument(name = "RequestedCount", stateVariable = "A_ARG_TYPE_Count") UnsignedIntegerFourBytes maxResults,
+            @UpnpInputArgument(name = "SortCriteria") String orderBy)
+            throws ContentDirectoryException {
+        SortCriterion[] orderByCriteria;
+        try {
+            orderByCriteria = SortCriterion.valueOf(orderBy);
+        } catch (Exception ex) {
+            throw new ContentDirectoryException(ContentDirectoryErrorCode.UNSUPPORTED_SORT_CRITERIA, ex.toString());
+        }
+        SortSupport.validateSupported(orderByCriteria);
+        SearchExpression.Node criteria;
+        try {
+            criteria = SearchExpression.parse(searchCriteria);
+        } catch (SearchExpression.InvalidSearchException ex) {
+            throw new ContentDirectoryException(ContentDirectoryErrorCode.UNSUPPORTED_SEARCH_CRITERIA, ex.getMessage());
+        }
+        YaaccLogger.d(getClass().getName(), "Search: containerId: " + containerId + " criteria: " + searchCriteria
+                + " firstResult: " + firstResult.getValue() + " maxResults: " + maxResults.getValue());
+        try {
+            DIDLContent didl = new DIDLContent();
+            long returned = 0L;
+            long total = 0L;
+            if (!isUsingTestContent()) { // the test content is a fixed tree for browsing: nothing to search in
+                long requested = maxResults.getValue() == 0 ? Long.MAX_VALUE : maxResults.getValue();
+                ContentSearch.Result found = new ContentSearch(this).search(containerId, criteria, firstResult.getValue(), requested, orderByCriteria);
+                for (DIDLObject object : found.page) {
+                    didl.addObject(object);
+                    returned++;
+                }
+                total = found.total;
+            }
+            return toBrowseResult(didl, returned, total);
+        } catch (SearchExpression.InvalidSearchException ex) {
+            // a property or an operator that this server does not search by
+            throw new ContentDirectoryException(ContentDirectoryErrorCode.UNSUPPORTED_SEARCH_CRITERIA, ex.getMessage());
+        } catch (ContentDirectoryException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            YaaccLogger.d(getClass().getName(), "exception on search", ex);
+            throw new ContentDirectoryException(ErrorCode.ACTION_FAILED, ex.toString());
+        }
+    }
+
     public BrowseResult browse(String objectID, BrowseFlag browseFlag,
                                String filter, long firstResult, long maxResults,
                                SortCriterion[] orderby) throws ContentDirectoryException {
@@ -439,37 +502,41 @@ public class YaaccContentDirectory {
 
                 }
             }
-            BrowseResult result;
-            try {
-                long didlStart = System.nanoTime();
-                // a big answer (a folder of thousands of files) is written directly, the DOM and the XML transformer of
-                // the platform need seconds for it; anything the direct writer does not know goes the DOM way as before
-                String didlXml = didl.getCount() >= DidlWriter.MIN_OBJECTS ? DidlWriter.write(didl) : null;
-                boolean direct = didlXml != null;
-                if (!direct) {
-                    // Generate output with nested items
-                    didlXml = new DIDLParser().generate(didl, false);
-                }
-                if (YaaccLogger.isDebug()) {
-                    YaaccLogger.d(getClass().getName(), "CDS didl " + didl.getCount() + " items " + DidlWriter.utf8Length(didlXml)
-                            + " bytes in " + (System.nanoTime() - didlStart) / 1_000_000L + " ms (" + (direct ? "direct" : "dom") + ")");
-                }
-                // the full XML of a page of a big folder is long: only at verbose level
-                YaaccLogger.d(getClass().getName(), "CDResponse: " + didlXml.length() + " characters");
-                if (YaaccLogger.isVerbose()) {
-                    YaaccLogger.v(getClass().getName(), "CDResponse: " + didlXml);
-                }
-                result = new BrowseResult(didlXml, childCount, totalMatches);
-            } catch (Exception e) {
-                throw new ContentDirectoryException(
-                        ContentDirectoryErrorCode.CANNOT_PROCESS.getCode(),
-                        "Error while generating BrowseResult", e);
-            }
+            BrowseResult result = toBrowseResult(didl, childCount, totalMatches);
             return result;
         } finally {
             if (browseGate != null) {
                 browseGate.exit();
             }
+        }
+    }
+
+    /** The answer of a Browse or a Search: the objects as DIDL-Lite (a big answer is written directly, see {@link DidlWriter}). */
+    private BrowseResult toBrowseResult(DIDLContent didl, long childCount, long totalMatches) throws ContentDirectoryException {
+        try {
+            long didlStart = System.nanoTime();
+            // a big answer (a folder of thousands of files) is written directly, the DOM and the XML transformer of
+            // the platform need seconds for it; anything the direct writer does not know goes the DOM way as before
+            String didlXml = didl.getCount() >= DidlWriter.MIN_OBJECTS ? DidlWriter.write(didl) : null;
+            boolean direct = didlXml != null;
+            if (!direct) {
+                // Generate output with nested items
+                didlXml = new DIDLParser().generate(didl, false);
+            }
+            if (YaaccLogger.isDebug()) {
+                YaaccLogger.d(getClass().getName(), "CDS didl " + didl.getCount() + " items " + DidlWriter.utf8Length(didlXml)
+                        + " bytes in " + (System.nanoTime() - didlStart) / 1_000_000L + " ms (" + (direct ? "direct" : "dom") + ")");
+            }
+            // the full XML of a page of a big folder is long: only at verbose level
+            YaaccLogger.d(getClass().getName(), "CDResponse: " + didlXml.length() + " characters");
+            if (YaaccLogger.isVerbose()) {
+                YaaccLogger.v(getClass().getName(), "CDResponse: " + didlXml);
+            }
+            return new BrowseResult(didlXml, childCount, totalMatches);
+        } catch (Exception e) {
+            throw new ContentDirectoryException(
+                    ContentDirectoryErrorCode.CANNOT_PROCESS.getCode(),
+                    "Error while generating BrowseResult", e);
         }
     }
 

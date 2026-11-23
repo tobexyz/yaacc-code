@@ -706,6 +706,8 @@ gallery outside them gets "no such object" (and no thumbnail or cover), and a me
 the name is no wildcard). A folder you deselect in *SAF content* is no longer listed or sent, also not to a client that
 remembers its ids.
 
+**Search.** The server answers the UPnP *Search* action (and *GetSearchCapabilities*), so a control point can search it, YAACC's own search among them. The media store is searched (the music, the videos and the images inside the media paths); the container only says where the search starts: the root (`0`) searches everything, the *Music*, *Videos* and *Images* folders (and their *All ...* folders) that kind of items only, any other container (an album, a gallery, a SAF folder) finds nothing. The properties are `dc:title` (the title and the file name of a song, the file name of a video or an image), `dc:creator` and `upnp:artist`, `upnp:album`, `upnp:genre` (Android 11 and newer) and `upnp:class`, with `contains`, `doesNotContain`, `=`, `!=`, `exists` (and `derivedfrom` for the class), combined with `and`, `or` and brackets, or `*` for everything. The results are the music, then the videos, then the images (sorted by title, or as asked, by `dc:title` or `dc:date`), and a client can ask for them page by page. Criteria the server does not understand or does not search by (another property, `<` or `>`) are refused with the UPnP error 708. The text is compared without regard to the case for the letters A to Z only (the comparison of the media store). **Not searched:** the files of the added SAF folders.
+
 ![server_control](./screenshots/6.0.x/server_control.png){:height="30%" width="30%"}
 
 The server control view is accessible through the settings button next to the server

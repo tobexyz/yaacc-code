@@ -52,6 +52,30 @@ public class MusicAllTitleItemBrowser extends ContentBrowser {
     public DIDLObject browseMeta(YaaccContentDirectory contentDirectory,
                                  String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         Item result = null;
+        String[] projection = projection();
+        String selection = "(" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ") and " + MediaStore.Audio.Media._ID + "=? ";
+        List<String> selectionArgsList = getMediaPathesForLikeClause();
+        selectionArgsList.add(myId.substring(ContentDirectoryIDs.MUSIC_ALL_TITLES_ITEM_PREFIX.getId()
+                .length()));
+        String[] selectionArgs = selectionArgsList.toArray(new String[0]);
+
+        try (Cursor mediaCursor = contentDirectory
+                .getContext()
+                .getContentResolver()
+                .query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection,
+                        selection, selectionArgs, null)) {
+
+            if (mediaCursor != null && mediaCursor.getCount() > 0 && mediaCursor.moveToFirst()) {
+                result = itemFrom(contentDirectory, mediaCursor);
+            } else {
+                YaaccLogger.d(getClass().getName(), "Item " + myId + "  not found.");
+            }
+        }
+        return result;
+    }
+
+    /** The columns an item is built from. */
+    static String[] projection() {
         String[] projection;
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             projection = new String[]{MediaStore.Audio.Media._ID,
@@ -76,115 +100,104 @@ public class MusicAllTitleItemBrowser extends ContentBrowser {
                     MediaStore.Audio.Media.ARTIST,
                     MediaStore.Audio.Media.DURATION};
         }
-        String selection = "(" + makeLikeClause(MediaStore.Audio.Media.DATA, getMediaPathes().size()) + ") and " + MediaStore.Audio.Media._ID + "=? ";
-        List<String> selectionArgsList = getMediaPathesForLikeClause();
-        selectionArgsList.add(myId.substring(ContentDirectoryIDs.MUSIC_ALL_TITLES_ITEM_PREFIX.getId()
-                .length()));
-        String[] selectionArgs = selectionArgsList.toArray(new String[0]);
+        return projection;
+    }
 
-        try (Cursor mediaCursor = contentDirectory
-                .getContext()
-                .getContentResolver()
-                .query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection,
-                        selection, selectionArgs, null)) {
-
-            if (mediaCursor != null && mediaCursor.getCount() > 0 && mediaCursor.moveToFirst()) {
-                @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor
-                        .getColumnIndex(MediaStore.Audio.Media._ID));
-                @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor
-                        .getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME));
-                @SuppressLint("Range") Long size = Long.valueOf(mediaCursor.getString(mediaCursor
-                        .getColumnIndex(MediaStore.Audio.Media.SIZE)));
-                @SuppressLint("Range") String album = mediaCursor.getString(mediaCursor
-                        .getColumnIndex(MediaStore.Audio.Media.ALBUM));
-                @SuppressLint("Range") String albumId = mediaCursor.getString(mediaCursor
-                        .getColumnIndex(MediaStore.Audio.Media.ALBUM_ID));
-                @SuppressLint("Range") String title = mediaCursor.getString(mediaCursor
-                        .getColumnIndex(MediaStore.Audio.Media.TITLE));
-                @SuppressLint("Range") String artist = mediaCursor.getString(mediaCursor
-                        .getColumnIndex(MediaStore.Audio.Media.ARTIST));
-                @SuppressLint("Range") String duration = mediaCursor.getString(mediaCursor
-                        .getColumnIndex(MediaStore.Audio.Media.DURATION));
-                duration = contentDirectory.formatDuration(duration);
-                Integer trackNumber = null;
-                Integer year = null;
-                int trackIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.TRACK);
-                if (trackIdx >= 0) {
-                    trackNumber = mediaCursor.getInt(trackIdx);
-                }
-                int yearIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.YEAR);
-                if (yearIdx >= 0) {
-                    year = mediaCursor.getInt(yearIdx);
-                }
-                YaaccLogger.d(getClass().getName(),
-                        "Mimetype: "
-                                + mediaCursor.getString(mediaCursor
-                                .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
-
-                MimeType mimeType = MimeType.valueOf(mediaCursor
-                        .getString(mediaCursor
-                                .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
-                // file parameter only needed for media players which decide
-                // the ability of playing a file by the file extension
-                String uri = getUriString(contentDirectory, id, mimeType, title, null);
-                URI albumArtUri = URI.create("http://"
-                        + contentDirectory.getIpAddress() + ":"
-                        + YaaccUpnpServerService.PORT + "/album/" + albumId);
-                
-                MusicTrack musicTrack = createMusicTrack(
-                    ContentDirectoryIDs.MUSIC_ALL_TITLES_ITEM_PREFIX.getId() + id,
-                    ContentDirectoryIDs.MUSIC_ALL_TITLES_FOLDER.getId(),
-                    title + "-(" + name + ")",
-                    "",
-                    false,
-                    mimeType,
-                    uri,
-                    size,
-                    duration,
-                    album,
-                    artist,
-                    trackNumber,
-                    year != null && year > 0 ? year + "-01-01" : null,
-                    null,
-                    albumArtUri.toString()
-                );
-
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                    @SuppressLint("Range") String genre = mediaCursor.getString(mediaCursor
-                            .getColumnIndex(MediaStore.Audio.Media.GENRE));
-                    @SuppressLint("Range") String bitrateStr = mediaCursor.getString(mediaCursor
-                            .getColumnIndex(MediaStore.Audio.Media.BITRATE));
-                    Long bitrate = bitrateStr != null ? Long.valueOf(bitrateStr) : null;
-                    // Recreate with genre and bitrate
-                    musicTrack = createMusicTrack(
-                        ContentDirectoryIDs.MUSIC_ALL_TITLES_ITEM_PREFIX.getId() + id,
-                        ContentDirectoryIDs.MUSIC_ALL_TITLES_FOLDER.getId(),
-                        title + "-(" + name + ")",
-                        "",
-                        false,
-                        mimeType,
-                        uri,
-                        size,
-                        duration,
-                        album,
-                        artist,
-                        trackNumber,
-                        year != null && year > 0 ? year + "-01-01" : null,
-                        new String[]{genre},
-                        albumArtUri.toString(),
-                        bitrate
-                    );
-                }
-
-                result = musicTrack;
-                YaaccLogger.d(getClass().getName(), "MusicTrack: " + id + " Name: " + name
-                        + " uri: " + uri + " trackNumber: " + trackNumber + " year: " + year 
-                        + " artist: " + artist + " album: " + album);
-
-            } else {
-                YaaccLogger.d(getClass().getName(), "Item " + myId + "  not found.");
-            }
+    /** The item of the row the cursor is on (the columns of {@link #projection()}); the same for a browse and for a search. */
+    @SuppressLint("Range")
+    Item itemFrom(YaaccContentDirectory contentDirectory, Cursor mediaCursor) {
+        Item result;
+        @SuppressLint("Range") String id = mediaCursor.getString(mediaCursor
+                .getColumnIndex(MediaStore.Audio.Media._ID));
+        @SuppressLint("Range") String name = mediaCursor.getString(mediaCursor
+                .getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME));
+        @SuppressLint("Range") Long size = Long.valueOf(mediaCursor.getString(mediaCursor
+                .getColumnIndex(MediaStore.Audio.Media.SIZE)));
+        @SuppressLint("Range") String album = mediaCursor.getString(mediaCursor
+                .getColumnIndex(MediaStore.Audio.Media.ALBUM));
+        @SuppressLint("Range") String albumId = mediaCursor.getString(mediaCursor
+                .getColumnIndex(MediaStore.Audio.Media.ALBUM_ID));
+        @SuppressLint("Range") String title = mediaCursor.getString(mediaCursor
+                .getColumnIndex(MediaStore.Audio.Media.TITLE));
+        @SuppressLint("Range") String artist = mediaCursor.getString(mediaCursor
+                .getColumnIndex(MediaStore.Audio.Media.ARTIST));
+        @SuppressLint("Range") String duration = mediaCursor.getString(mediaCursor
+                .getColumnIndex(MediaStore.Audio.Media.DURATION));
+        duration = contentDirectory.formatDuration(duration);
+        Integer trackNumber = null;
+        Integer year = null;
+        int trackIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.TRACK);
+        if (trackIdx >= 0) {
+            trackNumber = mediaCursor.getInt(trackIdx);
         }
+        int yearIdx = mediaCursor.getColumnIndex(MediaStore.Audio.Media.YEAR);
+        if (yearIdx >= 0) {
+            year = mediaCursor.getInt(yearIdx);
+        }
+        YaaccLogger.d(getClass().getName(),
+                "Mimetype: "
+                        + mediaCursor.getString(mediaCursor
+                        .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
+
+        MimeType mimeType = MimeType.valueOf(mediaCursor
+                .getString(mediaCursor
+                        .getColumnIndex(MediaStore.Audio.Media.MIME_TYPE)));
+        // file parameter only needed for media players which decide
+        // the ability of playing a file by the file extension
+        String uri = getUriString(contentDirectory, id, mimeType, title, null);
+        URI albumArtUri = URI.create("http://"
+                + contentDirectory.getIpAddress() + ":"
+                + YaaccUpnpServerService.PORT + "/album/" + albumId);
+        
+        MusicTrack musicTrack = createMusicTrack(
+            ContentDirectoryIDs.MUSIC_ALL_TITLES_ITEM_PREFIX.getId() + id,
+            ContentDirectoryIDs.MUSIC_ALL_TITLES_FOLDER.getId(),
+            title + "-(" + name + ")",
+            "",
+            false,
+            mimeType,
+            uri,
+            size,
+            duration,
+            album,
+            artist,
+            trackNumber,
+            year != null && year > 0 ? year + "-01-01" : null,
+            null,
+            albumArtUri.toString()
+        );
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            @SuppressLint("Range") String genre = mediaCursor.getString(mediaCursor
+                    .getColumnIndex(MediaStore.Audio.Media.GENRE));
+            @SuppressLint("Range") String bitrateStr = mediaCursor.getString(mediaCursor
+                    .getColumnIndex(MediaStore.Audio.Media.BITRATE));
+            Long bitrate = bitrateStr != null ? Long.valueOf(bitrateStr) : null;
+            // Recreate with genre and bitrate
+            musicTrack = createMusicTrack(
+                ContentDirectoryIDs.MUSIC_ALL_TITLES_ITEM_PREFIX.getId() + id,
+                ContentDirectoryIDs.MUSIC_ALL_TITLES_FOLDER.getId(),
+                title + "-(" + name + ")",
+                "",
+                false,
+                mimeType,
+                uri,
+                size,
+                duration,
+                album,
+                artist,
+                trackNumber,
+                year != null && year > 0 ? year + "-01-01" : null,
+                new String[]{genre},
+                albumArtUri.toString(),
+                bitrate
+            );
+        }
+
+        result = musicTrack;
+        YaaccLogger.d(getClass().getName(), "MusicTrack: " + id + " Name: " + name
+                + " uri: " + uri + " trackNumber: " + trackNumber + " year: " + year 
+                + " artist: " + artist + " album: " + album);
         return result;
     }
 
