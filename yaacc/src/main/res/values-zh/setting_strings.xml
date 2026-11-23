@@ -148,4 +148,13 @@
     <string name="settings_renderer_output_group_server">服务器 %1$s 上的组。点按以更改。</string>
     <string name="settings_renderer_output_group_named">服务器 %2$s 上的 %1$s。点按以更改。</string>
     <string name="settings_renderer_output_group_damaged">已保存的组已损坏；接收器在此设备上播放。点按以重新选择组。</string>
+    <string name="settings_fcast_category">FCast</string>
+    <string name="settings_fcast_about_title">关于 FCast</string>
+    <string name="settings_fcast_about_summary">YAACC 可以在您网络中的 FCast 接收器上播放。本应用是 FCast 协议的独立社区实现，与 FUTO 无关联。FCast 是 FUTO 的注册商标。</string>
+    <string name="settings_fcast_discovery_title">查找 FCast 接收器</string>
+    <string name="settings_fcast_discovery_summary">在本地网络中查找 FCast 接收器；默认开启。它发送 mDNS 查询并列出每个自行公告的设备。公告未经身份验证：网络中的任何人都可以公告接收器。在您选择接收器之前不会在其上播放任何内容。使用协议版本 3 时数据未加密发送，使用版本 4 时则加密发送（见下）。</string>
+    <string name="settings_fcast_receivers_title">FCast 接收器</string>
+    <string name="settings_fcast_receivers_summary">通过地址、设备名称或连接链接添加接收器，或将其移除</string>
+    <string name="settings_fcast_v4_title">使用加密的版本 4</string>
+    <string name="settings_fcast_v4_summary">在 Android 10 及更高版本上，对于密钥已知的接收器（来自其连接链接或其公告），使用加密的 FCast 版本 4。不匹配的密钥会被拒绝，绝不会改用未加密的版本。关闭此项可始终使用未加密的版本 3，例如某个接收器无法使用版本 4 时。仅通过地址添加的接收器始终使用版本 3。</string>
 </resources>

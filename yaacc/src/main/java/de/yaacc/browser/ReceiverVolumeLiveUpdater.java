@@ -158,6 +158,7 @@ final class ReceiverVolumeLiveUpdater implements VolumeKeyHosts.Host {
         showLocalRows(visible);
 
         showSnapcastRows(visible);
+        showFCastRows(visible);
 
         Map<String, Device<?, ?, ?>> candidates = new LinkedHashMap<>();
         for (Device<?, ?, ?> device : visible.keySet()) {
@@ -182,6 +183,15 @@ final class ReceiverVolumeLiveUpdater implements VolumeKeyHosts.Host {
         for (Map.Entry<Device<?, ?, ?>, ReceiverRowBinder.RowViews> row : visible.entrySet()) {
             if (row.getKey() instanceof de.yaacc.multiroom.SnapcastGroupDevice) {
                 binder.showSnapcast(row.getValue(), (de.yaacc.multiroom.SnapcastGroupDevice) row.getKey());
+            }
+        }
+    }
+
+    /** The FCast receivers: their text and volume come from their player or an open session, both in memory, so every tick shows them again. */
+    private void showFCastRows(Map<Device<?, ?, ?>, ReceiverRowBinder.RowViews> visible) {
+        for (Map.Entry<Device<?, ?, ?>, ReceiverRowBinder.RowViews> row : visible.entrySet()) {
+            if (row.getKey() instanceof de.yaacc.fcast.discovery.FCastReceiverDevice) {
+                binder.showFCast(row.getValue(), (de.yaacc.fcast.discovery.FCastReceiverDevice) row.getKey());
             }
         }
     }

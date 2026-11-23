@@ -202,4 +202,16 @@
     <string name="settings_renderer_output_group_damaged">The stored group is damaged; the receiver plays on this device. Tap to choose the group again.</string>
     <string name="settings_renderer_output" translatable="false">settings_renderer_output</string>
     <string name="settings_renderer_output_group" translatable="false">settings_renderer_output_group</string>
+    <string name="settings_fcast_category">FCast</string>
+    <string name="settings_fcast_about_title">About FCast</string>
+    <string name="settings_fcast_about_summary">YAACC can play to FCast receivers on your network. This application is an independent community implementation of the FCast protocol. It is not affiliated with FUTO. FCast is a registered trademark of FUTO.</string>
+    <string name="settings_fcast_discovery" translatable="false">settings_fcast_discovery</string>
+    <string name="settings_fcast_discovery_title">Find FCast receivers</string>
+    <string name="settings_fcast_discovery_summary">Searches the local network for FCast receivers; on by default. It sends mDNS queries and lists every device that announces itself. Announcements are not authenticated: anyone on the network can announce a receiver. Nothing is played to a receiver before you choose it. Data is sent unencrypted with protocol version 3 and encrypted with version 4 (see below).</string>
+    <string name="settings_fcast_receivers" translatable="false">settings_fcast_receivers</string>
+    <string name="settings_fcast_receivers_title">FCast receivers</string>
+    <string name="settings_fcast_receivers_summary">Add a receiver by address, device name or connection link, or remove it</string>
+    <string name="settings_fcast_v4" translatable="false">settings_fcast_v4</string>
+    <string name="settings_fcast_v4_title">Use the encrypted version 4</string>
+    <string name="settings_fcast_v4_summary">On Android 10 or later, a receiver whose key is known (from its connection link or its announcement) is spoken to in the encrypted FCast version 4. A key that does not match is refused, never answered with the unencrypted version. Turn this off to always use the unencrypted version 3, for example if a receiver does not work with version 4. A receiver that was added only by its address is always spoken to in version 3.</string>
 </resources>

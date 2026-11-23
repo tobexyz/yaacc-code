@@ -339,7 +339,7 @@ public class TabBrowserActivity extends AppCompatActivity implements OnClickList
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         // A Snapcast group on screen that has the focus or was touched last takes the volume keys (11.4); otherwise the system
         // handles them and shows its standard volume UI
-        if (VolumeKeyHosts.onKeyDown(keyCode)) {
+        if (VolumeKeyHosts.onKeyDown(keyCode, this, upnpClient == null ? null : upnpClient.getCurrentPlayers())) {
             return true;
         }
         return super.onKeyDown(keyCode, event);

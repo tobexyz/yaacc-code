@@ -18,6 +18,7 @@ layout: default
 * Link Yamaha MusicCast devices into a group, set the group volume, control their own sources (now playing, tuner, presets) and change device settings, see [MusicCast devices](#musiccast-devices)
 * Play music on OpenHome devices, which keep the playlist themselves, and let OpenHome control points play on YAACC, see [OpenHome](#openhome)
 * Control Snapcast multi-room servers (each group is a receiver: group volume and mute, per-client volume, latency and name, the stream of a group, linking and unlinking clients), play music from the phone to a Snapcast group, let the YAACC renderer play into a group, and use the phone itself as a Snapcast client (PCM and FLAC), see [Snapcast](#snapcast)
+* Play music, video and pictures on FCast receivers (found by mDNS or added by address, device name, connection link or the QR code of a receiver), see [FCast](#fcast)
 * Power buttons on the cards of MusicCast devices, OpenHome devices, the app's own OpenHome renderer and the phone's own Snapcast client, see [The row](#the-row), [OpenHome](#openhome) and [Snapcast](#snapcast)
 * Allow download files to the device
 * Share a link (http or https) or one audio, video or image file from another app to YAACC and play it on the receivers you pick, see [Sharing to YAACC](#sharing-to-yaacc)
@@ -607,6 +608,56 @@ For development there is a Docker setup with one snapserver and two snapclients 
 
 Snapcast is free software under the GNU General Public License version 3 or, at your option, any later version. YAACC contains no Snapcast code: the control client is written from Snapcast's published documentation and behaviour, and the test rig builds the upstream sources at a fixed version when you start it. Snapcast is the name of an open source project of its authors; YAACC is an independent project and is not affiliated with, authorized or endorsed by the Snapcast project or its authors. The name is used only to say which servers YAACC works with, as plain text: YAACC does not show the Snapcast logo or icon, because it is not settled whether third-party apps may use it.
 
+## FCast
+
+[FCast](https://fcast.org) is an open casting protocol of FUTO with receivers for Android TV, phones and computers. YAACC is an FCast **sender**: it finds receivers, sends them the address of an item and controls the playback; it is never an FCast receiver.
+
+### Finding and adding receivers
+
+* **Finding.** *Settings* > *FCast* > *Find FCast receivers* (on by default) searches the local network by mDNS (`_fcast._tcp`) while a page with the receiver list or the list of FCast receivers is open, and nothing runs in the background. It sends mDNS queries on the network and lists every device that announces itself. The announcements are not authenticated: any device on the network can announce a receiver, so clear the option in networks you do not trust. Nothing is played to a receiver before you choose it.
+* **Adding by hand.** *Settings* > *FCast* > *FCast receivers*: type an **address** (`host` or `host:port`, port 46899 by default; added at once, also if the receiver is switched off), the **name of the device** (what the receiver announces, for example `FCast-mycomputer`, or the computer's host name; YAACC looks among the receivers found, then asks the system's name lookup, then waits four seconds for an announcement; the message says what was tried) or paste a **connection link**. At most 16 receivers can be added by hand. The list shows every receiver, how it was found, and *Remove* for those you added; below it is the **discovery report** (what is browsed, what the system said, the state of the switch, Wi-Fi and multicast) with *Copy report*.
+* **The QR code.** The receivers show a QR code with a link `fcast://r/...`. Read it with the camera or scanner app of your phone and open the link with YAACC (if another installed app also opens `fcast://` links, Android asks which one). A dialog shows the name and the addresses; *Add* tests the addresses and stores the receiver, *Cancel* changes nothing. The addresses of the network the phone uses are tried first, the others only if none answers. YAACC accepts only addresses of the local network from a link, and no CAMERA permission is needed. A link that is not an FCast connection link only shows "This is not an FCast link"; the same link twice within two seconds is ignored. If your scanner does not offer the link, copy its text and paste it in *Add receiver*.
+* **Not accepted.** IPv6 link-local addresses (`fe80::`) need a network zone that cannot be stored: use the IPv4 or a global IPv6 address. A host name that resolves to a public address is not accepted.
+
+### The row
+
+A receiver is one card. It shows "FCast", the address, the state (not reachable, idle, playing or paused, with the title) and the volume. An idle card has no connection (YAACC connects when you use the receiver and closes it about half a minute later), so the state of a receiver that nothing plays to is shown only while a connection is open. Play, pause and stop act on the player of the receiver, and while nothing of this app plays to the receiver they act on what another sender plays (a second YAACC, the receiver's own app): pause, resume or stop is sent to the receiver. The card shows the receiver's state once a connection is open (after your first tap, or while the sheet is open). The volume slider works at any time (a connection is made for it); the mute symbol and the speed work while a player plays to the receiver. The gear opens the settings sheet.
+
+### Playing
+
+You play to an FCast receiver like to any receiver: pick it, then play music, video or pictures from a server, your files or a shared link. YAACC keeps the queue (next, previous, repeat, shuffle and the list) and sends the receiver one item at a time: the receiver fetches the item itself, so it must be able to reach your UPnP server or the phone. The next item starts when the receiver reports the end of the current one, and there can be a short gap. A picture stays for *picture stay duration*. Seeking, pause, resume, stop, the volume and the speed (0.5 to 2) are sent to the receiver; what another sender or the receiver itself does (pause, stop, volume) shows on the card and in the player within a moment, and a stop on the receiver stops the player. The volume of a receiver is not changed when an item starts.
+
+### The settings sheet
+
+The FCast protocol cannot read or change the receiver's own settings, so the sheet shows what can be controlled and known: the **device** (name, address, how it was found, the receiver app and version, the protocol in use: version 4 says where its key came from, version 3 says that it is unencrypted and, if the receiver offers version 4, what to do to use it; with version 4 also what the receiver says it can play), **playback** (volume; mute and speed while a player plays; stop), **tracks** (version 4, while something plays: the audio track, the subtitle track or *Off*, and *Add subtitle file* by a web address if the receiver takes subtitle files), the **connection** (state, *Check connection* with the time it took, *Reconnect*), **troubleshooting** (a trace of what the sheet saw, with addresses shortened to host and path; *Copy trace*) and **manage** (*Remove* for a receiver you added by hand).
+
+### FCast limits
+
+* Protocol version 3, and version 4 (TLS 1.3 and FlatBuffers) on Android 10 or later for a receiver whose key YAACC knows (see *FCast security*); a receiver of version 1 or 2 may work with fewer functions. Audio and subtitle tracks and subtitle files by address need version 4; the queue messages of version 4 are not used (YAACC keeps the queue).
+* No playlist is sent to the receiver, no grouping of receivers, no screen mirroring, no key control of the receiver's screen.
+* At most 64 discovered receivers are listed, at most 8 connections for cards and sheets are open at once, a connection link may have 4 KB and 16 addresses at most, and the trace of the sheet keeps 50 lines.
+* The protocol has no mute: YAACC sets the volume to 0 and puts it back. A volume that another sender sets ends the mute.
+* The receivers differ in how they report the end of an item. YAACC uses the end event, a paused state at the duration (the Android receiver) and, as a safety net, two seconds without an update near the end. A pause by another sender in the last second can look like the end. What a receiver does with a displayed picture is not known for every receiver.
+* Tested by the author with FCast receivers on his own devices, in automated tests and with a test receiver. Other receivers, devices and networks have not been tested.
+
+### Troubleshooting FCast
+
+* **No receiver is found.** Check that *Find FCast receivers* is on, that the phone and the receiver are in the same network and that the network passes mDNS multicast (UDP 5353); many guest networks and some mesh systems isolate devices. Open *Settings* > *FCast* > *FCast receivers* and read the discovery report (Wi-Fi, multicast lock, the services seen). Add the receiver by address as a workaround.
+* **The receiver is found but "not reachable" or the check fails.** The receiver's TCP port 46899 must be open in its firewall (`sudo ufw allow 46899/tcp`); on a computer with Docker or virtual machines its link lists several addresses, YAACC tries the one of your network first. The *Check connection* button of the sheet shows the reason.
+* **The item does not play.** The receiver must reach the address of the item; a server that answers only the phone, an address of localhost, or a format the receiver cannot play shows as an error on the phone and the next item is tried (three failures in a row stop the player).
+
+### FCast security
+
+*Settings* > *FCast* > *Use the encrypted version 4* (on by default) turns the use of version 4 off. FCast version 4 is encrypted (TLS 1.3) and identifies the receiver by the fingerprint of its key. YAACC uses it on Android 10 or later for a receiver whose fingerprint it knows: from its **connection link** (the QR code on the receiver's screen, scanned with the camera app or pasted: the strong source, which a network attacker cannot change) or from the receiver's **announcement** (this keeps a listener out, not someone who answers the search with his own key). If the key does not match, YAACC does not connect and does **not** fall back to the unencrypted version: remove the receiver and add it with its link again if it was reinstalled. A receiver added only by its address or name, and every receiver on Android 9 or older, is spoken to in version 3, and the settings sheet says so.
+
+FCast version 3 is neither encrypted nor authenticated. The commands and the **full address of every item**, including any user name or token in it, go in plain text to the receiver you chose, and anyone on the network who can reach a receiver can control it. YAACC sends no cookies or headers and stores no credentials, opens no listening port for FCast, accepts only addresses of the local network from a link or a name, and shows what a link adds before it adds anything. Discovered receivers can be spoofed by any host on the network. Use FCast only inside a network you trust, and do not type in a public address.
+
+### The FCast test receiver
+
+For development there is a small test receiver in `tools/fcast-rig/` that announces itself, logs what it is sent and answers like a receiver (no media player), see [its README](https://github.com/tobexyz/yaacc-code/blob/develop/tools/fcast-rig/README.md). The official desktop receiver on a notebook is the check for real media.
+
+This application is an independent community implementation of the FCast protocol. It is not affiliated with FUTO. FCast is a registered trademark of FUTO.
+
 ## Media server
 
 YAACC includes a media server service, which has to be enabled separately.
@@ -864,7 +915,7 @@ Not supported yet: playing radio, Songcast or other sources from YAACC (the sour
 
 ## Trademarks
 
-Android and Android TV are trademarks of Google LLC. UPnP and DLNA are trademarks or certification marks of their respective owners; YAACC is not UPnP or DLNA certified. Yamaha and MusicCast are trademarks or registered trademarks of Yamaha Corporation. Snapcast is the name of an open source project of its authors. Home Assistant, VLC, Kodi, BubbleUPnP, Windows and the other product and company names mentioned in this documentation are trademarks or registered trademarks of their respective owners and are used only to identify compatible products. YAACC is an independent project and is not affiliated with, authorized or endorsed by any of them.
+Android and Android TV are trademarks of Google LLC. UPnP and DLNA are trademarks or certification marks of their respective owners; YAACC is not UPnP or DLNA certified. Yamaha and MusicCast are trademarks or registered trademarks of Yamaha Corporation. Snapcast is the name of an open source project of its authors. FCast is a registered trademark of FUTO; YAACC is an independent community implementation of the FCast protocol and is not affiliated with FUTO, and it shows no FCast logo. Home Assistant, VLC, Kodi, BubbleUPnP, Windows and the other product and company names mentioned in this documentation are trademarks or registered trademarks of their respective owners and are used only to identify compatible products. YAACC is an independent project and is not affiliated with, authorized or endorsed by any of them.
 
 | [Screenshots](screenshots/) | [Settings](settings/) |  [About](about/) | [Code](doxygen/html/inherits.html) | [Legal Notice (Impressum)](https://schoenesnetz.de/pages/disclamer_license/about.en.html) | [Privacy Policy](privacy.html)
 

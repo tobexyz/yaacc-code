@@ -130,8 +130,27 @@ public class AVTransportPlayerActivity extends AppCompatActivity implements Serv
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // Let system handle all volume keys - shows standard volume UI
+        // the volume of an FCast receiver is ours to change (the system's volume keys would change the phone's); every other player
+        // lets the system handle the keys and show its volume UI
+        if ((keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) && getPlayer() instanceof FCastPlayer) {
+            FCastPlayer fcast = (FCastPlayer) getPlayer();
+            int volume = FCastPlayerLogic.stepVolume(fcast.getVolume(), keyCode == KeyEvent.KEYCODE_VOLUME_UP);
+            fcast.setVolume(volume);
+            SeekBar volumeSeekBar = findViewById(R.id.avtransportPlayerActivityControlVolumeSeekBar);
+            if (volumeSeekBar != null) {
+                volumeSeekBar.setProgress(volume);
+            }
+            return true;
+        }
         return super.onKeyDown(keyCode, event);
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if ((keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) && getPlayer() instanceof FCastPlayer) {
+            return true; // the down was ours
+        }
+        return super.onKeyUp(keyCode, event);
     }
 
     @Override

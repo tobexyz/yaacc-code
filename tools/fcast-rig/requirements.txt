@@ -1,0 +1,4 @@
+zeroconf==0.154.0
+ifaddr==0.2.0
+flatbuffers==25.12.19
+cryptography==50.0.2

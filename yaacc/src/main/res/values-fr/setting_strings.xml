@@ -148,4 +148,13 @@
     <string name="settings_renderer_output_group_server">Groupe sur le serveur %1$s. Touchez pour changer.</string>
     <string name="settings_renderer_output_group_named">%1$s sur le serveur %2$s. Touchez pour changer.</string>
     <string name="settings_renderer_output_group_damaged">Le groupe enregistré est endommagé ; le récepteur joue sur cet appareil. Touchez pour choisir de nouveau le groupe.</string>
+    <string name="settings_fcast_category">FCast</string>
+    <string name="settings_fcast_about_title">À propos de FCast</string>
+    <string name="settings_fcast_about_summary">YAACC peut lire sur des récepteurs FCast de votre réseau. Cette application est une implémentation communautaire indépendante du protocole FCast. Elle n’est pas affiliée à FUTO. FCast est une marque déposée de FUTO.</string>
+    <string name="settings_fcast_discovery_title">Rechercher des récepteurs FCast</string>
+    <string name="settings_fcast_discovery_summary">Recherche des récepteurs FCast sur le réseau local ; activé par défaut. Envoie des requêtes mDNS et liste chaque appareil qui s’annonce. Les annonces ne sont pas authentifiées : n’importe qui sur le réseau peut annoncer un récepteur. Rien n’est lu sur un récepteur avant que vous ne le sélectionniez. Les données sont envoyées sans chiffrement avec la version 3 du protocole et chiffrées avec la version 4 (voir ci-dessous).</string>
+    <string name="settings_fcast_receivers_title">Récepteurs FCast</string>
+    <string name="settings_fcast_receivers_summary">Ajouter un récepteur par adresse, nom d’appareil ou lien de connexion, ou le retirer</string>
+    <string name="settings_fcast_v4_title">Utiliser la version 4 chiffrée</string>
+    <string name="settings_fcast_v4_summary">À partir d’Android 10, un récepteur dont la clé est connue (par son lien de connexion ou son annonce) est utilisé avec la version 4 chiffrée de FCast. Une clé qui ne correspond pas est refusée, jamais traitée avec la version non chiffrée. Désactivez cette option pour toujours utiliser la version 3 non chiffrée, par exemple si un récepteur ne fonctionne pas avec la version 4. Un récepteur ajouté uniquement par son adresse est toujours utilisé avec la version 3.</string>
 </resources>

@@ -1,0 +1,19 @@
+# Test receiver for the FCast protocol, for YAACC (issue #327). Linux only: it uses the host network, because the bridge
+# network of Docker does not carry mDNS multicast, so the phone would not find the receiver. On Windows and macOS run
+# fcast_rig.py natively (README.md).
+#
+#   RIG_ADDRESS=192.168.1.50 docker compose up --build
+#   RIG_SPEAKS=4 RIG_ADDRESS=192.168.1.50 docker compose up --build     # protocol v4 (its key is new at every start)
+#
+# RIG_ADDRESS is the notebook's IPv4 address on the network the phone is in (find it with: ip -4 addr). It has no default
+# on purpose: a wrong address would be announced and the phone would not reach the receiver.
+services:
+  fcast-rig:
+    build: .
+    network_mode: host
+    init: true            # a stop signal reaches the Python process
+    read_only: true
+    tmpfs: ["/tmp"]       # the self-signed key of --speaks 4 (new at every start of the container)
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    command: ["--host", "0.0.0.0", "--port", "46899", "--name", "YAACC test rig", "--speaks", "${RIG_SPEAKS:-3}", "--cert-dir", "/tmp/rig-cert", "--address", "${RIG_ADDRESS:?set RIG_ADDRESS to the notebook's IPv4 address}", "-v"]

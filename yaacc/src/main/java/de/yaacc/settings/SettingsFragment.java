@@ -106,6 +106,14 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
+        androidx.preference.Preference fcastReceivers = findPreference(getString(R.string.settings_fcast_receivers));
+        if (fcastReceivers != null) {
+            fcastReceivers.setOnPreferenceClickListener(preference -> {
+                FCastReceiversDialog.show(requireContext());
+                return true;
+            });
+        }
+
         setUpSnapcastClient();
         setUpRendererOutput();
         scrollToRequestedSection();

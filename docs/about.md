@@ -14,6 +14,8 @@ Please, help improving YAACC by reporting problems or sending pull requests.
 
 Have fun!
 
+This application is an independent community implementation of the FCast protocol. It is not affiliated with FUTO. FCast is a registered trademark of FUTO.
+
 The icons of the app are Material Icons by Google (Apache License 2.0) and the YAACC logo; the credits and
 licenses are listed in [ICONS.md](https://github.com/tobexyz/yaacc-code/blob/develop/ICONS.md).
 

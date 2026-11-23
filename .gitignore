@@ -49,3 +49,6 @@ local.properties
 .directory
 */build
 .gradle
+
+# the self-signed test key of the FCast test receiver (tools/fcast-rig, --speaks 4)
+tools/fcast-rig/.rig-cert/

@@ -380,7 +380,7 @@ public class BrowserActivity extends AppCompatActivity implements BrowserHost {
      */
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (VolumeKeyHosts.onKeyDown(keyCode)) {
+        if (VolumeKeyHosts.onKeyDown(keyCode, this, upnpClient == null ? null : upnpClient.getCurrentPlayers())) {
             return true;
         }
         return super.onKeyDown(keyCode, event);

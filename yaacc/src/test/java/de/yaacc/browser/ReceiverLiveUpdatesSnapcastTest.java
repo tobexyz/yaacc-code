@@ -68,6 +68,9 @@ public class ReceiverLiveUpdatesSnapcastTest {
 
     private static final class FakeSources implements ReceiverLiveUpdates.Sources {
         Runnable snapcastCallback;
+        Runnable fcastCallback;
+        int fcastStarts;
+        int fcastStops;
         int snapcastStarts;
         int snapcastStops;
         final List<Runnable> scheduled = new ArrayList<>();
@@ -117,6 +120,18 @@ public class ReceiverLiveUpdatesSnapcastTest {
             snapcastStops++;
             snapcastCallback = null;
         }
+
+        @Override
+        public void startFCast(Runnable onChanged) {
+            fcastStarts++;
+            fcastCallback = onChanged;
+        }
+
+        @Override
+        public void stopFCast() {
+            fcastStops++;
+            fcastCallback = null;
+        }
     }
 
     private FakeSources sources;
@@ -138,6 +153,33 @@ public class ReceiverLiveUpdatesSnapcastTest {
         live.stop();
 
         assertEquals(1, sources.snapcastStops);
+    }
+
+    @Test
+    public void startFollowsTheFCastReceiversOnceAndStopLetsGo() {
+        live.start(false);
+        live.start(true);
+        assertEquals(1, sources.fcastStarts);
+
+        live.stop();
+        live.stop();
+
+        assertEquals(1, sources.fcastStops);
+    }
+
+    @Test
+    public void aChangeOfTheFCastReceiversRebuildsTheRowsWhileRunningAndNotAfterStop() {
+        live.start(false);
+        Runnable callback = sources.fcastCallback;
+        calls.clear();
+
+        callback.run();
+        assertEquals(List.of("refresh"), calls);
+        live.stop();
+        calls.clear();
+        callback.run();
+
+        assertTrue(calls.isEmpty());
     }
 
     @Test

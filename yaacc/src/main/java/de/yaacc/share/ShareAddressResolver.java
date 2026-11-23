@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
+import de.yaacc.fcast.discovery.FCastReceiverDevice;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.InterfaceResolutionHelper;
 
@@ -80,6 +81,12 @@ public final class ShareAddressResolver {
             }
             if (device instanceof LocalDevice || device instanceof UpnpClient.LocalDummyDevice) {
                 localChosen = true;
+                continue;
+            }
+            if (device instanceof FCastReceiverDevice) {
+                // an FCast receiver has no description: the receiver fetches the share from the address it was found at
+                // (a host name is not resolved here; ShareAddresses keeps only what it can use)
+                hosts.add(((FCastReceiverDevice) device).getEndpoint().getHost());
                 continue;
             }
             Device<?, ?, ?> root = device.getRoot();

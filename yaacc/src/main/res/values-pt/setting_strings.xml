@@ -148,4 +148,13 @@
     <string name="settings_renderer_output_group_server">Grupo no servidor %1$s. Toque para alterar.</string>
     <string name="settings_renderer_output_group_named">%1$s no servidor %2$s. Toque para alterar.</string>
     <string name="settings_renderer_output_group_damaged">O grupo guardado está danificado; o recetor reproduz neste dispositivo. Toque para escolher o grupo de novo.</string>
+    <string name="settings_fcast_category">FCast</string>
+    <string name="settings_fcast_about_title">Sobre o FCast</string>
+    <string name="settings_fcast_about_summary">O YAACC pode reproduzir em recetores FCast da sua rede. Esta aplicação é uma implementação comunitária independente do protocolo FCast. Não é afiliada à FUTO. FCast é uma marca registada da FUTO.</string>
+    <string name="settings_fcast_discovery_title">Procurar recetores FCast</string>
+    <string name="settings_fcast_discovery_summary">Procura recetores FCast na rede local; ativado por predefinição. Envia consultas mDNS e lista cada dispositivo que se anuncia. Os anúncios não são autenticados: qualquer pessoa na rede pode anunciar um recetor. Nada é reproduzido num recetor antes de o selecionar. Os dados são enviados sem cifra com a versão 3 do protocolo e cifrados com a versão 4 (ver abaixo).</string>
+    <string name="settings_fcast_receivers_title">Recetores FCast</string>
+    <string name="settings_fcast_receivers_summary">Adicionar um recetor por endereço, nome do dispositivo ou ligação de ligação, ou removê-lo</string>
+    <string name="settings_fcast_v4_title">Usar a versão 4 cifrada</string>
+    <string name="settings_fcast_v4_summary">A partir do Android 10, com um recetor cuja chave é conhecida (pela sua ligação ou pelo seu anúncio) fala-se a versão 4 cifrada do FCast. Uma chave que não coincide é recusada e nunca respondida com a versão sem cifra. Desative para usar sempre a versão 3 sem cifra, por exemplo se um recetor não funcionar com a versão 4. Com um recetor adicionado apenas pelo seu endereço fala-se sempre a versão 3.</string>
 </resources>
