@@ -829,8 +829,7 @@ final class ReceiverRowBinder {
             return;
         }
         de.yaacc.yxc.YxcSourceCapabilities caps = state == null ? null : state.getCapabilities();
-        boolean available = state != null && state.isReachable() && state.isPowerOn() && caps != null
-                && (caps.getNetPresets() > 0 || caps.hasRecent() || caps.getTunerPresets() > 0);
+        boolean available = de.yaacc.yxc.YxcPresetActions.offered(state);
         holder.yxcPresets.setVisibility(available ? View.VISIBLE : View.GONE);
         holder.yxcPresets.setOnClickListener(available ? v -> {
             if (presetsDialog != null && presetsDialog.isShowing()) {

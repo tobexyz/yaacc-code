@@ -215,7 +215,7 @@
             android:defaultValue="device"
             android:dependency="@string/settings_local_server_receiver_chkbx"
             android:key="@string/settings_renderer_output"
-            android:summary="@string/settings_renderer_output_summary"
+            android:summary="@string/settings_renderer_output_summary_device"
             android:title="@string/settings_renderer_output_title" />
         <Preference
             android:dependency="@string/settings_local_server_receiver_chkbx"

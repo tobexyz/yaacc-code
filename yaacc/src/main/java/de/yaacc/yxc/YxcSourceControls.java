@@ -115,7 +115,8 @@ public final class YxcSourceControls {
         return result;
     }
 
-    private static boolean isNetworkSource(YxcDeviceState state) {
+    /** True while the zone plays a network source (net radio, a streaming service, the server): its play info is current. */
+    public static boolean isNetworkSource(YxcDeviceState state) {
         if (state == null || !state.isReachable() || !state.isPowerOn() || state.isLinkInput() || state.getInput() == null
                 || YxcNowPlaying.TUNER_INPUT.equalsIgnoreCase(state.getInput())) {
             return false;

@@ -856,6 +856,35 @@ public class SnapcastClientEngineTest {
     }
 
     @Test
+    public void aDecoderThatBreaksOnceIsStartedAnewAndTheSessionGoesOn() {
+        final boolean[] broken = {false};
+        final int[] resets = {0};
+        DecoderFactory breaking = (h, m) -> new PassThroughDecoder() {
+            @Override
+            public byte[] decode(byte[] payload) throws DecoderException {
+                if (broken[0]) {
+                    throw new DecoderException(DecoderException.Reason.DECODE_FAILED, "the decoder failed");
+                }
+                return super.decode(payload);
+            }
+
+            @Override
+            public void reset() {
+                resets[0]++;
+                broken[0] = false; // a new codec works again
+            }
+        };
+        EngineRig rig = new EngineRig(SimulatedSink::typical, new ClientEngineConfig(), breaking, 48000, 2, 16);
+        rig.connect();
+        rig.run(1000);
+        broken[0] = true;
+        rig.run(3000);
+        assertNull("the session goes on", rig.engine.status().failure);
+        assertEquals(1, rig.engine.status().decodeFailures);
+        assertTrue("the decoder was started anew", resets[0] >= 1);
+    }
+
+    @Test
     public void aGoodChunkInBetweenResetsTheRunOfConsecutiveFailures() {
         final int[] calls = {0};
         DecoderFactory flaky = (h, m) -> new PassThroughDecoder() {

@@ -18,6 +18,7 @@
  */
 package de.yaacc.multiroom.feed;
 
+import de.yaacc.util.YaaccLogger;
 
 /** A {@link PcmFeeder} as a {@link FeedOutput}: the real socket, the real clock, the format of the stream. */
 public final class PcmFeederOutput implements FeedOutput {
@@ -25,7 +26,11 @@ public final class PcmFeederOutput implements FeedOutput {
     /** Opens real feeders in {@link SnapcastStreams#FORMAT}. */
     public static final FeedOutputFactory FACTORY = (address, port, onFailed) -> new PcmFeederOutput(
             PcmFeeder.connect(address, port, SnapcastStreams.FORMAT, null, SocketFeedConnection.FACTORY, FeedClock.SYSTEM,
-                    failure -> onFailed.run()));
+                    failure -> {
+                        // STALLED: the server did not read for the stall limit; WRITE: the connection broke
+                        YaaccLogger.d(PcmFeederOutput.class.getName(), "feed connection failed: " + failure);
+                        onFailed.run();
+                    }));
 
     private final PcmFeeder feeder;
 

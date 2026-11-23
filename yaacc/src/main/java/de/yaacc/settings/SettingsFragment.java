@@ -140,10 +140,12 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                 getString(R.string.settings_renderer_output_group_option)});
         output.setEntryValues(new CharSequence[]{SnapcastRendererOutput.VALUE_DEVICE, SnapcastRendererOutput.VALUE_GROUP});
         group.setVisible(SnapcastRendererOutput.VALUE_GROUP.equals(output.getValue()));
+        showRendererOutputSummary(output, SnapcastRendererOutput.VALUE_GROUP.equals(output.getValue()));
         updateRendererGroupSummary(group);
         output.setOnPreferenceChangeListener((preference, newValue) -> {
             boolean isGroup = SnapcastRendererOutput.VALUE_GROUP.equals(newValue);
             group.setVisible(isGroup);
+            showRendererOutputSummary(output, isGroup);
             if (isGroup && !SnapcastRendererOutput.isCanonicalGroupId(
                     PreferenceManager.getDefaultSharedPreferences(requireContext())
                             .getString(SnapcastRendererOutput.KEY_GROUP, null))) {
@@ -171,11 +173,13 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     @Override
     public void onStart() {
         super.onStart();
+        clientSummaryHandler.post(clientSummaryLoop);
         PreferenceManager.getDefaultSharedPreferences(requireContext()).registerOnSharedPreferenceChangeListener(rendererOutputListener);
     }
 
     @Override
     public void onStop() {
+        clientSummaryHandler.removeCallbacks(clientSummaryLoop);
         PreferenceManager.getDefaultSharedPreferences(requireContext()).unregisterOnSharedPreferenceChangeListener(rendererOutputListener);
         super.onStop();
     }
@@ -197,7 +201,13 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         output.setValue(SnapcastRendererOutput.VALUE_GROUP.equals(stored) ? SnapcastRendererOutput.VALUE_GROUP
                 : SnapcastRendererOutput.VALUE_DEVICE); // an unknown value shows as this device, as the renderer reads it (damaged)
         group.setVisible(SnapcastRendererOutput.VALUE_GROUP.equals(output.getValue()));
+        showRendererOutputSummary(output, SnapcastRendererOutput.VALUE_GROUP.equals(output.getValue()));
         updateRendererGroupSummary(group);
+    }
+
+    /** The text under the output: what the group does (with its disclosures) only while the group is chosen, else what this device plays. */
+    private void showRendererOutputSummary(ListPreference output, boolean group) {
+        output.setSummary(group ? R.string.settings_renderer_output_summary : R.string.settings_renderer_output_summary_device);
     }
 
     private void updateRendererGroupSummary(androidx.preference.Preference group) {
@@ -255,8 +265,10 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (switchedOn != null) {
             switchedOn.setVisible(client.isChecked());
             switchedOn.setChecked(SnapcastClientPowers.of(requireContext()).isOn());
+            showClientSwitchSummary(switchedOn);
             switchedOn.setOnPreferenceChangeListener((preference, newValue) -> {
                 SnapcastClientPower.Outcome outcome = SnapcastClientPowers.of(requireContext()).setOn(Boolean.TRUE.equals(newValue));
+                clientSummaryHandler.postDelayed(() -> showClientSwitchSummary(switchedOn), 1500L);
                 String reason = SnapcastClientPowerTexts.refusalText(requireContext(), outcome);
                 if (reason != null) {
                     // the state stays on (the intent); the reason is shown, the first page and the test screen show "stopped"
@@ -280,6 +292,28 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             SnapcastClientDialog.show(requireContext());
             return true;
         });
+    }
+
+    // The switch is the owner's intent and stays on when a session ends by a failure; its text must not say "connected" then.
+    private final android.os.Handler clientSummaryHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable clientSummaryLoop = new Runnable() {
+        @Override
+        public void run() {
+            if (!isAdded()) {
+                return;
+            }
+            showClientSwitchSummary(findPreference(getString(R.string.settings_snapcast_client_switched_on)));
+            clientSummaryHandler.postDelayed(this, 2000L);
+        }
+    };
+
+    private void showClientSwitchSummary(androidx.preference.CheckBoxPreference switchedOn) {
+        if (switchedOn == null || !isAdded() || getContext() == null) {
+            return;
+        }
+        boolean connected = SnapcastClientRuntime.get().phase == SnapcastClientRuntime.Phase.RUNNING;
+        switchedOn.setSummaryOn(getString(connected ? R.string.settings_snapcast_client_switched_on_summary_on
+                : R.string.settings_snapcast_client_switched_on_summary_waiting));
     }
 
     private void populateNetworkInterfaceList() {
