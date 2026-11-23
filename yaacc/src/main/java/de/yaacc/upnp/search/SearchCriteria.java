@@ -113,6 +113,19 @@ public final class SearchCriteria {
      * @return the {@code SearchCriteria} argument, or null if there are no words or no property
      */
     public static String build(String freeText, List<String> properties) {
+        return build(freeText, properties, false);
+    }
+
+    /**
+     * The same, but every word is also looked for in its other spellings (all lower case, all upper case, first letter big):
+     * some servers compare case sensitive, and "westen" would not be found in "ImWestenNichtsNeues". Longer, so it is the last
+     * thing tried when a search found nothing.
+     */
+    public static String buildAnyCase(String freeText, List<String> properties) {
+        return build(freeText, properties, true);
+    }
+
+    private static String build(String freeText, List<String> properties, boolean anyCase) {
         List<String> words = words(freeText);
         if (words.isEmpty() || properties == null || properties.isEmpty()) {
             return null;
@@ -122,21 +135,38 @@ public final class SearchCriteria {
             if (criteria.length() > 0) {
                 criteria.append(" and ");
             }
-            boolean group = properties.size() > 1;
+            List<String> spellings = anyCase ? spellings(word) : Collections.singletonList(word);
+            boolean group = properties.size() * spellings.size() > 1;
             if (group) {
                 criteria.append('(');
             }
-            for (int i = 0; i < properties.size(); i++) {
-                if (i > 0) {
-                    criteria.append(" or ");
+            boolean first = true;
+            for (String property : properties) {
+                for (String spelling : spellings) {
+                    if (!first) {
+                        criteria.append(" or ");
+                    }
+                    first = false;
+                    criteria.append(property).append(" contains \"").append(escape(spelling)).append('"');
                 }
-                criteria.append(properties.get(i)).append(" contains \"").append(escape(word)).append('"');
             }
             if (group) {
                 criteria.append(')');
             }
         }
         return criteria.toString();
+    }
+
+    /** The word as typed, all lower case, all upper case and with a big first letter; each once. */
+    static List<String> spellings(String word) {
+        java.util.LinkedHashSet<String> result = new java.util.LinkedHashSet<>();
+        result.add(word);
+        String lower = word.toLowerCase(Locale.ROOT);
+        result.add(lower);
+        result.add(word.toUpperCase(Locale.ROOT));
+        int first = lower.offsetByCodePoints(0, 1);
+        result.add(lower.substring(0, first).toUpperCase(Locale.ROOT) + lower.substring(first));
+        return new ArrayList<>(result);
     }
 
     /** The string syntax of the ContentDirectory search: a backslash and a double quote are escaped by a backslash. */

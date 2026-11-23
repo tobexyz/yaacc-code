@@ -884,23 +884,69 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             return result;
         }
         List<String> properties = service.getAction("Search") == null ? Collections.<String>emptyList() : searchProperties(device, service);
-        String criteria = SearchCriteria.build(freeText, properties);
-        if (criteria == null) {
+        if (SearchCriteria.build(freeText, properties) == null) {
             result.setUpnpFailure(new UpnpFailure(null, null, SEARCH_UNSUPPORTED, false));
             return result;
         }
-        ContentDirectoryBrowseResult answer = runSearch(service, criteria, firstResult, maxResults, httpRequestSender);
-        UpnpFailure failure = answer.getUpnpFailure();
-        if (failure != null && !failure.isTransportFailure() && properties.size() > 1) {
-            // some servers reject a criteria with brackets or an "or" on a property they listed: the first property alone
-            String simple = SearchCriteria.build(freeText, properties.subList(0, 1));
-            YaaccLogger.d(getClass().getName(), "Search with several properties refused, trying one");
-            answer = runSearch(service, simple, firstResult, maxResults, httpRequestSender);
+        // Servers differ in what "contains" means and in what they accept, and an answer without a result is not a refusal. So
+        // when nothing came back the search is tried again in simpler or wider forms (first page only): all the properties; the
+        // first one (the title) alone; the title in every spelling of the words (a server that compares case sensitive).
+        // The form that found something is remembered, so that the next pages ask the same.
+        final String searchKey = device.getIdentity().getUdn().getIdentifierString() + "\n" + SearchCriteria.normalized(freeText);
+        int level = firstResult == 0 ? 0 : searchLevels.getOrDefault(searchKey, 0);
+        ContentDirectoryBrowseResult answer = null;
+        for (; level < SEARCH_LEVELS; level++) {
+            String criteria = criteriaFor(level, freeText, properties);
+            if (criteria == null) {
+                continue;
+            }
+            YaaccLogger.d(getClass().getName(), "Search level " + level + ": " + criteria);
+            answer = runSearch(service, criteria, firstResult, maxResults, httpRequestSender);
+            UpnpFailure failure = answer.getUpnpFailure();
+            if (failure != null && failure.isTransportFailure()) {
+                break; // the server could not be reached: another form does not help
+            }
+            if (failure == null && !isEmpty(answer)) {
+                if (searchLevels.size() > 32) {
+                    searchLevels.clear();
+                }
+                searchLevels.put(searchKey, level);
+                break;
+            }
+            if (firstResult != 0) {
+                break; // a later page: the form of the first page, nothing else
+            }
+        }
+        if (answer == null) {
+            result.setUpnpFailure(new UpnpFailure(null, null, SEARCH_UNSUPPORTED, false));
+            return result;
         }
         if (preferences.getBoolean(getContext().getString(R.string.settings_browse_thumbnails_coverlookup_chkbx), false)) {
             enrichWithCover(answer);
         }
         return answer;
+    }
+
+    private static final int SEARCH_LEVELS = 3;
+
+    /** The form of the search that found something, by device and text, for the next pages. */
+    private final Map<String, Integer> searchLevels = new ConcurrentHashMap<>();
+
+    /** @return the criteria of a form of the search, or null if the form is the same as an earlier one */
+    private static String criteriaFor(int level, String freeText, List<String> properties) {
+        switch (level) {
+            case 0:
+                return SearchCriteria.build(freeText, properties);
+            case 1:
+                return properties.size() > 1 ? SearchCriteria.build(freeText, properties.subList(0, 1)) : null;
+            default:
+                return SearchCriteria.buildAnyCase(freeText, properties.subList(0, 1));
+        }
+    }
+
+    private static boolean isEmpty(ContentDirectoryBrowseResult result) {
+        return result.getResult() == null
+                || (result.getResult().getContainers().isEmpty() && result.getResult().getItems().isEmpty());
     }
 
     private ContentDirectoryBrowseResult runSearch(Service<?, ?> service, String criteria, long firstResult, Long maxResults,

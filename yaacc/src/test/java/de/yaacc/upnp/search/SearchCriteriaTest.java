@@ -79,6 +79,15 @@ public class SearchCriteriaTest {
     }
 
     @Test
+    public void everySpellingOfAWordCanBeLookedFor() {
+        assertEquals(Arrays.asList("westen", "WESTEN", "Westen"), SearchCriteria.spellings("westen"));
+        assertEquals(Arrays.asList("ImWesten", "imwesten", "IMWESTEN", "Imwesten"), SearchCriteria.spellings("ImWesten"));
+        assertEquals("(dc:title contains \"westen\" or dc:title contains \"WESTEN\" or dc:title contains \"Westen\")",
+                SearchCriteria.buildAnyCase("westen", TITLE));
+        assertEquals("dc:title contains \"1\"", SearchCriteria.buildAnyCase("1", TITLE));
+    }
+
+    @Test
     public void aSearchPositionKeepsItsText() {
         String id = SearchPosition.objectId("a b");
         assertTrue(SearchPosition.isSearch(id));
