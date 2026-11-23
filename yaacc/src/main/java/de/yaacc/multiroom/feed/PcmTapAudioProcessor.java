@@ -33,9 +33,11 @@ import java.util.concurrent.atomic.AtomicLong;
  * either silence or the unchanged audio on to the speaker.
  *
  * <p>It sits at the end of the chain built by {@link FeedTapChain}: the processors in front of it convert the bit depth
- * ({@code ToInt16PcmAudioProcessor}) and the sample rate ({@code SonicAudioProcessor}); this one does not change the
- * rate (a different rate is refused with an {@link AudioProcessor.UnhandledAudioFormatException}) and folds the channels
- * to stereo with a {@link PcmFormatConverter}, which also converts any bit depth it is given.
+ * ({@code ToInt16PcmAudioProcessor}) and the sample rate ({@code SonicAudioProcessor}); this one folds the channels
+ * to stereo with a {@link PcmFormatConverter}, which also converts any bit depth it is given. If the rate that reaches
+ * it is not the stream's (on a device the converter in front was seen not to act), it converts the rate itself with a
+ * {@link PcmResampler}; rates from 8000 to 384000 Hz are accepted, anything else is refused with an
+ * {@link AudioProcessor.UnhandledAudioFormatException}.
  *
  * <p>With {@code playLocally == false} the output is zeros of the same length as the input: ExoPlayer's clock keeps
  * running at the speed of the audio track, which is what paces the decoder (and with it the sink), and the phone
@@ -53,7 +55,11 @@ public final class PcmTapAudioProcessor extends BaseAudioProcessor {
     private final PcmSink sink;
     private final boolean playLocally;
 
+    private static final int MIN_RATE = 8000;
+    private static final int MAX_RATE = 384000;
+
     private PcmFormatConverter converter;
+    private PcmResampler resampler;
     private byte[] inputBytes = new byte[0];
     private byte[] outputBytes = new byte[0];
     private byte[] zeros = new byte[0];
@@ -79,11 +85,14 @@ public final class PcmTapAudioProcessor extends BaseAudioProcessor {
     @Override
     protected AudioFormat onConfigure(AudioFormat inputAudioFormat) throws UnhandledAudioFormatException {
         PcmEncoding encoding = encodingOf(inputAudioFormat.encoding);
-        if (encoding == null || inputAudioFormat.sampleRate != target.getSampleRate()
+        if (encoding == null || inputAudioFormat.sampleRate < MIN_RATE || inputAudioFormat.sampleRate > MAX_RATE
                 || !PcmFormatConverter.isSupported(inputAudioFormat.channelCount)) {
             throw new UnhandledAudioFormatException(inputAudioFormat);
         }
         converter = new PcmFormatConverter(encoding, inputAudioFormat.channelCount);
+        // normally the rate is already the stream's (the converter in front of the tap did it); if it is not, convert here
+        resampler = inputAudioFormat.sampleRate == target.getSampleRate()
+                ? null : new PcmResampler(inputAudioFormat.sampleRate, target.getSampleRate());
         return inputAudioFormat;
     }
 
@@ -121,7 +130,13 @@ public final class PcmTapAudioProcessor extends BaseAudioProcessor {
                 outputBytes = new byte[converted];
             }
             converter.convert(inputBytes, 0, wholeFrames, outputBytes, 0);
-            if (!sink.write(outputBytes, 0, converted)) {
+            byte[] pcm = outputBytes;
+            int pcmLength = converted;
+            if (resampler != null) {
+                pcm = resampler.convert(outputBytes, converted);
+                pcmLength = resampler.lastLength();
+            }
+            if (pcmLength > 0 && !sink.write(pcm, 0, pcmLength)) {
                 droppedBuffers.incrementAndGet();
             }
         }
@@ -141,12 +156,16 @@ public final class PcmTapAudioProcessor extends BaseAudioProcessor {
 
     @Override
     protected void onFlush(StreamMetadata streamMetadata) {
+        if (resampler != null) {
+            resampler.reset();
+        }
         sink.discard();
     }
 
     @Override
     protected void onReset() {
         converter = null;
+        resampler = null;
         inputBytes = new byte[0];
         outputBytes = new byte[0];
         zeros = new byte[0];

@@ -137,6 +137,7 @@
     <string name="settings_snapcast_client_switched_on_title">Ligado ao servidor Snapcast</string>
     <string name="settings_snapcast_client_switched_on_summary_on">Este telefone está ligado a um servidor Snapcast e reproduz como cliente.</string>
     <string name="settings_snapcast_client_switched_on_summary_off">Este telefone não está ligado a um servidor Snapcast.</string>
+    <string name="settings_snapcast_client_switched_on_summary_waiting">Ligado, mas neste momento sem ligação a um servidor. Os detalhes do cliente dizem porquê.</string>
     <string name="settings_renderer_output_title">Saída</string>
     <string name="settings_renderer_output_summary">Grupo Snapcast: o recetor só alimenta o grupo (apenas áudio), este telemóvel fica em silêncio. O áudio é enviado sem encriptação para o servidor. Qualquer dispositivo que consiga alcançar o recetor pode alterar o volume e o silêncio de todo o grupo.</string>
     <string name="settings_renderer_output_summary_device">Este dispositivo reproduz áudio, imagens e vídeos.</string>

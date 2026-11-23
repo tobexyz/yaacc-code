@@ -51,12 +51,22 @@ public final class ClientSession {
         this.host = host;
     }
 
+    /**
+     * The phone's own client keeps trying while it is switched on, like the reference client: a server that restarts, a Wi-Fi that drops
+     * or a server that is away for a minute must not end the session after five tries (about 15 seconds). The pause between tries grows to
+     * 30 seconds; a reason that a retry would meet again (authorization, a codec that is not allowed) still stops at once, and a session
+     * that did not play for 15 minutes ends anyway ({@link SessionPowerPolicy}).
+     */
+    public static SnapcastConnection.Config connectionConfig() {
+        return new SnapcastConnection.Config().maxFailures(Integer.MAX_VALUE);
+    }
+
     public static ClientSession assemble(SnapcastTransport transport, HelloMessage hello, int manualLatencyMs,
                                          Function<MicroClock, ? extends AudioSink> sinks, DecoderFactory decoders, LongSupplier nanoSource, ClientEngineConfig config,
                                          ThreadFactory audioThreads, EngineHost.Observer observer) {
         MicroClock clock = MicroClock.fromNanoSource(nanoSource);
         AudioSink sink = sinks.apply(clock); // an output that reports positions needs the same clock
-        SnapcastConnection connection = new SnapcastConnection(transport, hello, new SnapcastConnection.Config(), clock, null, null);
+        SnapcastConnection connection = new SnapcastConnection(transport, hello, connectionConfig(), clock, null, null);
         OffsetSource offsets = connection.getOffsetFilter();
         SnapcastClientEngine engine = new SnapcastClientEngine(config, sink, decoders, offsets, clock);
         engine.setManualLatencyMs(manualLatencyMs);

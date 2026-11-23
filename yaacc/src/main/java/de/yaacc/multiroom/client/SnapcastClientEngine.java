@@ -776,6 +776,13 @@ public final class SnapcastClientEngine {
             if (!pcmCodec && anchorValid) {
                 recoverHole();
             }
+            // a platform decoder that threw is often unusable until it is made anew (a burst of chunks after a stall of the
+            // source then failed 8 times in 70 ms and ended the session): start it afresh before the next chunk
+            try {
+                decoder.reset();
+            } catch (RuntimeException ignored) {
+                // the next chunk fails again and the limits below end the session
+            }
             // an oversized chunk counts as a failure for the limit: it makes the platform decoder start anew, and a real
             // server never sends one (security review W5 of Group 8)
             if (noteDecoderFailure() || (!oversized && ++consecutiveDecodeFailures >= cfg.maxConsecutiveDecodeFailures)) {

@@ -152,10 +152,25 @@ public class PcmTapAudioProcessorTest {
     }
 
     @Test
+    public void aRateThatIsNotTheStreamsIsConvertedByTheTapItself() throws Exception {
+        RecordingSink sink = new RecordingSink();
+        PcmTapAudioProcessor tap = new PcmTapAudioProcessor(TARGET, sink, false);
+        tap.configure(new AudioFormat(44100, 2, C.ENCODING_PCM_16BIT));
+        tap.flush(AudioProcessor.StreamMetadata.DEFAULT);
+        byte[] input = new byte[44100 * 4];
+        ByteBuffer buffer = ByteBuffer.allocateDirect(input.length).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.put(input).flip();
+        tap.queueInput(buffer);
+        assertEquals("one second of 48000 Hz frames", 48000 * 4, sink.data().length, 8);
+        assertEquals("the local output keeps the length of the input", input.length, drain(tap).length);
+    }
+
+    @Test
     public void aFormatThatCanNotBeTappedIsRefused() {
         PcmTapAudioProcessor tap = new PcmTapAudioProcessor(TARGET, new RecordingSink(), false);
         AudioFormat[] refused = {
-                new AudioFormat(44100, 2, C.ENCODING_PCM_16BIT),              // the rate is converted in front of the tap
+                new AudioFormat(4000, 2, C.ENCODING_PCM_16BIT),               // a rate nobody plays
+                new AudioFormat(500000, 2, C.ENCODING_PCM_16BIT),
                 new AudioFormat(48000, 2, C.ENCODING_PCM_16BIT_BIG_ENDIAN),
                 new AudioFormat(48000, 2, C.ENCODING_PCM_FLOAT_BIG_ENDIAN),
                 new AudioFormat(48000, 2, C.ENCODING_AC3),

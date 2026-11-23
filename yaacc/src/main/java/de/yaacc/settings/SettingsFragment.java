@@ -165,11 +165,13 @@ public class SettingsFragment extends PreferenceFragmentCompat {
     @Override
     public void onStart() {
         super.onStart();
+        clientSummaryHandler.post(clientSummaryLoop);
         PreferenceManager.getDefaultSharedPreferences(requireContext()).registerOnSharedPreferenceChangeListener(rendererOutputListener);
     }
 
     @Override
     public void onStop() {
+        clientSummaryHandler.removeCallbacks(clientSummaryLoop);
         PreferenceManager.getDefaultSharedPreferences(requireContext()).unregisterOnSharedPreferenceChangeListener(rendererOutputListener);
         super.onStop();
     }
@@ -255,8 +257,10 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         if (switchedOn != null) {
             switchedOn.setVisible(client.isChecked());
             switchedOn.setChecked(SnapcastClientPowers.of(requireContext()).isOn());
+            showClientSwitchSummary(switchedOn);
             switchedOn.setOnPreferenceChangeListener((preference, newValue) -> {
                 SnapcastClientPower.Outcome outcome = SnapcastClientPowers.of(requireContext()).setOn(Boolean.TRUE.equals(newValue));
+                clientSummaryHandler.postDelayed(() -> showClientSwitchSummary(switchedOn), 1500L);
                 String reason = SnapcastClientPowerTexts.refusalText(requireContext(), outcome);
                 if (reason != null) {
                     // the state stays on (the intent); the reason is shown, the first page and the test screen show "stopped"
@@ -280,6 +284,28 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             SnapcastClientDialog.show(requireContext());
             return true;
         });
+    }
+
+    // The switch is the owner's intent and stays on when a session ends by a failure; its text must not say "connected" then.
+    private final android.os.Handler clientSummaryHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable clientSummaryLoop = new Runnable() {
+        @Override
+        public void run() {
+            if (!isAdded()) {
+                return;
+            }
+            showClientSwitchSummary(findPreference(getString(R.string.settings_snapcast_client_switched_on)));
+            clientSummaryHandler.postDelayed(this, 2000L);
+        }
+    };
+
+    private void showClientSwitchSummary(androidx.preference.CheckBoxPreference switchedOn) {
+        if (switchedOn == null || !isAdded() || getContext() == null) {
+            return;
+        }
+        boolean connected = SnapcastClientRuntime.get().phase == SnapcastClientRuntime.Phase.RUNNING;
+        switchedOn.setSummaryOn(getString(connected ? R.string.settings_snapcast_client_switched_on_summary_on
+                : R.string.settings_snapcast_client_switched_on_summary_waiting));
     }
 
     private void populateNetworkInterfaceList() {
