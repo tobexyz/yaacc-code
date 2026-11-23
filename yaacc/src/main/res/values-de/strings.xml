@@ -574,4 +574,10 @@
     <string name="fcast_link_note_v4">Der Empfänger wird Ihrer Liste der FCast-Empfänger hinzugefügt. Es wird nichts darauf abgespielt, bevor Sie ihn auswählen. Dieser Link enthält den Schlüssel des Empfängers: ab Android 10 ist die Verbindung verschlüsselt (Protokoll v4).</string>
     <string name="fcast_key_refused">Der Schlüssel des Empfängers ist nicht der angekündigte, deshalb hat YAACC sich nicht verbunden. Wurde der Empfänger neu installiert, entfernen Sie ihn und fügen Sie ihn mit seinem Verbindungslink erneut hinzu.</string>
     <string name="fcast_secure_failed">Die verschlüsselte Verbindung (Version 4) zum Empfänger konnte nicht hergestellt werden, deshalb hat YAACC sich nicht verbunden. Sie können Version 4 unter Einstellungen > FCast ausschalten.</string>
+    <string name="search_action">Suchen</string>
+    <string name="search_hint">Suchbegriffe</string>
+    <string name="search_results_title">Suche: %1$s</string>
+    <string name="search_not_supported">Dieser Server unterstützt keine Suche.</string>
+    <string name="search_no_results">Nichts gefunden.</string>
+    <string name="search_content">Auf diesem Server suchen</string>
 </resources>

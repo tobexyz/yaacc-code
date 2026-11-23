@@ -579,4 +579,10 @@
     <string name="fcast_link_note_v4">The receiver will be added to your list of FCast receivers. Nothing is played on it until you select it. This link carries the receiver’s key: on Android 10 or later the connection is encrypted (protocol v4).</string>
     <string name="fcast_key_refused">The receiver’s key is not the one that was announced, so YAACC did not connect. If the receiver was reinstalled, remove it and add it again with its connection link.</string>
     <string name="fcast_secure_failed">The encrypted connection (version 4) to the receiver could not be made, so YAACC did not connect. You can turn version 4 off in Settings > FCast.</string>
+    <string name="search_action">Search</string>
+    <string name="search_hint">Search words</string>
+    <string name="search_results_title">Search: %1$s</string>
+    <string name="search_not_supported">This server does not support searching.</string>
+    <string name="search_no_results">Nothing found.</string>
+    <string name="search_content">Search on this server</string>
 </resources>

@@ -132,6 +132,11 @@ public class BrowseItemLoadTask extends AsyncTask<Long, Integer, ContentDirector
         itemAdapter.removeTask(this);
         itemAdapter.setLoading(false);
         itemAdapter.scrollToPositionId(scrollToPositionId);
+        if (content != null && itemAdapter.getItemCount() == 0
+                && de.yaacc.upnp.search.SearchPosition.isSearch(currentObjectId())) {
+            // a search that found nothing: an empty list alone would look like an empty folder
+            android.widget.Toast.makeText(itemAdapter.getContext(), R.string.search_no_results, android.widget.Toast.LENGTH_LONG).show();
+        }
 
     }
 

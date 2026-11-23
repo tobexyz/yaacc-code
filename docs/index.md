@@ -146,6 +146,16 @@ ascending or descending. yaacc uses the server's own sort support when browsing
 a UPnP/DLNA server that offers it, falling back to sorting the results itself
 otherwise. The chosen sort order is remembered across app restarts.
 
+### Searching a server
+
+The magnifier in the folder header searches the **whole selected server**, wherever you are in its folders (issue #336). Type
+one or more words; every word must be found in at least one of the properties the server can search (the title, and where the
+server lists them the artist, the album, the creator, the genre and the description), so "beatles help" finds a song of the
+Beatles whose title has "help" in it. The results are shown as a folder of their own with the same sorting, paging and playing as
+any folder; the back arrow returns to where you started. Not every server can search: a server that does not have the search
+action, or lists no property to search, answers with the message that it does not support searching. A search from your own
+YAACC server is not possible yet (it does not answer searches).
+
 ![browse_music_folder](./screenshots/6.0.x/browse_music_folder.png){:height="30%" width="30%"}
 
 ### Choosing receivers (new layout)

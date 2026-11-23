@@ -80,8 +80,10 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -120,6 +122,10 @@ import de.yaacc.share.ShareService;
 import de.yaacc.share.ShareRegistry;
 import de.yaacc.share.UnclaimedShares;
 import de.yaacc.upnp.callback.contentdirectory.Browse.Status;
+import de.yaacc.upnp.callback.contentdirectory.ContentDirectorySearchActionCallback;
+import de.yaacc.upnp.callback.contentdirectory.SearchCapabilitiesActionCallback;
+import de.yaacc.upnp.search.SearchCriteria;
+import de.yaacc.upnp.search.SearchPosition;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseActionCallback;
 import de.yaacc.upnp.callback.contentdirectory.ContentDirectoryBrowseResult;
 import de.yaacc.upnp.callback.renderingcontrol.GetMute;
@@ -719,6 +725,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (getProviderDevice() == null) {
             return null;
         }
+        if (pos != null && SearchPosition.isSearch(pos.getObjectId())) {
+            // the results of a search from the root of the server (issue #336) are loaded and paged like a folder
+            return searchSync(getProviderDevice(), SearchPosition.text(pos.getObjectId()), firstResult == null ? 0L : firstResult, maxResult);
+        }
         if (pos == null || pos.getDeviceId() == null) {
             if (getProviderDevice() != null) {
                 return browseSync(getProviderDevice(), "0", BrowseFlag.DIRECT_CHILDREN, "*", firstResult, maxResult, orderBy);
@@ -792,6 +802,128 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
 
         if (preferences.getBoolean(getContext().getString(R.string.settings_browse_thumbnails_coverlookup_chkbx), false)) {
             enrichWithCover(result);
+        }
+        return result;
+    }
+
+    /** The message of the failure of a search that the server can not do (no search action, no property it can search). */
+    public static final String SEARCH_UNSUPPORTED = "Search not supported";
+
+    /** The properties a server can search, by device id, from {@code GetSearchCapabilities}; filled when a search or a check asked. */
+    private final Map<String, List<String>> searchPropertiesByDevice = new ConcurrentHashMap<>();
+
+    /** @return true if the failure of a search says that the server can not search */
+    public static boolean isSearchUnsupported(ContentDirectoryBrowseResult result) {
+        return result != null && result.getUpnpFailure() != null && SEARCH_UNSUPPORTED.equals(result.getUpnpFailure().getDefaultMsg());
+    }
+
+    /**
+     * Whether the server can search at all: it has the search action and lists at least one property that a free text is looked
+     * for in. Asks the server once per device (blocking: worker thread only).
+     */
+    public boolean supportsSearch(Device<?, ?, ?> device) {
+        Service<?, ?> service = device == null ? null : device.findService(new UDAServiceId("ContentDirectory"));
+        return service != null && service.getAction("Search") != null && !searchProperties(device, service).isEmpty();
+    }
+
+    private List<String> searchProperties(Device<?, ?, ?> device, Service<?, ?> service) {
+        String key = device.getIdentity().getUdn().getIdentifierString();
+        List<String> known = searchPropertiesByDevice.get(key);
+        if (known != null) {
+            return known;
+        }
+        HttpRequestSender sender = getHttpRequestSender();
+        if (service.getAction("GetSearchCapabilities") == null || sender == null) {
+            return Collections.emptyList();
+        }
+        SearchCapabilitiesActionCallback callback = new SearchCapabilitiesActionCallback(sender, service);
+        executorService.execute(() -> {
+            try {
+                callback.run();
+            } catch (RuntimeException e) {
+                YaaccLogger.e(getClass().getName(), "GetSearchCapabilities failed unexpectedly", e);
+            }
+        });
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
+        while (!callback.isDone() && System.nanoTime() < deadline) {
+            try {
+                TimeUnit.MILLISECONDS.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return Collections.emptyList();
+            }
+        }
+        if (callback.getCapabilities() == null) {
+            return Collections.emptyList(); // nothing arrived or it failed: not remembered, the next search asks again
+        }
+        List<String> properties = SearchCriteria.usableProperties(callback.getCapabilities());
+        searchPropertiesByDevice.put(key, properties);
+        return properties;
+    }
+
+    /**
+     * Searches the whole server from its root for the free text (issue #336): every word in at least one of the properties the
+     * server can search, see {@link SearchCriteria}. Blocking, like {@link #browseSync}; the result is paged the same way.
+     * A server that can not search gives the failure {@link #SEARCH_UNSUPPORTED}. If a server refuses the criteria with several
+     * properties, the first property alone is tried once.
+     */
+    public ContentDirectoryBrowseResult searchSync(Device<?, ?, ?> device, String freeText, long firstResult, Long maxResults) {
+        ContentDirectoryBrowseResult result = new ContentDirectoryBrowseResult();
+        if (device == null) {
+            result.setUpnpFailure(new UpnpFailure(null, null, "Device not available", true));
+            return result;
+        }
+        Service<?, ?> service = device.findService(new UDAServiceId("ContentDirectory"));
+        if (service == null) {
+            result.setUpnpFailure(new UpnpFailure(null, null, "Device has no ContentDirectory service", false));
+            return result;
+        }
+        HttpRequestSender httpRequestSender = getHttpRequestSender();
+        if (httpRequestSender == null) {
+            result.setUpnpFailure(new UpnpFailure(null, null, "No HTTP request sender available", true));
+            return result;
+        }
+        List<String> properties = service.getAction("Search") == null ? Collections.<String>emptyList() : searchProperties(device, service);
+        String criteria = SearchCriteria.build(freeText, properties);
+        if (criteria == null) {
+            result.setUpnpFailure(new UpnpFailure(null, null, SEARCH_UNSUPPORTED, false));
+            return result;
+        }
+        ContentDirectoryBrowseResult answer = runSearch(service, criteria, firstResult, maxResults, httpRequestSender);
+        UpnpFailure failure = answer.getUpnpFailure();
+        if (failure != null && !failure.isTransportFailure() && properties.size() > 1) {
+            // some servers reject a criteria with brackets or an "or" on a property they listed: the first property alone
+            String simple = SearchCriteria.build(freeText, properties.subList(0, 1));
+            YaaccLogger.d(getClass().getName(), "Search with several properties refused, trying one");
+            answer = runSearch(service, simple, firstResult, maxResults, httpRequestSender);
+        }
+        if (preferences.getBoolean(getContext().getString(R.string.settings_browse_thumbnails_coverlookup_chkbx), false)) {
+            enrichWithCover(answer);
+        }
+        return answer;
+    }
+
+    private ContentDirectoryBrowseResult runSearch(Service<?, ?> service, String criteria, long firstResult, Long maxResults,
+                                                   HttpRequestSender httpRequestSender) {
+        ContentDirectoryBrowseResult result = new ContentDirectoryBrowseResult();
+        final ContentDirectorySearchActionCallback callback = new ContentDirectorySearchActionCallback(service, "0", criteria, "*",
+                firstResult, maxResults, result, httpRequestSender);
+        executorService.execute(() -> {
+            try {
+                callback.run();
+            } catch (RuntimeException e) {
+                YaaccLogger.e(getClass().getName(), "Search action failed unexpectedly", e);
+                result.setUpnpFailure(new UpnpFailure(callback.getActionInvocation(), null, String.valueOf(e), false));
+            }
+        });
+        while (callback.getStatus() == Status.LOADING && callback.getUpnpFailure() == null) {
+            try {
+                TimeUnit.MILLISECONDS.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                result.setUpnpFailure(new UpnpFailure(callback.getActionInvocation(), null, "Interrupted", false));
+                break;
+            }
         }
         return result;
     }

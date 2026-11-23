@@ -578,4 +578,10 @@
     <string name="fcast_link_note_v4">El receptor se añadirá a su lista de receptores FCast. No se reproduce nada en él hasta que lo seleccione. Este enlace contiene la clave del receptor: desde Android 10 la conexión está cifrada (protocolo v4).</string>
     <string name="fcast_key_refused">La clave del receptor no es la anunciada, por eso YAACC no se conectó. Si el receptor se reinstaló, elimínelo y añádalo de nuevo con su enlace de conexión.</string>
     <string name="fcast_secure_failed">No se pudo establecer la conexión cifrada (versión 4) con el receptor, por eso YAACC no se conectó. Puede desactivar la versión 4 en Ajustes > FCast.</string>
+    <string name="search_action">Buscar</string>
+    <string name="search_hint">Palabras de búsqueda</string>
+    <string name="search_results_title">Búsqueda: %1$s</string>
+    <string name="search_not_supported">Este servidor no admite la búsqueda.</string>
+    <string name="search_no_results">No se encontró nada.</string>
+    <string name="search_content">Buscar en este servidor</string>
 </resources>

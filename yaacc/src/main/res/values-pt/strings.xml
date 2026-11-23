@@ -578,4 +578,10 @@
     <string name="fcast_link_note_v4">O recetor será adicionado à sua lista de recetores FCast. Nada é reproduzido nele até o selecionar. Esta ligação contém a chave do recetor: a partir do Android 10 a ligação é cifrada (protocolo v4).</string>
     <string name="fcast_key_refused">A chave do recetor não é a que foi anunciada, por isso o YAACC não se ligou. Se o recetor foi reinstalado, remova-o e adicione-o novamente com a sua ligação.</string>
     <string name="fcast_secure_failed">Não foi possível estabelecer a ligação cifrada (versão 4) ao recetor, por isso o YAACC não se ligou. Pode desativar a versão 4 em Definições > FCast.</string>
+    <string name="search_action">Pesquisar</string>
+    <string name="search_hint">Palavras de pesquisa</string>
+    <string name="search_results_title">Pesquisa: %1$s</string>
+    <string name="search_not_supported">Este servidor não suporta pesquisa.</string>
+    <string name="search_no_results">Nada encontrado.</string>
+    <string name="search_content">Pesquisar neste servidor</string>
 </resources>
