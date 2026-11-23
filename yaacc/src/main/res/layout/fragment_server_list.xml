@@ -16,163 +16,153 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 -->
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- The classic layout of the servers: the list, then three lines at the bottom (issue #324): the shutdown timer, the UPnP server
+     with its status icons, and the refresh button alone. The text of a line gives way (ellipsis) before anything is pushed over its
+     neighbour, so that the lines also fit a phone that is 320dp wide, and a bigger font does not make them overlap. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content">
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/serverList"
         android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentTop="true"
-        android:layout_alignParentEnd="true"
-        android:layout_above="@id/serverListLocalServerLabel" />
+        android:gravity="center_vertical"
+        android:minHeight="48dp"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp">
 
-    <TextView
-        android:id="@+id/serverListShutdownTimerLabel"
-        android:layout_width="wrap_content"
+        <TextView
+            android:id="@+id/serverListShutdownTimerLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:focusable="false"
+            android:maxLines="1"
+            android:text="@string/shutdown_timer"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            android:textColor="?attr/colorOnSurface" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/serverListShutdownTimerEnabled"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:minHeight="48dp" />
+
+        <ImageButton
+            android:id="@+id/serverListSetShutdownTimer"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="10dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/settings"
+            app:srcCompat="@drawable/ic_baseline_settings_42"
+            app:tint="?attr/colorControlNormal" />
+
+        <TextView
+            android:id="@+id/serverListShutdownTimerRemaining"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:focusable="false"
+            android:maxLines="1"
+            android:text="@string/all"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            android:textColor="?attr/colorOnSurface" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentBottom="false"
-        android:layout_marginStart="10dp"
-        android:layout_marginEnd="10dp"
-        android:layout_marginBottom="10dp"
-        android:text="@string/shutdown_timer"
-        android:focusable="false"
-        android:layout_alignBottom="@id/serverList"
-        android:textAppearance="@android:style/TextAppearance.Material.Medium"
-        android:textColor="?attr/colorOnSurface" />
+        android:gravity="center_vertical"
+        android:minHeight="48dp"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp">
 
+        <TextView
+            android:id="@+id/serverListLocalServerLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:focusable="false"
+            android:maxLines="1"
+            android:text="@string/upnp_server"
+            android:textAppearance="@android:style/TextAppearance.Material.Medium"
+            android:textColor="?attr/colorOnSurface" />
 
-    <com.google.android.material.switchmaterial.SwitchMaterial
-        android:id="@+id/serverListShutdownTimerEnabled"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignBottom="@id/serverList"
-        android:layout_toEndOf="@id/serverListShutdownTimerLabel"
-        android:layout_alignParentBottom="false"
-        android:layout_marginBottom="10dp"
-        android:layout_marginStart="10dp" />
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/serverListLocalServerEnabled"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:minHeight="48dp" />
 
-    <ImageButton
-        android:id="@+id/serverListSetShutdownTimer"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:layout_marginStart="10dp"
-        android:layout_marginBottom="10dp"
-        android:layout_toEndOf="@id/serverListShutdownTimerEnabled"
-        android:layout_alignBottom="@id/serverList"
-        android:layout_alignParentBottom="false"
-        android:contentDescription="@string/settings"
-        app:srcCompat="@drawable/ic_baseline_settings_42"
-                    app:tint="?attr/colorControlNormal" />
+        <ImageButton
+            android:id="@+id/serverListLocalServerSettings"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="6dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/settings"
+            app:srcCompat="@drawable/ic_baseline_settings_42"
+            app:tint="?attr/colorControlNormal" />
 
-    <TextView
-        android:id="@+id/serverListShutdownTimerRemaining"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="false"
-        android:layout_toEndOf="@id/serverListSetShutdownTimer"
-        android:layout_marginStart="10dp"
-        android:layout_marginEnd="10dp"
-        android:layout_marginBottom="10dp"
-        android:focusable="false"
-        android:text="@string/all"
-        android:layout_alignBottom="@id/serverList"
-        android:textAppearance="@android:style/TextAppearance.Material.Medium"
-        android:textColor="?attr/colorOnSurface" />
+        <ImageView
+            android:id="@+id/serverListProviderEnabled"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="6dp"
+            android:contentDescription="@string/settings"
+            android:focusable="false"
+            app:srcCompat="@drawable/ic_baseline_sensors_32"
+            app:tint="?attr/colorControlNormal" />
 
+        <ImageView
+            android:id="@+id/serverListReceiverEnabled"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="6dp"
+            android:contentDescription="@string/settings"
+            android:focusable="false"
+            app:srcCompat="@drawable/ic_baseline_devices_32"
+            app:tint="?attr/colorControlNormal" />
 
-    <TextView
-        android:id="@+id/serverListLocalServerLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentStart="true"
-        android:layout_alignParentBottom="true"
-        android:layout_marginStart="10dp"
-        android:layout_marginTop="10dp"
-        android:layout_marginEnd="10dp"
-        android:layout_marginBottom="10dp"
-        android:focusable="false"
-        android:text="@string/upnp_server"
-        android:textAppearance="@android:style/TextAppearance.Material.Medium"
-        android:textColor="?attr/colorOnSurface" />
-
-
-    <com.google.android.material.switchmaterial.SwitchMaterial
-        android:id="@+id/serverListLocalServerEnabled"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_toEndOf="@id/serverListLocalServerLabel"
-        android:layout_alignStart="@id/serverListShutdownTimerEnabled"
-        android:layout_alignParentBottom="true"
-        android:layout_marginBottom="10dp" />
-
-    <ImageButton
-        android:id="@+id/serverListLocalServerSettings"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:layout_marginStart="10dp"
-        android:layout_marginBottom="10dp"
-        android:layout_toEndOf="@id/serverListLocalServerEnabled"
-        android:layout_alignParentBottom="true"
-        android:contentDescription="@string/settings"
-        app:srcCompat="@drawable/ic_baseline_settings_42"
-                    app:tint="?attr/colorControlNormal" />
-
-    <ImageView
-        android:id="@+id/serverListProviderEnabled"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:layout_marginStart="10dp"
-        android:layout_marginBottom="10dp"
-        android:layout_toEndOf="@id/serverListLocalServerSettings"
-        android:layout_alignParentBottom="true"
-        android:focusable="false"
-        android:contentDescription="@string/settings"
-        app:srcCompat="@drawable/ic_baseline_sensors_32"
-                    app:tint="?attr/colorControlNormal" />
-
-    <ImageView
-        android:id="@+id/serverListReceiverEnabled"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:layout_marginStart="10dp"
-        android:layout_marginBottom="10dp"
-        android:layout_toEndOf="@id/serverListProviderEnabled"
-        android:layout_alignParentBottom="true"
-        android:focusable="false"
-        android:contentDescription="@string/settings"
-        app:srcCompat="@drawable/ic_baseline_devices_32"
-                    app:tint="?attr/colorControlNormal" />
-
-    <ImageView
-        android:id="@+id/serverListProxyEnabled"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:layout_marginStart="10dp"
-        android:layout_marginBottom="10dp"
-        android:layout_toEndOf="@id/serverListReceiverEnabled"
-        android:layout_alignParentBottom="true"
-        android:focusable="false"
-        android:contentDescription="@string/settings"
-        app:srcCompat="@drawable/ic_baseline_import_export_32"
-                    app:tint="?attr/colorControlNormal" />
-
+        <ImageView
+            android:id="@+id/serverListProxyEnabled"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="6dp"
+            android:contentDescription="@string/settings"
+            android:focusable="false"
+            app:srcCompat="@drawable/ic_baseline_import_export_32"
+            app:tint="?attr/colorControlNormal" />
+    </LinearLayout>
 
     <ImageButton
         android:id="@+id/serverListRefreshButton"
         style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
-        android:foreground="@drawable/focus_ring"
         android:layout_width="32dp"
         android:layout_height="32dp"
-        android:layout_alignParentEnd="true"
-        android:layout_alignParentBottom="true"
+        android:layout_gravity="end"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="4dp"
         android:layout_marginEnd="10dp"
         android:layout_marginBottom="10dp"
         android:contentDescription="@string/icon"
+        android:foreground="@drawable/focus_ring"
         app:srcCompat="@drawable/ic_baseline_refresh_32"
-                    app:tint="?attr/colorControlNormal" />
-</RelativeLayout>
+        app:tint="?attr/colorControlNormal" />
+</LinearLayout>
