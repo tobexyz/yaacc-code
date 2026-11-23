@@ -109,6 +109,7 @@ import de.yaacc.player.ShareLifetimeListener;
 import de.yaacc.player.YaaccMediaRouteProvider;
 import de.yaacc.share.HttpLinkTarget;
 import de.yaacc.share.LinkContentType;
+import de.yaacc.share.LiveStreamTarget;
 import de.yaacc.share.LinkTargetPolicy;
 import de.yaacc.share.ProxyAvailability;
 import de.yaacc.share.ReadinessWait;
@@ -2286,6 +2287,72 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         // a share no player takes within the claim window is removed by the sweeper
         getUnclaimedShares().registered(key, Yaacc.shareClockMillis());
         return ShareService.proxyUrl(ip, key);
+    }
+
+    /**
+     * Makes the live stream of this phone (device audio or screen) available to the chosen receivers as a share: the capture is
+     * started for it, a short-lived address under the media proxy path is registered and the item that plays it is returned. It
+     * needs neither the UPnP Server switch nor the media provider (like a shared file); the capture stops when the share ends,
+     * unless the stream setting of the server card keeps it. Null if no share could be made (no network address, the local
+     * server is not ready, the registry is full, the capture did not start: the permission of the system is missing).
+     * Worker thread only; nothing here logs the key.
+     */
+    public PlayableItem createLiveStreamShare(boolean audio, Set<String> receiverIds) {
+        String ip = InterfaceResolutionHelper.getIpAddress(getContext());
+        if (!ShareService.hasAddress(ip)) {
+            YaaccLogger.w(getClass().getName(), "No network address, the live stream is not shared");
+            return null;
+        }
+        if (!awaitHttpServer()) {
+            YaaccLogger.w(getClass().getName(), "The local server is not ready, the live stream is not shared");
+            return null;
+        }
+        final YaaccUpnpServerService service = getYaaccUpnpServerService();
+        if (service == null || !service.acquireLiveCapture(audio)) {
+            YaaccLogger.w(getClass().getName(), "The capture for the live stream did not start");
+            return null;
+        }
+        // from here the entry owns the capture: removing it releases it
+        LiveStreamTarget target = new LiveStreamTarget(audio, new LiveStreamTarget.Capture() {
+            @Override
+            public java.io.InputStream open() throws java.io.IOException {
+                return audio ? openAudioStream(service) : openVideoStream(service);
+            }
+
+            @Override
+            public void release() {
+                service.releaseLiveCapture(audio);
+            }
+        });
+        String mimeType = audio ? "audio/wav" : "video/mpeg";
+        ShareRegistry.Entry entry = new ShareRegistry.Entry(ShareRegistry.Kind.LIVE_STREAM, target, mimeType,
+                ShareAddressResolver.resolve(this, getContext(), receiverIds),
+                ShareLimits.IDLE_GRACE_MILLIS, ShareLimits.ABSOLUTE_MAX_MILLIS);
+        String key = getShareRegistry().registerOrEvict(entry);
+        if (key == null) {
+            target.close();
+            notifyRegistryFull();
+            return null;
+        }
+        getUnclaimedShares().registered(key, Yaacc.shareClockMillis());
+        String url = ShareService.proxyUrl(ip, key);
+        String name = getContext().getString(audio ? R.string.system_audio_stream : R.string.screen_cast_stream);
+        PlayableItem item = url == null ? null : SharedItemFactory.create(mimeType, name, Uri.parse(url), 0L, 0L, 0L);
+        if (item == null) {
+            getShareRegistry().remove(key);
+            getUnclaimedShares().released(key);
+        }
+        return item;
+    }
+
+    private static java.io.InputStream openAudioStream(YaaccUpnpServerService service) throws java.io.IOException {
+        de.yaacc.upnp.server.media.SystemAudioCaptureService capture = service.getAudioCapture();
+        return capture == null ? null : capture.getInputStream();
+    }
+
+    private static java.io.InputStream openVideoStream(YaaccUpnpServerService service) throws java.io.IOException {
+        de.yaacc.upnp.server.media.ScreenCastCaptureService capture = service.getVideoCapture();
+        return capture == null || !capture.isCapturing() ? null : capture.createInputStream();
     }
 
     /**

@@ -287,6 +287,11 @@ Stream your device's screen to TVs or displays:
 * Works in web browsers and some UPnP video players
 * Useful for presentations and screen sharing
 
+**Note:** the screen is sent as MJPEG (a stream of JPEG pictures), which not every receiver can play. The FCast desktop receiver
+(receiver 3.0.4, GStreamer 1.29.2) refuses it with "Internal data stream error", with the link of the server and with the link of
+the card "Play from this device" alike (tested 2026-11-23); the device audio stream plays there. Try the screen cast with your own
+receiver; H.264 is not offered (a possible later enhancement).
+
 ### Enabling live streaming
 
 1. Go to the Server tab (in the new layout: the Servers screen)
@@ -298,6 +303,17 @@ Stream your device's screen to TVs or displays:
 Access streams via UPnP or directly:
 * Audio: `http://<device-ip>:49157/live/audio`
 * Video: `http://<device-ip>:49157/live/video`
+
+### Sending a live stream to a receiver
+
+The card "Play from this device" has the same two live stream buttons (device audio and screen). A tap sends the stream to a
+receiver in one step: the list of receivers opens (a screen cast is offered to receivers that can show video), and after you
+confirm, the stream plays there. As with the files you pick on this card, the receiver gets a short-lived link of its own: it needs
+neither the UPnP server switch nor the media provider, only the receivers you chose may open it, and it ends with the play. The
+capture of the device audio or of the screen runs as long as that link lives; the system asks for the microphone and screen capture
+permission first if they are not given yet. The buttons of the server card are not changed by it. If the server serves the stream
+already (the UPnP server switch, the media provider and the stream button of the server card are on), the receiver gets the
+server's link, the one listed in the "Live Streams" folder.
 
 ## Storage Access Framework (SAF)
 

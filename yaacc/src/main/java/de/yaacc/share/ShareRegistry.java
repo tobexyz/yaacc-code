@@ -74,7 +74,9 @@ public final class ShareRegistry {
         /** An http or https link the proxy relays; the target is the URL text. */
         HTTP_LINK,
         /** A local file held open; the target is an {@link AutoCloseable} source. */
-        LOCAL_FILE
+        LOCAL_FILE,
+        /** A live stream of this phone (device audio or screen); the target is a {@link LiveStreamTarget}, closed with the entry. */
+        LIVE_STREAM
     }
 
     /** One share. Immutable; the registry never looks inside {@link #getTarget()} except to close it. */

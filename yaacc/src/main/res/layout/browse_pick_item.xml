@@ -70,6 +70,30 @@
                 android:orientation="horizontal">
 
                 <ImageButton
+                    android:id="@+id/browsePickLiveAudio"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:foreground="@drawable/focus_ring"
+                    android:layout_width="48dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="2dp"
+                    android:contentDescription="@string/system_audio_stream"
+                    android:visibility="gone"
+                    app:srcCompat="@drawable/ic_live_audio_stream"
+                    app:tint="?attr/colorControlNormal" />
+
+                <ImageButton
+                    android:id="@+id/browsePickLiveVideo"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                    android:foreground="@drawable/focus_ring"
+                    android:layout_width="48dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="2dp"
+                    android:contentDescription="@string/screen_cast_stream"
+                    android:visibility="gone"
+                    app:srcCompat="@drawable/ic_live_video_stream"
+                    app:tint="?attr/colorControlNormal" />
+
+                <ImageButton
                     android:id="@+id/browsePickFiles"
                     style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                     android:foreground="@drawable/focus_ring"

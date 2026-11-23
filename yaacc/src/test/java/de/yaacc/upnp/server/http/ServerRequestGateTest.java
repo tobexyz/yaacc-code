@@ -39,6 +39,12 @@ public class ServerRequestGateTest {
     }
 
     @Test
+    public void aLiveStreamShareIsServedWhateverTheMasterSwitchSays() {
+        assertTrue(ServerRequestGate.maySendShare(true, ShareRegistry.Kind.LIVE_STREAM));
+        assertTrue(ServerRequestGate.maySendShare(false, ShareRegistry.Kind.LIVE_STREAM));
+    }
+
+    @Test
     public void aProxiedLinkIsServedOnlyWithTheMasterSwitchOn() {
         assertTrue(ServerRequestGate.maySendShare(true, ShareRegistry.Kind.HTTP_LINK));
         assertFalse(ServerRequestGate.maySendShare(false, ShareRegistry.Kind.HTTP_LINK));
