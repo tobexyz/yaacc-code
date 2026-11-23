@@ -368,9 +368,17 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         input.setHint(R.string.search_hint);
         input.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
         input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
+        // the margins of the other input dialogs of the app (a view set directly runs from edge to edge of the dialog)
+        final float density = getResources().getDisplayMetrics().density;
+        final int pad = (int) (16 * density);
+        final android.widget.LinearLayout content = new android.widget.LinearLayout(requireContext());
+        content.setOrientation(android.widget.LinearLayout.VERTICAL);
+        content.setPadding(pad, (int) (8 * density), pad, 0);
+        content.addView(input, new android.widget.LinearLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT));
         final androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(requireContext())
                 .setTitle(R.string.search_content)
-                .setView(input)
+                .setView(content)
                 .setPositiveButton(R.string.search_action, (d, which) -> startSearch(input.getText().toString()))
                 .setNegativeButton(android.R.string.cancel, null)
                 .create();
