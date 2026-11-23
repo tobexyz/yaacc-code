@@ -96,6 +96,13 @@ public class BrowseDeviceAdapter extends RecyclerView.Adapter<BrowseDeviceAdapte
         pendingVideoRequest = false;
     }
 
+    /** Whether a live stream of this phone is switched on (the setting the server card writes). */
+    public static boolean isStreamOn(Context context, boolean audio) {
+        return androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+                .getBoolean(context.getString(audio ? R.string.settings_local_server_serve_system_audio_chkbx
+                        : R.string.settings_local_server_serve_screen_cast_chkbx), false);
+    }
+
 
     public BrowseDeviceAdapter(Context ctx, RecyclerView deviceList, UpnpClient upnpClient, List<Device<?, ?, ?>> devices) {
         super();

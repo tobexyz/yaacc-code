@@ -100,6 +100,42 @@ public class LiveStreamFolderBrowser extends ContentBrowser {
         return new ArrayList<>();
     }
 
+    /**
+     * The item of a live stream of this phone, as the folder lists it and as the cards of the server list hand it to a
+     * receiver: the system audio ({@code /live/audio}, wav) or the screen cast ({@code /live/video}, mpeg).
+     *
+     * @param audio     true for the device audio, false for the screen cast
+     * @param ipAddress the address of this phone that the receiver reaches
+     */
+    public Item liveItem(boolean audio, String ipAddress) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getContext());
+        String serverName = preferences.getString(getContext().getString(R.string.settings_local_server_name), "YAACC");
+        String streamUrl = "http://" + ipAddress + ":" + de.yaacc.upnp.server.YaaccUpnpServerService.PORT
+                + (audio ? "/live/audio" : "/live/video");
+        de.yaacc.util.YaaccLogger.i(getClass().getName(), "Creating live " + (audio ? "audio" : "video") + " item with URL: " + streamUrl);
+        Item item = createItem(
+                audio ? ContentDirectoryIDs.LIVE_STREAM_SYSTEM_AUDIO.getId() : ContentDirectoryIDs.LIVE_STREAM_SCREEN_CAST.getId(),
+                ContentDirectoryIDs.LIVE_STREAM_FOLDER.getId(),
+                serverName + " " + getContext().getString(audio ? R.string.system_audio_stream : R.string.screen_cast_stream),
+                "yaacc",
+                false,
+                MimeType.valueOf(audio ? "audio/wav" : "video/mpeg"),
+                streamUrl,
+                null,
+                null);
+        if (!item.getResources().isEmpty()) {
+            Res res = item.getResources().get(0);
+            if (audio) {
+                res.setSampleFrequency(44100L);
+                res.setNrAudioChannels(2L);
+                res.setBitsPerSample(16L);
+            } else {
+                res.setResolution("1280x720");
+            }
+        }
+        return item;
+    }
+
     @Override
     public List<Item> browseItem(YaaccContentDirectory contentDirectory, String myId, long firstResult, long maxResults, SortCriterion[] orderby) {
         List<Item> result = new ArrayList<>();
@@ -112,68 +148,12 @@ public class LiveStreamFolderBrowser extends ContentBrowser {
 
         // System audio stream
         if (preferences.getBoolean(getContext().getString(R.string.settings_local_server_serve_system_audio_chkbx), false)) {
-            String streamUrl = "http://" + contentDirectory.getIpAddress() + ":"
-                    + de.yaacc.upnp.server.YaaccUpnpServerService.PORT + "/live/audio";
-
-            de.yaacc.util.YaaccLogger.i(getClass().getName(), "Creating live audio item with URL: " + streamUrl);
-
-            MimeType mimeType = MimeType.valueOf("audio/wav");
-            
-            Item audioItem = createItem(
-                ContentDirectoryIDs.LIVE_STREAM_SYSTEM_AUDIO.getId(),
-                ContentDirectoryIDs.LIVE_STREAM_FOLDER.getId(),
-                preferences.getString(getContext().getString(R.string.settings_local_server_name), "YAACC") + " " + getContext().getString(R.string.system_audio_stream),
-                "yaacc",
-                false,
-                mimeType,
-                streamUrl,
-                null,
-                null
-            );
-            
-            // Add custom audio properties
-            if (audioItem.getResources().size() > 0) {
-                Res res = audioItem.getResources().get(0);
-                res.setSampleFrequency(44100L);
-                res.setNrAudioChannels(2L);
-                res.setBitsPerSample(16L);
-            }
-
-            de.yaacc.util.YaaccLogger.i(getClass().getName(), "AudioItem created with URL: " + streamUrl);
-
-            result.add(audioItem);
+            result.add(liveItem(true, contentDirectory.getIpAddress()));
         }
 
         // Screen cast stream
         if (preferences.getBoolean(getContext().getString(R.string.settings_local_server_serve_screen_cast_chkbx), false)) {
-            String streamUrl = "http://" + contentDirectory.getIpAddress() + ":"
-                    + de.yaacc.upnp.server.YaaccUpnpServerService.PORT + "/live/video";
-
-            de.yaacc.util.YaaccLogger.i(getClass().getName(), "Creating live video item with URL: " + streamUrl);
-
-            MimeType mimeType = MimeType.valueOf("video/mpeg");
-            
-            Item videoItem = createItem(
-                ContentDirectoryIDs.LIVE_STREAM_SCREEN_CAST.getId(),
-                ContentDirectoryIDs.LIVE_STREAM_FOLDER.getId(),
-                preferences.getString(getContext().getString(R.string.settings_local_server_name), "YAACC") + " " + getContext().getString(R.string.screen_cast_stream),
-                "yaacc",
-                false,
-                mimeType,
-                streamUrl,
-                null,
-                null
-            );
-            
-            // Add custom video properties
-            if (videoItem.getResources().size() > 0) {
-                Res res = videoItem.getResources().get(0);
-                res.setResolution("1280x720");
-            }
-
-            de.yaacc.util.YaaccLogger.i(getClass().getName(), "VideoItem created with URL: " + streamUrl);
-
-            result.add(videoItem);
+            result.add(liveItem(false, contentDirectory.getIpAddress()));
         }
         // result is already built in today's fixed default order; STABLE_ORDER preserves
         // that exactly via stable sort when orderby is empty/null.

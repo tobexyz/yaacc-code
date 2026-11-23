@@ -259,6 +259,7 @@
     <string name="pick_picker_failed">No se pudo abrir el selector de archivos.</string>
     <string name="pick_skipped_unread">No se pudieron leer algunos archivos.</string>
     <string name="pick_play_failed">No se pudieron reproducir los archivos elegidos.</string>
+    <string name="live_pick_failed">No se pudo iniciar la transmisión en directo.</string>
     <string name="pick_title_files">Archivos: %1$d</string>
     <string name="openhome_protocol_title">Protocolo de reproducción</string>
     <string name="openhome_protocol_openhome">OpenHome (el dispositivo guarda la lista de reproducción)</string>

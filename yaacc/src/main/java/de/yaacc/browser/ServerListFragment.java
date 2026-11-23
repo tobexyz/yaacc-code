@@ -109,6 +109,17 @@ public class ServerListFragment extends Fragment implements
             if (bDeviceAdapter != null) {
                 bDeviceAdapter.notifyDataSetChanged();
             }
+            // a live stream that the card "Play from this device" waited for goes on to the receivers
+            localPick.onLiveStreamingChanged();
+        });
+        localPick.setLivePermissionRequest(() -> {
+            // the audio capture needs RECORD_AUDIO on top of the screen capture permission (as on the server card)
+            if (!streamingPermissionHelper.hasRecordAudioPermission()) {
+                requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO},
+                        StreamingPermissionHelper.REQUEST_CODE_RECORD_AUDIO);
+                return;
+            }
+            requestScreenCapturePermission();
         });
     }
 
@@ -226,7 +237,8 @@ public class ServerListFragment extends Fragment implements
                                 this::searchDevices, false));
                     }
                     parts.add(bDeviceAdapter);
-                    parts.add(new PickCardAdapter(localPick::pickFiles, localPick::pickFolder));
+                    parts.add(new PickCardAdapter(localPick::pickFiles, localPick::pickFolder,
+                            () -> localPick.playLiveStream(true), () -> localPick.playLiveStream(false)));
                     if (receiverAdapter != null) {
                         parts.add(new SectionHeaderAdapter(R.string.browser_receivers_header, R.drawable.ic_baseline_devices_32,
                                 null, true));

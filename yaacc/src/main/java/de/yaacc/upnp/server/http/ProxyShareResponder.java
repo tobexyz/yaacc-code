@@ -56,6 +56,7 @@ import de.yaacc.share.ServerSideSeeking;
 import de.yaacc.share.RangeStreamer;
 import de.yaacc.share.ShareConcurrencyLimiter;
 import de.yaacc.share.ShareLimits;
+import de.yaacc.share.LiveStreamTarget;
 import de.yaacc.share.ShareRegistry;
 import de.yaacc.share.SharedContentPolicy;
 import de.yaacc.settings.SettingsFragment;
@@ -146,9 +147,51 @@ final class ProxyShareResponder {
                 && entry.getTarget() instanceof HttpLinkTarget) {
             respondLink(responseTrigger, httpContext, entry, (HttpLinkTarget) entry.getTarget(), key,
                     deviceId, rangeValue, head, live);
+        } else if (entry.getKind() == ShareRegistry.Kind.LIVE_STREAM
+                && entry.getTarget() instanceof LiveStreamTarget) {
+            respondLive(responseTrigger, httpContext, (LiveStreamTarget) entry.getTarget(), head);
         } else {
             submitConstant(responseTrigger, httpContext, HttpStatus.SC_NOT_FOUND, NOT_FOUND_BODY);
         }
+    }
+
+    // ---- LIVE_STREAM
+
+    /**
+     * The live stream of this phone (device audio, screen cast) that a share carries: the same bytes as the server's own
+     * {@code /live/audio} and {@code /live/video}, reached by the share's key, with no length and no ranges. The capture
+     * runs as long as the share exists; a request while it does not run is answered like an unknown key.
+     */
+    private void respondLive(ResponseTrigger trigger, HttpContext httpContext, LiveStreamTarget target, boolean head)
+            throws HttpException, IOException {
+        boolean audio = target.isAudio();
+        MimeType mimeType = MimeType.valueOf(audio ? "audio/wav" : "multipart/x-mixed-replace; boundary=frame");
+        AsyncResponseBuilder builder = AsyncResponseBuilder.create(HttpStatus.SC_OK);
+        addStreamingHeaders(builder);
+        if (!audio) {
+            builder.setHeader(HttpHeaders.CACHE_CONTROL, "no-cache, no-store, must-revalidate");
+            builder.setHeader(HttpHeaders.PRAGMA, "no-cache");
+            builder.setHeader(HttpHeaders.EXPIRES, "0");
+        }
+        if (head) {
+            // nothing is opened for a HEAD
+            builder.setEntity(new LengthOnlyEntityProducer(-1L, contentTypeOf(mimeType.toString())));
+            submit(trigger, httpContext, builder, null);
+            return;
+        }
+        java.io.InputStream stream;
+        try {
+            stream = target.open();
+        } catch (IOException e) {
+            stream = null;
+        }
+        if (stream == null) {
+            submitConstant(trigger, httpContext, HttpStatus.SC_NOT_FOUND, NOT_FOUND_BODY);
+            return;
+        }
+        builder.setEntity(new YaaccUpnpServerContentHttpHandler.LiveStreamContentHolder(mimeType, stream, context, !audio)
+                .getEntityProducer());
+        submit(trigger, httpContext, builder, null);
     }
 
     // ---- LOCAL_FILE
