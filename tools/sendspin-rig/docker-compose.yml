@@ -9,7 +9,7 @@ services:
   player1:
     build: .
     image: yaacc-sendspin-rig:local
-    command: ["daemon", "--unpaired-access", "${RIG_UNPAIRED:-true}", "--audio-device", "null", "--disable-mpris",
+    command: ["daemon", "--unpaired-access", "${RIG_UNPAIRED:-true}", "--audio-device", "pulse", "--disable-mpris",
               "--settings-dir", "/data/settings", "--name", "RigPlayer1", "--port", "8928"]
     ports:
       - "8928:8928"
@@ -19,7 +19,7 @@ services:
     image: yaacc-sendspin-rig:local
     depends_on:
       - player1
-    command: ["daemon", "--unpaired-access", "${RIG_UNPAIRED:-true}", "--audio-device", "null", "--disable-mpris",
+    command: ["daemon", "--unpaired-access", "${RIG_UNPAIRED:-true}", "--audio-device", "pulse", "--disable-mpris",
               "--settings-dir", "/data/settings", "--name", "RigPlayer2", "--port", "8928"]
     ports:
       - "8929:8928"
