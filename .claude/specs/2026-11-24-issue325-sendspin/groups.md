@@ -1,6 +1,6 @@
 # Linking: Sendspin groups with YAACC as the server (S7)
 
-Status: **design for the owner's decision, nothing built.** Written 2026-11-24. Builds on `usecases.md` (linking belongs to the server),
+Status: **decided by the owner on 2026-11-24 (G1 to G7 as recommended, G2 changed: every player found can be linked); built in steps: the shared timeline (`PcmStreamer` with members) is done.** Written 2026-11-24. Builds on `usecases.md` (linking belongs to the server),
 `decisions.md` (the MusicCast pattern: the leader leads, members follow, "Play on" a member plays on its group; one common format;
 no persistence in the first version) and the code as it is (one `HubConnection` and one `PcmStreamer` per player, one `SendspinPlayer`
 per player card).
@@ -36,14 +36,13 @@ per player card).
   gets the member list; a player that leaves the group ends its part. The volume keys and the card controls of the leader act on the group.
 - **Not persisted** in the first version: a restart ends the groups (the members are separate cards again).
 - **Limits (proposal):** at most 8 members in a group, music only (as now), one group per leader, a player is in one group at a time.
-- **Safety:** only players that are approved or paired can be members. The sheet does not approve anybody; "play to it once to approve it"
-  stays the rule (so a link is not an approval).
+- **Safety:** every player that is found can be linked; linking approves it (the owner's decision G2, the same operator action as playing to it). A player that demands pairing and is not paired can not be linked until it is.
 
 ## Decisions for the owner
 | # | Question | Recommendation |
 |---|---|---|
 | G1 | Where is the link button | on the card of a player, like Snapcast and MusicCast (not in the "Play on" list) |
-| G2 | May an unapproved player be linked | no: listed greyed out, "play to it once to approve it" |
+| G2 | May an unapproved player be linked | **owner: yes, every player found can be linked.** Ticking a player in the link sheet is the operator action that clearly means to use it, so it approves it (as playing to it does); a player that demands pairing is listed with "needs pairing" and can not be ticked until it is paired |
 | G3 | A member that drops out | stays in the group and rejoins by itself |
 | G4 | Group volume | the Snapcast way (average, moved by the same points); the spec's algorithm is read first |
 | G5 | Common format | best common PCM format of the members (48000 Hz first); a player with none is not offered |

@@ -22,6 +22,7 @@ import de.yaacc.multiroom.feed.PcmSink;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 
 /**
  * Turns the PCM that the player of YAACC produces (16 bit stereo, little endian, at the rate the Sendspin player listed) into the
@@ -37,6 +38,12 @@ import java.util.ArrayDeque;
  * <p>
  * {@code write} is for one thread (the audio thread); {@code discard}, {@code end} and {@code begin} may come from another and
  * interrupt a wait in progress.
+ * <p>
+ * <b>A group</b> (linking, {@code groups.md}) is the same streamer with several members: one timeline (the same timestamps for every
+ * member, which is what keeps them in sync), one chunk cut once, and for every member its own output and its own buffer accounting. The
+ * lead of the group is the largest lead of its members, so that no member gets a chunk later than it asks for; a member that comes
+ * in while the group plays is started by the audio thread with the next chunk and plays in sync from there (the timestamps are
+ * absolute); a member whose output fails leaves the group and the others go on. With one member this is exactly the stream of one player.
  */
 public final class PcmStreamer implements PcmSink {
 
@@ -79,16 +86,39 @@ public final class PcmStreamer implements PcmSink {
     /** A chunk that would play less than this ahead of now is late: the timeline restarts. */
     private static final long LATE_MICROS = 30_000L;
 
-    private final Output out;
+    /** One player of the group: its output, its timing and the buffer it holds. Handed out by {@link #addMember}. */
+    public static final class Member {
+        private final Output out;
+        private final Timing timing;
+        private final ArrayDeque<long[]> inFlight = new ArrayDeque<>(); // {completion time, bytes}
+        private long inFlightBytes;
+        private boolean started;
+        private boolean failed;
+        private boolean removed;
+
+        private Member(Output out, Timing timing) {
+            this.out = out;
+            this.timing = timing;
+        }
+
+        private boolean active() {
+            return !failed && !removed;
+        }
+
+        private void resetBuffer() {
+            inFlight.clear();
+            inFlightBytes = 0;
+        }
+    }
+
     private final HubClock clock;
-    private final Timing timing;
     private final int sampleRate;
     private final int chunkFrames;
     private final int chunkBytes;
     private final long chunkMicros;
     private final byte[] pending;
     private final Object lock = new Object();
-    private final ArrayDeque<long[]> inFlight = new ArrayDeque<>(); // {completion time, bytes}
+    private final ArrayList<Member> members = new ArrayList<>();
     private final Statistics statistics = new Statistics();
 
     private int pendingLength;
@@ -97,15 +127,19 @@ public final class PcmStreamer implements PcmSink {
     private boolean failed;
     private long nextTimestamp;
     private long generation;
-    private long inFlightBytes;
 
+    /** The stream to one player. */
     public PcmStreamer(Output out, HubClock clock, Timing timing, int sampleRate) {
+        this(clock, sampleRate);
+        addMember(out, timing);
+    }
+
+    /** A group without members; {@link #addMember} adds the players. */
+    public PcmStreamer(HubClock clock, int sampleRate) {
         if (sampleRate < 8000 || sampleRate > 384000 || sampleRate % 50 != 0) {
             throw new IllegalArgumentException("sample rate");
         }
-        this.out = out;
         this.clock = clock;
-        this.timing = timing;
         this.sampleRate = sampleRate;
         this.chunkFrames = sampleRate * CHUNK_MILLIS / 1000; // exact: the rate is a multiple of 50
         this.chunkBytes = chunkFrames * FRAME_BYTES;
@@ -117,11 +151,78 @@ public final class PcmStreamer implements PcmSink {
         return statistics;
     }
 
-    /** True while a stream is open at the player. */
+    /**
+     * Adds a player to the group. It never writes to the network itself: while a stream runs, the audio thread starts the member with
+     * the next chunk (so this may be called from any thread).
+     */
+    public Member addMember(Output out, Timing timing) {
+        Member member = new Member(out, timing);
+        synchronized (lock) {
+            members.add(member);
+            failed = false;
+        }
+        return member;
+    }
+
+    /**
+     * Takes a player out of the group and sends it {@code stream/end} if its stream was started. This writes to the network: call it
+     * from a thread that may.
+     */
+    public void removeMember(Member member) {
+        synchronized (lock) {
+            if (member.removed) {
+                return;
+            }
+            if (member.started && member.active()) {
+                try {
+                    member.out.streamEnd();
+                } catch (IOException e) {
+                    // it leaves anyway
+                }
+            }
+            member.removed = true;
+            member.started = false;
+            member.resetBuffer();
+            members.remove(member);
+            if (activeCount() == 0) {
+                streaming = false;
+            }
+        }
+    }
+
+    /** True if this member's output failed (it has left the group by itself). */
+    public boolean hasFailed(Member member) {
+        synchronized (lock) {
+            return member.failed;
+        }
+    }
+
+    /** True while a stream is open at the players. */
     public boolean isStreaming() {
         synchronized (lock) {
             return streaming;
         }
+    }
+
+    private int activeCount() {
+        int n = 0;
+        for (Member m : members) {
+            if (m.active()) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /** The largest lead of the members: no member gets a chunk later than it asks for. */
+    private long groupLead() {
+        long lead = 0;
+        for (Member m : members) {
+            if (m.active()) {
+                lead = Math.max(lead, m.timing.leadMicros());
+            }
+        }
+        return lead;
     }
 
     // ------------------------------------------------------------------ PcmSink
@@ -160,35 +261,52 @@ public final class PcmStreamer implements PcmSink {
             generation++;
             pendingLength = 0;
             if (streaming && !failed) {
-                try {
-                    out.streamClear(clock.nowMicros());
-                    statistics.clears++;
-                } catch (IOException e) {
-                    failed = true;
+                long now = clock.nowMicros();
+                for (Member m : members) {
+                    if (m.active() && m.started) {
+                        try {
+                            m.out.streamClear(now);
+                        } catch (IOException e) {
+                            m.failed = true;
+                        }
+                        m.resetBuffer();
+                    }
                 }
-                nextTimestamp = clock.nowMicros() + timing.leadMicros();
-                inFlight.clear();
-                inFlightBytes = 0;
+                statistics.clears++;
+                if (activeCount() == 0) {
+                    failed = true;
+                    return;
+                }
+                nextTimestamp = clock.nowMicros() + groupLead();
             }
         }
     }
 
-    /** Pause or stop: {@code stream/end}; audio is refused until {@link #begin()}. */
+    /** Pause or stop: {@code stream/end} to every member; audio is refused until {@link #begin()}. */
     public void end() {
         synchronized (lock) {
             generation++;
             pendingLength = 0;
             accepting = false;
             if (streaming && !failed) {
-                try {
-                    out.streamEnd();
-                } catch (IOException e) {
+                for (Member m : members) {
+                    if (m.active() && m.started) {
+                        try {
+                            m.out.streamEnd();
+                        } catch (IOException e) {
+                            m.failed = true;
+                        }
+                    }
+                }
+                if (activeCount() == 0) {
                     failed = true;
                 }
             }
             streaming = false;
-            inFlight.clear();
-            inFlightBytes = 0;
+            for (Member m : members) {
+                m.started = false;
+                m.resetBuffer();
+            }
         }
     }
 
@@ -199,6 +317,7 @@ public final class PcmStreamer implements PcmSink {
         }
     }
 
+    /** True when no member is left that can be sent to (with one member: its output failed). */
     public boolean hasFailed() {
         synchronized (lock) {
             return failed;
@@ -221,46 +340,82 @@ public final class PcmStreamer implements PcmSink {
                 if (myGeneration != generation || !accepting) {
                     return true; // a discard or an end overtook this chunk: it is stale
                 }
-                long now = clock.nowMicros();
-                long lead = timing.leadMicros();
-                try {
-                    if (!streaming) {
-                        out.streamStart(now, sampleRate);
-                        streaming = true;
-                        nextTimestamp = now + lead;
-                        inFlight.clear();
-                        inFlightBytes = 0;
-                    } else if (nextTimestamp < now + LATE_MICROS) {
-                        nextTimestamp = now + lead; // the producer fell behind: a gap, and the timeline starts again
-                        statistics.reanchors++;
-                    }
-                } catch (IOException e) {
+                if (activeCount() == 0) {
                     failed = true;
                     return false;
                 }
-                // what the player has finished with is no longer in its buffer
-                while (!inFlight.isEmpty() && inFlight.peekFirst()[0] <= now) {
-                    inFlightBytes -= inFlight.pollFirst()[1];
+                long now = clock.nowMicros();
+                long lead = groupLead();
+                boolean wasStreaming = streaming;
+                boolean joined = false;
+                // a member that is not started yet (the first start of the stream, or a player that came in while it runs)
+                for (Member m : members) {
+                    if (m.active() && !m.started) {
+                        try {
+                            m.out.streamStart(now, sampleRate);
+                            m.started = true;
+                            m.resetBuffer();
+                            joined = joined || wasStreaming;
+                        } catch (IOException e) {
+                            m.failed = true;
+                        }
+                    }
+                }
+                if (activeCount() == 0) {
+                    failed = true;
+                    return false;
+                }
+                if (!wasStreaming) {
+                    streaming = true;
+                    nextTimestamp = now + lead;
+                } else if (nextTimestamp < now + LATE_MICROS) {
+                    nextTimestamp = now + lead; // the producer fell behind: a gap, and the timeline starts again
+                    statistics.reanchors++;
+                } else if (joined && nextTimestamp < now + lead - LATE_MICROS / 3) {
+                    nextTimestamp = now + lead; // a member that needs more lead than the group had: the timeline moves for everybody
+                    statistics.reanchors++;
+                }
+                // what the players have finished with is no longer in their buffers
+                for (Member m : members) {
+                    while (m.active() && !m.inFlight.isEmpty() && m.inFlight.peekFirst()[0] <= now) {
+                        m.inFlightBytes -= m.inFlight.pollFirst()[1];
+                    }
                 }
                 long sendAt = nextTimestamp - lead;
                 wait = sendAt - now;
                 long size = CHUNK_HEADER_BYTES + chunkBytes;
-                if (wait <= 0 && inFlightBytes + size > timing.capacityBytes() && !inFlight.isEmpty()) {
-                    wait = Math.max(1000L, inFlight.peekFirst()[0] - now);
-                    statistics.capacityWaits++;
+                if (wait <= 0) {
+                    long capacityWait = 0;
+                    for (Member m : members) {
+                        if (m.active() && m.inFlightBytes + size > m.timing.capacityBytes() && !m.inFlight.isEmpty()) {
+                            capacityWait = Math.max(capacityWait, Math.max(1000L, m.inFlight.peekFirst()[0] - now));
+                        }
+                    }
+                    if (capacityWait > 0) {
+                        wait = capacityWait;
+                        statistics.capacityWaits++;
+                    }
                 }
                 if (wait <= 0) {
-                    try {
-                        out.audio(nextTimestamp, nextTimestamp - now, pending, 0, chunkBytes);
-                    } catch (IOException e) {
+                    for (Member m : members) {
+                        if (!m.active()) {
+                            continue;
+                        }
+                        try {
+                            m.out.audio(nextTimestamp, nextTimestamp - now, pending, 0, chunkBytes);
+                            m.inFlight.addLast(new long[]{nextTimestamp + chunkMicros - m.timing.outputDelayMicros(), size});
+                            m.inFlightBytes += size;
+                        } catch (IOException e) {
+                            m.failed = true; // it leaves the group; the others go on
+                        }
+                    }
+                    statistics.chunks++;
+                    nextTimestamp += chunkMicros;
+                    pendingLength = 0;
+                    if (activeCount() == 0) {
                         failed = true;
                         return false;
                     }
-                    statistics.chunks++;
-                    inFlight.addLast(new long[]{nextTimestamp + chunkMicros - timing.outputDelayMicros(), size});
-                    inFlightBytes += size;
-                    nextTimestamp += chunkMicros;
-                    pendingLength = 0;
                     return true;
                 }
             }

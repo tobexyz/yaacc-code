@@ -39,6 +39,7 @@ import de.yaacc.sendspin.SendspinReceiverDevice;
 import de.yaacc.sendspin.hub.Endpoint;
 import de.yaacc.sendspin.hub.HubConnection;
 import de.yaacc.sendspin.hub.PcmStreamer;
+import de.yaacc.sendspin.session.CommandThread;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.util.YaaccLogger;
 
@@ -132,10 +133,11 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
                 if (current == null) {
                     return;
                 }
+                // this callback is the main thread's, and stream/end is a write to the network: off the main thread, in order
                 if (SendspinPlayerLogic.onPlayWhenReadyChanged(playWhenReady) == SendspinPlayerLogic.StreamAction.END) {
-                    current.end();
+                    CommandThread.run(current::end);
                 } else {
-                    current.begin();
+                    CommandThread.run(current::begin);
                 }
             }
         });
@@ -165,7 +167,7 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
         super.stopItem(playableItem);
         PcmStreamer current = streamer;
         if (current != null) {
-            current.end();
+            CommandThread.run(current::end);
         }
         // a stop (the stop button, the end of the queue) is not a pause: the playback activity is dropped, so that another server (Music
         // Assistant) can take the player; a pause keeps it, and the next start declares it again
@@ -180,7 +182,7 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
         PcmStreamer current = streamer;
         streamer = null;
         if (current != null) {
-            current.end();
+            CommandThread.run(current::end);
         }
         HubConnection c = connection;
         if (c != null) {
