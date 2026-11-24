@@ -1,0 +1,38 @@
+# Sendspin rig: two reference players and, on demand, a reference server. See README.md.
+#
+#   docker compose up -d player1 player2        # two headless players on host ports 8928 and 8929
+#   docker compose --profile server up server    # the reference server on host port 8927 (demo audio)
+#
+# mDNS does not cross Docker's bridge network: add the players in YAACC by address (host:8928, host:8929).
+# On Linux, "network_mode: host" in a copy of this file makes the players visible by mDNS as well.
+services:
+  player1:
+    build: .
+    image: yaacc-sendspin-rig:local
+    command: ["daemon", "--unpaired-access", "${RIG_UNPAIRED:-true}", "--audio-device", "null", "--disable-mpris",
+              "--settings-dir", "/data/settings", "--name", "RigPlayer1", "--port", "8928"]
+    ports:
+      - "8928:8928"
+    volumes:
+      - player1-data:/data/settings
+  player2:
+    image: yaacc-sendspin-rig:local
+    depends_on:
+      - player1
+    command: ["daemon", "--unpaired-access", "${RIG_UNPAIRED:-true}", "--audio-device", "null", "--disable-mpris",
+              "--settings-dir", "/data/settings", "--name", "RigPlayer2", "--port", "8928"]
+    ports:
+      - "8929:8928"
+    volumes:
+      - player2-data:/data/settings
+  server:
+    profiles: ["server"]
+    image: yaacc-sendspin-rig:local
+    depends_on:
+      - player1
+    command: ["serve", "--demo", "--name", "RigServer", "--port", "8927", "--client", "ws://player1:8928/sendspin"]
+    ports:
+      - "8927:8927"
+volumes:
+  player1-data:
+  player2-data:
