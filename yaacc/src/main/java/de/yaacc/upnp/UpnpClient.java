@@ -96,6 +96,10 @@ import de.yaacc.fcast.discovery.FCastHub;
 import de.yaacc.fcast.discovery.FCastReceiverDevice;
 import de.yaacc.fcast.discovery.FCastReceiverId;
 import de.yaacc.fcast.discovery.FCastReceiverSource;
+import de.yaacc.sendspin.SendspinAddress;
+import de.yaacc.sendspin.SendspinHub;
+import de.yaacc.sendspin.SendspinReceiverDevice;
+import de.yaacc.sendspin.SendspinReceiverSource;
 import de.yaacc.multiroom.SnapcastGroupDevice;
 import de.yaacc.multiroom.SnapcastGroupSource;
 import de.yaacc.multiroom.SnapcastHub;
@@ -179,6 +183,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
     private SnapcastGroupSource snapcastGroups = SnapcastGroupSource.NONE;
     // The FCast receivers: receivers that are not in Cling's registry either (found by mDNS, typed in or remembered). NONE until attach().
     private FCastReceiverSource fcastReceivers = FCastReceiverSource.NONE;
+    private SendspinReceiverSource sendspinReceivers = SendspinReceiverSource.NONE;
     private YaaccUpnpServerService yaaccUpnpServerService;
     private YaaccMediaRouteProvider mediaRouteProvider;
 
@@ -217,6 +222,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             this.preferences = PreferenceManager.getDefaultSharedPreferences(context);
             this.snapcastGroups = SnapcastHub.getShared(context);
             this.fcastReceivers = FCastHub.getShared(context);
+            this.sendspinReceivers = SendspinHub.getShared(context);
             addPlayerListChangeListener(shareLifetimeListener);
 
             // Initialize MediaRouteProvider for UPnP devices
@@ -576,12 +582,21 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         for (FCastReceiverDevice receiver : fcastReceivers.receivers()) {
             result.add(receiver);
         }
+        // the Sendspin players (none unless the user switched Sendspin on), sorted by name already
+        for (SendspinReceiverDevice receiver : sendspinReceivers.receivers()) {
+            result.add(receiver);
+        }
         return result;
     }
 
     /** For tests: the source of the FCast receivers. */
     void setFCastReceivers(FCastReceiverSource receivers) {
         this.fcastReceivers = receivers == null ? FCastReceiverSource.NONE : receivers;
+    }
+
+    /** For tests: the source of the Sendspin players. */
+    void setSendspinReceivers(SendspinReceiverSource receivers) {
+        this.sendspinReceivers = receivers == null ? SendspinReceiverSource.NONE : receivers;
     }
 
     /** For tests: the source of the Snapcast groups. */
@@ -635,6 +650,10 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         if (FCastReceiverId.isFCastId(identifier)) {
             // nor is an FCast receiver: null when it is not known (any more)
             return fcastReceivers.findReceiver(identifier);
+        }
+        if (SendspinAddress.isSendspinId(identifier)) {
+            // nor is a Sendspin player: null when it is not known (any more) or Sendspin is switched off
+            return sendspinReceivers.findReceiver(identifier);
         }
         if (isInitialized()) {
             // Normalize UDN by stripping uuid: prefix if present
@@ -1318,6 +1337,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
         snapcastGroups.selectionChanged(receiverDeviceIds);
         // and so are the selected FCast receivers (found by mDNS they exist only while a scan runs)
         fcastReceivers.selectionChanged(receiverDeviceIds);
+        sendspinReceivers.selectionChanged(receiverDeviceIds);
     }
 
     /**
