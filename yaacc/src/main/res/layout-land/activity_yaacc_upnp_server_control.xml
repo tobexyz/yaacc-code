@@ -1,9 +1,15 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="horizontal"
-    android:baselineAligned="false">
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:baselineAligned="false">
+
 
     <RelativeLayout xmlns:tools="http://schemas.android.com/tools"
         android:layout_width="0dp"
@@ -163,16 +169,15 @@
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/folders_recycler_view"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:layout_alignParentStart="true"
-            android:layout_alignParentEnd="true"
-            android:layout_alignParentBottom="true"
             android:layout_below="@+id/sharedFoldersReset"
-            android:scrollbarSize="5dp"
-            android:textAppearance="@android:style/TextAppearance.Material.Medium"
-            android:scrollbars="vertical" />
+            android:layout_marginTop="32dp"
+            android:nestedScrollingEnabled="false"
+            android:overScrollMode="never"
+            android:paddingBottom="16dp"
+            android:clipToPadding="false" />
 
     </RelativeLayout>
-</LinearLayout>
+    </LinearLayout>
+</ScrollView>
