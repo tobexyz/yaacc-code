@@ -63,7 +63,7 @@ Snapcast: the Snapcast server groups; Sendspin: YAACC groups).
 | C3 | `switch`: move the phone through the groups of that server | done, same limits |
 
 **Open (owner's list, 2026-11-24):** pairing as a client (`controller.md`, K8; also P2 of the player), the security review of the client
-side (postponed, K10), a thumbnail on the card (K11).
+side (postponed, K10), a thumbnail on the card (K11), pairing by QR code (K12), the client-initiated mode of the server role (K13; a Kodi addon found on 2026-11-24 speaks the legacy unencrypted protocol, so it would not use it).
 
 ## The control channel (what a controller or a settings screen can reach)
 

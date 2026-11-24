@@ -31,7 +31,10 @@ case "$mode" in
     ;;
   server)
     port="${2:-8927}"
-    exec "$RIG_DIR/venv/bin/sendspin" serve --demo --name RigServer --port "$port" --log-level "${RIG_LOG_LEVEL:-INFO}"
+    # RIG_SERVER_ARGS: more options of "sendspin serve", for example --allow-unencrypted to accept legacy clients that do not speak
+    # the encrypted protocol of the specification (the reference server refuses them by default); unquoted on purpose
+    # shellcheck disable=SC2086
+    exec "$RIG_DIR/venv/bin/sendspin" serve --demo --name RigServer --port "$port" --log-level "${RIG_LOG_LEVEL:-INFO}" ${RIG_SERVER_ARGS:-}
     ;;
   *)
     echo "usage: $0 player [port] [name] [unpaired] | server [port]" >&2
