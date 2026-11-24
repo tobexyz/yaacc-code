@@ -239,6 +239,11 @@ public final class SendspinNsd {
                     retry.succeeded(queued.getName());
                     if (info != null && isCurrent(myGeneration)) {
                         InetAddress host = info.getHost(); // a number: no lookup
+                        if (SendspinSelf.isThisDevice(host)) {
+                            YaaccLogger.d(SendspinNsd.class.getName(), "Sendspin service is this phone's own announcement: not listed");
+                            pump();
+                            return;
+                        }
                         SendspinServiceTxt txt = SendspinServiceTxt.parse(info.getAttributes());
                         boolean listed = directory.serviceFound(queued.getName(), info.getServiceName(), host, info.getPort(), txt);
                         YaaccLogger.d(SendspinNsd.class.getName(), "Sendspin service " + (listed ? "listed" : "refused"));

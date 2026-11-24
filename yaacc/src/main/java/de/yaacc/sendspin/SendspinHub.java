@@ -27,6 +27,7 @@ import de.yaacc.multiroom.SnapcastDiscoveryGate;
 import de.yaacc.multiroom.control.MonotonicClock;
 import de.yaacc.sendspin.discovery.SendspinDirectory;
 import de.yaacc.sendspin.discovery.SendspinNsd;
+import de.yaacc.sendspin.discovery.SendspinSelf;
 import de.yaacc.sendspin.discovery.SendspinServerAdvert;
 import de.yaacc.sendspin.discovery.SendspinServiceType;
 import de.yaacc.sendspin.hub.Connector;
@@ -260,13 +261,13 @@ public final class SendspinHub implements SendspinReceiverSource {
 
     /** Opens the listener and announces it (the gate calls this while a receivers page is visible and the switch is on). */
     private void startInbound() {
-        InboundServer server = new InboundServer(SendspinAddress.DEFAULT_SERVER_PORT, "/sendspin", SnapcastAddressFilter::isAcceptedForDiscovery,
+        InboundServer server = new InboundServer(SendspinAddress.DEFAULT_SERVER_PORT, "/sendspin", SendspinHub::acceptsInbound,
                 this::acceptInbound, MAX_INBOUND, UPGRADE_TIMEOUT_MILLIS);
         try {
             server.start();
         } catch (java.io.IOException busy) {
             // the usual port is taken (another server on this phone): any free one, the announcement names it
-            server = new InboundServer(0, "/sendspin", SnapcastAddressFilter::isAcceptedForDiscovery, this::acceptInbound, MAX_INBOUND,
+            server = new InboundServer(0, "/sendspin", SendspinHub::acceptsInbound, this::acceptInbound, MAX_INBOUND,
                     UPGRADE_TIMEOUT_MILLIS);
             try {
                 server.start();
@@ -279,6 +280,11 @@ public final class SendspinHub implements SendspinReceiverSource {
             inboundServer = server;
         }
         advert.register(identity().id(), "YAACC", "/sendspin", server.port());
+    }
+
+    /** Who may connect to the listener: the local network, and never this phone itself (its own search finds its announcement). */
+    static boolean acceptsInbound(java.net.InetAddress address) {
+        return SnapcastAddressFilter.isAcceptedForDiscovery(address) && !SendspinSelf.isThisDevice(address);
     }
 
     private void stopInbound() {
