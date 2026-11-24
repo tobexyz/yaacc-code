@@ -70,6 +70,32 @@ The test pairs the player with the token, plays, then connects a second time and
 token. The same token can be pasted in the app (tap the card of the player). Run `run-local.sh` after the script, not before: the
 daemon writes its own files at start and the script replaces them.
 
+## Music Assistant
+
+`music-assistant/docker-compose.yml` runs a simple Music Assistant server (image `ghcr.io/music-assistant/server`) to try the
+controller of YAACC with the server that most Sendspin users have. **It was written from Music Assistant's own sources and
+documentation and not run** (the machine that wrote it had no Docker daemon): the first run may need a fix.
+
+```
+python3 tools/sendspin-rig/music-assistant/make-music.py tools/sendspin-rig/music-assistant/music    # three test tones (about 60 MB)
+docker compose -f tools/sendspin-rig/music-assistant/docker-compose.yml up -d
+```
+
+1. Open `http://<host>:8095` and create the first user (the server's onboarding).
+2. *Settings* > *Providers* > add *Filesystem (local disk)* with the path `/media` (the folder `music/` of the compose file, read only).
+   The Sendspin provider is built in and always on; it listens on port 8927 at `/sendspin`.
+3. Start a player that Music Assistant can find: `tools/sendspin-rig/run-local.sh player 8928 RigPlayer true` on the same host (it
+   announces itself by mDNS; Music Assistant connects to it) and, with the *Sendspin* provider, it appears as a player. Play one of the
+   test tones on it.
+4. In YAACC: *Settings* > *Sendspin* > *Control Sendspin servers* on; the server is found by the search (*Find Sendspin servers*) or add
+   `<host>:8927` under *Sendspin servers*. The card shows what plays and controls the group of the phone; if it says "connected, waiting
+   for the server to allow control", look in Music Assistant's player settings for the new client and allow it.
+
+The container uses the host network (Music Assistant needs direct network access to find and stream to players); on Docker Desktop for
+Mac or Windows host networking does not work as on Linux: run it on a Linux host or a virtual machine with a bridged network. What
+Music Assistant does with a client that is not paired and that has the controller role is **not known yet**: that is what this rig is for.
+Write what you see in `.claude/specs/2026-11-24-issue325-sendspin/controller.md` (open point 1).
+
 ## A real device: Kodi
 
 The owner has a Kodi device. Whether a Kodi add-on or build offers a Sendspin player or server is **not known** and has to be

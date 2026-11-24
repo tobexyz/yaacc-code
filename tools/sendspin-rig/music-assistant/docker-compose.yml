@@ -1,0 +1,26 @@
+# A simple Music Assistant server to test the Sendspin controller of YAACC (issue #325). See ../README.md, section "Music Assistant".
+#
+#   python3 tools/sendspin-rig/music-assistant/make-music.py tools/sendspin-rig/music-assistant/music   # three test tones, 120 s each
+#   docker compose -f tools/sendspin-rig/music-assistant/docker-compose.yml up -d
+#   (or use your own music: MA_MUSIC_DIR=/path/to/music docker compose -f ... up -d)
+#
+# Facts that are from Music Assistant's own sources (README of music-assistant/server, its installation page, its Sendspin page):
+# the image is ghcr.io/music-assistant/server; the web interface is on port 8095; the Sendspin provider is built in and listens on
+# port 8927 at the path /sendspin; the container has to use the host network (the server needs layer 2 access to find and stream to
+# players, so there is no "ports:" list: a bridge network would hide mDNS from the phone and from the players); the data directory is
+# /data. Not verified by running it: this file was written on a machine without a Docker daemon.
+services:
+  music-assistant-server:
+    image: ghcr.io/music-assistant/server:${MA_VERSION:-latest}   # pin a version (MA_VERSION=2.x.y) for a repeatable test
+    container_name: music-assistant-rig
+    network_mode: host
+    restart: "no"
+    volumes:
+      - music-assistant-data:/data
+      # test music, read only; add it in Music Assistant as the provider "Filesystem (local disk)" with the path /media
+      - ${MA_MUSIC_DIR:-./music}:/media:ro
+    # mounting SMB or NFS shares from inside the container would need these (not needed for a local folder):
+    # cap_add: [SYS_ADMIN, DAC_READ_SEARCH]
+    # security_opt: [apparmor:unconfined]
+volumes:
+  music-assistant-data:

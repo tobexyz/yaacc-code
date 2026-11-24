@@ -52,3 +52,6 @@ local.properties
 
 # the self-signed test key of the FCast test receiver (tools/fcast-rig, --speaks 4)
 tools/fcast-rig/.rig-cert/
+
+# generated test music of the Music Assistant rig
+tools/sendspin-rig/music-assistant/music/

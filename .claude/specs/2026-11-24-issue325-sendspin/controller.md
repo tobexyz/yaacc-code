@@ -74,6 +74,12 @@ controller's `switch` command moves this client through the server's groups).
 | K10 | Security review of the client side (general review, then the security review: hostile server input, the artwork decoder, the discovery of servers, the identity key) | postponed by the owner until there are more results |
 | K11 | Artwork on the card itself (a thumbnail in the row) and the other artwork channels | needs a layout change of the receiver row; the sheet shows the image |
 
+## Test rig for Music Assistant (2026-11-24, not run)
+
+`tools/sendspin-rig/music-assistant/` has a compose file (image `ghcr.io/music-assistant/server`, host network, `/data`, a read only
+music folder, web interface 8095, Sendspin on 8927) and a script that writes three test tones. Written from the sources of Music
+Assistant; **never started** (no Docker daemon where it was written). Its first run answers open point 1 below.
+
 ## Open points
 
 1. Does Music Assistant accept client-initiated connections and which roles does it activate for an unpaired controller? Not
