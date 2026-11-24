@@ -75,9 +75,11 @@ final class SendspinPlayersDialog {
         list.setOrientation(LinearLayout.VERTICAL);
         root.addView(list, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         refresh();
+        android.widget.ScrollView scroll = new android.widget.ScrollView(context);
+        scroll.addView(root);
         new AlertDialog.Builder(context)
                 .setTitle(R.string.settings_sendspin_players_title)
-                .setView(root)
+                .setView(scroll)
                 .setPositiveButton(android.R.string.ok, null)
                 .show();
     }
@@ -119,7 +121,6 @@ final class SendspinPlayersDialog {
             none.setText(R.string.sendspin_players_none);
             none.setPadding(0, (int) (12 * density), 0, (int) (12 * density));
             list.addView(none);
-            return;
         }
         for (final Endpoint endpoint : players) {
             LinearLayout row = new LinearLayout(context);
@@ -134,6 +135,47 @@ final class SendspinPlayersDialog {
             remove.setContentDescription(context.getString(R.string.sendspin_players_remove, SendspinAddress.format(endpoint)));
             remove.setOnClickListener(v -> {
                 hub.remove(endpoint);
+                refresh();
+            });
+            row.addView(remove);
+            list.addView(row);
+        }
+        addIds(R.string.sendspin_paired_title, hub.pairedIds(), R.string.sendspin_unpair, true);
+        addIds(R.string.sendspin_approved_title, hub.approvedIds(), R.string.sendspin_revoke, false);
+    }
+
+    /** A heading and one row for each id with a button that removes the pairing or the approval of that player. */
+    private void addIds(int title, List<String> ids, int removeDescription, boolean pairing) {
+        float density = context.getResources().getDisplayMetrics().density;
+        TextView heading = new TextView(context);
+        heading.setText(title);
+        heading.setTextAppearance(android.R.style.TextAppearance_Material_Subhead);
+        heading.setPadding(0, (int) (20 * density), 0, (int) (4 * density));
+        list.addView(heading);
+        if (ids.isEmpty()) {
+            TextView none = new TextView(context);
+            none.setText(R.string.sendspin_list_none);
+            list.addView(none);
+            return;
+        }
+        for (final String id : ids) {
+            LinearLayout row = new LinearLayout(context);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            String shortId = id.substring(0, 8) + "…"; // the id of a player is its public key: enough to tell the entries apart
+            TextView label = new TextView(context);
+            label.setText(shortId);
+            label.setTypeface(android.graphics.Typeface.MONOSPACE);
+            row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            Button remove = new Button(context);
+            remove.setText("✕");
+            remove.setContentDescription(context.getString(removeDescription, shortId));
+            remove.setOnClickListener(v -> {
+                if (pairing) {
+                    hub.unpair(id);
+                } else {
+                    hub.revokeApproval(id);
+                }
                 refresh();
             });
             row.addView(remove);

@@ -33,7 +33,7 @@ final class SendspinPlayerLogic {
 
     /** Why the player can not play to the Sendspin player. */
     enum Problem {
-        NOT_READY, PAIRING_REQUIRED, RE_PAIR_NEEDED, UNUSABLE, IN_USE, LOST
+        NOT_READY, PAIRING_REQUIRED, RE_PAIR_NEEDED, PAIRING_FAILED, UNUSABLE, IN_USE, LOST
     }
 
     /** What the player does while it waits for the connection to be ready. */
@@ -56,6 +56,7 @@ final class SendspinPlayerLogic {
                 return Wait.APPROVE;
             case PAIRING_REQUIRED:
             case RE_PAIR_NEEDED:
+            case PAIRING_FAILED:
             case UNUSABLE:
             case ENDED:
                 return Wait.FAIL;
@@ -71,6 +72,8 @@ final class SendspinPlayerLogic {
                 return Problem.PAIRING_REQUIRED;
             case RE_PAIR_NEEDED:
                 return Problem.RE_PAIR_NEEDED;
+            case PAIRING_FAILED:
+                return Problem.PAIRING_FAILED;
             case UNUSABLE:
                 return Problem.UNUSABLE;
             case ENDED:
@@ -88,6 +91,8 @@ final class SendspinPlayerLogic {
                 return R.string.sendspin_error_pairing_required;
             case RE_PAIR_NEEDED:
                 return R.string.sendspin_error_re_pair;
+            case PAIRING_FAILED:
+                return R.string.sendspin_error_pairing_failed;
             case UNUSABLE:
                 return R.string.sendspin_error_unusable;
             case IN_USE:

@@ -55,6 +55,21 @@ The JVM tests that need a running player are skipped unless a rig address is giv
 tone. Gradle treats the test task as up to date when only these properties change: add `:yaacc:cleanTestDebugUnitTest` before it.
 The tests are `SendspinRigTest` (the raw protocol) and `HubRigTest` (the hub and the streamer of the app).
 
+**Pairing.** The reference daemon has no command that shows its pairing token, so `rig-paired.py` prepares the settings directory of
+a player that accepts only paired servers (it writes the identity and a Pairing PSK in the file format of `sendspin` 9.1.0) and
+prints the token (`SP:0...`, a secret):
+
+```
+.sendspin-rig/venv/bin/python tools/sendspin-rig/rig-paired.py .sendspin-rig/player-8932
+tools/sendspin-rig/run-local.sh player 8932 PairedRig false
+./gradlew :yaacc:cleanTestDebugUnitTest :yaacc:testDebugUnitTest --tests 'de.yaacc.sendspin.hub.HubRigTest' \
+    -Dsendspin.rig.paired=127.0.0.1:8932 -Dsendspin.rig.token=SP:0...
+```
+
+The test pairs the player with the token, plays, then connects a second time and expects the long-term key to be used without the
+token. The same token can be pasted in the app (tap the card of the player). Run `run-local.sh` after the script, not before: the
+daemon writes its own files at start and the script replaces them.
+
 ## A real device: Kodi
 
 The owner has a Kodi device. Whether a Kodi add-on or build offers a Sendspin player or server is **not known** and has to be
@@ -65,8 +80,9 @@ partner; a real device can be added by address in the same way.
 
 - `--unpaired-access true` makes the reference player admit a server it has no pairing record for; YAACC then relies on the
   operator approval of the spec (choosing the player in "Play on"). With `false` the player demands pairing.
-- The reference daemon offers `pairing_psk` and `dynamic_pairing_code` in its hello, but in daemon mode it showed no pairing token
-  (its store has `pairing_psk: null`): the Pairing PSK flow is not yet tested against it.
+- The reference daemon offers `pairing_psk` and `dynamic_pairing_code` in its hello, but in daemon mode it shows no pairing token
+  (its store has `pairing_psk: null`): `rig-paired.py` writes one, and the Pairing PSK flow was tested that way (not with a token
+  that a real player displays).
 - The player lists the formats the output device supports (32 with the null sink: PCM and FLAC at 44.1, 48, 96 and 192 kHz); YAACC
   uses the first PCM stereo 16 bit entry in the player's order.
 - The player prints its `client_id` (the first log lines); a second identity needs another `--settings-dir` (the script uses one

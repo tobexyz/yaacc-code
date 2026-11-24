@@ -72,6 +72,14 @@ final class SendspinRowBinder {
                         return context.getString(R.string.sendspin_state_pairing_required);
                     case RE_PAIR_NEEDED:
                         return context.getString(R.string.sendspin_state_re_pair_needed);
+                    case PAIRING:
+                        return context.getString(R.string.sendspin_state_pairing);
+                    case PAIRING_REJECTED:
+                        return context.getString(R.string.sendspin_state_pairing_rejected);
+                    case PAIRING_FAILED:
+                        return context.getString(R.string.sendspin_state_pairing_failed);
+                    case READY_PAIRED:
+                        return context.getString(R.string.sendspin_state_ready_paired);
                     case UNUSABLE:
                         return context.getString(R.string.sendspin_state_unusable);
                     case READY:
@@ -182,7 +190,9 @@ final class SendspinRowBinder {
         boolean playing = player != null && player.isPlaying();
         boolean paused = player != null && player.isPaused();
         SendspinRowText.State state = SendspinRowText.stateOf(connection == null ? null : connection.phase(),
-                connection == null ? null : connection.endReason(), playing, paused);
+                connection == null ? null : connection.endReason(),
+                connection == null ? HubConnection.PairingFailure.NONE : connection.pairingFailure(),
+                connection != null && connection.isPaired(), playing, paused);
         String title = player == null ? "" : player.getCurrentItemTitle();
         String announced = connection == null || connection.hello() == null ? null : connection.hello().name;
         String text = SendspinRowText.of(announced, SendspinAddress.format(device.getEndpoint()), state, title, words);
@@ -191,6 +201,13 @@ final class SendspinRowBinder {
                 views.yxcText.setText(text);
             }
             views.yxcText.setVisibility(View.VISIBLE);
+            // a card that needs a pairing token opens the entry of it; a recycled row must not keep the tap of another card
+            if (SendspinRowText.offersPairing(state)) {
+                views.yxcText.setOnClickListener(v -> SendspinPairDialog.show(context, device.getEndpoint(), announced));
+            } else {
+                views.yxcText.setOnClickListener(null);
+                views.yxcText.setClickable(false);
+            }
         }
         SendspinMessages.PlayerState playerState = connection == null || connection.state() == null ? null : connection.state().player;
         String id = idOf(device);

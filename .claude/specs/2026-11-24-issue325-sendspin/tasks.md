@@ -18,7 +18,8 @@ App integration, first slice (second working session, 2026-11-24; JVM tests and 
 - **4.4**: `SendspinPlayer` (ExoPlayer with the PCM tap into the streamer, pause = `stream/end`, seek = `stream/clear`, volume and mute are the player's) and the `PlayerService` branch (music only, one player per receiver, made only when the stream rate is known).
 - **4.5 partly**: the row (`SendspinRowBinder`, `SendspinRowText`), the branches in `ReceiverRowBinder`, `RendererStatusMonitor` and `ReceiverVolumeLiveUpdater`, the settings (switch **off by default**, add and remove dialog), 35 strings in seven locales, docs and CHANGELOG. **Approval is by playing to the player**; there is no list of approvals with a revoke button yet, no gear on the card. mDNS: only the TXT and the format of the announcement are verified, not the Android resolution.
 - Lint: 8 errors and 6 warnings, none in the new files (not compared with the baseline of develop). 6837 unit tests, none failing.
-- Not done: 4.6 (the owner listens), the identity key in the Keystore (3.5, it is in the app-private preferences), the Pairing PSK (Group 5), an approvals list, a discovery report.
+- Pairing (fourth working session, 2026-11-24): token codec with the spec's vector, pairing store and policy, re-handshake in the open channel, the server side of the Pairing PSK flow in `HubConnection` (phases `PAIRING`, `PAIRING_FAILED`, failures), the dialog of a card (tap), the lists of paired and approved players with remove buttons, strings in seven locales, docs. Verified: `RehandshakeTest` (6), `HubPairingTest` (10), `SendspinPairingsTest`, and the rig test against the reference player with unpaired access off (paired, then the second connection under the long-term PSK, 2026-11-24). Never run on a device.
+- Not done: 4.6 (the owner listens), the identity key and the PSKs in the Keystore (3.5, they are in the app-private preferences), pairing with a code (Group 11), a discovery report, names in the paired list.
 
 Places a Sendspin receiver touches (task 1.3, read on 2026-11-24 by following FCast and Snapcast): `UpnpClient` (the receiver list at the `fcastReceivers` hooks, `findDevice` by id, the selection change), `PlayerService.createPlayer` (an `instanceof` branch, one player per receiver) and a player in `de.yaacc.player` (the shape of `SnapcastPlayer`: ExoPlayer built with `FeedTapChain` and a `PcmSink`; ExoPlayer is created lazily after the service connects, so the tap's sample rate must be known from the receiver device, which means the hub keeps a connection per known player and exposes the format), `ReceiverRowBinder` (branches in bind, bindStatus, bindPower, the transport action, `logName`), `RendererStatusMonitor` (excluded for non-UPnP receivers), `ReceiverVolumeLiveUpdater`, a row class next to `FCastRowBinder`, a settings entry with an add-by-address dialog, strings in 7 locales, and the tests that enumerate receiver kinds.
 
@@ -39,7 +40,7 @@ Places a Sendspin receiver touches (task 1.3, read on 2026-11-24 by following FC
 - [x] 2.1 Java program: WebSocket client, `client/init`..`server/hello`/`client/hello`/`server/activate` with the reference player under the Sentinel PSK, both cipher suites, `server/time` answers, `client/state` read | `tools/sendspin-rig/spike/` (not production code)
   - **Accept**: the run log shows the full sequence with a reference player; uses only library primitives of the choice of 1.2; keys and PSKs are generated for the spike, never committed.
   - **Verify**: run log attached to `docs/tech.md`. **Kill criterion (decision with the owner, not mine to take alone):** no interoperable Noise handshake with reasonable effort -> stop, or reduce to a mirror-only path.
-- [ ] 2.2 The same under a pairing PSK from a token, then the re-handshake to a long-term PSK and a reconnect under it | same folder
+- [x] 2.2 (done as production code and the rig test `HubRigTest`, 2026-11-24) The same under a pairing PSK from a token, then the re-handshake to a long-term PSK and a reconnect under it | same folder
   - **Accept**: log of pairing, restart of the spike, reconnect with the long-term PSK, no pairing needed the second time.
 - [x] 2.3 Send audio: a generated sine as PCM chunks with server-clock timestamps and a fixed lead; the owner listens through the reference player | same folder
   - **Accept**: a steady tone for 5 minutes, no gaps; the player's own log shows no late chunks (where it reports them).
@@ -55,7 +56,7 @@ Places a Sendspin receiver touches (task 1.3, read on 2026-11-24 by following FC
 - [x] 3.3 Noise `KKpsk2` and PSK handling | `de.yaacc.sendspin.secure`, tests `NoiseHandshakeTest` (published vectors), `PskIdTest` (Sentinel constants from the spec), `SentinelFallbackTest`, `RehandshakeTest`
   - **Accept**: handshake with both suites matches the vectors and interoperates with the reference (rig test); a wrong PSK or identity fails silently as specified; counters reject replays; re-handshake swaps keys.
   - **Constraints**: no own curve or cipher code; keys zeroed after use where the library allows; CONFIRM (library).
-- [ ] 3.4 Identity, pairing token, pairing records | `de.yaacc.sendspin.secure`, tests `PairingTokenTest` (the spec's reference vector), `PairingStoreTest`, `IdentityTest`
+- [x] 3.4 Identity, pairing token, pairing records (done: `PairingToken`, `SendspinPairings`, `SendspinPolicy`; "forget all" is the two lists with a remove button, not one button) | `de.yaacc.sendspin.secure`, tests `PairingTokenTest` (the spec's reference vector), `SendspinPairingsTest`, `SendspinKeysTest`
   - **Accept**: the token is decoded leniently and rejected strictly as specified; the server's record is `client_id` -> long-term PSK; approvals per `client_id` are discarded on a pairing; "forget all" wipes everything.
 - [ ] 3.5 Key storage wrapped by the Android Keystore (AES-GCM key; the Keystore has no X25519 on API 27) with a faked wrapping interface in JVM tests | `de.yaacc.sendspin.secure`
   - **Accept**: identity keys and PSKs are never stored in the clear; backup excluded (`allowBackup` rules checked); nothing secret in logs; CONFIRM (key storage).
@@ -80,10 +81,10 @@ Places a Sendspin receiver touches (task 1.3, read on 2026-11-24 by following FC
   - **Accept**: the owner's report in `decisions.md`.
 
 ## Group 5: P2, Pairing PSK and the PoC gate (P)
-- [ ] 5.1 Pairing PSK flow on the server (token paste, key check, re-handshake, pair-init/pair-finalize, record, re-handshake, reconnect with the long-term PSK) and the credential-mismatch signal (Sentinel fallback: surface it and offer re-pairing) | `de.yaacc.sendspin.hub`, `de.yaacc.sendspin.secure`
+- [x] 5.1 Pairing PSK flow on the server (token paste, key check, re-handshake, pair-init/pair-finalize, record, re-handshake, reconnect with the long-term PSK) and the credential-mismatch signal (Sentinel fallback: surface it and offer re-pairing) | `de.yaacc.sendspin.hub`, `de.yaacc.sendspin.secure`
   - **Accept**: a reference player pairs; the record persists; after a restart the player is used without pairing; a player that lost its record is shown as "re-pair".
   - **Verify**: `HubPairingTest`; rig test.
-- [ ] 5.2 Dialogs: paste token with clear errors, paired and approved list with revoke | `de.yaacc.settings`, `de.yaacc.browser`
+- [x] 5.2 (the lists show the first 8 characters of the id, not names: the app does not remember a player's name by id) Dialogs: paste token with clear errors, paired and approved list with revoke | `de.yaacc.settings`, `de.yaacc.browser`
   - **Accept**: nothing sensitive in logs or in the dialog beyond what the user pasted; string completeness test.
 - [ ] 5.3 Documentation of the PoC (README, `docs/index.md`, `docs/tech.md`, CHANGELOG), the trademark notice, the rig | docs
   - **Accept**: facts only ("plays to Sendspin players; pairing PSK; not affiliated"); limits stated (no groups yet, sync as heard, unpaired sessions can be impersonated on the LAN as the protocol says); no stale references.

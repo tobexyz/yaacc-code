@@ -28,7 +28,8 @@ public final class SendspinRowText {
 
     /** What the card says about the connection. */
     public enum State {
-        NOT_CONNECTED, CONNECTING, NEEDS_APPROVAL, PAIRING_REQUIRED, RE_PAIR_NEEDED, UNUSABLE, READY, PLAYING, PAUSED,
+        NOT_CONNECTED, CONNECTING, NEEDS_APPROVAL, PAIRING_REQUIRED, RE_PAIR_NEEDED, PAIRING, PAIRING_REJECTED, PAIRING_FAILED,
+        UNUSABLE, READY, READY_PAIRED, PLAYING, PAUSED,
         IN_USE_BY_ANOTHER_SERVER, UNREACHABLE, DISCONNECTED
     }
 
@@ -52,6 +53,21 @@ public final class SendspinRowText {
      * @param reason why it ended (only for an ended connection)
      */
     public static State stateOf(HubConnection.Phase phase, HubConnection.EndReason reason, boolean playing, boolean paused) {
+        return stateOf(phase, reason, HubConnection.PairingFailure.NONE, false, playing, paused);
+    }
+
+    /** True if a tap on the card should offer the entry of a pairing token. */
+    public static boolean offersPairing(State state) {
+        return state == State.PAIRING_REQUIRED || state == State.RE_PAIR_NEEDED || state == State.PAIRING_REJECTED
+                || state == State.PAIRING_FAILED;
+    }
+
+    /**
+     * @param failure why the last pairing did not complete
+     * @param paired  true if the connection is under the long-term PSK of a paired player
+     */
+    public static State stateOf(HubConnection.Phase phase, HubConnection.EndReason reason, HubConnection.PairingFailure failure,
+                                boolean paired, boolean playing, boolean paused) {
         if (phase == null) {
             return State.NOT_CONNECTED;
         }
@@ -67,10 +83,14 @@ public final class SendspinRowText {
                 return State.PAIRING_REQUIRED;
             case RE_PAIR_NEEDED:
                 return State.RE_PAIR_NEEDED;
+            case PAIRING:
+                return State.PAIRING;
+            case PAIRING_FAILED:
+                return failure == HubConnection.PairingFailure.TOKEN_REJECTED ? State.PAIRING_REJECTED : State.PAIRING_FAILED;
             case UNUSABLE:
                 return State.UNUSABLE;
             case READY:
-                return playing ? State.PLAYING : paused ? State.PAUSED : State.READY;
+                return playing ? State.PLAYING : paused ? State.PAUSED : paired ? State.READY_PAIRED : State.READY;
             case ENDED:
             default:
                 if (reason == HubConnection.EndReason.ANOTHER_SERVER || reason == HubConnection.EndReason.CONCURRENT_ATTEMPT) {

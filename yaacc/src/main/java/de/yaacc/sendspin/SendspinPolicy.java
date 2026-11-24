@@ -91,4 +91,39 @@ public final class SendspinPolicy implements ServerPolicy {
     public List<String> pairedIds() {
         return pairings.pairedIds();
     }
+
+    public List<String> approvedIds() {
+        return approvals.ids();
+    }
+
+    /** What pasting a token did. */
+    public enum PairOutcome {
+        /** The token is kept; the next connection to the player references its Pairing PSK and pairs. */
+        STARTED,
+        NOT_A_TOKEN,
+        /** The token's key is not the id of the player of this connection (spec: the server MUST check this before pairing). */
+        WRONG_PLAYER,
+        /** The id of the player is not known yet (not connected). */
+        NOT_KNOWN,
+        NO_ROOM
+    }
+
+    /**
+     * The operator pastes a token for a player.
+     *
+     * @param connectedClientId the id the player presented on its connection, null if there is none yet
+     */
+    public PairOutcome pairWithToken(String text, String connectedClientId) {
+        PairingToken token = PairingToken.decode(text);
+        if (token == null) {
+            return PairOutcome.NOT_A_TOKEN;
+        }
+        if (connectedClientId == null) {
+            return PairOutcome.NOT_KNOWN;
+        }
+        if (!connectedClientId.equals(token.clientId())) {
+            return PairOutcome.WRONG_PLAYER;
+        }
+        return pairings.addToken(token) ? PairOutcome.STARTED : PairOutcome.NO_ROOM;
+    }
 }

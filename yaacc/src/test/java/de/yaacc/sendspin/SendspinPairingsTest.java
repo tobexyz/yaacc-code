@@ -155,4 +155,42 @@ public class SendspinPairingsTest {
         }
         assertFalse(policy.addToken(tokenOf(SendspinSettings.MAX_TOKENS, 100)));
     }
+
+    private static final String TOKEN_OF_1 = PairingToken.encode(bytes(1), bytes(100));
+
+    @Test
+    public void pastingATokenForTheConnectedPlayerStartsThePairing() {
+        SendspinPolicy policy = new SendspinPolicy(new SendspinStoreTest.MapStore());
+        assertEquals(SendspinPolicy.PairOutcome.STARTED, policy.pairWithToken(TOKEN_OF_1, idOf(1)));
+        assertEquals(SendspinPsk.Category.PAIRING, policy.pskFor(idOf(1)).category());
+    }
+
+    @Test
+    public void aTokenThatIsNotOneOrBelongsToAnotherPlayerIsRefusedAndNothingIsStored() {
+        SendspinPolicy policy = new SendspinPolicy(new SendspinStoreTest.MapStore());
+        assertEquals(SendspinPolicy.PairOutcome.NOT_A_TOKEN, policy.pairWithToken("hello", idOf(1)));
+        assertEquals(SendspinPolicy.PairOutcome.NOT_A_TOKEN, policy.pairWithToken("", idOf(1)));
+        assertEquals(SendspinPolicy.PairOutcome.NOT_A_TOKEN, policy.pairWithToken(null, idOf(1)));
+        assertEquals("the spec: the token's key must match the id of the connection",
+                SendspinPolicy.PairOutcome.WRONG_PLAYER, policy.pairWithToken(TOKEN_OF_1, idOf(2)));
+        assertEquals(SendspinPolicy.PairOutcome.NOT_KNOWN, policy.pairWithToken(TOKEN_OF_1, null));
+        assertEquals(SendspinPsk.Category.SENTINEL, policy.pskFor(idOf(1)).category());
+        assertNull(policy.pairingPsk(idOf(1)));
+        assertNull(policy.pairingPsk(idOf(2)));
+    }
+
+    @Test
+    public void aFullTokenListIsReportedAndApprovalsAreListed() {
+        SendspinPolicy policy = new SendspinPolicy(new SendspinStoreTest.MapStore());
+        for (int i = 0; i < SendspinSettings.MAX_TOKENS; i++) {
+            assertEquals(SendspinPolicy.PairOutcome.STARTED,
+                    policy.pairWithToken(PairingToken.encode(bytes(i), bytes(100)), Base64Url.encode(bytes(i))));
+        }
+        assertEquals(SendspinPolicy.PairOutcome.NO_ROOM, policy.pairWithToken(
+                PairingToken.encode(bytes(50), bytes(100)), Base64Url.encode(bytes(50))));
+        policy.approve(idOf(3));
+        policy.approve(idOf(1));
+        assertEquals(Arrays.asList(idOf(1), idOf(3)).size(), policy.approvedIds().size());
+        assertTrue(policy.approvedIds().contains(idOf(3)));
+    }
 }

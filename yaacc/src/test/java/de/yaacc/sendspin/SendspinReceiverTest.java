@@ -102,6 +102,28 @@ public class SendspinReceiverTest {
     }
 
     @Test
+    public void pairingPhasesHaveTheirOwnStatesAndOnlyTheOnesThatNeedATokenOfferTheEntryOfOne() {
+        HubConnection.PairingFailure none = HubConnection.PairingFailure.NONE;
+        assertEquals(SendspinRowText.State.PAIRING, SendspinRowText.stateOf(HubConnection.Phase.PAIRING, null, none, false, false, false));
+        assertEquals(SendspinRowText.State.PAIRING_REJECTED, SendspinRowText.stateOf(HubConnection.Phase.PAIRING_FAILED, null,
+                HubConnection.PairingFailure.TOKEN_REJECTED, false, false, false));
+        for (HubConnection.PairingFailure failure : new HubConnection.PairingFailure[]{HubConnection.PairingFailure.TIMEOUT,
+                HubConnection.PairingFailure.PLAYER_ABORTED, HubConnection.PairingFailure.CANNOT_STORE, HubConnection.PairingFailure.NOT_OFFERED}) {
+            assertEquals(SendspinRowText.State.PAIRING_FAILED,
+                    SendspinRowText.stateOf(HubConnection.Phase.PAIRING_FAILED, null, failure, false, false, false));
+        }
+        assertEquals("a paired player that is ready says so", SendspinRowText.State.READY_PAIRED,
+                SendspinRowText.stateOf(HubConnection.Phase.READY, null, none, true, false, false));
+        assertEquals("playing wins over paired", SendspinRowText.State.PLAYING,
+                SendspinRowText.stateOf(HubConnection.Phase.READY, null, none, true, true, false));
+        for (SendspinRowText.State state : SendspinRowText.State.values()) {
+            boolean expected = state == SendspinRowText.State.PAIRING_REQUIRED || state == SendspinRowText.State.RE_PAIR_NEEDED
+                    || state == SendspinRowText.State.PAIRING_REJECTED || state == SendspinRowText.State.PAIRING_FAILED;
+            assertEquals(state.name(), expected, SendspinRowText.offersPairing(state));
+        }
+    }
+
+    @Test
     public void theCardTextHasTypeNameAddressAndState() {
         assertEquals("Sendspin · Kitchen · h.local:8928 · ready",
                 SendspinRowText.of("Kitchen", "h.local:8928", SendspinRowText.State.READY, "", WORDS));

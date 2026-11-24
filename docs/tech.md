@@ -3914,8 +3914,33 @@ reached 0 ms after about 25 seconds, then stayed within +-3 ms; no underrun; a `
 `stream/start` and a volume command were taken without the connection breaking. This is the player's measure against our
 timestamps, not a listening test.
 
-**Not yet done.** The Pairing PSK flow (the reference daemon shows no token; unpaired access was used), re-handshake, FLAC, groups,
-the app (receiver device, player, rows, settings), and everything of the player role. See `tasks.md` of the spec.
+**Pairing PSK flow (server side, verified against the reference player 2026-11-24).** Token: `"SP:" "0"` and the base32 (RFC 4648,
+no padding, every `2` written `9`) of `client_key (32) || pairing_psk (32)`; the spec's reference vector is a test
+(`PairingTokenTest`). Decoding is lenient with pasted text (case, white space, a missing `SP:`) and strict otherwise; extra payload
+bytes are ignored. A pasted token is stored for its `client_id` only after the key in it equals the id of the connected player
+(`SendspinPolicy.pairWithToken`). While a token is held the server references the Pairing PSK (`psk_category` `pr`) in the next
+handshake (a held token means "pair now"), else the long-term PSK of a paired player (`lt`), else the Sentinel. Under the Pairing PSK
+the server sends `server/hello`, reads `client/hello` (it must offer `pairing_psk`), sends `server/activate` with
+`activities ['pairing']`, no roles and `pairing {method: pairing_psk}`; the player answers with `client/pair-init`
+(`pairing_index`: 1 for the first pairing activation since the last handshake; lower is ignored as a leftover, higher is a protocol
+error) and `client/pair-finalize` with the 43 characters of its new long-term PSK. The server refuses the Sentinel and the pairing
+PSK itself as long-term PSK (cancelling `server/activate`, empty activities), stores the PSK (the token is used up and an
+approval is discarded), sends `server/pair-finalize {}` and **re-handshakes** to the long-term PSK. A message that does not
+follow the sequence is a protocol error; a player silent for 30 s, or one that sends `pair/abort`, ends the attempt with an empty
+`server/activate` (phase `PAIRING_FAILED`, the token is kept).
+**Re-handshake** (`ServerHandshake.rehandshake`): the server initiates inside the open channel; both Noise messages travel as
+encrypted `noise/handshake` JSON messages (message 2 still under the old keys); the prologue is the previous handshake hash `h`
+(`NoiseKkPsk2.handshakeHash()`); the send lock is held from message 1 until the new keys are in place, so no application message
+follows message 1; messages of the player that cross message 1 are kept and delivered afterwards; no Sentinel fallback here; the
+first message under the new keys is `server/activate`. Rig run: the reference player (unpaired access off, its Pairing PSK
+injected into its settings dir, token built independently in Python) logged `Admitted server ... (activities=['pairing'])`, `Paired
+with server ... via pairing_psk`, then admitted the next connection with `activities=['playback']` under the long-term PSK
+(`HubRigTest`, `-Dsendspin.rig.paired=host:port -Dsendspin.rig.token=SP:0...`). A token whose Pairing PSK the player does not know
+makes it answer with the Sentinel: shown as "refused the pairing token". Keys are in app-private preferences, not yet wrapped by
+the Keystore.
+
+**Not yet done.** Pairing with a code (CPace), Keystore wrapping of the identity and PSKs, FLAC, groups and everything of the player
+role. See `tasks.md` of the spec.
 
 **mDNS announcement of a player (reference player, checked with the Python `zeroconf` library, 2026-11-24).** Service type
 `_sendspin._tcp.local.`, the **instance name is the player's `client_id`** (43 characters of its key, so it is no display name), port

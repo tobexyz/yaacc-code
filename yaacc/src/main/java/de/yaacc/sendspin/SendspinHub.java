@@ -327,6 +327,55 @@ public final class SendspinHub implements SendspinReceiverSource {
         lastAttempt.remove(endpoint);
     }
 
+    // ------------------------------------------------------------------ pairing and approvals
+
+    /**
+     * The operator pasted a pairing token for the player at this endpoint (the dialog of its row). On {@code STARTED} the connection
+     * is made again so that the pairing runs now.
+     */
+    public synchronized SendspinPolicy.PairOutcome pair(Endpoint endpoint, String tokenText) {
+        HubConnection current = connections.get(endpoint);
+        SendspinPolicy.PairOutcome outcome = approvals.pairWithToken(tokenText, current == null ? null : current.clientId());
+        if (outcome == SendspinPolicy.PairOutcome.STARTED) {
+            disconnect(endpoint);
+            acquire(endpoint, true);
+        }
+        return outcome;
+    }
+
+    /** The ids of the paired players, sorted. */
+    public List<String> pairedIds() {
+        return approvals.pairedIds();
+    }
+
+    /** The ids of the players the operator approved while they are not paired, sorted. */
+    public List<String> approvedIds() {
+        return approvals.approvedIds();
+    }
+
+    /** Forgets the pairing (and a pending token) of a player and ends the connections to it; they are made again by the list. */
+    public synchronized void unpair(String clientId) {
+        approvals.unpair(clientId);
+        endConnectionsOf(clientId);
+        fire();
+    }
+
+    /** Withdraws the approval of a player and ends the connections to it. */
+    public synchronized void revokeApproval(String clientId) {
+        approvals.revoke(clientId);
+        endConnectionsOf(clientId);
+        fire();
+    }
+
+    private void endConnectionsOf(String clientId) {
+        for (Endpoint endpoint : new ArrayList<>(connections.keySet())) {
+            HubConnection connection = connections.get(endpoint);
+            if (connection != null && clientId.equals(connection.clientId())) {
+                disconnect(endpoint);
+            }
+        }
+    }
+
     private void closeAll() {
         if (connections.isEmpty()) {
             return;

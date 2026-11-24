@@ -49,6 +49,10 @@ public class SendspinPlayerLogicTest {
     public void everyPhaseThatCanNotPlayGivesUpWithItsOwnProblem() {
         assertEquals(SendspinPlayerLogic.Wait.FAIL, SendspinPlayerLogic.waitFor(HubConnection.Phase.PAIRING_REQUIRED));
         assertEquals(SendspinPlayerLogic.Wait.FAIL, SendspinPlayerLogic.waitFor(HubConnection.Phase.RE_PAIR_NEEDED));
+        assertEquals(SendspinPlayerLogic.Wait.FAIL, SendspinPlayerLogic.waitFor(HubConnection.Phase.PAIRING_FAILED));
+        assertEquals("a pairing that runs is waited for", SendspinPlayerLogic.Wait.WAIT, SendspinPlayerLogic.waitFor(HubConnection.Phase.PAIRING));
+        assertEquals(SendspinPlayerLogic.Problem.PAIRING_FAILED,
+                SendspinPlayerLogic.problemOf(HubConnection.Phase.PAIRING_FAILED, HubConnection.EndReason.NONE));
         assertEquals(SendspinPlayerLogic.Wait.FAIL, SendspinPlayerLogic.waitFor(HubConnection.Phase.UNUSABLE));
         assertEquals(SendspinPlayerLogic.Wait.FAIL, SendspinPlayerLogic.waitFor(HubConnection.Phase.ENDED));
         assertEquals(SendspinPlayerLogic.Problem.PAIRING_REQUIRED,

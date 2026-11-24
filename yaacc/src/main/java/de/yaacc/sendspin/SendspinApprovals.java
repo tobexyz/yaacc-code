@@ -91,6 +91,19 @@ public final class SendspinApprovals {
         store.put(SendspinSettings.KEY_APPROVED, entries);
     }
 
+    /** The ids of the approved players, sorted. */
+    public synchronized java.util.List<String> ids() {
+        java.util.List<String> ids = new java.util.ArrayList<>();
+        for (String entry : store.get(SendspinSettings.KEY_APPROVED)) {
+            String id = idOf(entry);
+            if (id != null && sequenceOf(entry) >= 0) {
+                ids.add(id);
+            }
+        }
+        java.util.Collections.sort(ids);
+        return ids;
+    }
+
     public synchronized void revoke(String clientId) {
         Set<String> entries = new HashSet<>(store.get(SendspinSettings.KEY_APPROVED));
         boolean changed = false;
