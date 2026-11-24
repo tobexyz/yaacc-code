@@ -159,9 +159,9 @@
     <string name="settings_fcast_v4_summary">在 Android 10 及更高版本上，对于密钥已知的接收器（来自其连接链接或其公告），使用加密的 FCast 版本 4。不匹配的密钥会被拒绝，绝不会改用未加密的版本。关闭此项可始终使用未加密的版本 3，例如某个接收器无法使用版本 4 时。仅通过地址添加的接收器始终使用版本 3。</string>
     <string name="settings_sendspin_category">Sendspin</string>
     <string name="settings_sendspin_about_title">关于 Sendspin</string>
-    <string name="settings_sendspin_about_summary">YAACC 可以向网络中的 Sendspin 播放器播放音乐（实验性：播放器通过地址添加，目前尚不支持配对）。本应用实现了 Sendspin 协议，与 Open Home Foundation 无关联。Sendspin 是 Open Home Foundation 的商标。</string>
+    <string name="settings_sendspin_about_summary">YAACC 可以向网络中的 Sendspin 播放器播放音乐（实验性：播放器可在网络中发现或通过地址添加，目前尚不支持配对）。本应用实现了 Sendspin 协议，与 Open Home Foundation 无关联。Sendspin 是 Open Home Foundation 的商标。</string>
     <string name="settings_sendspin_enabled_title">使用 Sendspin 播放器</string>
-    <string name="settings_sendspin_enabled_summary">默认关闭。开启后，已添加的播放器会作为接收器列出，YAACC 会连接它们（仅出站连接；本设备不监听任何端口）。未批准的播放器收不到音频；向其播放即视为批准。</string>
+    <string name="settings_sendspin_enabled_summary">默认关闭。开启后，已添加的和在网络中发现的播放器会作为接收器列出，YAACC 会连接它们（仅出站连接；本设备不监听任何端口）。未批准的播放器收不到音频；向其播放即视为批准。</string>
     <string name="settings_sendspin_players_title">Sendspin 播放器</string>
     <string name="settings_sendspin_players_summary">按地址添加或移除播放器</string>
     <string name="sendspin_players_hint">地址，例如 192.168.0.7 或 kitchen.local:8928</string>
@@ -171,4 +171,6 @@
     <string name="sendspin_players_bad_address">这不是有效地址。请使用主机名或 IP 地址，可附带端口。</string>
     <string name="sendspin_players_too_many">最多可添加 16 个播放器。</string>
     <string name="sendspin_players_already">此播放器已在列表中。</string>
+    <string name="settings_sendspin_discovery_title">查找 Sendspin 播放器</string>
+    <string name="settings_sendspin_discovery_summary">在显示接收器的页面打开期间，通过 mDNS 在本地网络中查找 Sendspin 播放器；默认开启，但仅在已启用 Sendspin 播放器时有效。它会发送 mDNS 查询并列出每个自我宣告的播放器。宣告未经认证：网络中的任何人都可以宣告一个播放器。在您选择并向其播放之前，不会向任何播放器播放内容。</string>
 </resources>

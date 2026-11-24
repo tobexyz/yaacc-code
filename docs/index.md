@@ -680,8 +680,9 @@ This application is an independent community implementation of the FCast protoco
 
 ### Switching it on and adding players
 
-* *Settings* > *Sendspin* > *Use Sendspin players* (**off by default**) lists the players you added as receivers and lets YAACC connect to them. YAACC only connects out; nothing listens on the phone.
-* *Settings* > *Sendspin* > *Sendspin players*: type the **address** of a player (`host` or `host:port`, port 8928 by default, for example `192.168.0.7` or `kitchen.local:8928`) and add it, or remove it. Players are added by address only; searching the network by mDNS is not part of this version.
+* *Settings* > *Sendspin* > *Use Sendspin players* (**off by default**) lists the players you added and the ones found on the network as receivers and lets YAACC connect to them. YAACC only connects out; nothing listens on the phone.
+* *Settings* > *Sendspin* > *Find Sendspin players* (on by default, but only while *Use Sendspin players* is on) searches the local network by mDNS (`_sendspin._tcp`) **while a page with the receivers is open** and lists every player that announces itself; nothing runs in the background. It sends mDNS queries and the announcements are not authenticated: anyone on the network can announce a player, so a look-alike name is possible (the card shows the address too). Only addresses of the local network are accepted (private ranges, no loopback, no public address), ports from 1024, and a WebSocket path that is valid (the announcement's `path`, `/sendspin` if it has none). A player that disappears stays listed for 30 seconds; a player you selected stays listed after a restart until it is announced again. At most 32 players are listed and connected to.
+* *Settings* > *Sendspin* > *Sendspin players*: type the **address** of a player (`host` or `host:port`, port 8928 by default, for example `192.168.0.7` or `kitchen.local:8928`) and add it, or remove it. Use this for a player that does not announce itself or when the network does not pass multicast (Docker's bridge network does not).
 
 ### Playing
 
@@ -693,7 +694,7 @@ This application is an independent community implementation of the FCast protoco
 
 ### Limits and security
 
-* No pairing and no groups yet; the connection to a player is encrypted end to end (Noise protocol), but without pairing it does not prove who the other side is.
+* No pairing and no groups yet; the search finds players, it does not trust them; the connection to a player is encrypted end to end (Noise protocol), but without pairing it does not prove who the other side is.
 * The identity key of the phone as a Sendspin server is kept in the app's private storage (backup is off); wrapping it with the Android Keystore is still to do.
 * The phone as a Sendspin **player** (other servers play to the phone) is not part of this version.
 * A test rig with the reference player is in `tools/sendspin-rig/`.

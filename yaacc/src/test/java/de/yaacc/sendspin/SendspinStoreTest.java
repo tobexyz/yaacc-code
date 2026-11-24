@@ -145,6 +145,23 @@ public class SendspinStoreTest {
     }
 
     @Test
+    public void theSearchRunsOnlyWhenSendspinIsOnAndItsOwnSwitchIsOnWhichIsTheDefault() {
+        assertFalse("everything at its default: Sendspin is off", SendspinSettings.isDiscoveryEnabled((key, def) -> def));
+        assertTrue(SendspinSettings.isDiscoveryEnabled((key, def) -> SendspinSettings.KEY_ENABLED.equals(key) || def));
+        assertFalse("Sendspin on, the search off",
+                SendspinSettings.isDiscoveryEnabled((key, def) -> SendspinSettings.KEY_ENABLED.equals(key)));
+        assertFalse("the search on, Sendspin off", SendspinSettings.isDiscoveryEnabled(
+                (key, def) -> SendspinSettings.KEY_DISCOVERY.equals(key)));
+        assertFalse(SendspinSettings.isDiscoveryEnabled(null));
+        assertFalse(SendspinSettings.isDiscoveryEnabled((key, def) -> {
+            throw new ClassCastException();
+        }));
+        assertTrue(SendspinSettings.isDiscoveryRelevantKey(SendspinSettings.KEY_ENABLED));
+        assertTrue(SendspinSettings.isDiscoveryRelevantKey(SendspinSettings.KEY_DISCOVERY));
+        assertFalse(SendspinSettings.isDiscoveryRelevantKey("something_else"));
+    }
+
+    @Test
     public void theSwitchIsOffByDefaultAndForAnUnreadableValue() {
         assertFalse(SendspinSettings.isEnabled(null));
         assertFalse(SendspinSettings.isEnabled((key, def) -> def));

@@ -159,9 +159,9 @@
     <string name="settings_fcast_v4_summary">À partir d’Android 10, un récepteur dont la clé est connue (par son lien de connexion ou son annonce) est utilisé avec la version 4 chiffrée de FCast. Une clé qui ne correspond pas est refusée, jamais traitée avec la version non chiffrée. Désactivez cette option pour toujours utiliser la version 3 non chiffrée, par exemple si un récepteur ne fonctionne pas avec la version 4. Un récepteur ajouté uniquement par son adresse est toujours utilisé avec la version 3.</string>
     <string name="settings_sendspin_category">Sendspin</string>
     <string name="settings_sendspin_about_title">À propos de Sendspin</string>
-    <string name="settings_sendspin_about_summary">YAACC peut lire de la musique sur des lecteurs Sendspin de votre réseau (expérimental : les lecteurs sont ajoutés par adresse, l\'appairage n\'est pas encore pris en charge). Cette application implémente le protocole Sendspin et n\'est pas affiliée à l\'Open Home Foundation. Sendspin est une marque de l\'Open Home Foundation.</string>
+    <string name="settings_sendspin_about_summary">YAACC peut lire de la musique sur des lecteurs Sendspin de votre réseau (expérimental : les lecteurs sont trouvés sur le réseau ou ajoutés par adresse, l\'appairage n\'est pas encore pris en charge). Cette application implémente le protocole Sendspin et n\'est pas affiliée à l\'Open Home Foundation. Sendspin est une marque de l\'Open Home Foundation.</string>
     <string name="settings_sendspin_enabled_title">Utiliser des lecteurs Sendspin</string>
-    <string name="settings_sendspin_enabled_summary">Désactivé par défaut. Une fois activé, les lecteurs ajoutés sont listés comme récepteurs et YAACC s\'y connecte (connexions sortantes uniquement ; rien n\'écoute sur cet appareil). Un lecteur que vous n\'avez pas approuvé ne reçoit pas d\'audio ; lancer la lecture dessus l\'approuve.</string>
+    <string name="settings_sendspin_enabled_summary">Désactivé par défaut. Une fois activé, les lecteurs ajoutés et ceux trouvés sur le réseau sont listés comme récepteurs et YAACC s\'y connecte (connexions sortantes uniquement ; rien n\'écoute sur cet appareil). Un lecteur que vous n\'avez pas approuvé ne reçoit pas d\'audio ; lancer la lecture dessus l\'approuve.</string>
     <string name="settings_sendspin_players_title">Lecteurs Sendspin</string>
     <string name="settings_sendspin_players_summary">Ajouter un lecteur par adresse ou le supprimer</string>
     <string name="sendspin_players_hint">Adresse, par exemple 192.168.0.7 ou cuisine.local:8928</string>
@@ -171,4 +171,6 @@
     <string name="sendspin_players_bad_address">Ce n\'est pas une adresse. Utilisez un nom d\'hôte ou une adresse IP, avec un port facultatif.</string>
     <string name="sendspin_players_too_many">Au plus 16 lecteurs peuvent être ajoutés.</string>
     <string name="sendspin_players_already">Ce lecteur est déjà dans la liste.</string>
+    <string name="settings_sendspin_discovery_title">Rechercher des lecteurs Sendspin</string>
+    <string name="settings_sendspin_discovery_summary">Recherche des lecteurs Sendspin sur le réseau local (mDNS) tant qu\'une page avec les récepteurs est ouverte ; activé par défaut, mais seulement si les lecteurs Sendspin sont activés. Il envoie des requêtes mDNS et liste chaque lecteur qui s\'annonce. Les annonces ne sont pas authentifiées : n\'importe qui sur le réseau peut annoncer un lecteur. Rien n\'est lu sur un lecteur avant que vous ne le choisissiez et ne lanciez la lecture dessus.</string>
 </resources>

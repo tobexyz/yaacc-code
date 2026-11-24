@@ -26,6 +26,12 @@ public final class SendspinSettings {
     /** The key of the switch that makes the app list and use Sendspin players. */
     public static final String KEY_ENABLED = "settings_sendspin_enabled";
     public static final boolean ENABLED_DEFAULT = false;
+    /** The key of the switch for the mDNS search; it works only while {@link #KEY_ENABLED} is on. */
+    public static final String KEY_DISCOVERY = "settings_sendspin_discovery";
+    /** The search is on by default (nothing is played to a player that was only found; it is connected to and approved by playing). */
+    public static final boolean DISCOVERY_DEFAULT = true;
+    /** The key of the players that were selected in the last run ({@code host:port}); they stay listed until they are seen again. */
+    public static final String KEY_REMEMBERED = "sendspin_remembered";
     /** The key of the players that the user added by address ({@code host:port}). */
     public static final String KEY_PLAYERS = "sendspin_players";
     /** The key of the ids of the players the operator approved. */
@@ -33,8 +39,10 @@ public final class SendspinSettings {
     /** The key of the private key of this server identity (app-private storage; backup is off). */
     public static final String KEY_IDENTITY = "sendspin_identity";
 
-    /** The most players the app remembers. */
+    /** The most players the user can add. */
     public static final int MAX_PLAYERS = 16;
+    /** The most players the app lists and connects to at all (added, remembered and found together). */
+    public static final int MAX_LISTED = 32;
     /** The most approvals the app remembers (the oldest are dropped). */
     public static final int MAX_APPROVALS = 64;
 
@@ -44,6 +52,26 @@ public final class SendspinSettings {
     }
 
     private SendspinSettings() {
+    }
+
+    /**
+     * @return whether the network is searched: Sendspin is on <b>and</b> the search switch is on (its default is on); false for no
+     * source or a value that can not be read
+     */
+    public static boolean isDiscoveryEnabled(BooleanSource source) {
+        if (!isEnabled(source)) {
+            return false;
+        }
+        try {
+            return source.getBoolean(KEY_DISCOVERY, DISCOVERY_DEFAULT);
+        } catch (RuntimeException damaged) {
+            return false;
+        }
+    }
+
+    /** True if a changed preference key is one that decides whether the search runs. */
+    public static boolean isDiscoveryRelevantKey(String key) {
+        return KEY_ENABLED.equals(key) || KEY_DISCOVERY.equals(key);
     }
 
     /** @return whether Sendspin is switched on; false for no source or a value that can not be read */

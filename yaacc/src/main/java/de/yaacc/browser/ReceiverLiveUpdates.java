@@ -109,6 +109,17 @@ final class ReceiverLiveUpdates {
         default void stopFCast() {
         }
 
+        /**
+         * Starts following the Sendspin players (the search runs for as long as it does); {@code onChanged} is told, on the main
+         * thread and coalesced, when the players changed. Nothing by default.
+         */
+        default void startSendspin(Runnable onChanged) {
+        }
+
+        /** Stops following the Sendspin players. */
+        default void stopSendspin() {
+        }
+
         /** Stops following the Snapcast groups. */
         default void stopSnapcast() {
         }
@@ -153,6 +164,15 @@ final class ReceiverLiveUpdates {
     };
 
     private final Runnable snapcastCallback = new Runnable() {
+        @Override
+        public void run() {
+            if (running) {
+                target.refresh();
+            }
+        }
+    };
+
+    private final Runnable sendspinCallback = new Runnable() {
         @Override
         public void run() {
             if (running) {
@@ -209,6 +229,7 @@ final class ReceiverLiveUpdates {
         sources.addPlayerListener(playerListener);
         sources.startSnapcast(snapcastCallback);
         sources.startFCast(fcastCallback);
+        sources.startSendspin(sendspinCallback);
         target.startLiveVolume();
         sources.postDelayed(poller, POLL_INTERVAL_MS);
     }
@@ -237,6 +258,7 @@ final class ReceiverLiveUpdates {
         sources.removePlayerListener(playerListener);
         sources.stopSnapcast();
         sources.stopFCast();
+        sources.stopSendspin();
     }
 
     /** The real world: the shared monitors, the client's player list and the main thread's handler. */
@@ -245,6 +267,7 @@ final class ReceiverLiveUpdates {
             private YxcRowFeed groupFeed;
             private SnapcastLiveSource snapcast;
             private FCastLiveSource fcast;
+            private SendspinLiveSource sendspin;
 
             @Override
             public void subscribeStatus(RendererStatusMonitor.StatusListener listener) {
@@ -305,6 +328,22 @@ final class ReceiverLiveUpdates {
                     fcast = FCastLiveSource.forApp(upnpClient.getContext(), handler, onChanged);
                 }
                 fcast.start();
+            }
+
+            @Override
+            public void startSendspin(Runnable onChanged) {
+                if (sendspin == null) {
+                    sendspin = SendspinLiveSource.forApp(upnpClient.getContext(), handler, onChanged);
+                }
+                sendspin.start();
+            }
+
+            @Override
+            public void stopSendspin() {
+                if (sendspin != null) {
+                    sendspin.stop();
+                    sendspin = null;
+                }
             }
 
             @Override

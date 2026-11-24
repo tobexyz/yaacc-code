@@ -3916,3 +3916,15 @@ timestamps, not a listening test.
 
 **Not yet done.** The Pairing PSK flow (the reference daemon shows no token; unpaired access was used), re-handshake, FLAC, groups,
 the app (receiver device, player, rows, settings), and everything of the player role. See `tasks.md` of the spec.
+
+**mDNS announcement of a player (reference player, checked with the Python `zeroconf` library, 2026-11-24).** Service type
+`_sendspin._tcp.local.`, the **instance name is the player's `client_id`** (43 characters of its key, so it is no display name), port
+8928, TXT `name` (the friendly name, here `RigPlayer`) and `path` (`/sendspin`). The app therefore shows the TXT `name`, never an
+instance name that is a client id, and the address when there is none. The platform reports the type as `_sendspin._tcp.` (with a
+dot). Discovery in the app (`de.yaacc.sendspin.discovery`): `SendspinNsd` (NsdManager, one resolution at a time through the shared
+`SnapcastResolveQueue`, retries of `SnapcastResolveRetry`, a multicast lock only while it runs), `SendspinDirectory` (local network
+addresses only: `SnapcastAddressFilter.isAcceptedForDiscovery`, port 1024 or more, link-local IPv6 refused, a `path` that is
+`path-absolute` of RFC 3986 else the service is refused, at most 32, 30 s grace for a lost service, entries of an earlier scan that the
+new scan does not announce age out), started and stopped by the `SnapcastDiscoveryGate` while a receivers page is visible. The
+sandbox's own address is 192.0.2.2 (documentation range), which the filter would refuse: rig tests use added addresses, which are not
+filtered.

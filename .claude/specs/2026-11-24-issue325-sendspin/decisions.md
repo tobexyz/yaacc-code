@@ -21,7 +21,7 @@ Android reference pages: `KeyAgreement`/`KeyPairGenerator` algorithm `XDH` (X255
 - **Q4 Fit: yes with the FCast and Snapcast pattern**; the touched places are listed in `tasks.md`. One design point found: the tap's sample rate must be known when the ExoPlayer is created, so the hub keeps a connection per known player.
 - **Q5 Interop: one reference player so far** (`sendspin` 9.1.0). Verified: unpaired with operator approval; a player with unpaired access off is recognized and shown as needing pairing. **Not verified:** the Pairing PSK (the reference daemon shows no token), Music Assistant, ESPHome, the owner's Kodi device.
 - **Rig finding:** PortAudio can not open the ALSA `null` device by name; the rig uses a PulseAudio null sink (also real-time clocked). The Docker image was never built.
-- **Discovery default:** until the app part has been tried on a device, a Sendspin switch (when it exists) is **off by default**, which replaces the recommendation "on by default" below for the first release; the owner can turn the default on after the first test.
+- **Discovery default (decided in the build, open for the owner's veto):** the main switch *Use Sendspin players* is **off by default** (the app part is untested on a device); the search switch *Find Sendspin players* is **on by default** but acts only while the main switch is on, so nothing is sent by default. Nothing is played to a found player before the operator plays to it.
 
 ## 2026-11-09 - Server and client, MusicCast-like linking (owner)
 **Decision**: YAACC implements both roles. Linking follows the MusicCast pattern: the server leads, members follow, "Play on" a member plays on its group.

@@ -83,7 +83,8 @@ public class SendspinResourcesTest {
         for (String locale : LOCALES) {
             Map<String, String> strings = sendspinStrings(locale);
             for (Map.Entry<String, String> entry : english.entrySet()) {
-                boolean key = entry.getKey().equals("settings_sendspin_enabled") || entry.getKey().equals("settings_sendspin_players");
+                boolean key = entry.getKey().equals("settings_sendspin_enabled") || entry.getKey().equals("settings_sendspin_players")
+                        || entry.getKey().equals("settings_sendspin_discovery");
                 if (key && !locale.equals("values")) {
                     continue; // a preference key is not translated
                 }
@@ -111,9 +112,11 @@ public class SendspinResourcesTest {
         Map<String, String> english = sendspinStrings("values");
         assertEquals(SendspinSettings.KEY_ENABLED, english.get("settings_sendspin_enabled"));
         assertEquals("settings_sendspin_players", english.get("settings_sendspin_players"));
+        assertEquals(SendspinSettings.KEY_DISCOVERY, english.get("settings_sendspin_discovery"));
         String values = read("src/main/res/values/setting_strings.xml");
         assertTrue(values.contains("<string name=\"settings_sendspin_enabled\" translatable=\"false\">"));
         assertTrue(values.contains("<string name=\"settings_sendspin_players\" translatable=\"false\">"));
+        assertTrue(values.contains("<string name=\"settings_sendspin_discovery\" translatable=\"false\">"));
     }
 
     @Test
@@ -123,6 +126,15 @@ public class SendspinResourcesTest {
                 .matcher(screen);
         assertTrue("the switch is on the preference screen", m.find());
         assertEquals(String.valueOf(SendspinSettings.ENABLED_DEFAULT), m.group(1));
+    }
+
+    @Test
+    public void theSearchSwitchIsOnByDefaultLikeTheCodeAndDependsOnTheMainSwitch() throws Exception {
+        String screen = read("src/main/res/xml/preference.xml");
+        Matcher m = Pattern.compile("<CheckBoxPreference\\s+android:defaultValue=\"(true|false)\"\\s+android:dependency=\"@string/settings_sendspin_enabled\"\\s+"
+                + "android:key=\"@string/settings_sendspin_discovery\"").matcher(screen);
+        assertTrue("the search switch is on the preference screen and depends on the main switch", m.find());
+        assertEquals(String.valueOf(SendspinSettings.DISCOVERY_DEFAULT), m.group(1));
     }
 
     @Test

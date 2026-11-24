@@ -159,9 +159,9 @@
     <string name="settings_fcast_v4_summary">A partir do Android 10, com um recetor cuja chave é conhecida (pela sua ligação ou pelo seu anúncio) fala-se a versão 4 cifrada do FCast. Uma chave que não coincide é recusada e nunca respondida com a versão sem cifra. Desative para usar sempre a versão 3 sem cifra, por exemplo se um recetor não funcionar com a versão 4. Com um recetor adicionado apenas pelo seu endereço fala-se sempre a versão 3.</string>
     <string name="settings_sendspin_category">Sendspin</string>
     <string name="settings_sendspin_about_title">Sobre o Sendspin</string>
-    <string name="settings_sendspin_about_summary">O YAACC pode reproduzir música em players Sendspin da sua rede (experimental: os players são adicionados por endereço, o emparelhamento ainda não é suportado). Esta aplicação implementa o protocolo Sendspin e não é afiliada à Open Home Foundation. Sendspin é uma marca da Open Home Foundation.</string>
+    <string name="settings_sendspin_about_summary">O YAACC pode reproduzir música em players Sendspin da sua rede (experimental: os players são encontrados na rede ou adicionados por endereço, o emparelhamento ainda não é suportado). Esta aplicação implementa o protocolo Sendspin e não é afiliada à Open Home Foundation. Sendspin é uma marca da Open Home Foundation.</string>
     <string name="settings_sendspin_enabled_title">Usar players Sendspin</string>
-    <string name="settings_sendspin_enabled_summary">Desativado por padrão. Quando ativado, os players adicionados aparecem como receptores e o YAACC se conecta a eles (apenas conexões de saída; nada escuta neste dispositivo). Um player que você não aprovou não recebe áudio; reproduzir nele o aprova.</string>
+    <string name="settings_sendspin_enabled_summary">Desativado por padrão. Quando ativado, os players adicionados e os encontrados na rede aparecem como receptores e o YAACC se conecta a eles (apenas conexões de saída; nada escuta neste dispositivo). Um player que você não aprovou não recebe áudio; reproduzir nele o aprova.</string>
     <string name="settings_sendspin_players_title">Players Sendspin</string>
     <string name="settings_sendspin_players_summary">Adicionar um player por endereço ou removê-lo</string>
     <string name="sendspin_players_hint">Endereço, por exemplo 192.168.0.7 ou cozinha.local:8928</string>
@@ -171,4 +171,6 @@
     <string name="sendspin_players_bad_address">Isso não é um endereço. Use um nome de host ou endereço IP, com porta opcional.</string>
     <string name="sendspin_players_too_many">É possível adicionar no máximo 16 players.</string>
     <string name="sendspin_players_already">Este player já está na lista.</string>
+    <string name="settings_sendspin_discovery_title">Procurar players Sendspin</string>
+    <string name="settings_sendspin_discovery_summary">Procura players Sendspin na rede local (mDNS) enquanto uma página com os receptores estiver aberta; ativado por padrão, mas só se os players Sendspin estiverem ativados. Envia consultas mDNS e lista cada player que se anuncia. Os anúncios não são autenticados: qualquer pessoa na rede pode anunciar um player. Nada é reproduzido em um player antes de você escolhê-lo e reproduzir nele.</string>
 </resources>
