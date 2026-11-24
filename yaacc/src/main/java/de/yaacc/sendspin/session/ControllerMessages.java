@@ -41,7 +41,7 @@ import java.util.Set;
 public final class ControllerMessages {
 
     /** The roles this client asks for. */
-    public static final List<String> ROLES = Collections.unmodifiableList(Arrays.asList("controller@v1", "metadata@v1"));
+    public static final List<String> ROLES = Collections.unmodifiableList(Arrays.asList("controller@v1", "metadata@v1", "artwork@v1"));
 
     /** The controller commands of the protocol; a command that is not in this list is not offered to the user. */
     public static final List<String> COMMANDS = Collections.unmodifiableList(Arrays.asList("play", "pause", "stop", "next", "previous",
@@ -85,6 +85,16 @@ public final class ControllerMessages {
 
     public static String clientState(boolean available) {
         return SendspinMessages.message("client/state", SendspinMessages.json("available", available));
+    }
+
+    /**
+     * {@code client/state} with the {@code artwork} object: one album channel in the given format and size (the server scales the image
+     * to fit and pads it with black). Sent when the artwork role becomes active.
+     */
+    public static String clientStateWithArtwork(boolean available, String format, int width, int height) {
+        JSONObject channel = SendspinMessages.json("source", "album", "format", format, "width", width, "height", height);
+        JSONObject artwork = SendspinMessages.json("channels", new JSONArray(Collections.singletonList(channel)));
+        return SendspinMessages.message("client/state", SendspinMessages.json("available", available, "artwork", artwork));
     }
 
     public static String clientTime(long clientTransmittedMicros) {
@@ -411,6 +421,103 @@ public final class ControllerMessages {
                 SendspinMessages.text(o, "album_artist", MAX_METADATA_BYTES, false),
                 SendspinMessages.text(o, "album", MAX_METADATA_BYTES, false),
                 SendspinMessages.text(o, "artwork_url", MAX_URL_BYTES, false), progress);
+    }
+
+    /** The configuration of one artwork channel (spec, "Server to client: stream/start artwork object"). */
+    public static final class ArtworkChannel {
+        public final String source;
+        public final String format;
+        public final int width;
+        public final int height;
+
+        private ArtworkChannel(String source, String format, int width, int height) {
+            this.source = source;
+            this.format = format;
+            this.width = width;
+            this.height = height;
+        }
+
+        public static ArtworkChannel album(String format, int width, int height) {
+            return new ArtworkChannel("album", format, width, height);
+        }
+
+        public static ArtworkChannel of(String source, String format, int width, int height) {
+            return new ArtworkChannel(source, format, width, height);
+        }
+
+        public static ArtworkChannel none() {
+            return new ArtworkChannel("none", null, 0, 0);
+        }
+
+        public boolean isActive() {
+            return !"none".equals(source);
+        }
+
+        public boolean sameAs(ArtworkChannel other) {
+            return other != null && source.equals(other.source) && width == other.width && height == other.height
+                    && (format == null ? other.format == null : format.equals(other.format));
+        }
+    }
+
+    /** The largest width or height of an artwork channel this client accepts. */
+    public static final int MAX_ARTWORK_SIDE = 4096;
+
+    /**
+     * The {@code artwork} object of {@code stream/start}.
+     *
+     * @return the channels, or null if the message has no {@code artwork} object (the stream of another role)
+     */
+    public static List<ArtworkChannel> parseStreamStartArtwork(JSONObject p) throws ProtocolException {
+        if (!p.has("artwork")) {
+            return null;
+        }
+        JSONObject artwork = p.optJSONObject("artwork");
+        JSONArray array = artwork == null ? null : artwork.optJSONArray("channels");
+        if (array == null || array.length() < 1 || array.length() > 4) {
+            throw new ProtocolException("artwork channels");
+        }
+        List<ArtworkChannel> channels = new ArrayList<>();
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject c = array.optJSONObject(i);
+            if (c == null) {
+                throw new ProtocolException("artwork channel");
+            }
+            String source = SendspinMessages.text(c, "source", 16, true);
+            if ("none".equals(source)) {
+                channels.add(ArtworkChannel.none());
+                continue;
+            }
+            if (!"album".equals(source) && !"artist".equals(source)) {
+                throw new ProtocolException("artwork source");
+            }
+            String format = SendspinMessages.text(c, "format", 8, true);
+            if (!"jpeg".equals(format) && !"png".equals(format)) {
+                throw new ProtocolException("artwork format");
+            }
+            channels.add(ArtworkChannel.of(source, format, SendspinMessages.integer(c, "width", 1, MAX_ARTWORK_SIDE, true),
+                    SendspinMessages.integer(c, "height", 1, MAX_ARTWORK_SIDE, true)));
+        }
+        return channels;
+    }
+
+    /** {@code stream/end}: the roles it ends, or null if it names none (all streams end). */
+    public static List<String> parseStreamEndRoles(JSONObject p) throws ProtocolException {
+        if (!p.has("roles")) {
+            return null;
+        }
+        JSONArray array = p.optJSONArray("roles");
+        if (array == null || array.length() > MAX_LIST) {
+            throw new ProtocolException("roles");
+        }
+        List<String> roles = new ArrayList<>();
+        for (int i = 0; i < array.length(); i++) {
+            Object role = array.opt(i);
+            if (!(role instanceof String) || ((String) role).length() > 64) {
+                throw new ProtocolException("roles");
+            }
+            roles.add((String) role);
+        }
+        return roles;
     }
 
     /** {@code server/time}: {@code client_transmitted}, {@code server_received}, {@code server_transmitted}. */

@@ -179,4 +179,6 @@
     <string name="settings_sendspin_unpaired_servers_summary">Standaard aan. Een toegevoegde server mag dan zonder koppeling tonen en bedienen. De verbinding is versleuteld maar bewijst niet wie de server is (zegt het protocol); koppelen als client wordt nog niet ondersteund. Zet uit om zulke servers te weigeren.</string>
     <string name="settings_sendspin_servers_title">Sendspin-servers</string>
     <string name="settings_sendspin_servers_summary">Een server met adres toevoegen of verwijderen</string>
+    <string name="settings_sendspin_server_discovery_title">Sendspin-servers zoeken</string>
+    <string name="settings_sendspin_server_discovery_summary">Zoekt in het lokale netwerk naar Sendspin-servers (mDNS) zolang een pagina met de ontvangers geopend is; standaard aan, maar alleen zolang Sendspin-servers bedienen aan staat. Gevonden servers worden niet vertrouwd: met een server wordt verbonden zodra zijn kaart in de lijst staat, en wat hij mag, bepaalt zijn beheerder. Alleen adressen van het lokale netwerk worden geaccepteerd.</string>
 </resources>

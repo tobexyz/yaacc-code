@@ -50,6 +50,9 @@ public final class SendspinSettings {
     public static final String KEY_UNPAIRED_SERVERS = "settings_sendspin_unpaired_servers";
     /** On: a server is one the user named, and the roles give it no audio and no files; pairing as a client is not part of the first version. */
     public static final boolean UNPAIRED_SERVERS_DEFAULT = true;
+    /** The key of the switch for the mDNS search of servers; it works only while {@link #KEY_CONTROLLER_ENABLED} is on. */
+    public static final String KEY_SERVER_DISCOVERY = "settings_sendspin_server_discovery";
+    public static final boolean SERVER_DISCOVERY_DEFAULT = true;
     /** The key of the servers the user added by address ({@code host:port}). */
     public static final String KEY_SERVERS = "sendspin_servers";
     /** The key of the private key of the identity this app uses as a Sendspin client (app-private storage; backup is off). */
@@ -94,6 +97,23 @@ public final class SendspinSettings {
     /** True if a changed preference key is one that decides whether the search runs. */
     public static boolean isDiscoveryRelevantKey(String key) {
         return KEY_ENABLED.equals(key) || KEY_DISCOVERY.equals(key);
+    }
+
+    /** @return whether the network is searched for servers: the controller is on <b>and</b> its search switch is on (default on) */
+    public static boolean isServerDiscoveryEnabled(BooleanSource source) {
+        if (!isControllerEnabled(source)) {
+            return false;
+        }
+        try {
+            return source.getBoolean(KEY_SERVER_DISCOVERY, SERVER_DISCOVERY_DEFAULT);
+        } catch (RuntimeException damaged) {
+            return false;
+        }
+    }
+
+    /** True if a changed preference key is one that decides whether the search of servers runs. */
+    public static boolean isServerDiscoveryRelevantKey(String key) {
+        return KEY_CONTROLLER_ENABLED.equals(key) || KEY_SERVER_DISCOVERY.equals(key);
     }
 
     /** @return whether the controller (Sendspin servers as cards) is switched on; false for no source or a value that can not be read */

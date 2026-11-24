@@ -67,9 +67,9 @@ public class ControllerMessagesTest {
         assertEquals("client/hello", e.type());
         JSONObject p = e.payload();
         assertEquals("YAACC", p.getString("name"));
-        assertEquals(Arrays.asList("controller@v1", "metadata@v1"), Arrays.asList(p.getJSONArray("supported_roles").getString(0),
-                p.getJSONArray("supported_roles").getString(1)));
-        assertEquals(2, p.getJSONArray("supported_roles").length());
+        assertEquals(Arrays.asList("controller@v1", "metadata@v1", "artwork@v1"), Arrays.asList(p.getJSONArray("supported_roles").getString(0),
+                p.getJSONArray("supported_roles").getString(1), p.getJSONArray("supported_roles").getString(2)));
+        assertEquals(3, p.getJSONArray("supported_roles").length());
         assertFalse(p.has("player@v1_support"));
         assertTrue("every client offers the Pairing PSK method", p.getJSONObject("supported_pair_methods").has("pairing_psk"));
         assertTrue(p.getJSONObject("unpaired_access").getBoolean("enabled"));
@@ -242,5 +242,49 @@ public class ControllerMessagesTest {
         assertEquals(2L, t[1]);
         assertEquals(3L, t[2]);
         rejects("", "missing", () -> ControllerMessages.parseServerTime(payload("{\"client_transmitted\":1}")));
+    }
+
+    @Test
+    public void theArtworkStateDeclaresOneAlbumChannelAndTheWantedSize() throws Exception {
+        JSONObject p = Envelope.parse(ControllerMessages.clientStateWithArtwork(true, "jpeg", 512, 512).getBytes("UTF-8")).payload();
+        assertTrue(p.getBoolean("available"));
+        JSONObject channel = p.getJSONObject("artwork").getJSONArray("channels").getJSONObject(0);
+        assertEquals("album", channel.getString("source"));
+        assertEquals("jpeg", channel.getString("format"));
+        assertEquals(512, channel.getInt("width"));
+        assertEquals(512, channel.getInt("height"));
+        assertEquals(1, p.getJSONObject("artwork").getJSONArray("channels").length());
+    }
+
+    @Test
+    public void streamStartOfTheArtworkRoleGivesTheChannels() throws Exception {
+        java.util.List<ControllerMessages.ArtworkChannel> channels = ControllerMessages.parseStreamStartArtwork(payload(
+                "{\"server_transmitted\":5,\"artwork\":{\"channels\":[{\"source\":\"album\",\"format\":\"jpeg\",\"width\":512,\"height\":512},"
+                        + "{\"source\":\"none\"}]}}"));
+        assertEquals(2, channels.size());
+        assertEquals("jpeg", channels.get(0).format);
+        assertEquals(512, channels.get(0).width);
+        assertFalse(channels.get(1).isActive());
+        assertNull("a stream/start without an artwork object is not ours", ControllerMessages.parseStreamStartArtwork(payload(
+                "{\"server_transmitted\":5,\"player\":{\"codec\":\"pcm\"}}")));
+        rejects("", "no channels", () -> ControllerMessages.parseStreamStartArtwork(payload("{\"artwork\":{\"channels\":[]}}")));
+        rejects("", "five channels", () -> ControllerMessages.parseStreamStartArtwork(payload("{\"artwork\":{\"channels\":["
+                + "{\"source\":\"none\"},{\"source\":\"none\"},{\"source\":\"none\"},{\"source\":\"none\"},{\"source\":\"none\"}]}}")));
+        rejects("", "unknown source", () -> ControllerMessages.parseStreamStartArtwork(payload(
+                "{\"artwork\":{\"channels\":[{\"source\":\"band\",\"format\":\"jpeg\",\"width\":1,\"height\":1}]}}")));
+        rejects("", "unknown format", () -> ControllerMessages.parseStreamStartArtwork(payload(
+                "{\"artwork\":{\"channels\":[{\"source\":\"album\",\"format\":\"gif\",\"width\":1,\"height\":1}]}}")));
+        rejects("", "no size", () -> ControllerMessages.parseStreamStartArtwork(payload(
+                "{\"artwork\":{\"channels\":[{\"source\":\"album\",\"format\":\"jpeg\"}]}}")));
+        rejects("", "a size beyond the limit", () -> ControllerMessages.parseStreamStartArtwork(payload(
+                "{\"artwork\":{\"channels\":[{\"source\":\"album\",\"format\":\"jpeg\",\"width\":100000,\"height\":1}]}}")));
+    }
+
+    @Test
+    public void streamEndNamesTheRolesOrEndsAll() throws Exception {
+        assertEquals(Arrays.asList("player", "artwork"), ControllerMessages.parseStreamEndRoles(payload("{\"roles\":[\"player\",\"artwork\"]}")));
+        assertNull("omitted: all streams end", ControllerMessages.parseStreamEndRoles(payload("{}")));
+        rejects("", "roles not an array", () -> ControllerMessages.parseStreamEndRoles(payload("{\"roles\":\"artwork\"}")));
+        rejects("", "a role that is no text", () -> ControllerMessages.parseStreamEndRoles(payload("{\"roles\":[1]}")));
     }
 }

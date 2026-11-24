@@ -19,6 +19,7 @@
 package de.yaacc.sendspin;
 
 import de.yaacc.sendspin.client.ControllerSession;
+import de.yaacc.sendspin.discovery.SendspinDirectory;
 import de.yaacc.sendspin.hub.Connector;
 import de.yaacc.sendspin.hub.Endpoint;
 import de.yaacc.sendspin.hub.HubClock;
@@ -51,16 +52,18 @@ public final class SendspinControllers {
     private final Connector connector;
     private final HubClock clock;
     private final SecureRandom random;
+    private final Supplier<List<SendspinDirectory.Entry>> found;
     private final java.util.function.Consumer<ControllerSession> changed;
     private final Map<Endpoint, ControllerSession> sessions = new HashMap<>();
     private final Map<Endpoint, Long> lastAttempt = new HashMap<>();
 
-    public SendspinControllers(StringSetStore store, Supplier<Identity> identity, BooleanSupplier unpairedAllowed, Connector connector,
-                               HubClock clock, SecureRandom random,
+    public SendspinControllers(StringSetStore store, Supplier<Identity> identity, BooleanSupplier unpairedAllowed,
+                               Supplier<List<SendspinDirectory.Entry>> found, Connector connector, HubClock clock, SecureRandom random,
                                java.util.function.Consumer<ControllerSession> changed) {
         this.servers = SendspinPlayers.servers(store);
         this.identity = identity;
         this.unpairedAllowed = unpairedAllowed;
+        this.found = found;
         this.connector = connector;
         this.clock = clock;
         this.random = random;
@@ -151,8 +154,33 @@ public final class SendspinControllers {
         lastAttempt.clear();
     }
 
-    /** The endpoints the user added. */
+    /** The most servers that are listed and connected to at all (added and found together). */
+    static final int MAX_LISTED = 16;
+
+    /** The servers the user added, then the ones the network announced (a server in both lists is listed once). */
     public List<Endpoint> listed() {
-        return servers.list();
+        List<Endpoint> result = new ArrayList<>(servers.list());
+        for (SendspinDirectory.Entry entry : found.get()) {
+            if (result.size() >= MAX_LISTED) {
+                break;
+            }
+            if (!result.contains(entry.endpoint())) {
+                result.add(entry.endpoint());
+            }
+        }
+        while (result.size() > MAX_LISTED) {
+            result.remove(result.size() - 1);
+        }
+        return result;
+    }
+
+    /** The name a server announced by mDNS (cleaned, may be empty), or null if the network did not announce it. */
+    public String foundName(Endpoint endpoint) {
+        for (SendspinDirectory.Entry entry : found.get()) {
+            if (entry.endpoint().equals(endpoint)) {
+                return entry.name();
+            }
+        }
+        return null;
     }
 }

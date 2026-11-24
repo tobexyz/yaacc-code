@@ -1,6 +1,6 @@
 # Controller: the phone controls the group of another Sendspin server (#325, use cases C1 to C3)
 
-Status: K1 to K6 built on 2026-11-24 (JVM tests, the rig test against the reference server; never run on a device, not tried with Music Assistant); K5 without mDNS search of `_sendspin-server._tcp` (addresses are typed), K7 docs done, the security review of the client side is open. Pairing as a client (K8) is open. Started 2026-11-24 after the owner's go ("Start with the controller"). Use cases and the control channel:
+Status: K1 to K7 built on 2026-11-24 (JVM tests, the rig test against the reference server; never run on a device, not tried with Music Assistant), with the artwork role (K9) and the mDNS search of `_sendspin-server._tcp` (K5, added the same day at the owner's request). **Open tasks (owner, 2026-11-24): K8 pairing as a client** (show a pairing token, hold the Pairing PSK, long-term records, the re-handshake as responder, answer the pairing activation); **the security review of the client side is postponed** until there are more results (the owner's decision). Before it: nothing of the client side is called reviewed. Started 2026-11-24 after the owner's go ("Start with the controller"). Use cases and the control channel:
 `usecases.md`. Normative source: the Sendspin specification at `2cfe197` (sections: Establishing a Connection, Communication,
 Clock Synchronization, Core messages, Controller messages, Metadata messages).
 
@@ -65,6 +65,14 @@ controller's `switch` command moves this client through the server's groups).
 | K5 | Server directory: typed addresses (stored), mDNS `_sendspin-server._tcp` (the NSD wrapper pattern), the hub of controller sessions | `de.yaacc.sendspin` | unit tests with fakes |
 | K6 | The card in the receiver list: synthetic device, row text and buttons, volume = group volume, settings (switch off by default, list of servers), strings in seven locales, no player is made for it | `de.yaacc.browser`, `de.yaacc.settings` | JVM tests for text and logic |
 | K7 | Docs, CHANGELOG, security review of the client side | docs | |
+
+## Open tasks (owner's list, 2026-11-24)
+
+| Id | Task | Why open |
+|---|---|---|
+| K8 | Pairing as a client: the token YAACC shows (it is the client's Pairing PSK and public key, spec "Pairing Token"), the long-term records per server, the re-handshake as responder, the `pair-init`/`pair-finalize` answer, record eviction (at least 5 records) | needed if a server (Music Assistant) demands pairing; shares the work with the player role (P2) |
+| K10 | Security review of the client side (general review, then the security review: hostile server input, the artwork decoder, the discovery of servers, the identity key) | postponed by the owner until there are more results |
+| K11 | Artwork on the card itself (a thumbnail in the row) and the other artwork channels | needs a layout change of the receiver row; the sheet shows the image |
 
 ## Open points
 

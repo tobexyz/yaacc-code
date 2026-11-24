@@ -26,12 +26,15 @@ public final class SendspinServiceType {
     /** The type a player advertises (the specification: {@code _sendspin._tcp.local.}); the platform's browse call takes it without the domain. */
     public static final String TYPE = "_sendspin._tcp";
 
+    /** The type a Sendspin <b>server</b> advertises for clients that open the connection (client-initiated mode). */
+    public static final String SERVER_TYPE = "_sendspin-server._tcp";
+
     private SendspinServiceType() {
     }
 
-    /** True for the type of a Sendspin player, whatever dots and case the platform reports it with. */
-    public static boolean isSendspin(String reportedType) {
-        if (reportedType == null) {
+    /** True if the reported type is the given one, whatever dots, blanks and case the platform reports it with. */
+    public static boolean matches(String reportedType, String type) {
+        if (reportedType == null || type == null) {
             return false;
         }
         String t = reportedType.trim().toLowerCase(Locale.ROOT);
@@ -41,7 +44,12 @@ public final class SendspinServiceType {
         while (t.endsWith(".")) {
             t = t.substring(0, t.length() - 1);
         }
-        return t.equals(TYPE) || t.equals(TYPE + ".local");
+        return t.equals(type) || t.equals(type + ".local");
+    }
+
+    /** True for the type of a Sendspin player, whatever dots and case the platform reports it with. */
+    public static boolean isSendspin(String reportedType) {
+        return matches(reportedType, TYPE);
     }
 
     /** One id per advertised service: the type and the instance name. */

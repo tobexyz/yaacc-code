@@ -54,7 +54,7 @@ public final class SendspinDirectory {
         private final Endpoint endpoint;
         private final String name;
 
-        Entry(Endpoint endpoint, String name) {
+        public Entry(Endpoint endpoint, String name) {
             this.endpoint = endpoint;
             this.name = name;
         }

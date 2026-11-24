@@ -179,4 +179,6 @@
     <string name="settings_sendspin_unpaired_servers_summary">Ativado por padrão. Um servidor adicionado pode então mostrar e controlar sem emparelhamento. A conexão é criptografada, mas não prova quem é o servidor (o protocolo diz isso); o emparelhamento como cliente ainda não é suportado. Desative para recusar esses servidores.</string>
     <string name="settings_sendspin_servers_title">Servidores Sendspin</string>
     <string name="settings_sendspin_servers_summary">Adicionar um servidor por endereço ou removê-lo</string>
+    <string name="settings_sendspin_server_discovery_title">Procurar servidores Sendspin</string>
+    <string name="settings_sendspin_server_discovery_summary">Procura servidores Sendspin na rede local (mDNS) enquanto uma página com os receptores está aberta; ativado por padrão, mas somente enquanto Controlar servidores Sendspin estiver ativado. Servidores encontrados não são confiáveis: conecta-se a um servidor quando seu cartão é listado, e o que ele pode fazer cabe ao seu operador. Apenas endereços da rede local são aceitos.</string>
 </resources>

@@ -50,6 +50,7 @@ public class ControllerSessionTest {
 
     private static final String GROUP = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     private static final String ROLES = "[\"controller@v1\",\"metadata@v1\"]";
+    private static final String ROLES_WITH_ARTWORK = "[\"controller@v1\",\"metadata@v1\",\"artwork@v1\"]";
 
     private FakePlayer link; // the two ends of one connection
     private ControllerSession session;
@@ -308,5 +309,92 @@ public class ControllerSessionTest {
         awaitPhase(ControllerSession.Phase.ENDED);
         assertNull("no reason of the protocol, the server just went", null);
         assertTrue(session.endReason() == ControllerSession.EndReason.SERVER_CLOSED || session.endReason() == ControllerSession.EndReason.FAILED);
+    }
+
+    private void sendArtwork(int type, byte[] body) throws Exception {
+        server.sendMessage(type, body);
+    }
+
+    private static byte[] announceBody(long timestamp, int total) {
+        return java.nio.ByteBuffer.allocate(13).put((byte) 0x02).putLong(timestamp).putInt(total).array();
+    }
+
+    private static byte[] partBody(byte... data) {
+        byte[] body = new byte[1 + data.length];
+        System.arraycopy(data, 0, body, 1, data.length);
+        return body;
+    }
+
+    private void becomeActiveWithArtwork() throws Exception {
+        connect(true);
+        activate("[]", ROLES_WITH_ARTWORK);
+        Envelope state = nextJson();
+        assertEquals("client/state", state.type());
+        JSONObject channel = state.payload().getJSONObject("artwork").getJSONArray("channels").getJSONObject(0);
+        assertEquals("album", channel.getString("source"));
+        assertEquals(512, channel.getInt("width"));
+        awaitPhase(ControllerSession.Phase.ACTIVE);
+    }
+
+    @Test
+    public void theArtworkRoleNeedsItsStateObjectThenAStreamAndTheImageArrivesInParts() throws Exception {
+        becomeActiveWithArtwork();
+        server.sendJson("{\"type\":\"stream/start\",\"payload\":{\"server_transmitted\":1,\"artwork\":{\"channels\":["
+                + "{\"source\":\"album\",\"format\":\"jpeg\",\"width\":512,\"height\":512}]}}}");
+        sendArtwork(8, announceBody(1, 4));
+        sendArtwork(8, partBody((byte) 0xFF, (byte) 0xD8));
+        sendArtwork(8, partBody((byte) 1, (byte) 2));
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (session.artwork() == null && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        org.junit.Assert.assertArrayEquals(new byte[]{(byte) 0xFF, (byte) 0xD8, 1, 2}, session.artwork());
+        long version = session.artworkVersion();
+        server.sendJson("{\"type\":\"stream/end\",\"payload\":{\"roles\":[\"artwork\"]}}");
+        deadline = System.nanoTime() + 5_000_000_000L;
+        while (session.artwork() != null && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        assertNull("the image is gone with the stream", session.artwork());
+        assertTrue(session.artworkVersion() != version);
+    }
+
+    @Test
+    public void withoutTheArtworkRoleTheStateHasNoArtworkObjectAndAnImageIsIgnored() throws Exception {
+        connect(true);
+        activate("[]", ROLES);
+        Envelope state = nextJson();
+        assertFalse(state.payload().has("artwork"));
+        awaitPhase(ControllerSession.Phase.ACTIVE);
+        server.sendJson("{\"type\":\"stream/start\",\"payload\":{\"server_transmitted\":1,\"artwork\":{\"channels\":["
+                + "{\"source\":\"album\",\"format\":\"jpeg\",\"width\":512,\"height\":512}]}}}");
+        sendArtwork(8, announceBody(1, 1));
+        sendArtwork(8, partBody((byte) 9));
+        server.sendJson(controllerState(20, "[\"play\"]"));
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (session.controller() == null && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        assertNull(session.artwork());
+        assertEquals(ControllerSession.Phase.ACTIVE, session.phase());
+    }
+
+    @Test
+    public void aMalformedArtworkMessageEndsTheSession() throws Exception {
+        becomeActiveWithArtwork();
+        server.sendJson("{\"type\":\"stream/start\",\"payload\":{\"server_transmitted\":1,\"artwork\":{\"channels\":["
+                + "{\"source\":\"album\",\"format\":\"jpeg\",\"width\":512,\"height\":512}]}}}");
+        sendArtwork(8, partBody((byte) 1)); // a part with no announce
+        awaitPhase(ControllerSession.Phase.ENDED);
+        assertEquals(ControllerSession.EndReason.PROTOCOL_ERROR, session.endReason());
+    }
+
+    @Test
+    public void theArtworkRoleActivatedLaterGetsItsStateObjectThen() throws Exception {
+        becomeActive(); // controller and metadata only
+        activate("[]", ROLES_WITH_ARTWORK);
+        Envelope state = nextJson();
+        assertEquals("client/state", state.type());
+        assertTrue(state.payload().has("artwork"));
     }
 }

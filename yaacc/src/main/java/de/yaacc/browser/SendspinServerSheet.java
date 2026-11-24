@@ -62,6 +62,17 @@ final class SendspinServerSheet {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(pad, (int) (8 * density), pad, 0);
 
+        android.graphics.Bitmap image = decode(session.artwork());
+        if (image != null) {
+            android.widget.ImageView view = new android.widget.ImageView(context);
+            view.setImageBitmap(image);
+            view.setAdjustViewBounds(true);
+            view.setContentDescription(context.getString(R.string.sendspin_server_artwork));
+            int side = (int) (200 * density);
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(side, side);
+            params.gravity = Gravity.CENTER_HORIZONTAL;
+            root.addView(view, params);
+        }
         ControllerMessages.Metadata metadata = session.metadata();
         if (metadata != null) {
             addText(root, SendspinRowText.nowPlaying(metadata.title, metadata.artist), android.R.style.TextAppearance_Material_Medium);
@@ -115,6 +126,32 @@ final class SendspinServerSheet {
                 .setView(root)
                 .setPositiveButton(android.R.string.ok, null)
                 .show();
+    }
+
+    /** The most pixels of an image that is decoded: the declared size is 512 by 512, a server may send more (untrusted). */
+    private static final long MAX_PIXELS = 1024L * 1024L;
+
+    /** Decodes the image of the server if its size is sane; null for none or for an image that does not decode. */
+    static android.graphics.Bitmap decode(byte[] data) {
+        if (data == null || data.length == 0) {
+            return null;
+        }
+        try {
+            android.graphics.BitmapFactory.Options bounds = new android.graphics.BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            android.graphics.BitmapFactory.decodeByteArray(data, 0, data.length, bounds);
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0 || (long) bounds.outWidth * bounds.outHeight > MAX_PIXELS * 16) {
+                return null; // not an image, or a bomb
+            }
+            android.graphics.BitmapFactory.Options options = new android.graphics.BitmapFactory.Options();
+            while ((long) (bounds.outWidth / (options.inSampleSize == 0 ? 1 : options.inSampleSize))
+                    * (bounds.outHeight / (options.inSampleSize == 0 ? 1 : options.inSampleSize)) > MAX_PIXELS) {
+                options.inSampleSize = options.inSampleSize == 0 ? 2 : options.inSampleSize * 2;
+            }
+            return android.graphics.BitmapFactory.decodeByteArray(data, 0, data.length, options);
+        } catch (RuntimeException | OutOfMemoryError e) {
+            return null;
+        }
     }
 
     private static String format(long millis) {

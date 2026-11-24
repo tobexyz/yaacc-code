@@ -87,7 +87,8 @@ public class SendspinResourcesTest {
                         || entry.getKey().equals("settings_sendspin_discovery")
                         || entry.getKey().equals("settings_sendspin_controller_enabled")
                         || entry.getKey().equals("settings_sendspin_unpaired_servers")
-                        || entry.getKey().equals("settings_sendspin_servers");
+                        || entry.getKey().equals("settings_sendspin_servers")
+                        || entry.getKey().equals("settings_sendspin_server_discovery");
                 if (key && !locale.equals("values")) {
                     continue; // a preference key is not translated
                 }
@@ -190,5 +191,27 @@ public class SendspinResourcesTest {
         assertTrue("unpaired servers are allowed by default", SendspinSettings.isUnpairedServersAllowed((key, def) -> def));
         assertFalse(SendspinSettings.isUnpairedServersAllowed((key, def) -> !SendspinSettings.KEY_UNPAIRED_SERVERS.equals(key) && def));
         assertFalse(SendspinSettings.isUnpairedServersAllowed(null));
+    }
+
+    @Test
+    public void theServerSearchSwitchIsOnByDefaultLikeTheCodeAndDependsOnTheControllerSwitch() throws Exception {
+        assertEquals(SendspinSettings.KEY_SERVER_DISCOVERY, sendspinStrings("values").get("settings_sendspin_server_discovery"));
+        String screen = read("src/main/res/xml/preference.xml");
+        Matcher m = Pattern.compile("<CheckBoxPreference\\s+android:defaultValue=\"(true|false)\"\\s+android:dependency=\"@string/settings_sendspin_controller_enabled\"\\s+"
+                + "android:key=\"@string/settings_sendspin_server_discovery\"").matcher(screen);
+        assertTrue("the server search switch is on the preference screen", m.find());
+        assertEquals(String.valueOf(SendspinSettings.SERVER_DISCOVERY_DEFAULT), m.group(1));
+    }
+
+    @Test
+    public void theServerSearchRunsOnlyWhenTheControllerAndItsOwnSwitchAreOn() {
+        assertFalse("everything at its default: the controller is off", SendspinSettings.isServerDiscoveryEnabled((key, def) -> def));
+        assertTrue(SendspinSettings.isServerDiscoveryEnabled((key, def) -> SendspinSettings.KEY_CONTROLLER_ENABLED.equals(key) || def));
+        assertFalse(SendspinSettings.isServerDiscoveryEnabled((key, def) ->
+                SendspinSettings.KEY_CONTROLLER_ENABLED.equals(key) || (!SendspinSettings.KEY_SERVER_DISCOVERY.equals(key) && def)));
+        assertFalse(SendspinSettings.isServerDiscoveryEnabled(null));
+        assertTrue(SendspinSettings.isServerDiscoveryRelevantKey(SendspinSettings.KEY_CONTROLLER_ENABLED));
+        assertTrue(SendspinSettings.isServerDiscoveryRelevantKey(SendspinSettings.KEY_SERVER_DISCOVERY));
+        assertFalse(SendspinSettings.isServerDiscoveryRelevantKey(SendspinSettings.KEY_ENABLED));
     }
 }

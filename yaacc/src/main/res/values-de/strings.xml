@@ -631,4 +631,5 @@
     <string name="sendspin_servers_hint">Adresse, z. B. music.local oder 192.168.0.5:8927</string>
     <string name="sendspin_servers_none">Noch keine Server hinzugefügt</string>
     <string name="sendspin_servers_too_many">Es können höchstens 8 Server hinzugefügt werden.</string>
+    <string name="sendspin_server_artwork">Cover des laufenden Titels</string>
 </resources>

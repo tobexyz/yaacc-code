@@ -59,8 +59,11 @@ Snapcast: the Snapcast server groups; Sendspin: YAACC groups).
 | Id | Use case | Status |
 |---|---|---|
 | C1 | Control the group the phone is in on another server: play, pause, stop, next, previous, seek, volume, mute, repeat, shuffle | done (a card in the receiver list and a sheet); verified with the reference server (it offers only `switch`), not with Music Assistant, never on a device |
-| C2 | Show now playing of that group (title, artist, album, position; no artwork) | done, same limits; artwork is not fetched |
+| C2 | Show now playing of that group (title, artist, album, position and the cover in the sheet) | done, same limits; the cover comes over the artwork role (the reference server sends none, so only the fake server tested it); no thumbnail on the card |
 | C3 | `switch`: move the phone through the groups of that server | done, same limits |
+
+**Open (owner's list, 2026-11-24):** pairing as a client (`controller.md`, K8; also P2 of the player), the security review of the client
+side (postponed, K10), a thumbnail on the card (K11).
 
 ## The control channel (what a controller or a settings screen can reach)
 

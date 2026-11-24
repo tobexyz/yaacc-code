@@ -3958,7 +3958,19 @@ metadata state), `ControllerSession` (one thread, phases, commands only if the s
 `client/state` after the first activation with roles, `client/goodbye` `user_request` on close) and `SendspinControllers` (one session
 per added server, retried after 15 s unless the end reason says not to). A pairing activation is answered with `pair/abort`
 `method_not_supported` and a `noise/handshake` in transport mode ends the session: pairing as a client and the re-handshake as responder
-are not built. **Deviation:** the reference server (aiosendspin 10.2.2) sends a UUID as `group_id`; the specification says a value that
+are not built. **Artwork role:** the hello lists `artwork@v1` (no support object); when the role is active the client sends a `client/state` with the
+`artwork` object (one `album` channel, `jpeg`, 512 by 512; the server scales to fit and pads with black), reads `stream/start` with an
+`artwork` object (1 to 4 channels, source `album`, `artist` or `none`) and `stream/end`, and the binary messages of the types 8 to 11 (a
+cancel, an announce with a server timestamp and the size, then parts) in `ArtworkStream`: one transfer in flight for all channels,
+per channel a current and at most one pending image that becomes current at its timestamp, an image above 2 MiB is counted but not
+kept, a malformed message or sequence ends the connection (as the spec asks). The sheet decodes the image only if its pixel size is
+sane (the declared size is not trusted) and samples it down above one megapixel; nothing is fetched from `artwork_url`. The reference
+server's CLI sends no artwork, so the image path is tested against the fake server only.
+**Server search:** `_sendspin-server._tcp` with its own directory, its own `SendspinNsd` (the type is a constructor argument) and gate
+(controller on and *Find Sendspin servers* on); the reference server announces `<server id>._sendspin-server._tcp` on 8927 with the TXT
+keys `name` and `path` (checked with the Python `zeroconf` library); the directory prefers the TXT name over the instance name, which is the
+key of the server. A found server is listed like an added one (at most 16 together) and connected to when its card is listed.
+**Deviation:** the reference server (aiosendspin 10.2.2) sends a UUID as `group_id`; the specification says a value that
 is not 43 base64url characters is a protocol error. The id is accepted as an opaque text of 1 to 64 bytes. The reference server's CLI
 (`sendspin serve`) offers a controller only `switch`; the rig test (`ControllerRigTest`, `-Dsendspin.rig.server=host:port`) checks
 the handshake, the activation, the group and controller state, the clock estimate and the switch command against it.

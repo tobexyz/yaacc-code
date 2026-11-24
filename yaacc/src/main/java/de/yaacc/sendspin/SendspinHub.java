@@ -27,6 +27,7 @@ import de.yaacc.multiroom.SnapcastDiscoveryGate;
 import de.yaacc.multiroom.control.MonotonicClock;
 import de.yaacc.sendspin.discovery.SendspinDirectory;
 import de.yaacc.sendspin.discovery.SendspinNsd;
+import de.yaacc.sendspin.discovery.SendspinServiceType;
 import de.yaacc.sendspin.hub.Connector;
 import de.yaacc.sendspin.hub.Endpoint;
 import de.yaacc.sendspin.hub.HubClock;
@@ -83,6 +84,9 @@ public final class SendspinHub implements SendspinReceiverSource {
     private final SendspinDirectory directory = new SendspinDirectory(MonotonicClock.SYSTEM, SendspinDirectory.DEFAULT_GRACE_MILLIS);
     private final SendspinNsd nsd;
     private final SnapcastDiscoveryGate gate;
+    private final SendspinDirectory serverDirectory = new SendspinDirectory(MonotonicClock.SYSTEM, SendspinDirectory.DEFAULT_GRACE_MILLIS);
+    private final SendspinNsd serverNsd;
+    private final SnapcastDiscoveryGate serverGate;
     private final SharedPreferences.OnSharedPreferenceChangeListener settingListener;
     private final List<SendspinDirectory.Listener> listeners = new CopyOnWriteArrayList<>();
     private final Map<Endpoint, HubConnection> connections = new HashMap<>();
@@ -117,9 +121,24 @@ public final class SendspinHub implements SendspinReceiverSource {
         this.connector = new Connector.Sockets();
         this.clock = HubClock.SYSTEM;
         this.controllers = new SendspinControllers(store, this::clientIdentity,
-                () -> SendspinSettings.isUnpairedServersAllowed(preferences::getBoolean), connector, clock, random, this::controllerChanged);
+                () -> SendspinSettings.isUnpairedServersAllowed(preferences::getBoolean), serverDirectory::snapshot, connector, clock, random,
+                this::controllerChanged);
         this.nsd = new SendspinNsd(app, directory);
         directory.addListener(this::fire);
+        this.serverNsd = new SendspinNsd(app, serverDirectory, SendspinServiceType.SERVER_TYPE);
+        serverDirectory.addListener(this::fire);
+        this.serverGate = new SnapcastDiscoveryGate(() -> SendspinSettings.isServerDiscoveryEnabled(preferences::getBoolean),
+                new SnapcastDiscoveryGate.Discovery() {
+                    @Override
+                    public void start() {
+                        serverNsd.start();
+                    }
+
+                    @Override
+                    public void stop() {
+                        serverNsd.stop();
+                    }
+                }, serverDirectory::clear);
         this.gate = new SnapcastDiscoveryGate(() -> SendspinSettings.isDiscoveryEnabled(preferences::getBoolean),
                 new SnapcastDiscoveryGate.Discovery() {
                     @Override
@@ -135,6 +154,9 @@ public final class SendspinHub implements SendspinReceiverSource {
         this.settingListener = (changed, key) -> {
             if (SendspinSettings.isDiscoveryRelevantKey(key)) {
                 gate.settingChanged();
+            }
+            if (SendspinSettings.isServerDiscoveryRelevantKey(key)) {
+                serverGate.settingChanged();
             }
         };
         preferences.registerOnSharedPreferenceChangeListener(settingListener);
@@ -188,11 +210,13 @@ public final class SendspinHub implements SendspinReceiverSource {
     /** A receivers page became visible: the search starts if Sendspin and the search are switched on. */
     public void pageStarted() {
         gate.pageStarted();
+        serverGate.pageStarted();
     }
 
     /** A receivers page was hidden: the search stops when no page needs it. */
     public void pageStopped() {
         gate.pageStopped();
+        serverGate.pageStopped();
     }
 
     /** Told when the players the app lists changed (one was announced or went, a name arrived). May be called on any thread. */
@@ -482,6 +506,9 @@ public final class SendspinHub implements SendspinReceiverSource {
 
     private SendspinReceiverDevice serverDeviceFor(Endpoint endpoint) {
         String announced = controllers.announcedName(endpoint);
+        if (announced == null || announced.isEmpty()) {
+            announced = controllers.foundName(endpoint); // the name of the mDNS announcement until the server says its own
+        }
         String id = SendspinAddress.serverIdOf(endpoint);
         SendspinReceiverDevice cached = devices.get(id);
         if (cached != null && cached.showsSame(announced) && cached.getEndpoint().equals(endpoint)) {

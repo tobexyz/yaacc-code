@@ -179,4 +179,6 @@
     <string name="settings_sendspin_unpaired_servers_summary">Activé par défaut. Un serveur ajouté peut alors afficher et contrôler sans appairage. La connexion est chiffrée mais ne prouve pas qui est le serveur (le protocole le dit) ; l\'appairage en tant que client n\'est pas encore pris en charge. Désactivez pour refuser ces serveurs.</string>
     <string name="settings_sendspin_servers_title">Serveurs Sendspin</string>
     <string name="settings_sendspin_servers_summary">Ajouter un serveur par adresse ou le supprimer</string>
+    <string name="settings_sendspin_server_discovery_title">Rechercher des serveurs Sendspin</string>
+    <string name="settings_sendspin_server_discovery_summary">Recherche des serveurs Sendspin sur le réseau local (mDNS) tant qu\'une page avec les récepteurs est ouverte ; activé par défaut, mais seulement tant que Contrôler des serveurs Sendspin est activé. Les serveurs trouvés ne sont pas de confiance : on se connecte à un serveur dès que sa carte est listée, et ce qu\'il peut faire dépend de son opérateur. Seules les adresses du réseau local sont acceptées.</string>
 </resources>

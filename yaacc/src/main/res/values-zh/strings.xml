@@ -627,4 +627,5 @@
     <string name="sendspin_servers_hint">地址，例如 music.local 或 192.168.0.5:8927</string>
     <string name="sendspin_servers_none">尚未添加服务器</string>
     <string name="sendspin_servers_too_many">最多可添加 8 个服务器。</string>
+    <string name="sendspin_server_artwork">正在播放内容的封面</string>
 </resources>

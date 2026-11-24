@@ -44,6 +44,7 @@ public class SendspinControllersTest {
     private final long[] now = {1_000_000_000L};
     private final AtomicInteger changes = new AtomicInteger();
     private SendspinControllers controllers;
+    private java.util.List<de.yaacc.sendspin.discovery.SendspinDirectory.Entry> found = java.util.Collections.emptyList();
 
     private final Connector failing = (endpoint, random) -> {
         opened.incrementAndGet();
@@ -52,7 +53,7 @@ public class SendspinControllersTest {
 
     private SendspinControllers make() {
         controllers = new SendspinControllers(new SendspinStoreTest.MapStore(), () -> Identity.generate(new SecureRandom()), () -> true,
-                failing, new HubClock() {
+                () -> found, failing, new HubClock() {
                     @Override
                     public long nowMicros() {
                         return now[0];
@@ -151,5 +152,43 @@ public class SendspinControllersTest {
         ControllerSession session = controllers.acquire(SendspinAddress.parseServer("music.local"), false);
         awaitEnded(session);
         assertTrue("the phases were reported: " + changes.get(), changes.get() >= 2);
+    }
+
+    private static de.yaacc.sendspin.discovery.SendspinDirectory.Entry entry(String host, int port, String name) {
+        return new de.yaacc.sendspin.discovery.SendspinDirectory.Entry(new Endpoint(host, port, "/sendspin"), name);
+    }
+
+    @Test
+    public void serversTheNetworkAnnouncedAreListedWithTheAddedOnesAndNamedByTheirAnnouncement() {
+        found = java.util.Arrays.asList(entry("10.0.0.5", 8927, "Music Assistant"), entry("10.0.0.6", 9000, ""));
+        make();
+        controllers.servers().add("music.local");
+        controllers.servers().add("10.0.0.5:8927"); // announced and added: listed once
+        java.util.List<Endpoint> listed = controllers.listed();
+        assertEquals(3, listed.size());
+        assertTrue(listed.contains(SendspinAddress.parseServer("music.local")));
+        assertTrue(listed.contains(new Endpoint("10.0.0.5", 8927, "/sendspin")));
+        assertTrue(listed.contains(new Endpoint("10.0.0.6", 9000, "/sendspin")));
+        assertEquals("Music Assistant", controllers.foundName(new Endpoint("10.0.0.5", 8927, "/sendspin")));
+        assertNull(controllers.foundName(SendspinAddress.parseServer("music.local")));
+    }
+
+    @Test
+    public void theNumberOfListedServersIsLimited() {
+        java.util.List<de.yaacc.sendspin.discovery.SendspinDirectory.Entry> many = new java.util.ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            many.add(entry("10.0.1." + (i + 1), 8927, "s" + i));
+        }
+        found = many;
+        make();
+        assertEquals(SendspinControllers.MAX_LISTED, controllers.listed().size());
+    }
+
+    @Test
+    public void aFoundServerCanBeForgottenOnlyByTheSearchNotRemoved() {
+        found = java.util.Collections.singletonList(entry("10.0.0.5", 8927, "Music Assistant"));
+        make();
+        controllers.remove(new Endpoint("10.0.0.5", 8927, "/sendspin")); // nothing added: only the session goes
+        assertEquals("it is still announced", 1, controllers.listed().size());
     }
 }

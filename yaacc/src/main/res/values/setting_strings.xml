@@ -242,4 +242,7 @@
     <string name="settings_sendspin_servers" translatable="false">settings_sendspin_servers</string>
     <string name="settings_sendspin_servers_title">Sendspin servers</string>
     <string name="settings_sendspin_servers_summary">Add a server by address or remove it</string>
+    <string name="settings_sendspin_server_discovery" translatable="false">settings_sendspin_server_discovery</string>
+    <string name="settings_sendspin_server_discovery_title">Find Sendspin servers</string>
+    <string name="settings_sendspin_server_discovery_summary">Searches the local network for Sendspin servers (mDNS) while a page with the receivers is open; on by default, but only while Control Sendspin servers is on. Found servers are not trusted: a server is connected to when its card is listed, and what it may do is up to its operator. Only addresses of the local network are accepted.</string>
 </resources>

@@ -179,4 +179,6 @@
     <string name="settings_sendspin_unpaired_servers_summary">默认开启。这样，已添加的服务器无需配对即可显示和控制。连接已加密，但不能证明服务器的身份（协议如此说明）；作为客户端的配对目前尚不支持。关闭后将拒绝此类服务器。</string>
     <string name="settings_sendspin_servers_title">Sendspin 服务器</string>
     <string name="settings_sendspin_servers_summary">按地址添加或移除服务器</string>
+    <string name="settings_sendspin_server_discovery_title">查找 Sendspin 服务器</string>
+    <string name="settings_sendspin_server_discovery_summary">在本地网络中搜索 Sendspin 服务器（mDNS），仅在接收器页面打开时进行；默认开启，但仅在“控制 Sendspin 服务器”开启时有效。找到的服务器不受信任：其卡片列出后即会连接，其权限由其管理员决定。仅接受本地网络地址。</string>
 </resources>

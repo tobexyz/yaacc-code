@@ -217,4 +217,15 @@ public class SendspinDiscoveryTest {
         directory.clear();
         assertEquals("nothing to forget", 3, changes.get());
     }
+
+    @Test
+    public void theTypeOfAServerIsNotTheTypeOfAPlayer() {
+        assertEquals("_sendspin-server._tcp", SendspinServiceType.SERVER_TYPE);
+        assertTrue(SendspinServiceType.matches("_sendspin-server._tcp.", SendspinServiceType.SERVER_TYPE));
+        assertTrue(SendspinServiceType.matches(" _SENDSPIN-SERVER._tcp.local. ", SendspinServiceType.SERVER_TYPE));
+        assertFalse(SendspinServiceType.matches("_sendspin._tcp.", SendspinServiceType.SERVER_TYPE));
+        assertFalse(SendspinServiceType.matches("_sendspin-server._tcp.", SendspinServiceType.TYPE));
+        assertFalse(SendspinServiceType.matches(null, SendspinServiceType.SERVER_TYPE));
+        assertTrue("the old check still means a player", SendspinServiceType.isSendspin("_sendspin._tcp."));
+    }
 }

@@ -179,4 +179,6 @@
     <string name="settings_sendspin_unpaired_servers_summary">Standardmäßig an. Ein hinzugefügter Server darf dann ohne Kopplung anzeigen und steuern. Die Verbindung ist verschlüsselt, beweist aber nicht, wer der Server ist (so sagt es das Protokoll); Kopplung als Client wird noch nicht unterstützt. Ausschalten, um solche Server abzulehnen.</string>
     <string name="settings_sendspin_servers_title">Sendspin-Server</string>
     <string name="settings_sendspin_servers_summary">Server per Adresse hinzufügen oder entfernen</string>
+    <string name="settings_sendspin_server_discovery_title">Sendspin-Server suchen</string>
+    <string name="settings_sendspin_server_discovery_summary">Sucht im lokalen Netzwerk nach Sendspin-Servern (mDNS), solange eine Seite mit den Empfängern geöffnet ist; standardmäßig an, aber nur solange Sendspin-Server steuern an ist. Gefundenen Servern wird nicht vertraut: Mit einem Server wird verbunden, sobald seine Karte gelistet ist, und was er darf, entscheidet sein Betreiber. Nur Adressen des lokalen Netzwerks werden akzeptiert.</string>
 </resources>

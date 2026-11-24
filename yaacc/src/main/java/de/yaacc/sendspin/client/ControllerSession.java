@@ -75,6 +75,9 @@ public final class ControllerSession {
     private static final int BURST_SIZE = 8;
     private static final long BURST_TIMEOUT_MICROS = 2_000_000L;
     private static final String PRODUCT_NAME = "YAACC";
+    /** The one artwork channel this client asks for: the album image, JPEG, a square the server scales to fit and pads with black. */
+    static final String ARTWORK_FORMAT = "jpeg";
+    static final int ARTWORK_SIZE = 512;
 
     private final Endpoint endpoint;
     private final Identity identity;
@@ -94,6 +97,7 @@ public final class ControllerSession {
     private volatile ControllerMessages.ControllerState controller;
     private final TrackPosition.Tracker tracker = new TrackPosition.Tracker();
     private final ServerClock serverClock = new ServerClock();
+    private final ArtworkStream artwork = new ArtworkStream();
     private volatile SecureChannel channel;
     private volatile Connector.Link link;
     private volatile boolean closing;
@@ -104,6 +108,7 @@ public final class ControllerSession {
     private SendspinPsk.Category matched = SendspinPsk.Category.SENTINEL;
     private List<String> roles = Collections.emptyList();
     private boolean stateSent;
+    private boolean artworkStateSent;
     private int burstSent;
     private long burstT1;
     private long burstSentAt;
@@ -171,6 +176,21 @@ public final class ControllerSession {
     /** The position in the current track in milliseconds, or -1 if the server reports none. */
     public long positionMs() {
         return TrackPosition.positionMs(metadata(), serverNowMicros());
+    }
+
+    /** The album image the server shows this client now (JPEG or PNG bytes), or null if there is none. */
+    public byte[] artwork() {
+        synchronized (lock) {
+            return artwork.current(0, serverNowMicros());
+        }
+    }
+
+    /** Increases whenever the image changes, so that a display decodes it again only then. */
+    public long artworkVersion() {
+        synchronized (lock) {
+            artwork.current(0, serverNowMicros()); // a pending image whose time has come is applied first
+            return artwork.version();
+        }
     }
 
     public boolean hasClockEstimate() {
@@ -366,7 +386,20 @@ public final class ControllerSession {
             }
             serveBursts(c);
             if (!inbound.isJson()) {
-                continue; // no binary data for the roles of this client; ignored as the specification asks
+                int id = inbound.id();
+                if (id >= ArtworkStream.FIRST_TYPE && id < ArtworkStream.FIRST_TYPE + ArtworkStream.MAX_CHANNELS) {
+                    long before;
+                    long after;
+                    synchronized (lock) {
+                        before = artwork.version();
+                        artwork.onMessage(id, inbound.body(), serverNowMicros()); // a malformed message ends the connection (spec)
+                        after = artwork.version();
+                    }
+                    if (after != before) {
+                        notifyChanged();
+                    }
+                }
+                continue; // other binary data belongs to roles this client does not have; ignored as the specification asks
             }
             Envelope envelope = inbound.envelope();
             if (!helloSeen) {
@@ -390,6 +423,26 @@ public final class ControllerSession {
                 case "server/state":
                     handleServerState(ControllerMessages.parseServerState(envelope.payload()));
                     break;
+                case "stream/start": {
+                    java.util.List<ControllerMessages.ArtworkChannel> channels = ControllerMessages.parseStreamStartArtwork(envelope.payload());
+                    if (channels != null && roles.contains("artwork@v1")) {
+                        synchronized (lock) {
+                            artwork.start(channels);
+                        }
+                        notifyChanged();
+                    }
+                    break; // the player and visualizer objects are for roles this client does not have
+                }
+                case "stream/end": {
+                    java.util.List<String> ended = ControllerMessages.parseStreamEndRoles(envelope.payload());
+                    if (ended == null || ended.contains("artwork")) {
+                        synchronized (lock) {
+                            artwork.end();
+                        }
+                        notifyChanged();
+                    }
+                    break;
+                }
                 case "server/time":
                     handleServerTime(c, ControllerMessages.parseServerTime(envelope.payload()));
                     break;
@@ -433,9 +486,16 @@ public final class ControllerSession {
                 break;
         }
         roles = new ArrayList<>(effective);
-        boolean active = roles.contains("controller@v1") || roles.contains("metadata@v1");
+        boolean wantsArtwork = roles.contains("artwork@v1");
+        boolean active = roles.contains("controller@v1") || roles.contains("metadata@v1") || wantsArtwork;
+        if (!wantsArtwork) {
+            synchronized (lock) {
+                artwork.end();
+            }
+        }
         if (!active) {
             stateSent = false;
+            artworkStateSent = false;
             controller = null;
             synchronized (lock) {
                 tracker.clear();
@@ -443,10 +503,15 @@ public final class ControllerSession {
             setPhase(Phase.WAITING_FOR_SERVER);
             return;
         }
-        if (!stateSent) {
-            c.sendJson(ControllerMessages.clientState(true));
+        if (!stateSent || wantsArtwork != artworkStateSent) {
+            // a role with a state object (artwork) that becomes active needs its object in a client/state before the server streams
+            c.sendJson(wantsArtwork ? ControllerMessages.clientStateWithArtwork(true, ARTWORK_FORMAT, ARTWORK_SIZE, ARTWORK_SIZE)
+                    : ControllerMessages.clientState(true));
+            if (!stateSent) {
+                nextBurstAt = 0;
+            }
             stateSent = true;
-            nextBurstAt = 0;
+            artworkStateSent = wantsArtwork;
         }
         setPhase(roles.contains("controller@v1") ? Phase.ACTIVE : Phase.WAITING_FOR_SERVER);
     }

@@ -182,6 +182,12 @@
         <CheckBoxPreference
             android:defaultValue="true"
             android:dependency="@string/settings_sendspin_controller_enabled"
+            android:key="@string/settings_sendspin_server_discovery"
+            android:summary="@string/settings_sendspin_server_discovery_summary"
+            android:title="@string/settings_sendspin_server_discovery_title" />
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:dependency="@string/settings_sendspin_controller_enabled"
             android:key="@string/settings_sendspin_unpaired_servers"
             android:summary="@string/settings_sendspin_unpaired_servers_summary"
             android:title="@string/settings_sendspin_unpaired_servers_title" />

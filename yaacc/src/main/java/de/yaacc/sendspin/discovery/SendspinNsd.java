@@ -53,6 +53,7 @@ public final class SendspinNsd {
 
     private final Context context;
     private final SendspinDirectory directory;
+    private final String serviceType;
     private final SnapcastResolveQueue<NsdServiceInfo> queue;
     private final SnapcastResolveRetry retry = new SnapcastResolveRetry();
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -66,8 +67,14 @@ public final class SendspinNsd {
     private int generation;
 
     public SendspinNsd(Context context, SendspinDirectory directory) {
+        this(context, directory, SendspinServiceType.TYPE);
+    }
+
+    /** @param serviceType {@link SendspinServiceType#TYPE} for players, {@link SendspinServiceType#SERVER_TYPE} for servers */
+    public SendspinNsd(Context context, SendspinDirectory directory, String serviceType) {
         this.context = context.getApplicationContext();
         this.directory = directory;
+        this.serviceType = serviceType;
         this.queue = new SnapcastResolveQueue<>(MonotonicClock.SYSTEM, RESOLVE_TIMEOUT_MILLIS, QUEUE_CAPACITY);
     }
 
@@ -91,7 +98,7 @@ public final class SendspinNsd {
         handle = new SnapcastBrowseHandle();
         listener = newListener(handle, myGeneration);
         try {
-            nsdManager.discoverServices(SendspinServiceType.TYPE, NsdManager.PROTOCOL_DNS_SD, listener);
+            nsdManager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener);
         } catch (RuntimeException e) {
             // the platform refused (no network service, a permission): the players added by address still work
             YaaccLogger.w(SendspinNsd.class.getName(), "Sendspin discovery could not be started: " + e.getClass().getSimpleName());
@@ -130,7 +137,7 @@ public final class SendspinNsd {
 
             @Override
             public void onServiceFound(NsdServiceInfo info) {
-                if (info == null || !isCurrent(myGeneration) || !SendspinServiceType.isSendspin(info.getServiceType())) {
+                if (info == null || !isCurrent(myGeneration) || !SendspinServiceType.matches(info.getServiceType(), serviceType)) {
                     return;
                 }
                 if (queue.offer(serviceId(info), info)) {
@@ -255,7 +262,7 @@ public final class SendspinNsd {
         try {
             WifiManager wifi = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
             if (wifi != null) {
-                multicastLock = wifi.createMulticastLock("yaacc-sendspin");
+                multicastLock = wifi.createMulticastLock(SendspinServiceType.SERVER_TYPE.equals(serviceType) ? "yaacc-sendspin-server" : "yaacc-sendspin");
                 multicastLock.setReferenceCounted(false);
                 multicastLock.acquire();
             }
