@@ -119,18 +119,74 @@ public class HubConnectionTest {
         assertEquals("server/hello", peer.receive().envelope().type());
 
         peer.sendJson(helloJson(true, PCM_FORMATS, "[\"player@v1\"]"));
+        JSONObject idle = nextJson().payload();
+        assertEquals("no playback activity while nothing plays (spec: declare the minimal set)", 0, idle.getJSONArray("activities").length());
+        assertEquals("player@v1", idle.getJSONArray("active_roles").getString(0));
+        assertFalse("not available before the player's state", hub.phase() == HubConnection.Phase.AVAILABLE);
+        peer.sendJson(stateJson(true, "[\"volume\",\"mute\"]"));
+        awaitPhase(HubConnection.Phase.AVAILABLE);
+        assertNull("no stream without playback", hub.streamer());
+
+        assertTrue(hub.startPlayback());
         JSONObject activate = nextJson().payload();
         assertEquals("playback", activate.getJSONArray("activities").getString(0));
         assertEquals("player@v1", activate.getJSONArray("active_roles").getString(0));
         assertEquals("group/update", nextJson().type());
-        assertFalse("not ready before the player's state", hub.isReady());
-
-        peer.sendJson(stateJson(true, "[\"volume\",\"mute\"]"));
         awaitPhase(HubConnection.Phase.READY);
         assertEquals(44100, hub.streamFormat().sampleRate);
         assertNotNull(hub.streamer());
         assertEquals(1000000L, hub.capacityBytes());
         assertEquals("what the player asked for plus the margin", 250_000L + 250_000L, hub.leadMicros());
+    }
+
+    @Test
+    public void stoppingDropsThePlaybackActivityAndTheConnectionStaysAvailable() throws Exception {
+        becomeReady();
+        hub.stopPlayback();
+        JSONObject drop = nextJson().payload();
+        assertEquals(0, drop.getJSONArray("activities").length());
+        assertEquals("the role stays", "player@v1", drop.getJSONArray("active_roles").getString(0));
+        awaitPhase(HubConnection.Phase.AVAILABLE);
+        assertNull(hub.streamer());
+        assertTrue("it can play again", hub.startPlayback());
+        assertEquals("playback", nextJson().payload().getJSONArray("activities").getString(0));
+    }
+
+    @Test
+    public void playbackRequestedBeforeTheFirstActivationIsDeclaredByTheFirstActivation() throws Exception {
+        connect();
+        policy.approve(player.identity.id());
+        assertTrue("accepted: the first activation will carry it", hub.startPlayback());
+        peer.sendJson(helloJson(true, PCM_FORMATS, "[\"player@v1\"]"));
+        JSONObject first = nextJson().payload();
+        assertEquals("a first activation without it would tie with another server's idle connection and lose", "playback",
+                first.getJSONArray("activities").getString(0));
+        assertEquals("player@v1", first.getJSONArray("active_roles").getString(0));
+        assertEquals("group/update", nextJson().type());
+        peer.sendJson(stateJson(true, "[\"volume\"]"));
+        awaitPhase(HubConnection.Phase.READY);
+    }
+
+    @Test
+    public void aPlayerThatIsNotApprovedGetsNothingEvenIfPlaybackWasRequested() throws Exception {
+        connect();
+        assertTrue(hub.startPlayback());
+        peer.sendJson(helloJson(true, PCM_FORMATS, "[\"player@v1\"]"));
+        assertEquals("no activity", 0, nextJson().payload().getJSONArray("activities").length());
+        awaitPhase(HubConnection.Phase.NEEDS_APPROVAL);
+        assertNull(hub.streamer());
+        hub.approve();
+        assertEquals("approved by the operator: now the playback that was asked for", "playback",
+                nextJson().payload().getJSONArray("activities").getString(0));
+    }
+
+    @Test
+    public void playbackCanNotStartForAPlayerThatCanNotBeUsed() throws Exception {
+        connect();
+        peer.sendJson(helloJson(true, FLAC_ONLY, "[\"player@v1\"]"));
+        nextJson();
+        awaitPhase(HubConnection.Phase.UNUSABLE);
+        assertFalse(hub.startPlayback());
     }
 
     @Test
@@ -145,9 +201,13 @@ public class HubConnectionTest {
 
         hub.approve();
         JSONObject second = nextJson().payload();
-        assertEquals("playback", second.getJSONArray("activities").getString(0));
+        assertEquals("approving does not start playback", 0, second.getJSONArray("activities").length());
+        assertEquals("player@v1", second.getJSONArray("active_roles").getString(0));
         assertTrue("remembered", policy.isApproved(player.identity.id()));
         peer.sendJson(stateJson(true, "[\"volume\"]"));
+        awaitPhase(HubConnection.Phase.AVAILABLE);
+        assertTrue(hub.startPlayback());
+        assertEquals("playback", nextJson().payload().getJSONArray("activities").getString(0));
         awaitPhase(HubConnection.Phase.READY);
     }
 
@@ -205,9 +265,12 @@ public class HubConnectionTest {
         connect();
         policy.approve(player.identity.id());
         peer.sendJson(helloJson(true, PCM_FORMATS, "[\"player@v1\"]"));
-        nextJson(); // activate
-        nextJson(); // group/update
+        nextJson(); // activate: the role, no activity
         peer.sendJson(stateJson(true, "[\"volume\",\"mute\"]"));
+        awaitPhase(HubConnection.Phase.AVAILABLE);
+        assertTrue(hub.startPlayback());
+        nextJson(); // activate: playback
+        nextJson(); // group/update
         awaitPhase(HubConnection.Phase.READY);
     }
 
@@ -276,9 +339,8 @@ public class HubConnectionTest {
         policy.approve(player.identity.id());
         peer.sendJson(helloJson(true, PCM_FORMATS, "[\"player@v1\"]"));
         nextJson();
-        nextJson();
         peer.sendJson(stateJson(true, "[]"));
-        awaitPhase(HubConnection.Phase.READY);
+        awaitPhase(HubConnection.Phase.AVAILABLE);
         assertFalse(hub.setVolume(10));
         assertFalse(hub.setMuted(true));
     }
@@ -342,10 +404,11 @@ public class HubConnectionTest {
         peer.receive();
         peer.sendJson(helloJson(true, PCM_FORMATS, "[\"player@v1\"]"));
         nextJson();
-        nextJson();
         peer.sendJson(stateJson(true, "[]"));
+        awaitPhase(HubConnection.Phase.AVAILABLE);
+        assertTrue(hub.startPlayback());
         awaitPhase(HubConnection.Phase.READY);
         assertTrue(phases.toString(), phases.containsAll(Arrays.asList(HubConnection.Phase.CONNECTING, HubConnection.Phase.HANDSHAKING,
-                HubConnection.Phase.WAITING_FOR_HELLO, HubConnection.Phase.ACTIVATING, HubConnection.Phase.READY)));
+                HubConnection.Phase.WAITING_FOR_HELLO, HubConnection.Phase.ACTIVATING, HubConnection.Phase.AVAILABLE, HubConnection.Phase.READY)));
     }
 }

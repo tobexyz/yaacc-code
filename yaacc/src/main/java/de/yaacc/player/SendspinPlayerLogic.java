@@ -42,6 +42,8 @@ final class SendspinPlayerLogic {
         WAIT,
         /** The player waits for the operator: choosing it to play is the approval; approve, then keep waiting. */
         APPROVE,
+        /** Available, nothing plays yet: declare the playback activity (once), then keep waiting. */
+        ACTIVATE,
         /** Ready: start. */
         READY,
         /** Give up with this problem. */
@@ -54,6 +56,8 @@ final class SendspinPlayerLogic {
                 return Wait.READY;
             case NEEDS_APPROVAL:
                 return Wait.APPROVE;
+            case AVAILABLE:
+                return Wait.ACTIVATE;
             case PAIRING_REQUIRED:
             case RE_PAIR_NEEDED:
             case PAIRING_FAILED:

@@ -41,6 +41,12 @@ public class SendspinPlayerLogicTest {
     }
 
     @Test
+    public void anAvailablePlayerIsToldToStartPlaybackAndThenWaitedFor() {
+        assertEquals(SendspinPlayerLogic.Wait.ACTIVATE, SendspinPlayerLogic.waitFor(HubConnection.Phase.AVAILABLE));
+        assertEquals(SendspinPlayerLogic.Wait.READY, SendspinPlayerLogic.waitFor(HubConnection.Phase.READY));
+    }
+
+    @Test
     public void aPlayerThatWaitsForTheOperatorIsApprovedByPlayingToIt() {
         assertEquals(SendspinPlayerLogic.Wait.APPROVE, SendspinPlayerLogic.waitFor(HubConnection.Phase.NEEDS_APPROVAL));
     }

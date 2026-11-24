@@ -146,15 +146,18 @@ public class HubPairingTest {
         assertEquals(SendspinPsk.pskId(longTerm), player.pskIdSeen);
 
         JSONObject second = nextJson().payload();
-        assertEquals("the first message under the new keys is the activation", "playback", second.getJSONArray("activities").getString(0));
+        assertEquals("the first message under the new keys is the activation: the role without playback", 0,
+                second.getJSONArray("activities").length());
         assertEquals("player@v1", second.getJSONArray("active_roles").getString(0));
         assertTrue(policy.isPaired(player.identity.id()));
         assertNull("the token is used up", policy.pairingPsk(player.identity.id()));
         assertTrue(hub.isPaired());
         assertEquals(HubConnection.PairingFailure.NONE, hub.pairingFailure());
 
-        assertEquals("group/update", nextJson().type());
         peer.sendJson(stateJson());
+        awaitPhase(HubConnection.Phase.AVAILABLE);
+        assertTrue(hub.startPlayback());
+        assertEquals("playback", nextJson().payload().getJSONArray("activities").getString(0));
         awaitPhase(HubConnection.Phase.READY);
         assertNotNull(hub.streamer());
     }

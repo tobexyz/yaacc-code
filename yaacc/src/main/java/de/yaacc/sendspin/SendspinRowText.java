@@ -89,6 +89,7 @@ public final class SendspinRowText {
                 return failure == HubConnection.PairingFailure.TOKEN_REJECTED ? State.PAIRING_REJECTED : State.PAIRING_FAILED;
             case UNUSABLE:
                 return State.UNUSABLE;
+            case AVAILABLE:
             case READY:
                 return playing ? State.PLAYING : paused ? State.PAUSED : paired ? State.READY_PAIRED : State.READY;
             case ENDED:

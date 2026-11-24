@@ -176,6 +176,10 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
         if (current != null) {
             current.end();
         }
+        HubConnection c = connection;
+        if (c != null) {
+            c.stopPlayback(); // drops the playback activity so that another server can take the player
+        }
         super.onDestroy();
     }
 
@@ -195,9 +199,13 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
         final HubConnection c = hub.acquire(endpoint, true);
         connection = c;
         lostNoted = false;
+        // playing is the operator's action: the first activation of a new connection then already declares 'playback', which wins
+        // against another server that merely holds the player (an idle first activation would tie with it and lose)
+        c.startPlayback();
         Thread waiter = new Thread(() -> {
             long deadline = System.nanoTime() + READY_TIMEOUT_MILLIS * 1_000_000L;
             boolean approved = false;
+            boolean activated = false;
             while (true) {
                 HubConnection.Phase phase = c.phase();
                 SendspinPlayerLogic.Wait decision = SendspinPlayerLogic.waitFor(phase);
@@ -215,6 +223,10 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
                 if (decision == SendspinPlayerLogic.Wait.FAIL) {
                     fail(SendspinPlayerLogic.problemOf(phase, c.endReason()));
                     return;
+                }
+                if (decision == SendspinPlayerLogic.Wait.ACTIVATE && !activated) {
+                    activated = true;
+                    c.startPlayback(); // the activity is declared only while this player plays to the player
                 }
                 if (decision == SendspinPlayerLogic.Wait.APPROVE && !approved) {
                     approved = true;

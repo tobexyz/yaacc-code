@@ -64,6 +64,8 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
         PAIRING,
         /** A pairing did not complete; {@link #pairingFailure()} says why. The connection is idle. */
         PAIRING_FAILED,
+        /** The player role is active and the player is available, but nothing plays: no {@code 'playback'} activity is declared. */
+        AVAILABLE,
         ACTIVATING, READY, ENDED
     }
 
@@ -138,7 +140,12 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
     private volatile StreamFormat format;
     private PcmStreamer streamer;
     private Thread thread;
-    private boolean activated;
+    /** The loop's and the callers': the player role is activated (first activation sent). */
+    private boolean rolesActive;
+    /** A YAACC player plays to this player: the {@code 'playback'} activity is declared (spec: only while it plays). */
+    private boolean playbackActive;
+    /** A YAACC player wants to play before the first activation: that activation then declares {@code 'playback'} at once. */
+    private boolean playbackWanted;
 
     public HubConnection(Endpoint endpoint, Identity identity, ServerPolicy policy, Connector connector, HubClock clock,
                          SecureRandom random, String serverName, Listener listener) {
@@ -264,10 +271,87 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
         }
         if (activate) {
             try {
-                activatePlayback();
+                activateIdle();
             } catch (IOException e) {
                 fail(EndReason.FAILED);
             }
+        }
+    }
+
+    /**
+     * A YAACC player starts to play to this player: declares the {@code 'playback'} activity (and keeps the role). The specification
+     * asks a server to declare it only while it plays, so that other servers can take the player at other times; the connection
+     * idles with empty activities until this is called. Another server that plays to the player can displace this connection
+     * (then the connection ends with {@code ANOTHER_SERVER}).
+     *
+     * @return false if the connection is not ready for it (not approved or paired, no role, ended)
+     */
+    public boolean startPlayback() {
+        SecureChannel c = channel;
+        synchronized (lock) {
+            if (phase == Phase.ENDED) {
+                return false;
+            }
+            if (!rolesActive) {
+                // not activated yet: the first activation declares 'playback' itself. An idle first activation would tie with another
+                // server's idle connection and lose (spec, "Multiple servers"); one that declares 'playback' wins against it.
+                if (phase == Phase.CONNECTING || phase == Phase.HANDSHAKING || phase == Phase.WAITING_FOR_HELLO
+                        || phase == Phase.NEEDS_APPROVAL) {
+                    playbackWanted = true;
+                    return true;
+                }
+                return false;
+            }
+            if (c == null) {
+                return false;
+            }
+            if (playbackActive) {
+                return true;
+            }
+            playbackActive = true;
+        }
+        try {
+            c.sendJson(SendspinMessages.serverActivate(Collections.singletonList("playback"), Collections.singletonList("player@v1")));
+            c.sendJson(SendspinMessages.groupUpdate(false, GROUP_ID, serverName));
+        } catch (IOException e) {
+            fail(EndReason.FAILED);
+            return false;
+        }
+        SendspinMessages.ClientState s = state;
+        if (s != null && s.available && s.player != null) {
+            setPhase(Phase.READY);
+        } else {
+            setPhase(Phase.ACTIVATING);
+        }
+        return true;
+    }
+
+    /** The YAACC player stopped: ends the stream and drops the {@code 'playback'} activity; the connection stays as available. */
+    public void stopPlayback() {
+        PcmStreamer current;
+        SecureChannel c = channel;
+        synchronized (lock) {
+            if (!playbackActive) {
+                return;
+            }
+            playbackActive = false;
+            playbackWanted = false;
+            current = streamer;
+        }
+        if (current != null) {
+            current.end();
+        }
+        if (c == null || phase == Phase.ENDED) {
+            return;
+        }
+        try {
+            c.sendJson(SendspinMessages.serverActivate(Collections.<String>emptyList(), Collections.singletonList("player@v1")));
+        } catch (IOException e) {
+            return; // the connection is gone; the loop ends it
+        }
+        SendspinMessages.ClientState s = state;
+        if (s != null && s.available && s.player != null) {
+            setPhase(Phase.AVAILABLE);
         }
     }
 
@@ -319,7 +403,8 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
     private boolean command(String name, String json) {
         SendspinMessages.ClientState s = state;
         SecureChannel c = channel;
-        if (phase != Phase.READY || s == null || s.player == null || !s.player.supportedCommands.contains(name) || c == null) {
+        if ((phase != Phase.READY && phase != Phase.AVAILABLE) || s == null || s.player == null || !s.player.supportedCommands.contains(name)
+                || c == null) {
             return false;
         }
         try {
@@ -532,7 +617,7 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
             setPhase(Phase.NEEDS_APPROVAL);
             return;
         }
-        activatePlayback();
+        activateIdle();
     }
 
     // ------------------------------------------------------------------ pairing with the Pairing PSK
@@ -614,35 +699,45 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
         channel.sendJson(SendspinMessages.serverActivate(Collections.<String>emptyList(), Collections.<String>emptyList()));
     }
 
-    private void activatePlayback() throws IOException {
+    /**
+     * The first activation of a usable player that may be used (paired or approved): the player role without any activity, so that
+     * its state and volume are known and another server is not displaced (spec, "Servers SHOULD declare the minimal set of
+     * activities"). The {@code 'playback'} activity follows in {@link #startPlayback()}.
+     */
+    private void activateIdle() throws IOException {
+        boolean withPlayback;
         synchronized (lock) {
-            if (activated || hello == null) {
+            if (rolesActive || hello == null || choosePcm(hello) == null) {
                 return;
             }
-            SendspinMessages.Format chosen = choosePcm(hello);
-            if (chosen == null) {
-                return;
-            }
-            activated = true;
+            rolesActive = true;
+            withPlayback = playbackWanted;
+            playbackActive = withPlayback;
         }
         setPhase(Phase.ACTIVATING);
-        channel.sendJson(SendspinMessages.serverActivate(Collections.singletonList("playback"), Collections.singletonList("player@v1")));
-        channel.sendJson(SendspinMessages.groupUpdate(false, GROUP_ID, serverName));
-        // the stream waits for the first client/state of the player role (the specification forbids role data before it)
+        channel.sendJson(SendspinMessages.serverActivate(
+                withPlayback ? Collections.singletonList("playback") : Collections.<String>emptyList(),
+                Collections.singletonList("player@v1")));
+        if (withPlayback) {
+            channel.sendJson(SendspinMessages.groupUpdate(false, GROUP_ID, serverName));
+        }
+        // the player's own state (the specification forbids role data before it) moves the phase on
         SendspinMessages.ClientState s = state;
         if (s != null && s.available && s.player != null) {
-            setPhase(Phase.READY);
+            setPhase(withPlayback ? Phase.READY : Phase.AVAILABLE);
         }
     }
 
     private void handleState(SendspinMessages.ClientState s) {
         state = s;
         boolean becameReady;
+        boolean playing;
         synchronized (lock) {
-            becameReady = activated && phase == Phase.ACTIVATING && s.available && s.player != null;
+            becameReady = rolesActive && phase == Phase.ACTIVATING && s.available && s.player != null;
+            playing = playbackActive;
         }
         if (becameReady) {
-            setPhase(Phase.READY);
+            setPhase(playing ? Phase.READY : Phase.AVAILABLE);
         } else {
             notifyChanged();
         }

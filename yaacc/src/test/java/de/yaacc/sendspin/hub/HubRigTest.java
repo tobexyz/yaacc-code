@@ -72,6 +72,8 @@ public class HubRigTest {
             System.out.println("rig: player '" + hub.hello().name + "' needs approval; unpaired access " + hub.hello().unpairedAccess);
             assertTrue("nothing is played to a player that is not approved", hub.streamer() == null);
             hub.approve();
+            await(hub, HubConnection.Phase.AVAILABLE, 20_000);
+            assertTrue(hub.startPlayback());
             await(hub, HubConnection.Phase.READY, 20_000);
             int rate = hub.streamFormat().sampleRate;
             System.out.println("rig: ready, stream format " + rate + " Hz, lead " + hub.leadMicros() / 1000 + " ms, capacity " + hub.capacityBytes());
@@ -147,8 +149,10 @@ public class HubRigTest {
         HubConnection first = hub(endpoint, server, policy);
         first.start();
         try {
-            await(first, HubConnection.Phase.READY, 20_000);
+            await(first, HubConnection.Phase.AVAILABLE, 20_000);
             assertTrue("paired", first.isPaired());
+            assertTrue(first.startPlayback());
+            await(first, HubConnection.Phase.READY, 20_000);
             assertTrue(policy.isPaired(token.clientId()));
             assertTrue("the token is used up", policy.pairingPsk(token.clientId()) == null);
             System.out.println("rig: paired '" + first.hello().name + "', " + first.streamFormat().sampleRate + " Hz");
@@ -167,12 +171,49 @@ public class HubRigTest {
         HubConnection second = hub(endpoint, server, policy);
         second.start();
         try {
-            await(second, HubConnection.Phase.READY, 20_000);
+            await(second, HubConnection.Phase.AVAILABLE, 20_000);
             assertTrue("the long-term PSK is used", second.isPaired());
             assertEquals(HubConnection.PairingFailure.NONE, second.pairingFailure());
             System.out.println("rig: second connection ready under the long-term PSK");
         } finally {
             second.close();
+        }
+    }
+
+    /**
+     * Two servers on one player (the reference player admits one at a time): the first holds it idle (role active, no activity);
+     * the second asks to play before its first activation, so that activation declares 'playback', ranks higher and takes the player.
+     * The idle one is told {@code another_server} and does not come back by itself.
+     */
+    @Test
+    public void aServerThatPlaysTakesThePlayerFromAnIdleServer() throws Exception {
+        Endpoint endpoint = endpoint("sendspin.rig");
+        ServerPolicy.InMemory policyA = new ServerPolicy.InMemory();
+        HubConnection idle = hub(endpoint, policyA);
+        idle.start();
+        try {
+            await(idle, HubConnection.Phase.NEEDS_APPROVAL, 10_000);
+            idle.approve();
+            await(idle, HubConnection.Phase.AVAILABLE, 20_000);
+            ServerPolicy.InMemory policyB = new ServerPolicy.InMemory();
+            policyB.approve(idle.clientId());
+            HubConnection playing = hub(endpoint, policyB);
+            assertTrue(playing.startPlayback());
+            playing.start();
+            try {
+                await(playing, HubConnection.Phase.READY, 20_000);
+                long deadline = System.nanoTime() + 10_000_000_000L;
+                while (idle.phase() != HubConnection.Phase.ENDED && System.nanoTime() < deadline) {
+                    Thread.sleep(20);
+                }
+                assertEquals(HubConnection.Phase.ENDED, idle.phase());
+                assertEquals(HubConnection.EndReason.ANOTHER_SERVER, idle.endReason());
+                System.out.println("rig: the playing server took the player, the idle one was told another_server");
+            } finally {
+                playing.close();
+            }
+        } finally {
+            idle.close();
         }
     }
 }

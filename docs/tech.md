@@ -3889,8 +3889,17 @@ Bouncy Castle `bcprov-jdk18on` 1.87 (jar 7.3 MB, not minified, see `docs/adr/000
 HMAC-SHA256 are the platform's.
 
 **Activation and admission.** `server/activate` carries `activities` and `active_roles`. For a player that is neither paired nor
-approved the server sends empty sets; `['playback']` with `['player@v1']` only for an approved or paired player, and for an unpaired
-one only if its `client/hello` says `unpaired_access.enabled`. The reference player logs `Admitted server ... (activities=[...])`.
+approved the server sends empty sets. For an approved or paired player (an unpaired one only if its `client/hello` says
+`unpaired_access.enabled`) the connection is **idle** until something plays: activities empty, `active_roles ['player@v1']`
+(phase `AVAILABLE`: state and volume are known, no other server is displaced). `'playback'` is declared by
+`HubConnection.startPlayback()` when a YAACC player starts to play to the player and dropped by `stopPlayback()` when that player
+is destroyed (a pause keeps it; a track change does not drop it); the spec asks to declare it only while playing. A play request
+that comes **before** the first activation (the connection is made for playing) makes that first activation declare `'playback'`
+at once: a client with a single admitted connection compares an activation with the admitted one by the highest activity and, on a
+tie of empty activities, lets the activating server win only if it is the last-playback server, so an idle first activation would
+lose against another server's idle connection and YAACC could not get in to play. Verified with the reference player: a second
+server whose first activation declares `'playback'` took the player (`Switching to server ... (activities=['playback'])`) and the
+idle one received `another_server` (`HubRigTest`). The reference player logs `Admitted server ... (activities=[...])`.
 It admits one connection at a time. The player's first `client/state` says `available: false` and turns `true` after its time
 filter started (after two `client/time` messages in the runs): the server must not stream before `available: true` and a `player` state.
 

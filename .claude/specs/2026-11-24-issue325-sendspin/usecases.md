@@ -41,7 +41,7 @@ Snapcast: the Snapcast server groups; Sendspin: YAACC groups).
 | S3 | Admit a player that does not know YAACC: approval by playing to it; list and revoke approvals | done; the list shows the first 8 characters of the id |
 | S4 | Pair with a player that refuses unpaired servers: paste its token (Pairing PSK); remove a pairing; re-pair after a mismatch | done; verified with the reference player (token injected, not displayed by a real player) |
 | S5 | Pair with a code (dynamic or static pairing code, CPace) | not done (Group 11) |
-| S6 | Coexist with another server: take a player only while playing; show "in use by another server"; take it back by playing again | **partly: reactions to `another_server` and `concurrent_attempt` exist; the `'playback'` activity is declared too early, see open point 1** |
+| S6 | Coexist with another server: take a player only while playing; show "in use by another server"; take it back by playing again | done: idle connections carry no activity; `'playback'` is declared on play (also in the first activation of a connection made for playing) and dropped when the player is destroyed; verified with two servers on the reference player |
 | S7 | Link players into a group: one queue, one stream, the same timestamps, group volume and mute, per-player output delay, "Play on" a member plays on its group | not done (Groups 6 and 7) |
 | S8 | Show what the controller role and now-playing of other servers show, for the group YAACC leads | not planned |
 
@@ -87,7 +87,7 @@ the specification and YAACC does not use it.
 
 ## Open points for the owner
 
-1. **Activity timing (S6).** The current code declares `'playback'` as soon as an approved or paired player says hello, whether or
+1. **Activity timing (S6). Done and agreed by the owner (2026-11-24).** The code declared `'playback'` as soon as an approved or paired player says hello, whether or
    not anything plays. Recommended fix: declare it when a YAACC player starts to play to that player, drop it on stop; recommended
    before the first test with a second server on the network.
 2. **Order of the next work.** Suggested: S6 fix, then the controller and display (C1 and C2, small, makes YAACC useful with Music
