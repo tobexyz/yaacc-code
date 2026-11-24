@@ -3855,3 +3855,64 @@ Sources: FCast repository clone at commit `ea3982b3` (see above): `docs/docs/pro
 ## Layouts on small screens (issues #324, #334)
 
 How a layout is checked without a slow emulator: (1) on a real phone, `adb shell wm size 480x800` and `adb shell wm density 240` make it look like a small phone (about 320dp wide), `adb shell settings put system font_scale 1.3` adds a bigger font; `adb shell wm size reset`, `adb shell wm density reset` and `adb shell settings put system font_scale 1.0` undo it. (2) In Android Studio the design preview shows a layout on any device size and font scale without an emulator. (3) `SmallScreenLayoutResourcesTest` reads the layout files and keeps the bottom lines of the classic server tab within 320dp and the folder screen scrollable. Rules the layouts follow: a line that holds several things has one part that gives way (`layout_width="0dp"` with a weight and `ellipsize="end"`) instead of views pinned to both edges of a `RelativeLayout`; fixed parts are in dp, texts are never fixed; a screen that can be taller than the display scrolls (`ScrollView`, a `RecyclerView` inside it with `nestedScrollingEnabled="false"`); touch targets keep 48dp.
+
+## Sendspin (issue #325): protocol notes, checked against the reference player
+
+Source: the Sendspin specification (`github.com/Sendspin/spec` at `2cfe197`, 2026-11-24, wire version 1), written here in our own
+words; section names are the specification's. Checked against the reference command line player `sendspin` 9.1.0 (Apache-2.0,
+on `aiosendspin` 10.2.2) in the rig of `tools/sendspin-rig/`. Code: `de.yaacc.sendspin.*`. Spec and decisions of the work:
+`.claude/specs/2026-11-24-issue325-sendspin/`.
+
+**Order on a connection (server role).** The server opens the WebSocket (`ws://host:port/path`, no `Origin` header); the *player*
+speaks first with the cleartext text message `client/init` (`client_id`, `version` 1, `suite`). The server answers `server/init`
+(`server_id`, `version`) and, without waiting, the first Noise message as `noise/handshake` (`data` = base64url). The player
+sends Noise message 2, both switch to transport mode: from then on every WebSocket *binary* message is one Noise transport message
+whose plaintext is `[id][body]` (id 0 JSON, 1 fragment, 4 audio chunk). Then `server/hello`, `client/hello`, `server/activate`.
+The reference player accepted all of it on the first try. A failure that follows from `client/init` alone is answered with
+`server/error` (`unsupported_version` before `unsupported_suite`, else `malformed`); every other failure closes silently.
+
+**Noise.** `Noise_KKpsk2_<suite>`, suites `25519_ChaChaPoly_SHA256` and `25519_AESGCM_SHA256` (the player picked ChaChaPoly). The
+server is the initiator. Both statics are known before the handshake: the `client_id` is the player's public key, the `server_id`
+ours. Prologue = the exact bytes of `client/init` followed by the exact bytes of `server/init` as sent on the wire. Pattern
+`-> e, es, ss` / `<- e, ee, se, psk`; with the `psk` modifier every `e` token also does `MixKey(e.public)` (Noise rev 34, 9.2). The PSK
+is mixed in by message 2, so message 1 can be read before the PSK is chosen. Nonce: 4 zero bytes and the 64 bit counter, little
+endian for ChaChaPoly and big endian for AESGCM. Message 1 payload: `{"psk_id": ..., "psk_category": "lt"|"pr"|"sn"}`; message 2
+payload: the two bytes `{}`. Our implementation reproduces vectors made by the Python `noiseprotocol` library byte for byte for both
+suites (`NoiseKkPsk2Test`), X25519 matches RFC 7748 and the Sentinel constants match the specification (`SendspinKeysTest`).
+`psk_id = base64url(SHA-256("sendspin-psk-id-v1" || PSK))`; Sentinel PSK = SHA-256 of `sendspin-sentinel-psk-v1`
+(`1b5e24db...67b9d3`). The server tries the referenced PSK, then the Sentinel: a message 2 that verifies only under the Sentinel is
+the *credential mismatch* signal (the player lost its record).
+
+**Platform crypto (checked on developer.android.com, 2026-11-24).** `XDH`/X25519 from API 33, `ChaCha20/Poly1305` from API 28,
+`AES/GCM/NoPadding` available at API 27. minSdk 27 therefore needs a library for X25519 always and for ChaCha20-Poly1305 on API 27:
+Bouncy Castle `bcprov-jdk18on` 1.87 (jar 7.3 MB, not minified, see `docs/adr/0001`), lightweight classes only. SHA-256 and
+HMAC-SHA256 are the platform's.
+
+**Activation and admission.** `server/activate` carries `activities` and `active_roles`. For a player that is neither paired nor
+approved the server sends empty sets; `['playback']` with `['player@v1']` only for an approved or paired player, and for an unpaired
+one only if its `client/hello` says `unpaired_access.enabled`. The reference player logs `Admitted server ... (activities=[...])`.
+It admits one connection at a time. The player's first `client/state` says `available: false` and turns `true` after its time
+filter started (two `client/time` bursts in the runs): the server must not stream before `available: true` and a `player` state.
+
+**Time.** `client/time` (`client_transmitted`) is answered with `server/time` (`client_transmitted`, `server_received`,
+`server_transmitted`, microseconds of one monotonic server clock, here `System.nanoTime()/1000`). The server needs no filter; the
+Kalman filter is the player's.
+
+**Streaming.** `stream/start` with a `player` object (`codec: pcm`, `sample_rate`, `channels`, `bit_depth`); the format must be one
+of the player's `supported_formats` (the reference player lists what its device supports: 44.1 kHz PCM and FLAC only on the ALSA
+null name, 32 formats on a PulseAudio sink; we take the first PCM, 16 bit, stereo entry). Audio chunk (binary id 4): int64 BE
+timestamp (server clock, when the first sample plays), uint32 BE `send_ahead` (0 if late, 4294967295 if longer than ~71 min), the
+PCM; 15 to 150 ms per chunk (we send 20 ms). The first timestamp is at least `min_buffer_ms + output_delay_ms` after the start (we use
+what the player asked plus 250 ms); seeks and skips are `stream/clear`, pause and stop `stream/end` (a new `stream/start` follows),
+track changes send nothing. A player holds at most `buffer_capacity` bytes (13 byte header plus payload per chunk counts until it
+has played). `server/command` with a `player` object sets `volume` (0 to 100), `mute` or `set_output_delay`, only if listed in the
+player's `supported_commands`; the player answers with a new `client/state`.
+
+**Measured with the reference player (sandbox, PulseAudio null sink).** 40 seconds of PCM at 48 kHz from `HubConnection` and
+`PcmStreamer`: the player's own sync error started at about -60 to -130 ms, was corrected at its speed cap (99.8 percent) and
+reached 0 ms after about 25 seconds, then stayed within +-3 ms; no underrun; a `stream/clear`, a `stream/end` with a new
+`stream/start` and a volume command were taken without the connection breaking. This is the player's measure against our
+timestamps, not a listening test.
+
+**Not yet done.** The Pairing PSK flow (the reference daemon shows no token; unpaired access was used), re-handshake, FLAC, groups,
+the app (receiver device, player, rows, settings), and everything of the player role. See `tasks.md` of the spec.
