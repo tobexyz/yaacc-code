@@ -157,4 +157,18 @@
     <string name="settings_fcast_receivers_summary">Empfänger per Adresse, Gerätename oder Verbindungslink hinzufügen oder entfernen</string>
     <string name="settings_fcast_v4_title">Die verschlüsselte Version 4 verwenden</string>
     <string name="settings_fcast_v4_summary">Ab Android 10 wird mit einem Empfänger, dessen Schlüssel bekannt ist (aus seinem Verbindungslink oder seiner Ankündigung), die verschlüsselte FCast-Version 4 gesprochen. Ein Schlüssel, der nicht passt, wird abgelehnt und nie mit der unverschlüsselten Version beantwortet. Schalten Sie dies aus, um immer die unverschlüsselte Version 3 zu verwenden, zum Beispiel wenn ein Empfänger mit Version 4 nicht funktioniert. Mit einem Empfänger, der nur über seine Adresse hinzugefügt wurde, wird immer Version 3 gesprochen.</string>
+    <string name="settings_sendspin_category">Sendspin</string>
+    <string name="settings_sendspin_about_title">Über Sendspin</string>
+    <string name="settings_sendspin_about_summary">YAACC kann Musik an Sendspin-Player in deinem Netzwerk senden (experimentell: Player werden per Adresse hinzugefügt, Kopplung wird noch nicht unterstützt). Diese Anwendung setzt das Sendspin-Protokoll um und steht in keiner Verbindung zur Open Home Foundation. Sendspin ist eine Marke der Open Home Foundation.</string>
+    <string name="settings_sendspin_enabled_title">Sendspin-Player verwenden</string>
+    <string name="settings_sendspin_enabled_summary">Standardmäßig aus. Wenn aktiv, werden die hinzugefügten Player als Empfänger aufgelistet und YAACC verbindet sich mit ihnen (nur ausgehende Verbindungen; auf diesem Gerät hört nichts zu). Ein Player, den du nicht freigegeben hast, erhält kein Audio; die Wiedergabe darauf gibt ihn frei.</string>
+    <string name="settings_sendspin_players_title">Sendspin-Player</string>
+    <string name="settings_sendspin_players_summary">Player per Adresse hinzufügen oder entfernen</string>
+    <string name="sendspin_players_hint">Adresse, z. B. 192.168.0.7 oder kueche.local:8928</string>
+    <string name="sendspin_players_add">Hinzufügen</string>
+    <string name="sendspin_players_remove">%1$s entfernen</string>
+    <string name="sendspin_players_none">Noch keine Player hinzugefügt</string>
+    <string name="sendspin_players_bad_address">Das ist keine Adresse. Verwende einen Hostnamen oder eine IP-Adresse, optional mit Port.</string>
+    <string name="sendspin_players_too_many">Es können höchstens 16 Player hinzugefügt werden.</string>
+    <string name="sendspin_players_already">Dieser Player ist bereits in der Liste.</string>
 </resources>

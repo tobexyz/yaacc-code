@@ -192,6 +192,14 @@ final class ReceiverRowBinder {
     private final SnapcastRowBinder snapcastRows;
     // the part of the rows that belong to an FCast receiver (see FCastRowBinder)
     private final FCastRowBinder fcastRows;
+    // the part of the rows that belong to a Sendspin player (see SendspinRowBinder)
+    private final SendspinRowBinder sendspinRows;
+    private final SendspinRowBinder.UpnpClientAccess sendspinAccess = new SendspinRowBinder.UpnpClientAccess() {
+        @Override
+        public Player playerOf(de.yaacc.sendspin.SendspinReceiverDevice device) {
+            return primaryPlayer(device);
+        }
+    };
     private final FCastRowBinder.UpnpClientAccess fcastAccess = new FCastRowBinder.UpnpClientAccess() {
         @Override
         public UpnpClient client() {
@@ -209,6 +217,7 @@ final class ReceiverRowBinder {
         this.upnpClient = upnpClient;
         this.snapcastRows = new SnapcastRowBinder(context, this);
         this.fcastRows = new FCastRowBinder(context, this);
+        this.sendspinRows = new SendspinRowBinder(context, this);
     }
 
     /**
@@ -304,6 +313,10 @@ final class ReceiverRowBinder {
             // the slider and the symbol are the receiver's volume and mute, through the player or a short-lived session
             SnapcastMuteToggle.clear(holder.mute);
             fcastRows.bind(holder, (de.yaacc.fcast.discovery.FCastReceiverDevice) device, fcastAccess);
+        } else if (device instanceof de.yaacc.sendspin.SendspinReceiverDevice) {
+            // the slider and the symbol are commands to the Sendspin player through its connection
+            SnapcastMuteToggle.clear(holder.mute);
+            sendspinRows.bind(holder, (de.yaacc.sendspin.SendspinReceiverDevice) device, sendspinAccess);
         } else {
             // a recycled card may have been a Snapcast row, whose mute symbol is described for it
             SnapcastMuteToggle.clear(holder.mute);
@@ -358,6 +371,8 @@ final class ReceiverRowBinder {
             snapcastRows.show(holder, (SnapcastGroupDevice) device);
         } else if (device instanceof de.yaacc.fcast.discovery.FCastReceiverDevice) {
             fcastRows.show(holder, (de.yaacc.fcast.discovery.FCastReceiverDevice) device, primaryPlayer(device));
+        } else if (device instanceof de.yaacc.sendspin.SendspinReceiverDevice) {
+            sendspinRows.show(holder, (de.yaacc.sendspin.SendspinReceiverDevice) device, primaryPlayer(device));
         } else {
             bindGroupState(holder, deviceId);
             bindSourceControls(holder, device, deviceId);
@@ -444,6 +459,12 @@ final class ReceiverRowBinder {
             snapcastRows.bindPower(holder, (SnapcastGroupDevice) device);
             return;
         }
+        if (device instanceof de.yaacc.sendspin.SendspinReceiverDevice) {
+            // Sendspin has no standby: no power button
+            RendererPowerButton.bind(context, holder.power, "", RendererPower.unsupported(), false, () -> {
+            });
+            return;
+        }
         if (device instanceof de.yaacc.fcast.discovery.FCastReceiverDevice) {
             // FCast has no standby: no power button (the first button of the row is hidden by the unsupported look)
             RendererPowerButton.bind(context, holder.power, "", RendererPower.unsupported(), false, () -> {
@@ -500,6 +521,11 @@ final class ReceiverRowBinder {
     /** Shows the text, volume and mute state of an FCast receiver in a bound row (the poll of the live volume calls this). */
     void showFCast(RowViews views, de.yaacc.fcast.discovery.FCastReceiverDevice device) {
         fcastRows.show(views, device, primaryPlayer(device));
+    }
+
+    /** Shows the text, volume and mute state of a Sendspin player in a bound row (the poll of the live volume calls this). */
+    void showSendspin(RowViews views, de.yaacc.sendspin.SendspinReceiverDevice device) {
+        sendspinRows.show(views, device, primaryPlayer(device));
     }
 
     /** Shows a group's volume, mute state and text in a bound row (the poll of the live volume calls this). */
@@ -1263,6 +1289,9 @@ final class ReceiverRowBinder {
         if (device instanceof de.yaacc.fcast.discovery.FCastReceiverDevice) {
             return "FCast receiver"; // the name and the address came from the network or the user: not logged
         }
+        if (device instanceof de.yaacc.sendspin.SendspinReceiverDevice) {
+            return "Sendspin player"; // likewise
+        }
         return device instanceof SnapcastGroupDevice ? "Snapcast group" : device.getDisplayString();
     }
 
@@ -1341,7 +1370,8 @@ final class ReceiverRowBinder {
         }
         // The phone, a Snapcast group and an FCast receiver (they have no UPnP service): through the player
         if (isLocalDevice(device) || device instanceof SnapcastGroupDevice
-                || device instanceof de.yaacc.fcast.discovery.FCastReceiverDevice) {
+                || device instanceof de.yaacc.fcast.discovery.FCastReceiverDevice
+                || device instanceof de.yaacc.sendspin.SendspinReceiverDevice) {
             Player player = primaryPlayer(device);
             if (player == null && device instanceof de.yaacc.fcast.discovery.FCastReceiverDevice) {
                 // no player of this app: the receiver plays what another sender started (a second YAACC, the receiver's own app)

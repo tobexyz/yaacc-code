@@ -570,4 +570,23 @@
     <string name="fcast_link_note_v4">该接收器将被添加到您的 FCast 接收器列表。在您选择它之前不会在其上播放任何内容。此链接包含接收器的密钥：在 Android 10 及更高版本上，连接已加密（协议 v4）。</string>
     <string name="fcast_key_refused">接收器的密钥与所公告的不一致，因此 YAACC 没有连接。如果接收器已重新安装，请将其删除，并使用其连接链接重新添加。</string>
     <string name="fcast_secure_failed">无法与接收器建立加密连接（版本 4），因此 YAACC 没有连接。您可以在设置 > FCast 中关闭版本 4。</string>
+    <string name="sendspin_row_type">Sendspin</string>
+    <string name="sendspin_state_not_connected">未连接</string>
+    <string name="sendspin_state_connecting">正在连接</string>
+    <string name="sendspin_state_needs_approval">尚未批准：向其播放即可批准</string>
+    <string name="sendspin_state_pairing_required">需要配对（尚不支持）</string>
+    <string name="sendspin_state_re_pair_needed">配对已丢失（尚不支持配对）</string>
+    <string name="sendspin_state_unusable">没有可用格式</string>
+    <string name="sendspin_state_ready">就绪</string>
+    <string name="sendspin_state_in_use">正被其他服务器使用</string>
+    <string name="sendspin_state_unreachable">无法访问</string>
+    <string name="sendspin_state_disconnected">已断开</string>
+    <string name="sendspin_row_state_title">%1$s: %2$s</string>
+    <string name="sendspin_audio_only">Sendspin 播放器只能播放音乐</string>
+    <string name="sendspin_error_not_ready">Sendspin 播放器尚未就绪，请稍后再试。</string>
+    <string name="sendspin_error_pairing_required">此 Sendspin 播放器只接受已配对的服务器，目前尚不支持配对。</string>
+    <string name="sendspin_error_re_pair">此 Sendspin 播放器与 YAACC 的配对已丢失，需要重新配对。目前尚不支持配对。</string>
+    <string name="sendspin_error_unusable">YAACC 无法向此 Sendspin 播放器播放：它不提供 16 位双声道的 PCM 格式。</string>
+    <string name="sendspin_error_in_use">此 Sendspin 播放器正被其他服务器使用。</string>
+    <string name="sendspin_error_lost">与 Sendspin 播放器的连接已断开。</string>
 </resources>

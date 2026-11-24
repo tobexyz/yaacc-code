@@ -114,6 +114,14 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
+        androidx.preference.Preference sendspinPlayers = findPreference(getString(R.string.settings_sendspin_players));
+        if (sendspinPlayers != null) {
+            sendspinPlayers.setOnPreferenceClickListener(preference -> {
+                SendspinPlayersDialog.show(requireContext());
+                return true;
+            });
+        }
+
         setUpSnapcastClient();
         setUpRendererOutput();
         scrollToRequestedSection();

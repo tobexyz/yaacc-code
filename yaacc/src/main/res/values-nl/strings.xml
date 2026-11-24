@@ -574,4 +574,23 @@
     <string name="fcast_link_note_v4">De ontvanger wordt toegevoegd aan uw lijst met FCast-ontvangers. Er wordt niets op afgespeeld totdat u hem selecteert. Deze link bevat de sleutel van de ontvanger: vanaf Android 10 is de verbinding versleuteld (protocol v4).</string>
     <string name="fcast_key_refused">De sleutel van de ontvanger is niet de aangekondigde, daarom heeft YAACC geen verbinding gemaakt. Is de ontvanger opnieuw geïnstalleerd, verwijder hem dan en voeg hem opnieuw toe met zijn verbindingslink.</string>
     <string name="fcast_secure_failed">De versleutelde verbinding (versie 4) met de ontvanger kon niet worden gemaakt, daarom heeft YAACC geen verbinding gemaakt. U kunt versie 4 uitzetten onder Instellingen > FCast.</string>
+    <string name="sendspin_row_type">Sendspin</string>
+    <string name="sendspin_state_not_connected">niet verbonden</string>
+    <string name="sendspin_state_connecting">verbinden</string>
+    <string name="sendspin_state_needs_approval">nog niet goedgekeurd: speel erop af om goed te keuren</string>
+    <string name="sendspin_state_pairing_required">vereist koppelen (nog niet ondersteund)</string>
+    <string name="sendspin_state_re_pair_needed">koppeling kwijt (koppelen nog niet ondersteund)</string>
+    <string name="sendspin_state_unusable">geen bruikbaar formaat</string>
+    <string name="sendspin_state_ready">gereed</string>
+    <string name="sendspin_state_in_use">in gebruik door een andere server</string>
+    <string name="sendspin_state_unreachable">niet bereikbaar</string>
+    <string name="sendspin_state_disconnected">verbinding verbroken</string>
+    <string name="sendspin_row_state_title">%1$s: %2$s</string>
+    <string name="sendspin_audio_only">Sendspin-spelers spelen alleen muziek</string>
+    <string name="sendspin_error_not_ready">De Sendspin-speler is nog niet gereed. Probeer het zo opnieuw.</string>
+    <string name="sendspin_error_pairing_required">Deze Sendspin-speler accepteert alleen gekoppelde servers. Koppelen wordt nog niet ondersteund.</string>
+    <string name="sendspin_error_re_pair">Deze Sendspin-speler is de koppeling met YAACC kwijt en moet opnieuw worden gekoppeld. Koppelen wordt nog niet ondersteund.</string>
+    <string name="sendspin_error_unusable">YAACC kan niet afspelen op deze Sendspin-speler: hij biedt geen PCM-formaat met 16 bit en twee kanalen.</string>
+    <string name="sendspin_error_in_use">Deze Sendspin-speler wordt door een andere server gebruikt.</string>
+    <string name="sendspin_error_lost">De verbinding met de Sendspin-speler is verbroken.</string>
 </resources>

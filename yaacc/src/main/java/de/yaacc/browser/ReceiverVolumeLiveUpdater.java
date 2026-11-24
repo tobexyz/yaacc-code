@@ -159,6 +159,7 @@ final class ReceiverVolumeLiveUpdater implements VolumeKeyHosts.Host {
 
         showSnapcastRows(visible);
         showFCastRows(visible);
+        showSendspinRows(visible);
 
         Map<String, Device<?, ?, ?>> candidates = new LinkedHashMap<>();
         for (Device<?, ?, ?> device : visible.keySet()) {
@@ -192,6 +193,15 @@ final class ReceiverVolumeLiveUpdater implements VolumeKeyHosts.Host {
         for (Map.Entry<Device<?, ?, ?>, ReceiverRowBinder.RowViews> row : visible.entrySet()) {
             if (row.getKey() instanceof de.yaacc.fcast.discovery.FCastReceiverDevice) {
                 binder.showFCast(row.getValue(), (de.yaacc.fcast.discovery.FCastReceiverDevice) row.getKey());
+            }
+        }
+    }
+
+    /** The Sendspin players: their text and volume come from the hub's connection, in memory, so every tick shows them again. */
+    private void showSendspinRows(Map<Device<?, ?, ?>, ReceiverRowBinder.RowViews> visible) {
+        for (Map.Entry<Device<?, ?, ?>, ReceiverRowBinder.RowViews> row : visible.entrySet()) {
+            if (row.getKey() instanceof de.yaacc.sendspin.SendspinReceiverDevice) {
+                binder.showSendspin(row.getValue(), (de.yaacc.sendspin.SendspinReceiverDevice) row.getKey());
             }
         }
     }

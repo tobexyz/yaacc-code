@@ -110,10 +110,11 @@ public class RendererStatusMonitor {
     /**
      * Whether the monitor polls this receiver over UPnP. A Snapcast group has no AVTransport service: its state comes from the
      * control connection to its server, so it is left out (no poll, no reschedule). So is an FCast receiver: it has no UPnP service
-     * either, and its state comes from its player's own connection.
+     * either, and its state comes from its player's own connection. A Sendspin player has no UPnP service as well; its state comes from the hub's connection.
      */
     static boolean isPolled(Device device) {
-        return !(device instanceof de.yaacc.multiroom.SnapcastGroupDevice) && !(device instanceof de.yaacc.fcast.discovery.FCastReceiverDevice);
+        return !(device instanceof de.yaacc.multiroom.SnapcastGroupDevice) && !(device instanceof de.yaacc.fcast.discovery.FCastReceiverDevice)
+                && !(device instanceof de.yaacc.sendspin.SendspinReceiverDevice);
     }
 
     private void pollDevice(Device device, int pollGeneration) {

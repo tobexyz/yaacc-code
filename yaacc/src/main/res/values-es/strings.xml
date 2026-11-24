@@ -578,4 +578,23 @@
     <string name="fcast_link_note_v4">El receptor se añadirá a su lista de receptores FCast. No se reproduce nada en él hasta que lo seleccione. Este enlace contiene la clave del receptor: desde Android 10 la conexión está cifrada (protocolo v4).</string>
     <string name="fcast_key_refused">La clave del receptor no es la anunciada, por eso YAACC no se conectó. Si el receptor se reinstaló, elimínelo y añádalo de nuevo con su enlace de conexión.</string>
     <string name="fcast_secure_failed">No se pudo establecer la conexión cifrada (versión 4) con el receptor, por eso YAACC no se conectó. Puede desactivar la versión 4 en Ajustes > FCast.</string>
+    <string name="sendspin_row_type">Sendspin</string>
+    <string name="sendspin_state_not_connected">no conectado</string>
+    <string name="sendspin_state_connecting">conectando</string>
+    <string name="sendspin_state_needs_approval">aún no aprobado: reproduce en él para aprobarlo</string>
+    <string name="sendspin_state_pairing_required">requiere emparejamiento (aún no compatible)</string>
+    <string name="sendspin_state_re_pair_needed">perdió el emparejamiento (aún no compatible)</string>
+    <string name="sendspin_state_unusable">sin formato utilizable</string>
+    <string name="sendspin_state_ready">listo</string>
+    <string name="sendspin_state_in_use">en uso por otro servidor</string>
+    <string name="sendspin_state_unreachable">no accesible</string>
+    <string name="sendspin_state_disconnected">desconectado</string>
+    <string name="sendspin_row_state_title">%1$s: %2$s</string>
+    <string name="sendspin_audio_only">Los reproductores Sendspin solo reproducen música</string>
+    <string name="sendspin_error_not_ready">El reproductor Sendspin aún no está listo. Inténtalo de nuevo en un momento.</string>
+    <string name="sendspin_error_pairing_required">Este reproductor Sendspin solo acepta servidores emparejados. El emparejamiento aún no es compatible.</string>
+    <string name="sendspin_error_re_pair">Este reproductor Sendspin perdió el emparejamiento con YAACC y debe emparejarse de nuevo. El emparejamiento aún no es compatible.</string>
+    <string name="sendspin_error_unusable">YAACC no puede reproducir en este reproductor Sendspin: no ofrece ningún formato PCM de 16 bits y dos canales.</string>
+    <string name="sendspin_error_in_use">Este reproductor Sendspin está en uso por otro servidor.</string>
+    <string name="sendspin_error_lost">Se perdió la conexión con el reproductor Sendspin.</string>
 </resources>

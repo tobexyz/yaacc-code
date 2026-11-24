@@ -206,6 +206,17 @@ public final class SendspinHub implements SendspinReceiverSource {
         lastAttempt.remove(endpoint);
     }
 
+    private void closeAll() {
+        if (connections.isEmpty()) {
+            return;
+        }
+        for (HubConnection connection : connections.values()) {
+            connection.close();
+        }
+        connections.clear();
+        lastAttempt.clear();
+    }
+
     /** Removes a player from the list and ends its connection. */
     public synchronized void remove(Endpoint endpoint) {
         disconnect(endpoint);
@@ -218,6 +229,7 @@ public final class SendspinHub implements SendspinReceiverSource {
     @Override
     public synchronized List<SendspinReceiverDevice> receivers() {
         if (!isEnabled()) {
+            closeAll(); // switched off: nothing stays connected
             return Collections.emptyList();
         }
         List<SendspinReceiverDevice> result = new ArrayList<>();

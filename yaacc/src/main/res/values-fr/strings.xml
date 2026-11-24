@@ -578,4 +578,23 @@
     <string name="fcast_link_note_v4">Le récepteur sera ajouté à votre liste de récepteurs FCast. Rien n’y est lu tant que vous ne l’avez pas sélectionné. Ce lien contient la clé du récepteur : à partir d’Android 10, la connexion est chiffrée (protocole v4).</string>
     <string name="fcast_key_refused">La clé du récepteur n’est pas celle qui a été annoncée, YAACC ne s’est donc pas connecté. Si le récepteur a été réinstallé, supprimez-le et ajoutez-le à nouveau avec son lien de connexion.</string>
     <string name="fcast_secure_failed">La connexion chiffrée (version 4) avec le récepteur n’a pas pu être établie, YAACC ne s’est donc pas connecté. Vous pouvez désactiver la version 4 dans Paramètres > FCast.</string>
+    <string name="sendspin_row_type">Sendspin</string>
+    <string name="sendspin_state_not_connected">non connecté</string>
+    <string name="sendspin_state_connecting">connexion</string>
+    <string name="sendspin_state_needs_approval">pas encore approuvé : lancez la lecture dessus pour l\'approuver</string>
+    <string name="sendspin_state_pairing_required">nécessite un appairage (pas encore pris en charge)</string>
+    <string name="sendspin_state_re_pair_needed">appairage perdu (pas encore pris en charge)</string>
+    <string name="sendspin_state_unusable">aucun format utilisable</string>
+    <string name="sendspin_state_ready">prêt</string>
+    <string name="sendspin_state_in_use">utilisé par un autre serveur</string>
+    <string name="sendspin_state_unreachable">injoignable</string>
+    <string name="sendspin_state_disconnected">déconnecté</string>
+    <string name="sendspin_row_state_title">%1$s: %2$s</string>
+    <string name="sendspin_audio_only">Les lecteurs Sendspin ne lisent que de la musique</string>
+    <string name="sendspin_error_not_ready">Le lecteur Sendspin n\'est pas encore prêt. Réessayez dans un instant.</string>
+    <string name="sendspin_error_pairing_required">Ce lecteur Sendspin n\'accepte que des serveurs appairés. L\'appairage n\'est pas encore pris en charge.</string>
+    <string name="sendspin_error_re_pair">Ce lecteur Sendspin a perdu son appairage avec YAACC et doit être appairé à nouveau. L\'appairage n\'est pas encore pris en charge.</string>
+    <string name="sendspin_error_unusable">YAACC ne peut pas lire sur ce lecteur Sendspin : il ne propose aucun format PCM 16 bits à deux canaux.</string>
+    <string name="sendspin_error_in_use">Ce lecteur Sendspin est utilisé par un autre serveur.</string>
+    <string name="sendspin_error_lost">La connexion au lecteur Sendspin a été perdue.</string>
 </resources>
