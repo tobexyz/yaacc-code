@@ -44,6 +44,8 @@ public final class SendspinSettings {
     public static final String KEY_PLAYERS = "sendspin_players";
     /** The key of the ids of the players the operator approved. */
     public static final String KEY_APPROVED = "sendspin_approved";
+    /** The names the players announced, by client id (only to show them in the lists of paired and approved players). */
+    public static final String KEY_NAMES = "sendspin_names";
     /** The key of the private key of this server identity (app-private storage; backup is off). */
     public static final String KEY_IDENTITY = "sendspin_identity";
     /** Pairing tokens the operator pasted, not yet used: {@code <client id>:<pairing PSK, base64url>}. A credential. */

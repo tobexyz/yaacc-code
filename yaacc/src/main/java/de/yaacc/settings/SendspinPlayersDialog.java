@@ -183,13 +183,13 @@ final class SendspinPlayersDialog {
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
             String shortId = id.substring(0, 8) + "…"; // the id of a player is its public key: enough to tell the entries apart
+            String known = hub.nameOfPlayer(id);
             TextView label = new TextView(context);
-            label.setText(shortId);
-            label.setTypeface(android.graphics.Typeface.MONOSPACE);
+            label.setText(known == null ? shortId : known + "  " + shortId);
             row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             Button remove = new Button(context);
             remove.setText("✕");
-            remove.setContentDescription(context.getString(removeDescription, shortId));
+            remove.setContentDescription(context.getString(removeDescription, known == null ? shortId : known));
             remove.setOnClickListener(v -> {
                 if (pairing) {
                     hub.unpair(id);

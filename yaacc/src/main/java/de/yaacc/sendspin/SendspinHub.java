@@ -91,6 +91,7 @@ public final class SendspinHub implements SendspinReceiverSource {
     private final SendspinDirectory serverDirectory = new SendspinDirectory(MonotonicClock.SYSTEM, SendspinDirectory.DEFAULT_GRACE_MILLIS);
     private final SendspinNsd serverNsd;
     private final SnapcastDiscoveryGate serverGate;
+    private final SendspinNames names;
     private final SendspinServerAdvert advert;
     private final SnapcastDiscoveryGate inboundGate;
     private InboundServer inboundServer;
@@ -125,6 +126,7 @@ public final class SendspinHub implements SendspinReceiverSource {
         };
         this.players = new SendspinPlayers(store);
         this.approvals = new SendspinPolicy(store);
+        this.names = new SendspinNames(store);
         this.connector = new Connector.Sockets();
         this.clock = HubClock.SYSTEM;
         this.controllers = new SendspinControllers(store, this::clientIdentity,
@@ -456,7 +458,15 @@ public final class SendspinHub implements SendspinReceiverSource {
         }
     }
 
+    /** The last name the player with this id announced, or null (for the lists of paired and approved players). */
+    public String nameOfPlayer(String clientId) {
+        return names.nameOf(clientId);
+    }
+
     private void connectionChanged(HubConnection connection) {
+        if (connection.clientId() != null && connection.hello() != null) {
+            names.remember(connection.clientId(), connection.hello().name);
+        }
         boolean stale = false;
         synchronized (this) {
             SendspinReceiverDevice device = devices.get(SendspinAddress.idOf(connection.endpoint()));

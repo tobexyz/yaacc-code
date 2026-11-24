@@ -167,6 +167,12 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
         if (current != null) {
             current.end();
         }
+        // a stop (the stop button, the end of the queue) is not a pause: the playback activity is dropped, so that another server (Music
+        // Assistant) can take the player; a pause keeps it, and the next start declares it again
+        HubConnection c = connection;
+        if (c != null) {
+            c.stopPlayback();
+        }
     }
 
     @Override
