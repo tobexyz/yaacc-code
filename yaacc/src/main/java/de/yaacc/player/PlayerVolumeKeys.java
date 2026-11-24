@@ -32,7 +32,7 @@ import de.yaacc.util.YaaccLogger;
 
 /**
  * The hardware volume keys on the receivers page, best effort (decision D32): if <b>exactly one</b> player of YAACC is active (playing
- * or paused) and it plays to a remote receiver (a UPnP renderer, an OpenHome device, an FCast receiver or a Snapcast group) that can
+ * or paused) and it plays to a remote receiver (a UPnP renderer, an OpenHome device, an FCast receiver, a Snapcast group or a Sendspin player) that can
  * be asked for its volume, the keys change that receiver's volume by {@value #STEP} percent per press and a short message shows the
  * receiver and the new volume (the system's volume bar does not appear for a key that was taken). With no active player, with more than
  * one, or when the one that is active plays on this phone, the keys are the system's, as before: a local player uses the phone's own
@@ -56,7 +56,7 @@ public final class PlayerVolumeKeys {
     /** Does the player play to a receiver (and not on this phone)? */
     static boolean isRemote(Player player) {
         return player instanceof AVTransportPlayer || player instanceof OpenHomePlayer || player instanceof FCastPlayer
-                || player instanceof SnapcastPlayer;
+                || player instanceof SnapcastPlayer || player instanceof SendspinPlayer;
     }
 
     private static boolean isActive(Player player) {

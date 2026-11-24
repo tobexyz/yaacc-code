@@ -21,6 +21,7 @@ package de.yaacc.sendspin.hub;
 import de.yaacc.sendspin.secure.Identity;
 import de.yaacc.sendspin.secure.NoiseException;
 import de.yaacc.sendspin.secure.SendspinPsk;
+import de.yaacc.sendspin.session.CommandThread;
 import de.yaacc.sendspin.session.Envelope;
 import de.yaacc.sendspin.session.ProtocolException;
 import de.yaacc.sendspin.session.SecureChannel;
@@ -246,6 +247,10 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
     /** Ends the connection: stops a running stream, tells the player and closes. Safe to call more than once. */
     public void close() {
         closing = true;
+        if (CommandThread.onMainThread()) {
+            CommandThread.run(this::close); // the close frame is a write
+            return;
+        }
         PcmStreamer current;
         synchronized (lock) {
             current = streamer;
@@ -278,6 +283,10 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
      * policy; if the player waits, it is activated now.
      */
     public void approve() {
+        if (CommandThread.onMainThread()) {
+            CommandThread.run(this::approve);
+            return;
+        }
         String id = clientId;
         if (id == null) {
             return;
@@ -305,6 +314,10 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
      * @return false if the connection is not ready for it (not approved or paired, no role, ended)
      */
     public boolean startPlayback() {
+        if (CommandThread.onMainThread()) {
+            CommandThread.run(this::startPlayback); // it writes to the socket; the answer is not known yet (true: the call was accepted)
+            return true;
+        }
         SecureChannel c = channel;
         synchronized (lock) {
             if (phase == Phase.ENDED) {
@@ -348,6 +361,10 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
 
     /** The YAACC player stopped: ends the stream and drops the {@code 'playback'} activity; the connection stays as available. */
     public void stopPlayback() {
+        if (CommandThread.onMainThread()) {
+            CommandThread.run(this::stopPlayback);
+            return;
+        }
         PcmStreamer current;
         SecureChannel c = channel;
         synchronized (lock) {
@@ -429,12 +446,14 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
                 || c == null) {
             return false;
         }
-        try {
-            c.sendJson(json);
-            return true;
-        } catch (IOException e) {
-            return false;
-        }
+        CommandThread.run(() -> {
+            try {
+                c.sendJson(json); // never on the main thread: a slider or a symbol is touched there
+            } catch (IOException e) {
+                // the connection is gone; its thread ends it
+            }
+        });
+        return true;
     }
 
     // PcmStreamer.Output ----------------------------------------------------

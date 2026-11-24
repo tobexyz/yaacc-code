@@ -58,7 +58,7 @@ public class PlayerVolumeKeysTest {
     @Test
     public void everyKindOfRemotePlayerIsRemote() {
         for (Class<? extends Player> type : Arrays.<Class<? extends Player>>asList(AVTransportPlayer.class, OpenHomePlayer.class, FCastPlayer.class,
-                SnapcastPlayer.class)) {
+                SnapcastPlayer.class, SendspinPlayer.class)) {
             Player player = player(type, true, false, true);
             assertSame(type.getSimpleName(), player, PlayerVolumeKeys.target(Collections.singletonList(player)));
         }

@@ -29,6 +29,7 @@ import de.yaacc.sendspin.session.ClientHandshake;
 import de.yaacc.sendspin.session.ControllerMessages;
 import de.yaacc.sendspin.session.Envelope;
 import de.yaacc.sendspin.session.ProtocolException;
+import de.yaacc.sendspin.session.CommandThread;
 import de.yaacc.sendspin.session.SecureChannel;
 import de.yaacc.sendspin.session.SendspinMessages;
 import de.yaacc.sendspin.session.WsConnection;
@@ -229,16 +230,18 @@ public final class ControllerSession {
             return;
         }
         closing = true;
-        SecureChannel c = channel;
-        if (c != null) {
-            try {
-                c.sendJson(ControllerMessages.clientGoodbye("user_request"));
-            } catch (IOException ignored) {
-                // the connection is gone
+        final SecureChannel c = channel;
+        CommandThread.run(() -> {
+            if (c != null) {
+                try {
+                    c.sendJson(ControllerMessages.clientGoodbye("user_request"));
+                } catch (IOException ignored) {
+                    // the connection is gone
+                }
+                c.close(WsConnection.CLOSE_NORMAL);
             }
-            c.close(WsConnection.CLOSE_NORMAL);
-        }
-        closeLink();
+            closeLink();
+        });
     }
 
     private void closeLink() {
@@ -260,12 +263,15 @@ public final class ControllerSession {
         if (phase != Phase.ACTIVE || c == null || s == null || !s.supports(command) || !roles.contains("controller@v1")) {
             return false;
         }
-        try {
-            c.sendJson(json);
-            return true;
-        } catch (IOException e) {
-            return false;
-        }
+        // accepted: the write itself never runs on the main thread (a tap is made there)
+        CommandThread.run(() -> {
+            try {
+                c.sendJson(json);
+            } catch (IOException e) {
+                // the connection is gone; its thread ends the session
+            }
+        });
+        return true;
     }
 
     public boolean play() {

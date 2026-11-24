@@ -703,6 +703,8 @@ YAACC can also be a *controller* of another Sendspin server: it shows what that 
 * **Pairing as a client is not supported yet.** *Allow unpaired servers* (on by default) lets a server you added control and show without pairing; the connection is encrypted but does not prove who the server is. A server that insists on pairing is shown as "needs pairing (not supported yet)".
 * Tested with the reference server of the project (it offers only the group switch, sends no cover and announces itself by mDNS); not tested with Music Assistant, and the search with the phone's network service was not run on a device.
 
+**Volume buttons.** With one active player of YAACC that plays to a Sendspin player (on the receivers page), the hardware volume buttons change that player's volume by 5 percent per press, as for FCast receivers; the card of a server is not a target.
+
 ### Older players without encryption and players that look for a server (both off by default)
 
 Some players do not wait for you to add them: they look for a server that announces itself and then connect to it (the Kodi add-on works like this), and some speak an older version of the protocol without encryption, which the specification YAACC implements does not define. Two optional settings under *Settings* > *Sendspin* make YAACC work with them. **Both are off by default** and both need *Use Sendspin players*.
