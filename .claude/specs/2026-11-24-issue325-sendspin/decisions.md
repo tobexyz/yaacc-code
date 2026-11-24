@@ -2,6 +2,18 @@
 
 Entries marked **CONFIRM** are recommendations the owner has not decided yet; the matching group does not start before they are confirmed. Newest decision wins; a superseded entry says so.
 
+## 2026-11-24 - Owner's answers to the questions of the first spec round (owner)
+- **Package and class names: `de.yaacc.sendspin.*` and `Sendspin*` are fine.** The Snapcast package `de.yaacc.multiroom` may be renamed to `snapcast` later, once Sendspin works (a separate cleanup, not part of #325).
+- **A Docker rig is needed** (the owner has none): `tools/sendspin-rig/`, task 1.4. The owner has a **Kodi device**; whether Kodi can act as a Sendspin player or server is not known and is checked at task 1.4 (nothing is assumed).
+- **Proof of concept first, then the real implementation, is fine.** The owner cannot test for the next hours: **if the tests of the session look good, go ahead** with the next steps. Audio listening (task 4.6, Q3) stays the owner's; everything that a JVM test and the reference player can show is done without him. The session records what was and was not verified.
+- The recommended defaults of the CONFIRM entries below are used while the owner is away (library, WebSocket in-house, key storage, pairing scope, discovery default). They stay open for veto and are easy to change before release.
+
+## 2026-11-24 - Crypto inventory result (task 1.2, checked against developer.android.com)
+Android reference pages: `KeyAgreement`/`KeyPairGenerator` algorithm `XDH` (X25519) is **API 33+**; `Cipher` `ChaCha20/Poly1305/NoPadding` is **API 28+**; `AES/GCM/NoPadding` is available on API 27 (and earlier). So at minSdk 27 a library is needed for X25519 in every case and for ChaCha20-Poly1305 on API 27. SHA-256 and HMAC-SHA256 are platform. Library: Bouncy Castle `bcprov-jdk18on` **1.87** (published 2026-11-11, so older than 7 days on 2026-11-24; SHA-1 `3cf2bbc1280a743fd3d4d7d556883c13e5d28be5`, 7.3 MB jar, multi-release, BC licence), used only through the lightweight API (`org.bouncycastle.math.ec.rfc7748.X25519`, `org.bouncycastle.crypto.modes.ChaCha20Poly1305`), never as a JCA provider. The project does not minify (`docs/adr/0001`), so the debug and release APK grow by roughly the compressed jar (about 5 to 6 MB; measured when the dependency is added). Tink was not measured; BC is the recommendation.
+
+## 2026-11-24 - Reference implementation found (task 1.4)
+`sendspin` 9.1.0 on PyPI (command line player and server, Apache-2.0, repository `Sendspin-Protocol/sendspin`) on top of `aiosendspin` 10.2.2 (Apache-2.0; uses `noiseprotocol`, `cpace`, `cryptography`, `zeroconf`). `sendspin daemon --unpaired-access true --audio-device null` runs a headless player (listens on 8928, path `/sendspin`, advertises `_sendspin._tcp`) in the sandbox without audio hardware (PortAudio plus the ALSA null device); `sendspin serve` is a reference server. The player prints its identity; behavior is compared, no code is copied.
+
 ## 2026-11-09 - Server and client, MusicCast-like linking (owner)
 **Decision**: YAACC implements both roles. Linking follows the MusicCast pattern: the server leads, members follow, "Play on" a member plays on its group.
 **Rationale**: owner's request.
@@ -19,10 +31,10 @@ Entries marked **CONFIRM** are recommendations the owner has not decided yet; th
 **Decision**: the server treats "Play on" a Sendspin player as the implied approval the spec allows ("an operator action that clearly means to use the client"), persists the approval per `client_id`, shows a list in which it can be revoked, and discards it on a pairing. A player that has not been approved is never given `'playback'` or roles. The row always says whether a player is paired, approved, or neither.
 **Rationale**: spec section *Unpaired Access*; matches how the other receivers are used (you pick one and it plays).
 
-## CONFIRM - Package and class names (replaces "Neutral names")
+## DECIDED 2026-11-24 - Package and class names (replaces "Neutral names")
 **Recommendation**: `de.yaacc.sendspin.{session,secure,hub,speaker,discovery}` and `Sendspin*` class names, like `de.yaacc.fcast`, `de.yaacc.yxc`, `de.yaacc.openhome`.
 **Context**: the draft of 2026-11-09 chose neutral names (`de.yaacc.multiroom.*`) out of trademark caution. `multiroom` now holds the Snapcast code, and the trademark rules (spec `TRADEMARKS.md`) allow the protocol name in docs and source as a factual statement; what is not allowed is using it as YAACC's own product name or a logo. UI text says "Sendspin players" descriptively with a not-affiliated notice, as for FCast and Snapcast (the owner's earlier "logo" decision: text name only, no logo).
-**Decide**: neutral names or protocol names.
+**Decided by the owner on 2026-11-24: protocol names.**
 
 ## CONFIRM - Cryptography library
 **Context**: Noise `KKpsk2` needs X25519, ChaCha20-Poly1305 or AES-GCM, SHA-256 and HMAC; the Pairing PSK flow needs HMAC and SHA-256/512; the code-based methods (Phase 4) need CPace (X25519, SHA-512). On API 27 the platform has AES-GCM, SHA-2 and HMAC; X25519 is believed to arrive around API 33 and ChaCha20-Poly1305 at API 28 (task 1.2 verifies this on a device or from the platform sources).
