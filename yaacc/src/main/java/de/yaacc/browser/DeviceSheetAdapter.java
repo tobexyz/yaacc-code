@@ -237,9 +237,13 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
 
     /**
      * Whether the picker lists a receiver for this content: a Snapcast group plays music only, so it is not offered for images
-     * and videos. Every other receiver is always offered.
+     * and videos, and the card of a Sendspin server (the controller) is never offered: nothing is played to a server, its card
+     * controls it. Every other receiver is always offered.
      */
     static boolean offersReceiver(Device<?, ?, ?> device, PickContent content) {
+        if (device instanceof de.yaacc.sendspin.SendspinReceiverDevice && ((de.yaacc.sendspin.SendspinReceiverDevice) device).isServer()) {
+            return false;
+        }
         return !(device instanceof SnapcastGroupDevice) || content == null || content.offersAudioOnlyReceivers();
     }
 

@@ -79,6 +79,16 @@ public class DeviceSheetListedRowsTest {
     }
 
     @Test
+    public void theCardOfASendspinServerIsNeverOfferedAsAPlaceToPlayButAPlayerIs() {
+        de.yaacc.sendspin.hub.Endpoint playerEndpoint = de.yaacc.sendspin.hub.Endpoint.inbound("192.168.1.8");
+        assertFalse(DeviceSheetAdapter.offersReceiver(de.yaacc.sendspin.SendspinReceiverDevice.ofServer(playerEndpoint, "Music Assistant"),
+                PickContent.ofKind("audio")));
+        assertFalse(DeviceSheetAdapter.offersReceiver(de.yaacc.sendspin.SendspinReceiverDevice.ofServer(playerEndpoint, "Music Assistant"), null));
+        assertTrue(DeviceSheetAdapter.offersReceiver(de.yaacc.sendspin.SendspinReceiverDevice.of(playerEndpoint, "Kitchen"),
+                PickContent.ofKind("audio")));
+    }
+
+    @Test
     public void everyOtherReceiverIsOfferedForEveryContent() {
         org.fourthline.cling.model.meta.Device<?, ?, ?> other = org.mockito.Mockito.mock(org.fourthline.cling.model.meta.Device.class);
 
