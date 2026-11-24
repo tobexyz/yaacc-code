@@ -137,4 +137,5 @@ Places a Sendspin receiver touches (task 1.3, read on 2026-11-24 by following FC
 - [ ] 11.3 FLAC encoding on the hub, Opus, the `source` role
 - [x] 11.4 Client-initiated connection mode of the hub (advertise `_sendspin-server._tcp`, accept inbound sockets), opt-in and off by default, with the legacy unencrypted wire (decisions, 2026-11-24)
   - **Accept (all)**: tests first for pure parts, general then security review, documentation update.
+- [ ] 11.6 **Linking (groups, S7)**: design in `groups.md` (waiting for the owner's decisions G1 to G7), then `GroupStreamer`, hub and app player, link sheet and card, group volume.
 - [ ] 11.5 **Roles of the phone as a client (owner's idea, 2026-11-24; P5 in `usecases.md`)**: a setting for the roles the phone offers a server (speaker = player, now playing = metadata, cover display = artwork, visualizer), a screen for each (a full-screen cover, a light or colour show), the roles listed in the phone's `client/hello`. Needs the phone as a player (P1 to P4) first; read the visualizer role of the specification before the design. Not started.
