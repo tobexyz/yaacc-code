@@ -25,7 +25,7 @@ case "$mode" in
     port="${2:-8928}"
     name="${3:-RigPlayer}"
     unpaired="${4:-true}"
-    exec "$RIG_DIR/venv/bin/sendspin" daemon --unpaired-access "$unpaired" --audio-device null --disable-mpris \
+    exec "$RIG_DIR/venv/bin/sendspin" daemon --unpaired-access "$unpaired" --audio-device "${RIG_AUDIO_DEVICE:-null}" --disable-mpris \
       --settings-dir "$RIG_DIR/player-$port" --name "$name" --port "$port" --log-level "${RIG_LOG_LEVEL:-INFO}"
     ;;
   server)
