@@ -674,6 +674,30 @@ For development there is a small test receiver in `tools/fcast-rig/` that announ
 
 This application is an independent community implementation of the FCast protocol. It is not affiliated with FUTO. FCast is a registered trademark of FUTO.
 
+## Sendspin
+
+[Sendspin](https://www.sendspin-audio.com/) is an open multi-room audio protocol of the Open Home Foundation (used by Music Assistant, ESPHome and small players). YAACC is a Sendspin **server**: it plays the music of your queue to Sendspin players on the network. This application implements the Sendspin protocol and is not affiliated with the Open Home Foundation; Sendspin is a trademark of the Open Home Foundation. **This is a first, experimental version:** it was tested against the reference player of the project in a test rig, not yet on a phone with real players.
+
+### Switching it on and adding players
+
+* *Settings* > *Sendspin* > *Use Sendspin players* (**off by default**) lists the players you added as receivers and lets YAACC connect to them. YAACC only connects out; nothing listens on the phone.
+* *Settings* > *Sendspin* > *Sendspin players*: type the **address** of a player (`host` or `host:port`, port 8928 by default, for example `192.168.0.7` or `kitchen.local:8928`) and add it, or remove it. Players are added by address only; searching the network by mDNS is not part of this version.
+
+### Playing
+
+* The player appears among the receivers with its name, its address and its state. Choose it and play music (music only: no pictures or videos). Sound goes to the player; the phone stays silent.
+* **Approval.** A player that does not know YAACC is not given audio until you approve it. **Playing to it is the approval**; it is remembered, and the card says "not approved yet" before. The protocol warns that such a connection is not authenticated: someone on your network could pose as the player or as your phone. Pairing, which fixes that, is not supported yet.
+* **Players that demand pairing** (the ones that do not admit unpaired servers) are shown as "needs pairing" and can not be used yet.
+* The volume slider and the mute symbol of the card are the player's own volume and mute (if the player offers them). Pause and seek work as for other receivers (a pause ends the stream, a seek clears what the player had buffered).
+* The stream is PCM, 16 bit, stereo, at a rate the player lists. A player that offers only FLAC or Opus can not be used. Sync between several players, groups and linking are not part of this version; each player is played to on its own.
+
+### Limits and security
+
+* No pairing and no groups yet; the connection to a player is encrypted end to end (Noise protocol), but without pairing it does not prove who the other side is.
+* The identity key of the phone as a Sendspin server is kept in the app's private storage (backup is off); wrapping it with the Android Keystore is still to do.
+* The phone as a Sendspin **player** (other servers play to the phone) is not part of this version.
+* A test rig with the reference player is in `tools/sendspin-rig/`.
+
 ## Media server
 
 YAACC includes a media server service, which has to be enabled separately.
