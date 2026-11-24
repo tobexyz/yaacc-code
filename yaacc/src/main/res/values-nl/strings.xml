@@ -574,4 +574,10 @@
     <string name="fcast_link_note_v4">De ontvanger wordt toegevoegd aan uw lijst met FCast-ontvangers. Er wordt niets op afgespeeld totdat u hem selecteert. Deze link bevat de sleutel van de ontvanger: vanaf Android 10 is de verbinding versleuteld (protocol v4).</string>
     <string name="fcast_key_refused">De sleutel van de ontvanger is niet de aangekondigde, daarom heeft YAACC geen verbinding gemaakt. Is de ontvanger opnieuw geïnstalleerd, verwijder hem dan en voeg hem opnieuw toe met zijn verbindingslink.</string>
     <string name="fcast_secure_failed">De versleutelde verbinding (versie 4) met de ontvanger kon niet worden gemaakt, daarom heeft YAACC geen verbinding gemaakt. U kunt versie 4 uitzetten onder Instellingen > FCast.</string>
+    <string name="search_action">Zoeken</string>
+    <string name="search_hint">Zoekwoorden</string>
+    <string name="search_results_title">Zoeken: %1$s</string>
+    <string name="search_not_supported">Deze server ondersteunt zoeken niet.</string>
+    <string name="search_no_results">Niets gevonden.</string>
+    <string name="search_content">Zoeken op deze server</string>
 </resources>

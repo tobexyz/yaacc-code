@@ -146,6 +146,17 @@ ascending or descending. yaacc uses the server's own sort support when browsing
 a UPnP/DLNA server that offers it, falling back to sorting the results itself
 otherwise. The chosen sort order is remembered across app restarts.
 
+### Searching a server
+
+The magnifier in the folder header searches the **whole selected server**, wherever you are in its folders (issue #336). Type
+one or more words; every word must be found in at least one of the properties the server can search (the title, and where the
+server lists them the artist, the album, the creator, the genre and the description), so "beatles help" finds a song of the
+Beatles whose title has "help" in it. The results are shown as a folder of their own with the same sorting, paging and playing as
+any folder; the back arrow returns to where you started. Not every server can search: a server that does not have the search
+action, or lists no property to search, answers with the message that it does not support searching. If a search finds nothing, the app asks the server again in
+simpler or wider forms (the title alone, then the title in every spelling of your words) before it says that nothing was found. A search from your own
+YAACC server is not possible yet (it does not answer searches).
+
 ![browse_music_folder](./screenshots/6.0.x/browse_music_folder.png){:height="30%" width="30%"}
 
 ### Choosing receivers (new layout)
@@ -705,6 +716,8 @@ The media paths apply to everything the server answers: a client that guesses th
 gallery outside them gets "no such object" (and no thumbnail or cover), and a media path is matched literally (a `_` or `%` in
 the name is no wildcard). A folder you deselect in *SAF content* is no longer listed or sent, also not to a client that
 remembers its ids.
+
+**Search.** The server answers the UPnP *Search* action (and *GetSearchCapabilities*), so a control point can search it, YAACC's own search among them. The media store is searched (the music, the videos and the images inside the media paths); the container only says where the search starts: the root (`0`) searches everything, the *Music*, *Videos* and *Images* folders (and their *All ...* folders) that kind of items only, any other container (an album, a gallery, a SAF folder) finds nothing. The properties are `dc:title` (the title and the file name of a song, the file name of a video or an image), `dc:creator` and `upnp:artist`, `upnp:album`, `upnp:genre` (Android 11 and newer) and `upnp:class`, with `contains`, `doesNotContain`, `=`, `!=`, `exists` (and `derivedfrom` for the class), combined with `and`, `or` and brackets, or `*` for everything. The results are the music, then the videos, then the images (sorted by title, or as asked, by `dc:title` or `dc:date`), and a client can ask for them page by page. Criteria the server does not understand or does not search by (another property, `<` or `>`) are refused with the UPnP error 708. The text is compared without regard to the case for the letters A to Z only (the comparison of the media store). **Not searched:** the files of the added SAF folders.
 
 ![server_control](./screenshots/6.0.x/server_control.png){:height="30%" width="30%"}
 

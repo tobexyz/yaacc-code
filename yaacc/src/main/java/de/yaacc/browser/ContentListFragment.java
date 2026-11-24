@@ -256,6 +256,7 @@ public class ContentListFragment extends Fragment implements OnClickListener,
         footerSeparator = contentlistView.findViewById(R.id.contentListBottomSeperator);
         initFooter();
         initSortToggle(contentlistView);
+        initSearchButton(contentlistView);
         topSeperator = contentlistView.findViewById(R.id.contentListTopSeperator);
         contentList = contentlistView.findViewById(R.id.contentList);
         progressBar = contentlistView.findViewById(R.id.contentListProgressBar);
@@ -346,6 +347,97 @@ public class ContentListFragment extends Fragment implements OnClickListener,
             }
         });
         updateSortToggleUi();
+    }
+
+    // ---- search on the selected server (issue #336)
+
+    /** The search button of the header: it asks for the words and shows the results as a folder of its own. */
+    private void initSearchButton(View contentlistView) {
+        View searchButton = contentlistView.findViewById(R.id.contentListSearchButton);
+        if (searchButton != null) {
+            searchButton.setOnClickListener(v -> showSearchDialog());
+        }
+    }
+
+    private void showSearchDialog() {
+        if (getContext() == null || upnpClient == null || upnpClient.getProviderDevice() == null) {
+            return;
+        }
+        final android.widget.EditText input = new android.widget.EditText(requireContext());
+        input.setSingleLine(true);
+        input.setHint(R.string.search_hint);
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        input.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
+        // the margins of the other input dialogs of the app (a view set directly runs from edge to edge of the dialog)
+        final float density = getResources().getDisplayMetrics().density;
+        final int pad = (int) (16 * density);
+        final android.widget.LinearLayout content = new android.widget.LinearLayout(requireContext());
+        content.setOrientation(android.widget.LinearLayout.VERTICAL);
+        content.setPadding(pad, (int) (8 * density), pad, 0);
+        content.addView(input, new android.widget.LinearLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT));
+        final androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle(R.string.search_content)
+                .setView(content)
+                .setPositiveButton(R.string.search_action, (d, which) -> startSearch(input.getText().toString()))
+                .setNegativeButton(android.R.string.cancel, null)
+                .create();
+        input.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                dialog.dismiss();
+                startSearch(input.getText().toString());
+                return true;
+            }
+            return false;
+        });
+        dialog.show();
+        input.requestFocus();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+        }
+    }
+
+    /**
+     * Searches the whole selected server from its root for the words (every word in at least one searchable property of the
+     * server); the results are shown like a folder, the back arrow leads back to where the search started. A server that can not
+     * search is told so and nothing changes.
+     */
+    private void startSearch(String typed) {
+        final String text = de.yaacc.upnp.search.SearchCriteria.normalized(typed);
+        final UpnpClient client = upnpClient;
+        if (text.isEmpty() || client == null || client.getProviderDevice() == null) {
+            return;
+        }
+        final org.fourthline.cling.model.meta.Device<?, ?, ?> device = client.getProviderDevice();
+        final android.content.Context appContext = requireContext().getApplicationContext();
+        Thread worker = new Thread(() -> {
+            final boolean supported = client.supportsSearch(device); // asks the server once: not on the main thread
+            if (getActivity() == null) {
+                return;
+            }
+            getActivity().runOnUiThread(() -> {
+                if (!isAdded()) {
+                    return;
+                }
+                if (!supported) {
+                    android.widget.Toast.makeText(appContext, R.string.search_not_supported, android.widget.Toast.LENGTH_LONG).show();
+                    return;
+                }
+                if (navigator == null) {
+                    navigator = new Navigator();
+                    navigator.pushPosition(new Position(0, Navigator.ITEM_ROOT_OBJECT_ID, client.getProviderDeviceId(), ""));
+                }
+                Position current = navigator.getCurrentPosition();
+                if (current != null && de.yaacc.upnp.search.SearchPosition.isSearch(current.getObjectId())) {
+                    navigator.popPosition(); // a new search replaces the old one: back goes to where the first one started
+                }
+                navigator.pushPosition(new Position(0, de.yaacc.upnp.search.SearchPosition.objectId(text), client.getProviderDeviceId(),
+                        getString(R.string.search_results_title, text)));
+                populateItemList(true);
+            });
+        }, "search-support");
+        worker.setDaemon(true);
+        worker.start();
     }
 
     private void onSortModeSelected(BrowseContentItemAdapter.SortMode mode) {

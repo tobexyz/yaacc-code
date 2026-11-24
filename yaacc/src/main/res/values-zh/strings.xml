@@ -570,4 +570,10 @@
     <string name="fcast_link_note_v4">该接收器将被添加到您的 FCast 接收器列表。在您选择它之前不会在其上播放任何内容。此链接包含接收器的密钥：在 Android 10 及更高版本上，连接已加密（协议 v4）。</string>
     <string name="fcast_key_refused">接收器的密钥与所公告的不一致，因此 YAACC 没有连接。如果接收器已重新安装，请将其删除，并使用其连接链接重新添加。</string>
     <string name="fcast_secure_failed">无法与接收器建立加密连接（版本 4），因此 YAACC 没有连接。您可以在设置 > FCast 中关闭版本 4。</string>
+    <string name="search_action">搜索</string>
+    <string name="search_hint">搜索词</string>
+    <string name="search_results_title">搜索：%1$s</string>
+    <string name="search_not_supported">此服务器不支持搜索。</string>
+    <string name="search_no_results">未找到任何内容。</string>
+    <string name="search_content">在此服务器上搜索</string>
 </resources>
