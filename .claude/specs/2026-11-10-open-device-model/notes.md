@@ -1,6 +1,6 @@
 # An open multimedia device: protocol landscape and a device model (idea)
 
-Status: IDEA, not a plan. Written 2026-11-10 after a discussion; the owner wants to think about whether it is worth doing. No issue, no code. Related: `.claude/specs/2026-11-09-sendspin/` (Sendspin server/client in YAACC) and `.claude/specs/2026-11-09-issue319-snapcast/notes.md` (evaluation of Snapcast and Sendspin).
+Status: IDEA, not a plan. Written 2026-11-10 after a discussion; the owner wants to think about whether it is worth doing. No issue, no code. Related: `.claude/specs/2026-11-24-issue325-sendspin/` (Sendspin server/client in YAACC) and `.claude/specs/2026-11-09-issue319-snapcast/notes.md` (evaluation of Snapcast and Sendspin).
 
 ## The idea (owner)
 An open-source multimedia device (Android is one platform, an ESP32 another) with an API for multi-room synchronized playback, a source selector, and per-source settings (tuner, DAB, internet radio, aux, ...). UPnP and OpenHome are known but not flexible enough. Question: is there a standard?
