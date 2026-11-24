@@ -46,7 +46,11 @@ public class HubRigTest {
     }
 
     private static HubConnection hub(Endpoint endpoint, ServerPolicy policy) {
-        return new HubConnection(endpoint, Identity.generate(new SecureRandom()), policy, new Connector.Sockets(), HubClock.SYSTEM,
+        return hub(endpoint, Identity.generate(new SecureRandom()), policy);
+    }
+
+    private static HubConnection hub(Endpoint endpoint, Identity identity, ServerPolicy policy) {
+        return new HubConnection(endpoint, identity, policy, new Connector.Sockets(), HubClock.SYSTEM,
                 new SecureRandom(), "YAACC rig test", null);
     }
 
@@ -121,6 +125,54 @@ public class HubRigTest {
             assertTrue(hub.streamer() == null);
         } finally {
             hub.close();
+        }
+    }
+
+    /**
+     * {@code -Dsendspin.rig.paired=host:port} of a player started with unpaired access off and {@code -Dsendspin.rig.token} with
+     * its pairing token: the first connection pairs it (Pairing PSK, then the re-handshake to the new long-term PSK) and plays; the
+     * second connection of the same server needs no token any more.
+     */
+    @Test
+    public void aTokenPairsAPlayerThatRefusesUnpairedAccessAndTheNextConnectionNeedsNoToken() throws Exception {
+        Endpoint endpoint = endpoint("sendspin.rig.paired");
+        String text = System.getProperty("sendspin.rig.token");
+        Assume.assumeTrue("no -Dsendspin.rig.token", text != null && !text.isEmpty());
+        de.yaacc.sendspin.secure.PairingToken token = de.yaacc.sendspin.secure.PairingToken.decode(text);
+        assertNotNull("the token does not decode", token);
+        ServerPolicy.InMemory policy = new ServerPolicy.InMemory();
+        policy.addToken(token.clientId(), token.pairingPsk());
+        Identity server = Identity.generate(new SecureRandom());
+
+        HubConnection first = hub(endpoint, server, policy);
+        first.start();
+        try {
+            await(first, HubConnection.Phase.READY, 20_000);
+            assertTrue("paired", first.isPaired());
+            assertTrue(policy.isPaired(token.clientId()));
+            assertTrue("the token is used up", policy.pairingPsk(token.clientId()) == null);
+            System.out.println("rig: paired '" + first.hello().name + "', " + first.streamFormat().sampleRate + " Hz");
+            PcmStreamer streamer = first.streamer();
+            int rate = first.streamFormat().sampleRate;
+            int frames = rate / 50;
+            byte[] chunk = new byte[frames * 4];
+            for (int i = 0; i < 100; i++) {
+                assertTrue("write " + i, streamer.write(chunk, 0, chunk.length));
+            }
+            streamer.end();
+        } finally {
+            first.close();
+        }
+
+        HubConnection second = hub(endpoint, server, policy);
+        second.start();
+        try {
+            await(second, HubConnection.Phase.READY, 20_000);
+            assertTrue("the long-term PSK is used", second.isPaired());
+            assertEquals(HubConnection.PairingFailure.NONE, second.pairingFailure());
+            System.out.println("rig: second connection ready under the long-term PSK");
+        } finally {
+            second.close();
         }
     }
 }

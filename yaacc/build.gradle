@@ -147,7 +147,7 @@ android {
             // the test JVM; without it nothing is set and the rig tests are skipped
             // (snapcast.rig.seconds and snapcast.rig.expectChunks tune the binary protocol rig test); sendspin.rig=<host:port> and
             // sendspin.rig.paired=<host:port> are the same for the Sendspin rig (tools/sendspin-rig)
-            ['snapcast.rig', 'snapcast.rig.seconds', 'snapcast.rig.expectChunks', 'sendspin.rig', 'sendspin.rig.paired', 'sendspin.rig.seconds'].each { name ->
+            ['snapcast.rig', 'snapcast.rig.seconds', 'snapcast.rig.expectChunks', 'sendspin.rig', 'sendspin.rig.paired', 'sendspin.rig.seconds', 'sendspin.rig.token'].each { name ->
                 if (System.getProperty(name)) {
                     testTask.systemProperty name, System.getProperty(name)
                 }
