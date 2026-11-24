@@ -15,7 +15,6 @@
 
 package org.fourthline.cling.support.model;
 
-import java.util.logging.Logger;
 
 /**
  * @author Christian Bauer
@@ -30,7 +29,6 @@ public enum Protocol {
     XBMC_GET("xbmc-get"),
     OTHER("other");
 
-    private static final Logger LOG = Logger.getLogger(Protocol.class.getName());
 
     private String protocolString;
 
@@ -49,7 +47,7 @@ public enum Protocol {
                 return protocol;
             }
         }
-        LOG.info("Unsupported OTHER protocol string: " + s);
+        de.yaacc.util.YaaccLogger.i(Protocol.class.getName(), "Unsupported OTHER protocol string: " + s);
         return OTHER;
     }
 

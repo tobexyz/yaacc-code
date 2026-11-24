@@ -38,7 +38,6 @@ import org.fourthline.cling.model.meta.Service;
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
 import org.fourthline.cling.support.model.TransportAction;
 
-import java.util.logging.Logger;
 
 import de.yaacc.upnp.callback.ActionCallback;
 import de.yaacc.upnp.server.http.HttpRequestSender;
@@ -48,7 +47,6 @@ import de.yaacc.upnp.server.http.HttpRequestSender;
  */
 public abstract class GetCurrentTransportActions extends ActionCallback {
 
-    private static Logger log = Logger.getLogger(GetCurrentTransportActions.class.getName());
 
     public GetCurrentTransportActions(HttpRequestSender httpRequestSender, Service service) {
         this(httpRequestSender, new UnsignedIntegerFourBytes(0), service);

@@ -57,7 +57,6 @@ import org.fourthline.cling.model.meta.Service;
 import org.fourthline.cling.model.types.UnsignedIntegerFourBytes;
 import org.fourthline.cling.support.model.DeviceCapabilities;
 
-import java.util.logging.Logger;
 
 import de.yaacc.upnp.callback.ActionCallback;
 import de.yaacc.upnp.server.http.HttpRequestSender;
@@ -68,7 +67,6 @@ import de.yaacc.upnp.server.http.HttpRequestSender;
  */
 public abstract class GetDeviceCapabilities extends ActionCallback {
 
-    private static Logger log = Logger.getLogger(GetDeviceCapabilities.class.getName());
 
     public GetDeviceCapabilities(HttpRequestSender httpRequestSender, Service service) {
         this(httpRequestSender, new UnsignedIntegerFourBytes(0), service);

@@ -39,7 +39,6 @@ import org.fourthline.cling.model.meta.LocalDevice;
 import org.fourthline.cling.model.types.NotificationSubtype;
 
 import java.io.IOException;
-import java.util.logging.Logger;
 
 import de.yaacc.upnp.server.udp.UdpTransiver;
 import de.yaacc.util.YaaccLogger;
@@ -51,7 +50,6 @@ import de.yaacc.util.YaaccLogger;
  */
 public class SendingNotificationByebye extends SendingNotification {
 
-    final private static Logger log = Logger.getLogger(SendingNotification.class.getName());
 
     public SendingNotificationByebye(Context context, UdpTransiver udpTransiver, LocalDevice device) {
         super(context, udpTransiver, device);
