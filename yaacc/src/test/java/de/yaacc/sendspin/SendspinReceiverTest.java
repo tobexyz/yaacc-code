@@ -47,6 +47,11 @@ public class SendspinReceiverTest {
         public String stateWithTitle(String state, String title) {
             return state + ": " + title;
         }
+
+        @Override
+        public String serverType() {
+            return "Sendspin server";
+        }
     };
 
     @Test
@@ -121,6 +126,70 @@ public class SendspinReceiverTest {
                     || state == SendspinRowText.State.PAIRING_REJECTED || state == SendspinRowText.State.PAIRING_FAILED;
             assertEquals(state.name(), expected, SendspinRowText.offersPairing(state));
         }
+    }
+
+    @Test
+    public void aServerCardIsAnotherKindOfDeviceWithItsOwnIdAndName() {
+        Endpoint endpoint = SendspinAddress.parseServer("music.local");
+        SendspinReceiverDevice server = SendspinReceiverDevice.ofServer(endpoint, "Music Assistant");
+        assertTrue(server.isServer());
+        assertFalse(SendspinReceiverDevice.of(endpoint, "x").isServer());
+        assertEquals("sendspin-server:music.local:8927", server.getReceiverId());
+        assertEquals("sendspin-server:music.local:8927", server.getIdentity().getUdn().getIdentifierString());
+        assertEquals("Music Assistant (Sendspin server)", server.getDisplayString());
+        assertTrue(SendspinAddress.isServerId(server.getReceiverId()));
+        assertFalse("a server id is not a player id", SendspinAddress.isSendspinId(server.getReceiverId()));
+        assertFalse(SendspinAddress.isServerId("sendspin:music.local:8927"));
+        assertEquals(endpoint, SendspinAddress.serverEndpointOf(server.getReceiverId()));
+        assertNull(SendspinAddress.serverEndpointOf("sendspin:music.local:8927"));
+        assertNull(SendspinAddress.endpointOf(server.getReceiverId()));
+        assertEquals("the server port is the default", 8927, SendspinAddress.parseServer("music.local").port());
+        assertEquals("the player port is the default", 8928, SendspinAddress.parse("music.local").port());
+    }
+
+    @Test
+    public void everyStateOfAServerSessionHasAStateInWords() {
+        assertEquals(SendspinRowText.State.NOT_CONNECTED, SendspinRowText.stateOfServer(null, null, false));
+        for (de.yaacc.sendspin.client.ControllerSession.Phase phase : de.yaacc.sendspin.client.ControllerSession.Phase.values()) {
+            assertNotNull(phase.name(), SendspinRowText.stateOfServer(phase, de.yaacc.sendspin.client.ControllerSession.EndReason.NONE, false));
+        }
+        de.yaacc.sendspin.client.ControllerSession.Phase active = de.yaacc.sendspin.client.ControllerSession.Phase.ACTIVE;
+        assertEquals(SendspinRowText.State.SERVER_CONNECTED, SendspinRowText.stateOfServer(active, null, false));
+        assertEquals(SendspinRowText.State.PLAYING, SendspinRowText.stateOfServer(active, null, true));
+        assertEquals(SendspinRowText.State.SERVER_WAITING,
+                SendspinRowText.stateOfServer(de.yaacc.sendspin.client.ControllerSession.Phase.WAITING_FOR_SERVER, null, false));
+        assertEquals(SendspinRowText.State.CONNECTING,
+                SendspinRowText.stateOfServer(de.yaacc.sendspin.client.ControllerSession.Phase.WAITING_FOR_ACTIVATION, null, false));
+        de.yaacc.sendspin.client.ControllerSession.Phase ended = de.yaacc.sendspin.client.ControllerSession.Phase.ENDED;
+        assertEquals(SendspinRowText.State.SERVER_NEEDS_PAIRING, SendspinRowText.stateOfServer(ended,
+                de.yaacc.sendspin.client.ControllerSession.EndReason.PAIRING_REQUIRED, false));
+        assertEquals(SendspinRowText.State.SERVER_REFUSED, SendspinRowText.stateOfServer(ended,
+                de.yaacc.sendspin.client.ControllerSession.EndReason.UNAUTHORIZED, false));
+        assertEquals(SendspinRowText.State.UNREACHABLE, SendspinRowText.stateOfServer(ended,
+                de.yaacc.sendspin.client.ControllerSession.EndReason.FAILED, false));
+        assertEquals(SendspinRowText.State.DISCONNECTED, SendspinRowText.stateOfServer(ended,
+                de.yaacc.sendspin.client.ControllerSession.EndReason.SERVER_CLOSED, false));
+        for (SendspinRowText.State state : SendspinRowText.State.values()) {
+            assertFalse("a server card does not offer the entry of a pairing token (pairing as a client is not part of this version)",
+                    state == SendspinRowText.State.SERVER_NEEDS_PAIRING && SendspinRowText.offersPairing(state));
+        }
+    }
+
+    @Test
+    public void aServerCardTextHasTheServerTypeAndNowPlaying() {
+        assertEquals("Sendspin server · Music Assistant · music.local:8927 · playing: Band - Song",
+                SendspinRowText.ofServer("Music Assistant", "music.local:8927", SendspinRowText.State.PLAYING, "Band - Song", WORDS));
+        assertEquals("Sendspin server · music.local:8927 · server_connected",
+                SendspinRowText.ofServer(null, "music.local:8927", SendspinRowText.State.SERVER_CONNECTED, "", WORDS));
+    }
+
+    @Test
+    public void theNowPlayingTextJoinsArtistAndTitleAndLeavesOutWhatIsMissing() {
+        assertEquals("Band - Song", SendspinRowText.nowPlaying("Song", "Band"));
+        assertEquals("Song", SendspinRowText.nowPlaying("Song", null));
+        assertEquals("Band", SendspinRowText.nowPlaying("", "Band"));
+        assertEquals("", SendspinRowText.nowPlaying(null, null));
+        assertEquals("control characters of the network are cleaned", "Band - Song", SendspinRowText.nowPlaying("Song\u0007", "Band\n"));
     }
 
     @Test

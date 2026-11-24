@@ -1,6 +1,6 @@
 # Controller: the phone controls the group of another Sendspin server (#325, use cases C1 to C3)
 
-Status: DRAFT, started 2026-11-24 after the owner's go ("Start with the controller"). Use cases and the control channel:
+Status: K1 to K6 built on 2026-11-24 (JVM tests, the rig test against the reference server; never run on a device, not tried with Music Assistant); K5 without mDNS search of `_sendspin-server._tcp` (addresses are typed), K7 docs done, the security review of the client side is open. Pairing as a client (K8) is open. Started 2026-11-24 after the owner's go ("Start with the controller"). Use cases and the control channel:
 `usecases.md`. Normative source: the Sendspin specification at `2cfe197` (sections: Establishing a Connection, Communication,
 Clock Synchronization, Core messages, Controller messages, Metadata messages).
 

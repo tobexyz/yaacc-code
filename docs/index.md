@@ -693,6 +693,16 @@ This application is an independent community implementation of the FCast protoco
 * The volume slider and the mute symbol of the card are the player's own volume and mute (if the player offers them). Pause and seek work as for other receivers (a pause ends the stream, a seek clears what the player had buffered).
 * The stream is PCM, 16 bit, stereo, at a rate the player lists. A player that offers only FLAC or Opus can not be used. Sync between several players, groups and linking are not part of this version; each player is played to on its own.
 
+### Controlling a Sendspin server (Music Assistant and others)
+
+YAACC can also be a *controller* of another Sendspin server: it shows what that server plays and sends commands, and plays nothing itself.
+
+* *Settings* > *Sendspin* > switch *Control Sendspin servers* (off by default), then *Sendspin servers*: add the address of the server (the default port is 8927). YAACC connects out to it; nothing listens on the phone.
+* The server appears among the receivers as a **card** ("Sendspin server"): the text shows the name, address and what plays (artist and title). The play, pause and stop buttons, the volume slider and the mute symbol act on the group this phone is in on the server. A tap on the text opens a sheet with previous, next, seek by 30 seconds, shuffle, repeat and the switch to the next group of the server. A control is enabled only if the server offers it. The card is not a place to play to: choosing it as a receiver does nothing.
+* The server decides what this phone may do: a card that says "connected, waiting for the server to allow control" needs the server's operator to allow YAACC (in Music Assistant, its settings for players and clients).
+* **Pairing as a client is not supported yet.** *Allow unpaired servers* (on by default) lets a server you added control and show without pairing; the connection is encrypted but does not prove who the server is. A server that insists on pairing is shown as "needs pairing (not supported yet)".
+* Tested with the reference server of the project (it offers only the group switch); not tested with Music Assistant.
+
 ### Limits and security
 
 * No groups yet; the search finds players, it does not trust them; the connection to a player is encrypted end to end (Noise protocol), but without pairing it does not prove who the other side is.

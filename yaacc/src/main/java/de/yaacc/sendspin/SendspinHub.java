@@ -76,6 +76,7 @@ public final class SendspinHub implements SendspinReceiverSource {
     private final StringSetStore store;
     private final SendspinPlayers players;
     private final SendspinPolicy approvals;
+    private final SendspinControllers controllers;
     private final Connector connector;
     private final HubClock clock;
     private final SecureRandom random = new SecureRandom();
@@ -89,6 +90,7 @@ public final class SendspinHub implements SendspinReceiverSource {
     private final Map<Endpoint, Integer> rates = new HashMap<>();
     private final Map<String, SendspinReceiverDevice> devices = new HashMap<>();
     private Identity identity;
+    private Identity clientIdentity;
 
     private SendspinHub(Context context) {
         final Context app = context.getApplicationContext();
@@ -114,6 +116,8 @@ public final class SendspinHub implements SendspinReceiverSource {
         this.approvals = new SendspinPolicy(store);
         this.connector = new Connector.Sockets();
         this.clock = HubClock.SYSTEM;
+        this.controllers = new SendspinControllers(store, this::clientIdentity,
+                () -> SendspinSettings.isUnpairedServersAllowed(preferences::getBoolean), connector, clock, random, this::controllerChanged);
         this.nsd = new SendspinNsd(app, directory);
         directory.addListener(this::fire);
         this.gate = new SnapcastDiscoveryGate(() -> SendspinSettings.isDiscoveryEnabled(preferences::getBoolean),
@@ -147,6 +151,29 @@ public final class SendspinHub implements SendspinReceiverSource {
         return SendspinSettings.isEnabled(preferences::getBoolean);
     }
 
+    public boolean isControllerEnabled() {
+        return SendspinSettings.isControllerEnabled(preferences::getBoolean);
+    }
+
+    /** The servers the phone controls (the controller role); the settings dialog edits their addresses. */
+    public SendspinControllers controllers() {
+        return controllers;
+    }
+
+    private synchronized Identity clientIdentity() {
+        if (clientIdentity == null) {
+            String stored = preferences.getString(SendspinSettings.KEY_CLIENT_IDENTITY, null);
+            byte[] key = stored == null ? null : Base64Url.decode32(stored);
+            if (key != null) {
+                clientIdentity = Identity.fromPrivateKey(key);
+            } else {
+                clientIdentity = Identity.generate(random);
+                preferences.edit().putString(SendspinSettings.KEY_CLIENT_IDENTITY, Base64Url.encode(clientIdentity.exportPrivateKey())).apply();
+            }
+        }
+        return clientIdentity;
+    }
+
     /** The players the user added; the settings dialog edits them. */
     public SendspinPlayers players() {
         return players;
@@ -175,6 +202,11 @@ public final class SendspinHub implements SendspinReceiverSource {
 
     public void removeChangeListener(SendspinDirectory.Listener listener) {
         listeners.remove(listener);
+    }
+
+    /** The lists changed from outside (a server was removed in the settings): the pages redraw. */
+    public void notifyListChanged() {
+        fire();
     }
 
     private void fire() {
@@ -276,6 +308,20 @@ public final class SendspinHub implements SendspinReceiverSource {
     }
 
     /** A connection changed: if the player's name is now known and the list shows another, the lists are told. Connection thread. */
+    /** A session of the controller changed: only a name that arrived makes the lists redraw (the rows poll the rest). */
+    private void controllerChanged(de.yaacc.sendspin.client.ControllerSession session) {
+        boolean stale = false;
+        synchronized (this) {
+            SendspinReceiverDevice device = devices.get(SendspinAddress.serverIdOf(session.endpoint()));
+            if (device != null && !device.showsSame(session.serverName())) {
+                stale = true;
+            }
+        }
+        if (stale) {
+            fire();
+        }
+    }
+
     private void connectionChanged(HubConnection connection) {
         boolean stale = false;
         synchronized (this) {
@@ -398,17 +444,29 @@ public final class SendspinHub implements SendspinReceiverSource {
 
     @Override
     public synchronized List<SendspinReceiverDevice> receivers() {
-        if (!isEnabled()) {
-            closeAll(); // switched off: nothing stays connected
-            return Collections.emptyList();
-        }
         List<SendspinReceiverDevice> result = new ArrayList<>();
         Set<String> current = new HashSet<>();
-        for (Listed player : listed()) {
-            SendspinReceiverDevice device = deviceFor(player, acquire(player.endpoint, false));
-            if (device != null) {
-                result.add(device);
-                current.add(device.getReceiverId());
+        if (!isEnabled()) {
+            closeAll(); // switched off: nothing stays connected
+        } else {
+            for (Listed player : listed()) {
+                SendspinReceiverDevice device = deviceFor(player, acquire(player.endpoint, false));
+                if (device != null) {
+                    result.add(device);
+                    current.add(device.getReceiverId());
+                }
+            }
+        }
+        if (!isControllerEnabled()) {
+            controllers.closeAll();
+        } else {
+            for (Endpoint endpoint : controllers.listed()) {
+                controllers.acquire(endpoint, false);
+                SendspinReceiverDevice device = serverDeviceFor(endpoint);
+                if (device != null) {
+                    result.add(device);
+                    current.add(device.getReceiverId());
+                }
             }
         }
         devices.keySet().retainAll(current);
@@ -422,8 +480,29 @@ public final class SendspinHub implements SendspinReceiverSource {
         return result;
     }
 
+    private SendspinReceiverDevice serverDeviceFor(Endpoint endpoint) {
+        String announced = controllers.announcedName(endpoint);
+        String id = SendspinAddress.serverIdOf(endpoint);
+        SendspinReceiverDevice cached = devices.get(id);
+        if (cached != null && cached.showsSame(announced) && cached.getEndpoint().equals(endpoint)) {
+            return cached;
+        }
+        SendspinReceiverDevice made = SendspinReceiverDevice.ofServer(endpoint, announced);
+        if (made != null) {
+            devices.put(id, made);
+        }
+        return made;
+    }
+
     @Override
     public synchronized SendspinReceiverDevice findReceiver(String receiverId) {
+        if (SendspinAddress.isServerId(receiverId)) {
+            Endpoint server = SendspinAddress.serverEndpointOf(receiverId);
+            if (server == null || !isControllerEnabled() || !controllers.listed().contains(server)) {
+                return null;
+            }
+            return serverDeviceFor(server);
+        }
         if (!isEnabled()) {
             return null;
         }

@@ -616,4 +616,23 @@
     <string name="sendspin_list_none">Aucun</string>
     <string name="sendspin_unpair">Supprimer l\'appairage du lecteur %1$s</string>
     <string name="sendspin_revoke">Révoquer l\'approbation du lecteur %1$s</string>
+    <string name="sendspin_server_row_type">Serveur Sendspin</string>
+    <string name="sendspin_server_state_connected">connecté</string>
+    <string name="sendspin_server_state_waiting">connecté, en attente que le serveur autorise le contrôle</string>
+    <string name="sendspin_server_state_needs_pairing">nécessite un appairage (pas encore pris en charge)</string>
+    <string name="sendspin_server_state_refused">refusé par le serveur</string>
+    <string name="sendspin_server_not_a_target">Cette carte contrôle un serveur Sendspin. Choisissez un lecteur pour la lecture.</string>
+    <string name="sendspin_server_previous">Précédent</string>
+    <string name="sendspin_server_next">Suivant</string>
+    <string name="sendspin_server_seek_back">-30 s</string>
+    <string name="sendspin_server_seek_forward">+30 s</string>
+    <string name="sendspin_server_shuffle_on">Aléatoire activé</string>
+    <string name="sendspin_server_shuffle_off">Aléatoire désactivé</string>
+    <string name="sendspin_server_repeat_off">Répéter : non</string>
+    <string name="sendspin_server_repeat_all">Répéter : tout</string>
+    <string name="sendspin_server_repeat_one">Répéter : un</string>
+    <string name="sendspin_server_switch">Changer de groupe</string>
+    <string name="sendspin_servers_hint">Adresse, par exemple music.local ou 192.168.0.5:8927</string>
+    <string name="sendspin_servers_none">Aucun serveur ajouté pour l\'instant</string>
+    <string name="sendspin_servers_too_many">Au plus 8 serveurs peuvent être ajoutés.</string>
 </resources>

@@ -173,4 +173,10 @@
     <string name="sendspin_players_already">Dieser Player ist bereits in der Liste.</string>
     <string name="settings_sendspin_discovery_title">Sendspin-Player suchen</string>
     <string name="settings_sendspin_discovery_summary">Sucht im lokalen Netzwerk per mDNS nach Sendspin-Playern, solange eine Seite mit den Empfängern geöffnet ist; standardmäßig an, aber nur wenn Sendspin-Player aktiviert sind. Es sendet mDNS-Anfragen und listet jeden Player auf, der sich meldet. Die Meldungen sind nicht authentifiziert: Jeder im Netzwerk kann einen Player melden. Nichts wird auf einem Player abgespielt, bevor du ihn wählst und darauf abspielst.</string>
+    <string name="settings_sendspin_controller_enabled_title">Sendspin-Server steuern</string>
+    <string name="settings_sendspin_controller_enabled_summary">Standardmäßig aus. Wenn aktiv, erscheinen die hinzugefügten Server (z. B. Music Assistant) als Karten unter den Empfängern, die anzeigen, was spielt, und es steuern: Wiedergabe, Pause, Stopp, Lautstärke, Weiter und mehr. Auf einen Server wird nichts abgespielt. Nur ausgehende Verbindungen.</string>
+    <string name="settings_sendspin_unpaired_servers_title">Nicht gekoppelte Server erlauben</string>
+    <string name="settings_sendspin_unpaired_servers_summary">Standardmäßig an. Ein hinzugefügter Server darf dann ohne Kopplung anzeigen und steuern. Die Verbindung ist verschlüsselt, beweist aber nicht, wer der Server ist (so sagt es das Protokoll); Kopplung als Client wird noch nicht unterstützt. Ausschalten, um solche Server abzulehnen.</string>
+    <string name="settings_sendspin_servers_title">Sendspin-Server</string>
+    <string name="settings_sendspin_servers_summary">Server per Adresse hinzufügen oder entfernen</string>
 </resources>

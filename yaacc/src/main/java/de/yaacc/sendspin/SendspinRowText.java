@@ -30,6 +30,14 @@ public final class SendspinRowText {
     public enum State {
         NOT_CONNECTED, CONNECTING, NEEDS_APPROVAL, PAIRING_REQUIRED, RE_PAIR_NEEDED, PAIRING, PAIRING_REJECTED, PAIRING_FAILED,
         UNUSABLE, READY, READY_PAIRED, PLAYING, PAUSED,
+        /** The card of a server: connected, the server lets this client control and show. */
+        SERVER_CONNECTED,
+        /** The card of a server: connected, but the server has not activated a role (its operator has to allow this client). */
+        SERVER_WAITING,
+        /** The card of a server: it wants pairing, which this client can not do yet. */
+        SERVER_NEEDS_PAIRING,
+        /** The card of a server: it declared something this client is not allowed to accept. */
+        SERVER_REFUSED,
         IN_USE_BY_ANOTHER_SERVER, UNREACHABLE, DISCONNECTED
     }
 
@@ -40,6 +48,9 @@ public final class SendspinRowText {
         String state(State state);
 
         String stateWithTitle(String state, String title);
+
+        /** The type word of the card of a Sendspin server. */
+        String serverType();
     }
 
     /** The longest name or title shown. */
@@ -102,6 +113,65 @@ public final class SendspinRowText {
                 }
                 return State.DISCONNECTED;
         }
+    }
+
+    /**
+     * The state of the card of a server from its session.
+     *
+     * @param groupPlaying whether the group of this client plays (from {@code group/update})
+     */
+    public static State stateOfServer(de.yaacc.sendspin.client.ControllerSession.Phase phase,
+                                      de.yaacc.sendspin.client.ControllerSession.EndReason reason, boolean groupPlaying) {
+        if (phase == null) {
+            return State.NOT_CONNECTED;
+        }
+        switch (phase) {
+            case CONNECTING:
+            case HANDSHAKING:
+            case WAITING_FOR_HELLO:
+            case WAITING_FOR_ACTIVATION:
+                return State.CONNECTING;
+            case WAITING_FOR_SERVER:
+                return State.SERVER_WAITING;
+            case ACTIVE:
+                return groupPlaying ? State.PLAYING : State.SERVER_CONNECTED;
+            case ENDED:
+            default:
+                if (reason == de.yaacc.sendspin.client.ControllerSession.EndReason.PAIRING_REQUIRED) {
+                    return State.SERVER_NEEDS_PAIRING;
+                }
+                if (reason == de.yaacc.sendspin.client.ControllerSession.EndReason.UNAUTHORIZED) {
+                    return State.SERVER_REFUSED;
+                }
+                if (reason == de.yaacc.sendspin.client.ControllerSession.EndReason.FAILED) {
+                    return State.UNREACHABLE;
+                }
+                return State.DISCONNECTED;
+        }
+    }
+
+    /** The text of the card of a server: {@code Sendspin server, name, address, state} (what plays is added to the state). */
+    public static String ofServer(String name, String address, State state, String nowPlaying, Words words) {
+        StringBuilder sb = new StringBuilder(words.serverType());
+        String cleaned = clean(name);
+        if (!cleaned.isEmpty()) {
+            sb.append(" · ").append(cleaned);
+        }
+        sb.append(" · ").append(address);
+        String stateText = words.state(state);
+        String cleanText = clean(nowPlaying);
+        sb.append(" · ").append(cleanText.isEmpty() ? stateText : words.stateWithTitle(stateText, cleanText));
+        return sb.toString();
+    }
+
+    /** {@code artist - title}, with what is missing left out; both are cleaned (they came from a server). */
+    public static String nowPlaying(String title, String artist) {
+        String t = clean(title);
+        String a = clean(artist);
+        if (t.isEmpty()) {
+            return a;
+        }
+        return a.isEmpty() ? t : a + " - " + t;
     }
 
     /** The text of a card: {@code Sendspin, name, address, state} (the title of what plays is added to the state). */

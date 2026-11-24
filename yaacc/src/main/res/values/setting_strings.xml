@@ -233,4 +233,13 @@
     <string name="settings_sendspin_discovery" translatable="false">settings_sendspin_discovery</string>
     <string name="settings_sendspin_discovery_title">Find Sendspin players</string>
     <string name="settings_sendspin_discovery_summary">Searches the local network for Sendspin players (mDNS) while a page with the receivers is open; on by default, but only while Sendspin players are switched on. It sends mDNS queries and lists every player that announces itself. Announcements are not authenticated: anyone on the network can announce a player. Nothing is played to a player before you choose it and play to it.</string>
+    <string name="settings_sendspin_controller_enabled" translatable="false">settings_sendspin_controller_enabled</string>
+    <string name="settings_sendspin_controller_enabled_title">Control Sendspin servers</string>
+    <string name="settings_sendspin_controller_enabled_summary">Off by default. When on, the servers you added (for example Music Assistant) appear among the receivers as cards that show what plays and control it: play, pause, stop, volume, next and more. Nothing is played to a server. Outgoing connections only.</string>
+    <string name="settings_sendspin_unpaired_servers" translatable="false">settings_sendspin_unpaired_servers</string>
+    <string name="settings_sendspin_unpaired_servers_title">Allow unpaired servers</string>
+    <string name="settings_sendspin_unpaired_servers_summary">On by default. A server you added may then show and control without pairing. The connection is encrypted but does not prove who the server is (the protocol says so); pairing as a client is not supported yet. Turn off to refuse such servers.</string>
+    <string name="settings_sendspin_servers" translatable="false">settings_sendspin_servers</string>
+    <string name="settings_sendspin_servers_title">Sendspin servers</string>
+    <string name="settings_sendspin_servers_summary">Add a server by address or remove it</string>
 </resources>

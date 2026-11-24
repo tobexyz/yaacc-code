@@ -46,11 +46,13 @@ final class SendspinPlayersDialog {
 
     private final Context context;
     private final SendspinHub hub;
+    private final boolean servers;
     private final EditText input;
     private final LinearLayout list;
 
-    private SendspinPlayersDialog(Context context) {
+    private SendspinPlayersDialog(Context context, boolean servers) {
         this.context = context;
+        this.servers = servers;
         this.hub = SendspinHub.getShared(context);
         float density = context.getResources().getDisplayMetrics().density;
         int pad = (int) (16 * density);
@@ -59,7 +61,7 @@ final class SendspinPlayersDialog {
         root.setPadding(pad, (int) (8 * density), pad, 0);
         input = new EditText(context);
         input.setSingleLine(true);
-        input.setHint(R.string.sendspin_players_hint);
+        input.setHint(servers ? R.string.sendspin_servers_hint : R.string.sendspin_players_hint);
         input.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI
                 | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(270)});
@@ -78,28 +80,38 @@ final class SendspinPlayersDialog {
         android.widget.ScrollView scroll = new android.widget.ScrollView(context);
         scroll.addView(root);
         new AlertDialog.Builder(context)
-                .setTitle(R.string.settings_sendspin_players_title)
+                .setTitle(servers ? R.string.settings_sendspin_servers_title : R.string.settings_sendspin_players_title)
                 .setView(scroll)
                 .setPositiveButton(android.R.string.ok, null)
                 .show();
     }
 
     static void show(Context context) {
-        new SendspinPlayersDialog(context);
+        new SendspinPlayersDialog(context, false);
+    }
+
+    /** The same dialog for the addresses of the Sendspin servers that the phone controls. */
+    static void showServers(Context context) {
+        new SendspinPlayersDialog(context, true);
+    }
+
+    private SendspinPlayers addresses() {
+        return servers ? hub.controllers().servers() : hub.players();
     }
 
     private void add() {
-        SendspinPlayers.AddResult result = hub.players().add(input.getText().toString());
+        SendspinPlayers.AddResult result = addresses().add(input.getText().toString());
         switch (result) {
             case ADDED:
                 input.setText("");
                 refresh();
+                hub.notifyListChanged();
                 break;
             case ALREADY_THERE:
                 toast(R.string.sendspin_players_already);
                 break;
             case TOO_MANY:
-                toast(R.string.sendspin_players_too_many);
+                toast(servers ? R.string.sendspin_servers_too_many : R.string.sendspin_players_too_many);
                 break;
             case NOT_AN_ADDRESS:
             default:
@@ -114,11 +126,11 @@ final class SendspinPlayersDialog {
 
     private void refresh() {
         list.removeAllViews();
-        List<Endpoint> players = hub.players().list();
+        List<Endpoint> players = addresses().list();
         float density = context.getResources().getDisplayMetrics().density;
         if (players.isEmpty()) {
             TextView none = new TextView(context);
-            none.setText(R.string.sendspin_players_none);
+            none.setText(servers ? R.string.sendspin_servers_none : R.string.sendspin_players_none);
             none.setPadding(0, (int) (12 * density), 0, (int) (12 * density));
             list.addView(none);
         }
@@ -134,11 +146,19 @@ final class SendspinPlayersDialog {
             remove.setText("✕");
             remove.setContentDescription(context.getString(R.string.sendspin_players_remove, SendspinAddress.format(endpoint)));
             remove.setOnClickListener(v -> {
-                hub.remove(endpoint);
+                if (servers) {
+                    hub.controllers().remove(endpoint);
+                    hub.notifyListChanged();
+                } else {
+                    hub.remove(endpoint);
+                }
                 refresh();
             });
             row.addView(remove);
             list.addView(row);
+        }
+        if (servers) {
+            return; // the pairings and approvals are those of players
         }
         addIds(R.string.sendspin_paired_title, hub.pairedIds(), R.string.sendspin_unpair, true);
         addIds(R.string.sendspin_approved_title, hub.approvedIds(), R.string.sendspin_revoke, false);

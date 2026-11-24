@@ -29,7 +29,9 @@ import de.yaacc.sendspin.SendspinAddress;
 import de.yaacc.sendspin.SendspinHub;
 import de.yaacc.sendspin.SendspinReceiverDevice;
 import de.yaacc.sendspin.SendspinRowText;
+import de.yaacc.sendspin.client.ControllerSession;
 import de.yaacc.sendspin.hub.HubConnection;
+import de.yaacc.sendspin.session.ControllerMessages;
 import de.yaacc.sendspin.session.SendspinMessages;
 
 /**
@@ -80,6 +82,14 @@ final class SendspinRowBinder {
                         return context.getString(R.string.sendspin_state_pairing_failed);
                     case READY_PAIRED:
                         return context.getString(R.string.sendspin_state_ready_paired);
+                    case SERVER_CONNECTED:
+                        return context.getString(R.string.sendspin_server_state_connected);
+                    case SERVER_WAITING:
+                        return context.getString(R.string.sendspin_server_state_waiting);
+                    case SERVER_NEEDS_PAIRING:
+                        return context.getString(R.string.sendspin_server_state_needs_pairing);
+                    case SERVER_REFUSED:
+                        return context.getString(R.string.sendspin_server_state_refused);
                     case UNUSABLE:
                         return context.getString(R.string.sendspin_state_unusable);
                     case READY:
@@ -104,6 +114,11 @@ final class SendspinRowBinder {
             public String stateWithTitle(String state, String title) {
                 return context.getString(R.string.sendspin_row_state_title, state, title);
             }
+
+            @Override
+            public String serverType() {
+                return context.getString(R.string.sendspin_server_row_type);
+            }
         };
     }
 
@@ -117,6 +132,10 @@ final class SendspinRowBinder {
 
     /** Wires the parts of the row that belong to a Sendspin player: the volume slider and the mute symbol. */
     void bind(final ReceiverRowBinder.RowViews views, final SendspinReceiverDevice device, final UpnpClientAccess upnp) {
+        if (device.isServer()) {
+            bindServer(views, device);
+            return;
+        }
         final String id = idOf(device);
         // nothing of MusicCast or OpenHome is shown for a Sendspin player, and there is no gear
         hide(views.yxcSource);
@@ -184,8 +203,148 @@ final class SendspinRowBinder {
         }
     }
 
+    // ------------------------------------------------------------------ the card of a server (the controller)
+
+    private ControllerSession sessionOf(SendspinReceiverDevice device) {
+        return SendspinHub.getShared(context).controllers().session(device.getEndpoint());
+    }
+
+    /**
+     * The card of a Sendspin server: it is not a place to play to. The play, pause and stop buttons, the volume slider and the mute
+     * symbol are commands to the server for the group this phone is in; a tap on the text opens the sheet with the other commands.
+     */
+    private void bindServer(final ReceiverRowBinder.RowViews views, final SendspinReceiverDevice device) {
+        final String id = device.getReceiverId();
+        hide(views.yxcSource);
+        hide(views.ohActions);
+        hide(views.yxcPresets);
+        hide(views.yxcGroupVolume);
+        hide(views.yxcGroupVolumeText);
+        hide(views.yxcToggle);
+        hide(views.yxcActions);
+        hide(views.yxcSettings);
+        hide(views.checkBox); // nothing is played to a server
+        views.volume.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+                rows.refreshPlan().userTouchStarted(id, SystemClock.elapsedRealtime());
+                seekBar.getParent().requestDisallowInterceptTouchEvent(true);
+            }
+
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (!fromUser) {
+                    return;
+                }
+                rows.refreshPlan().userChanged(id, SystemClock.elapsedRealtime());
+                views.volumeText.setText(progress + "%");
+                long now = SystemClock.elapsedRealtime();
+                if (now - lastSend >= SEND_GAP_MS) {
+                    lastSend = now;
+                    ControllerSession session = sessionOf(device);
+                    if (session != null) {
+                        session.setVolume(progress);
+                    }
+                }
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                ControllerSession session = sessionOf(device);
+                if (session != null) {
+                    session.setVolume(seekBar.getProgress()); // the last value always goes out
+                }
+                rows.refreshPlan().userTouchEnded(id, SystemClock.elapsedRealtime());
+                seekBar.getParent().requestDisallowInterceptTouchEvent(false);
+            }
+        });
+        views.mute.setOnClickListener(v -> {
+            ControllerSession session = sessionOf(device);
+            rows.refreshPlan().userChanged(id, SystemClock.elapsedRealtime());
+            if (session == null || !session.setMuted(views.mute.isChecked())) {
+                views.mute.setChecked(!views.mute.isChecked()); // the server does not offer it: the symbol stays as it was
+            }
+        });
+        showServer(views, device);
+    }
+
+    /** The transport buttons of a server card: commands to the server's group. */
+    void controlServer(SendspinReceiverDevice device, String command) {
+        SendspinHub hub = SendspinHub.getShared(context);
+        ControllerSession session = hub.controllers().acquire(device.getEndpoint(), true); // a user action makes the session again
+        if (session == null) {
+            return;
+        }
+        switch (command) {
+            case "play":
+                session.play();
+                break;
+            case "pause":
+                session.pause();
+                break;
+            default:
+                session.stop();
+                break;
+        }
+    }
+
+    private void showServer(ReceiverRowBinder.RowViews views, final SendspinReceiverDevice device) {
+        ControllerSession session = sessionOf(device);
+        ControllerMessages.Group group = session == null ? null : session.group();
+        SendspinRowText.State state = SendspinRowText.stateOfServer(session == null ? null : session.phase(),
+                session == null ? null : session.endReason(), group != null && group.playing);
+        ControllerMessages.Metadata metadata = session == null ? null : session.metadata();
+        String nowPlaying = metadata == null ? "" : SendspinRowText.nowPlaying(metadata.title, metadata.artist);
+        String text = SendspinRowText.ofServer(session == null ? null : session.serverName(), SendspinAddress.format(device.getEndpoint()),
+                state, nowPlaying, words);
+        if (views.yxcText != null) {
+            if (!text.contentEquals(views.yxcText.getText())) {
+                views.yxcText.setText(text);
+            }
+            views.yxcText.setVisibility(View.VISIBLE);
+            if (session != null && session.phase() == ControllerSession.Phase.ACTIVE) {
+                views.yxcText.setOnClickListener(v -> SendspinServerSheet.show(context, device));
+            } else {
+                views.yxcText.setOnClickListener(null);
+                views.yxcText.setClickable(false);
+            }
+        }
+        ControllerMessages.ControllerState controller = session == null ? null : session.controller();
+        String id = device.getReceiverId();
+        long now = SystemClock.elapsedRealtime();
+        if (controller != null && controller.supports("volume")) {
+            rows.showVolume(views, id, now, controller.volume);
+        } else if (!views.volume.isPressed()) {
+            views.volume.setProgress(0);
+            views.volumeText.setText("");
+        }
+        boolean volumeWorks = controller != null && controller.supports("volume");
+        views.volume.setEnabled(volumeWorks);
+        views.volume.setAlpha(volumeWorks ? 1f : 0.5f);
+        boolean muteWorks = controller != null && controller.supports("mute");
+        views.mute.setEnabled(muteWorks);
+        views.mute.setAlpha(muteWorks ? 1f : 0.5f);
+        boolean muted = muteWorks && controller.muted;
+        if (views.mute.isChecked() != muted) {
+            views.mute.setChecked(muted);
+        }
+        enable(views.btnPlay, controller != null && controller.supports("play"));
+        enable(views.btnPause, controller != null && controller.supports("pause"));
+        enable(views.btnStop, controller != null && controller.supports("stop"));
+        SnapcastMuteToggle.syncState(context, views.mute);
+    }
+
+    private static void enable(View button, boolean enabled) {
+        button.setEnabled(enabled);
+        button.setAlpha(enabled ? 1f : 0.4f);
+    }
+
     /** Shows the text, the volume and the mute state of the player in its row. Main thread. */
     void show(ReceiverRowBinder.RowViews views, SendspinReceiverDevice device, Player player) {
+        if (device.isServer()) {
+            showServer(views, device);
+            return;
+        }
         HubConnection connection = connectionOf(device);
         boolean playing = player != null && player.isPlaying();
         boolean paused = player != null && player.isPaused();

@@ -612,4 +612,23 @@
     <string name="sendspin_list_none">Geen</string>
     <string name="sendspin_unpair">Koppeling van speler %1$s verwijderen</string>
     <string name="sendspin_revoke">Goedkeuring van speler %1$s intrekken</string>
+    <string name="sendspin_server_row_type">Sendspin-server</string>
+    <string name="sendspin_server_state_connected">verbonden</string>
+    <string name="sendspin_server_state_waiting">verbonden, wacht tot de server de besturing toestaat</string>
+    <string name="sendspin_server_state_needs_pairing">vereist koppelen (nog niet ondersteund)</string>
+    <string name="sendspin_server_state_refused">niet toegestaan door de server</string>
+    <string name="sendspin_server_not_a_target">Deze kaart bestuurt een Sendspin-server. Kies een speler om af te spelen.</string>
+    <string name="sendspin_server_previous">Vorige</string>
+    <string name="sendspin_server_next">Volgende</string>
+    <string name="sendspin_server_seek_back">-30 s</string>
+    <string name="sendspin_server_seek_forward">+30 s</string>
+    <string name="sendspin_server_shuffle_on">Willekeurig aan</string>
+    <string name="sendspin_server_shuffle_off">Willekeurig uit</string>
+    <string name="sendspin_server_repeat_off">Herhalen: uit</string>
+    <string name="sendspin_server_repeat_all">Herhalen: alles</string>
+    <string name="sendspin_server_repeat_one">Herhalen: een</string>
+    <string name="sendspin_server_switch">Groep wisselen</string>
+    <string name="sendspin_servers_hint">Adres, bijvoorbeeld music.local of 192.168.0.5:8927</string>
+    <string name="sendspin_servers_none">Nog geen servers toegevoegd</string>
+    <string name="sendspin_servers_too_many">Er kunnen maximaal 8 servers worden toegevoegd.</string>
 </resources>

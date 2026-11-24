@@ -173,4 +173,10 @@
     <string name="sendspin_players_already">此播放器已在列表中。</string>
     <string name="settings_sendspin_discovery_title">查找 Sendspin 播放器</string>
     <string name="settings_sendspin_discovery_summary">在显示接收器的页面打开期间，通过 mDNS 在本地网络中查找 Sendspin 播放器；默认开启，但仅在已启用 Sendspin 播放器时有效。它会发送 mDNS 查询并列出每个自我宣告的播放器。宣告未经认证：网络中的任何人都可以宣告一个播放器。在您选择并向其播放之前，不会向任何播放器播放内容。</string>
+    <string name="settings_sendspin_controller_enabled_title">控制 Sendspin 服务器</string>
+    <string name="settings_sendspin_controller_enabled_summary">默认关闭。开启后，已添加的服务器（例如 Music Assistant）会作为卡片出现在接收器中，显示正在播放的内容并可控制：播放、暂停、停止、音量、下一首等。不会向服务器播放任何内容。仅出站连接。</string>
+    <string name="settings_sendspin_unpaired_servers_title">允许未配对的服务器</string>
+    <string name="settings_sendspin_unpaired_servers_summary">默认开启。这样，已添加的服务器无需配对即可显示和控制。连接已加密，但不能证明服务器的身份（协议如此说明）；作为客户端的配对目前尚不支持。关闭后将拒绝此类服务器。</string>
+    <string name="settings_sendspin_servers_title">Sendspin 服务器</string>
+    <string name="settings_sendspin_servers_summary">按地址添加或移除服务器</string>
 </resources>

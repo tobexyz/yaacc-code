@@ -84,7 +84,10 @@ public class SendspinResourcesTest {
             Map<String, String> strings = sendspinStrings(locale);
             for (Map.Entry<String, String> entry : english.entrySet()) {
                 boolean key = entry.getKey().equals("settings_sendspin_enabled") || entry.getKey().equals("settings_sendspin_players")
-                        || entry.getKey().equals("settings_sendspin_discovery");
+                        || entry.getKey().equals("settings_sendspin_discovery")
+                        || entry.getKey().equals("settings_sendspin_controller_enabled")
+                        || entry.getKey().equals("settings_sendspin_unpaired_servers")
+                        || entry.getKey().equals("settings_sendspin_servers");
                 if (key && !locale.equals("values")) {
                     continue; // a preference key is not translated
                 }
@@ -156,5 +159,36 @@ public class SendspinResourcesTest {
             String about = sendspinStrings(locale).get("settings_sendspin_about_summary");
             assertTrue(locale, about.contains("Open Home Foundation"));
         }
+    }
+
+    @Test
+    public void theControllerSwitchesAreDeclaredLikeTheCodeAndTheKeysAreTheOnesItReads() throws Exception {
+        Map<String, String> english = sendspinStrings("values");
+        assertEquals(SendspinSettings.KEY_CONTROLLER_ENABLED, english.get("settings_sendspin_controller_enabled"));
+        assertEquals(SendspinSettings.KEY_UNPAIRED_SERVERS, english.get("settings_sendspin_unpaired_servers"));
+        assertEquals("settings_sendspin_servers", english.get("settings_sendspin_servers"));
+        String screen = read("src/main/res/xml/preference.xml");
+        Matcher controller = Pattern.compile("<CheckBoxPreference\\s+android:defaultValue=\"(true|false)\"\\s+android:key=\"@string/settings_sendspin_controller_enabled\"")
+                .matcher(screen);
+        assertTrue("the controller switch is on the preference screen", controller.find());
+        assertEquals(String.valueOf(SendspinSettings.CONTROLLER_ENABLED_DEFAULT), controller.group(1));
+        Matcher unpaired = Pattern.compile("<CheckBoxPreference\\s+android:defaultValue=\"(true|false)\"\\s+android:dependency=\"@string/settings_sendspin_controller_enabled\"\\s+"
+                + "android:key=\"@string/settings_sendspin_unpaired_servers\"").matcher(screen);
+        assertTrue("the unpaired switch depends on the controller switch", unpaired.find());
+        assertEquals(String.valueOf(SendspinSettings.UNPAIRED_SERVERS_DEFAULT), unpaired.group(1));
+        assertFalse("the controller is off by default until it has run on a device", SendspinSettings.CONTROLLER_ENABLED_DEFAULT);
+    }
+
+    @Test
+    public void theControllerSettingsReadTheirValuesAndDefaults() {
+        assertFalse(SendspinSettings.isControllerEnabled((key, def) -> def));
+        assertTrue(SendspinSettings.isControllerEnabled((key, def) -> SendspinSettings.KEY_CONTROLLER_ENABLED.equals(key) || def));
+        assertFalse(SendspinSettings.isControllerEnabled(null));
+        assertFalse(SendspinSettings.isControllerEnabled((key, def) -> {
+            throw new ClassCastException();
+        }));
+        assertTrue("unpaired servers are allowed by default", SendspinSettings.isUnpairedServersAllowed((key, def) -> def));
+        assertFalse(SendspinSettings.isUnpairedServersAllowed((key, def) -> !SendspinSettings.KEY_UNPAIRED_SERVERS.equals(key) && def));
+        assertFalse(SendspinSettings.isUnpairedServersAllowed(null));
     }
 }

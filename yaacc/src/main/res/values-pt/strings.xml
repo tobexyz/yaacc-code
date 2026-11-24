@@ -616,4 +616,23 @@
     <string name="sendspin_list_none">Nenhum</string>
     <string name="sendspin_unpair">Remover o emparelhamento do player %1$s</string>
     <string name="sendspin_revoke">Revogar a aprovação do player %1$s</string>
+    <string name="sendspin_server_row_type">Servidor Sendspin</string>
+    <string name="sendspin_server_state_connected">conectado</string>
+    <string name="sendspin_server_state_waiting">conectado, aguardando o servidor permitir o controle</string>
+    <string name="sendspin_server_state_needs_pairing">requer emparelhamento (ainda não suportado)</string>
+    <string name="sendspin_server_state_refused">não permitido pelo servidor</string>
+    <string name="sendspin_server_not_a_target">Este cartão controla um servidor Sendspin. Escolha um player para reproduzir.</string>
+    <string name="sendspin_server_previous">Anterior</string>
+    <string name="sendspin_server_next">Próxima</string>
+    <string name="sendspin_server_seek_back">-30 s</string>
+    <string name="sendspin_server_seek_forward">+30 s</string>
+    <string name="sendspin_server_shuffle_on">Aleatório ligado</string>
+    <string name="sendspin_server_shuffle_off">Aleatório desligado</string>
+    <string name="sendspin_server_repeat_off">Repetir: não</string>
+    <string name="sendspin_server_repeat_all">Repetir: tudo</string>
+    <string name="sendspin_server_repeat_one">Repetir: um</string>
+    <string name="sendspin_server_switch">Mudar de grupo</string>
+    <string name="sendspin_servers_hint">Endereço, por exemplo music.local ou 192.168.0.5:8927</string>
+    <string name="sendspin_servers_none">Nenhum servidor adicionado ainda</string>
+    <string name="sendspin_servers_too_many">É possível adicionar no máximo 8 servidores.</string>
 </resources>

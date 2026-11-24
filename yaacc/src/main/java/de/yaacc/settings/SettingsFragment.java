@@ -122,6 +122,14 @@ public class SettingsFragment extends PreferenceFragmentCompat {
             });
         }
 
+        androidx.preference.Preference sendspinServers = findPreference(getString(R.string.settings_sendspin_servers));
+        if (sendspinServers != null) {
+            sendspinServers.setOnPreferenceClickListener(preference -> {
+                SendspinPlayersDialog.showServers(requireContext());
+                return true;
+            });
+        }
+
         setUpSnapcastClient();
         setUpRendererOutput();
         scrollToRequestedSection();

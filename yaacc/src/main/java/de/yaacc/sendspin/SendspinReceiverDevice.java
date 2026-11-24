@@ -48,16 +48,19 @@ import java.util.List;
  */
 public final class SendspinReceiverDevice extends Device {
     private static final String PRODUCT_NOTE = " (Sendspin)";
+    private static final String SERVER_NOTE = " (Sendspin server)";
 
     private final Endpoint endpoint;
     private final String name;
     private final String friendlyName;
+    private final boolean server;
 
-    private SendspinReceiverDevice(Endpoint endpoint, String name) throws ValidationException {
-        super(new DeviceIdentity(new UDN(SendspinAddress.idOf(endpoint))));
+    private SendspinReceiverDevice(Endpoint endpoint, String name, boolean server) throws ValidationException {
+        super(new DeviceIdentity(new UDN(server ? SendspinAddress.serverIdOf(endpoint) : SendspinAddress.idOf(endpoint))));
         this.endpoint = endpoint;
         this.name = name;
-        this.friendlyName = name + PRODUCT_NOTE;
+        this.server = server;
+        this.friendlyName = name + (server ? SERVER_NOTE : PRODUCT_NOTE);
     }
 
     /**
@@ -65,21 +68,40 @@ public final class SendspinReceiverDevice extends Device {
      * @return the device, or null if it can not be made
      */
     public static SendspinReceiverDevice of(Endpoint endpoint, String announcedName) {
+        return make(endpoint, announcedName, false);
+    }
+
+    /**
+     * A Sendspin <b>server</b> as a card of the receiver list (the controller role: it shows what the server plays and sends
+     * commands; nothing is played to it).
+     *
+     * @param announcedName the name the server gave in its hello, or null before it connected
+     */
+    public static SendspinReceiverDevice ofServer(Endpoint endpoint, String announcedName) {
+        return make(endpoint, announcedName, true);
+    }
+
+    private static SendspinReceiverDevice make(Endpoint endpoint, String announcedName, boolean server) {
         if (endpoint == null) {
             return null;
         }
         String cleaned = SendspinRowText.clean(announcedName);
         String shown = cleaned.isEmpty() ? SendspinAddress.format(endpoint) : cleaned;
         try {
-            return new SendspinReceiverDevice(endpoint, shown);
+            return new SendspinReceiverDevice(endpoint, shown, server);
         } catch (ValidationException e) {
             return null; // not expected: a device without a type is not validated
         }
     }
 
+    /** True for the card of a Sendspin server (the controller), false for a player. */
+    public boolean isServer() {
+        return server;
+    }
+
     /** The receiver id of the lists. */
     public String getReceiverId() {
-        return SendspinAddress.idOf(endpoint);
+        return server ? SendspinAddress.serverIdOf(endpoint) : SendspinAddress.idOf(endpoint);
     }
 
     public Endpoint getEndpoint() {

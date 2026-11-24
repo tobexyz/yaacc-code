@@ -25,20 +25,38 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
-/** The players the user added by address: at most {@link SendspinSettings#MAX_PLAYERS}, stored as {@code host:port} texts. Pure. */
+/**
+ * The players (or servers) the user added by address: at most {@link SendspinSettings#MAX_PLAYERS} (servers: {@link
+ * SendspinSettings#MAX_SERVERS}), stored as {@code host:port} texts. Pure.
+ */
 public final class SendspinPlayers {
 
     private final StringSetStore store;
+    private final String key;
+    private final int max;
+    private final int defaultPort;
 
     public SendspinPlayers(StringSetStore store) {
+        this(store, SendspinSettings.KEY_PLAYERS, SendspinSettings.MAX_PLAYERS, Endpoint.DEFAULT_PORT);
+    }
+
+    /** The list of servers: its own key, its own maximum and the server port as the default. */
+    public static SendspinPlayers servers(StringSetStore store) {
+        return new SendspinPlayers(store, SendspinSettings.KEY_SERVERS, SendspinSettings.MAX_SERVERS, SendspinAddress.DEFAULT_SERVER_PORT);
+    }
+
+    private SendspinPlayers(StringSetStore store, String key, int max, int defaultPort) {
         this.store = store;
+        this.key = key;
+        this.max = max;
+        this.defaultPort = defaultPort;
     }
 
     /** @return the endpoints in a fixed order; entries that no longer parse are left out */
     public synchronized List<Endpoint> list() {
         List<Endpoint> out = new ArrayList<>();
-        for (String text : new TreeSet<>(store.get(SendspinSettings.KEY_PLAYERS))) {
-            Endpoint endpoint = SendspinAddress.parse(text);
+        for (String text : new TreeSet<>(store.get(key))) {
+            Endpoint endpoint = SendspinAddress.parse(text, defaultPort);
             if (endpoint != null && !out.contains(endpoint)) {
                 out.add(endpoint);
             }
@@ -52,27 +70,27 @@ public final class SendspinPlayers {
     }
 
     public synchronized AddResult add(String text) {
-        Endpoint endpoint = SendspinAddress.parse(text);
+        Endpoint endpoint = SendspinAddress.parse(text, defaultPort);
         if (endpoint == null) {
             return AddResult.NOT_AN_ADDRESS;
         }
-        Set<String> set = new TreeSet<>(store.get(SendspinSettings.KEY_PLAYERS));
+        Set<String> set = new TreeSet<>(store.get(key));
         String stored = SendspinAddress.format(endpoint);
         if (set.contains(stored)) {
             return AddResult.ALREADY_THERE;
         }
-        if (set.size() >= SendspinSettings.MAX_PLAYERS) {
+        if (set.size() >= max) {
             return AddResult.TOO_MANY;
         }
         set.add(stored);
-        store.put(SendspinSettings.KEY_PLAYERS, set);
+        store.put(key, set);
         return AddResult.ADDED;
     }
 
     public synchronized void remove(Endpoint endpoint) {
-        Set<String> set = new TreeSet<>(store.get(SendspinSettings.KEY_PLAYERS));
+        Set<String> set = new TreeSet<>(store.get(key));
         if (set.remove(SendspinAddress.format(endpoint))) {
-            store.put(SendspinSettings.KEY_PLAYERS, set);
+            store.put(key, set);
         }
     }
 }

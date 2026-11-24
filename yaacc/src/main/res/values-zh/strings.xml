@@ -608,4 +608,23 @@
     <string name="sendspin_list_none">无</string>
     <string name="sendspin_unpair">移除播放器 %1$s 的配对</string>
     <string name="sendspin_revoke">撤销对播放器 %1$s 的批准</string>
+    <string name="sendspin_server_row_type">Sendspin 服务器</string>
+    <string name="sendspin_server_state_connected">已连接</string>
+    <string name="sendspin_server_state_waiting">已连接，等待服务器允许控制</string>
+    <string name="sendspin_server_state_needs_pairing">需要配对（尚不支持）</string>
+    <string name="sendspin_server_state_refused">服务器不允许</string>
+    <string name="sendspin_server_not_a_target">此卡片用于控制 Sendspin 服务器。请选择一个播放器来播放。</string>
+    <string name="sendspin_server_previous">上一首</string>
+    <string name="sendspin_server_next">下一首</string>
+    <string name="sendspin_server_seek_back">-30 s</string>
+    <string name="sendspin_server_seek_forward">+30 s</string>
+    <string name="sendspin_server_shuffle_on">开启随机播放</string>
+    <string name="sendspin_server_shuffle_off">关闭随机播放</string>
+    <string name="sendspin_server_repeat_off">循环：关</string>
+    <string name="sendspin_server_repeat_all">循环：全部</string>
+    <string name="sendspin_server_repeat_one">循环：单曲</string>
+    <string name="sendspin_server_switch">切换分组</string>
+    <string name="sendspin_servers_hint">地址，例如 music.local 或 192.168.0.5:8927</string>
+    <string name="sendspin_servers_none">尚未添加服务器</string>
+    <string name="sendspin_servers_too_many">最多可添加 8 个服务器。</string>
 </resources>

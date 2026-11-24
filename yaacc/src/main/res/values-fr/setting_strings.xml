@@ -173,4 +173,10 @@
     <string name="sendspin_players_already">Ce lecteur est déjà dans la liste.</string>
     <string name="settings_sendspin_discovery_title">Rechercher des lecteurs Sendspin</string>
     <string name="settings_sendspin_discovery_summary">Recherche des lecteurs Sendspin sur le réseau local (mDNS) tant qu\'une page avec les récepteurs est ouverte ; activé par défaut, mais seulement si les lecteurs Sendspin sont activés. Il envoie des requêtes mDNS et liste chaque lecteur qui s\'annonce. Les annonces ne sont pas authentifiées : n\'importe qui sur le réseau peut annoncer un lecteur. Rien n\'est lu sur un lecteur avant que vous ne le choisissiez et ne lanciez la lecture dessus.</string>
+    <string name="settings_sendspin_controller_enabled_title">Contrôler des serveurs Sendspin</string>
+    <string name="settings_sendspin_controller_enabled_summary">Désactivé par défaut. Une fois activé, les serveurs ajoutés (par exemple Music Assistant) apparaissent parmi les récepteurs sous forme de cartes qui montrent ce qui est lu et le contrôlent : lecture, pause, arrêt, volume, suivant et plus. Rien n\'est lu sur un serveur. Connexions sortantes uniquement.</string>
+    <string name="settings_sendspin_unpaired_servers_title">Autoriser les serveurs non appairés</string>
+    <string name="settings_sendspin_unpaired_servers_summary">Activé par défaut. Un serveur ajouté peut alors afficher et contrôler sans appairage. La connexion est chiffrée mais ne prouve pas qui est le serveur (le protocole le dit) ; l\'appairage en tant que client n\'est pas encore pris en charge. Désactivez pour refuser ces serveurs.</string>
+    <string name="settings_sendspin_servers_title">Serveurs Sendspin</string>
+    <string name="settings_sendspin_servers_summary">Ajouter un serveur par adresse ou le supprimer</string>
 </resources>

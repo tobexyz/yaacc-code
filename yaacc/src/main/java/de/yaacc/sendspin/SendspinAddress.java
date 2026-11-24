@@ -34,8 +34,36 @@ public final class SendspinAddress {
     private SendspinAddress() {
     }
 
-    /** @return the endpoint, or null if the text is not an address this app accepts */
+    /** The prefix of the receiver ids of the Sendspin servers (cards of the controller). */
+    public static final String SERVER_ID_PREFIX = "sendspin-server:";
+    /** The port a Sendspin server listens on by default (the player's is 8928). */
+    public static final int DEFAULT_SERVER_PORT = 8927;
+
+    /** @return the endpoint of a player, or null if the text is not an address this app accepts */
     public static Endpoint parse(String text) {
+        return parse(text, Endpoint.DEFAULT_PORT);
+    }
+
+    /** @return the endpoint of a server (default port 8927), or null */
+    public static Endpoint parseServer(String text) {
+        return parse(text, DEFAULT_SERVER_PORT);
+    }
+
+    /** The receiver id of a server card. */
+    public static String serverIdOf(Endpoint endpoint) {
+        return SERVER_ID_PREFIX + format(endpoint);
+    }
+
+    public static boolean isServerId(String id) {
+        return id != null && id.startsWith(SERVER_ID_PREFIX);
+    }
+
+    /** @return the endpoint of a server card id, or null if the id is not one of ours or does not parse */
+    public static Endpoint serverEndpointOf(String id) {
+        return isServerId(id) ? parseServer(id.substring(SERVER_ID_PREFIX.length())) : null;
+    }
+
+    static Endpoint parse(String text, int defaultPort) {
         if (text == null) {
             return null;
         }
@@ -76,7 +104,7 @@ public final class SendspinAddress {
                 return null;
             }
         }
-        int port = Endpoint.DEFAULT_PORT;
+        int port = defaultPort;
         if (portText != null) {
             if (portText.isEmpty() || portText.length() > 5) {
                 return null;

@@ -173,4 +173,10 @@
     <string name="sendspin_players_already">Este player já está na lista.</string>
     <string name="settings_sendspin_discovery_title">Procurar players Sendspin</string>
     <string name="settings_sendspin_discovery_summary">Procura players Sendspin na rede local (mDNS) enquanto uma página com os receptores estiver aberta; ativado por padrão, mas só se os players Sendspin estiverem ativados. Envia consultas mDNS e lista cada player que se anuncia. Os anúncios não são autenticados: qualquer pessoa na rede pode anunciar um player. Nada é reproduzido em um player antes de você escolhê-lo e reproduzir nele.</string>
+    <string name="settings_sendspin_controller_enabled_title">Controlar servidores Sendspin</string>
+    <string name="settings_sendspin_controller_enabled_summary">Desativado por padrão. Quando ativado, os servidores adicionados (por exemplo Music Assistant) aparecem entre os receptores como cartões que mostram o que toca e o controlam: reproduzir, pausar, parar, volume, próxima e mais. Nada é reproduzido em um servidor. Apenas conexões de saída.</string>
+    <string name="settings_sendspin_unpaired_servers_title">Permitir servidores sem emparelhar</string>
+    <string name="settings_sendspin_unpaired_servers_summary">Ativado por padrão. Um servidor adicionado pode então mostrar e controlar sem emparelhamento. A conexão é criptografada, mas não prova quem é o servidor (o protocolo diz isso); o emparelhamento como cliente ainda não é suportado. Desative para recusar esses servidores.</string>
+    <string name="settings_sendspin_servers_title">Servidores Sendspin</string>
+    <string name="settings_sendspin_servers_summary">Adicionar um servidor por endereço ou removê-lo</string>
 </resources>

@@ -43,6 +43,20 @@ public final class SendspinSettings {
     /** The long-term PSKs of paired players: {@code <client id>:<PSK, base64url>}. A credential. */
     public static final String KEY_PAIRINGS = "sendspin_pairings";
 
+    /** The key of the switch that makes the app list the Sendspin servers it controls (the controller role). */
+    public static final String KEY_CONTROLLER_ENABLED = "settings_sendspin_controller_enabled";
+    public static final boolean CONTROLLER_ENABLED_DEFAULT = false;
+    /** The key of the switch that lets the controller connect to a server it is not paired with (spec: unpaired access). */
+    public static final String KEY_UNPAIRED_SERVERS = "settings_sendspin_unpaired_servers";
+    /** On: a server is one the user named, and the roles give it no audio and no files; pairing as a client is not part of the first version. */
+    public static final boolean UNPAIRED_SERVERS_DEFAULT = true;
+    /** The key of the servers the user added by address ({@code host:port}). */
+    public static final String KEY_SERVERS = "sendspin_servers";
+    /** The key of the private key of the identity this app uses as a Sendspin client (app-private storage; backup is off). */
+    public static final String KEY_CLIENT_IDENTITY = "sendspin_client_identity";
+    /** The most servers the user can add. */
+    public static final int MAX_SERVERS = 8;
+
     /** The most players the user can add. */
     public static final int MAX_PLAYERS = 16;
     /** The most players the app lists and connects to at all (added, remembered and found together). */
@@ -80,6 +94,30 @@ public final class SendspinSettings {
     /** True if a changed preference key is one that decides whether the search runs. */
     public static boolean isDiscoveryRelevantKey(String key) {
         return KEY_ENABLED.equals(key) || KEY_DISCOVERY.equals(key);
+    }
+
+    /** @return whether the controller (Sendspin servers as cards) is switched on; false for no source or a value that can not be read */
+    public static boolean isControllerEnabled(BooleanSource source) {
+        if (source == null) {
+            return false;
+        }
+        try {
+            return source.getBoolean(KEY_CONTROLLER_ENABLED, CONTROLLER_ENABLED_DEFAULT);
+        } catch (RuntimeException damaged) {
+            return false;
+        }
+    }
+
+    /** @return whether the controller may connect to a server it is not paired with */
+    public static boolean isUnpairedServersAllowed(BooleanSource source) {
+        if (source == null) {
+            return false;
+        }
+        try {
+            return source.getBoolean(KEY_UNPAIRED_SERVERS, UNPAIRED_SERVERS_DEFAULT);
+        } catch (RuntimeException damaged) {
+            return false;
+        }
     }
 
     /** @return whether Sendspin is switched on; false for no source or a value that can not be read */

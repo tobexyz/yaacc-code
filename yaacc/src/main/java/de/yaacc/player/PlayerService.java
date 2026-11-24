@@ -1006,6 +1006,10 @@ public class PlayerService extends MediaSessionService {
     @OptIn(markerClass = UnstableApi.class)
     Player createSendspinPlayer(UpnpClient upnpClient, SendspinReceiverDevice device, boolean video, boolean image, boolean music) {
         final android.content.Context context = upnpClient.getContext();
+        if (device.isServer()) {
+            postToast(context, R.string.sendspin_server_not_a_target); // the card of a server controls it; nothing is played to it
+            return null;
+        }
         if (video || image || !music) {
             postToast(context, R.string.sendspin_audio_only);
             return null;

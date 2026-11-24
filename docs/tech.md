@@ -3948,6 +3948,21 @@ with server ... via pairing_psk`, then admitted the next connection with `activi
 makes it answer with the Sentinel: shown as "refused the pairing token". Keys are in app-private preferences, not yet wrapped by
 the Keystore.
 
+**Controller client (issue #325, use cases C1 to C3).** The phone connects out (client-initiated mode) with the roles `controller@v1` and
+`metadata@v1`: `ClientHandshake` (the client's side of the opening: `client/init`, `server/init`, Noise message 1, PSK lookup with the
+Sentinel fallback, message 2), `ControllerMessages` (hello, state, time, command, goodbye, abort; parsers with limits for
+`server/hello`, `server/activate` with the admission table of the spec, `group/update`, `server/state` with the `controller` and
+`metadata` objects, `server/time`), `ServerClock` (offset of the server clock from the burst measurement with the lowest error, smoothed;
+not the Kalman filter, which comes with audio), `TrackPosition` (extrapolation of the track position and the current and pending
+metadata state), `ControllerSession` (one thread, phases, commands only if the server lists them, bursts of 8 `client/time`, a
+`client/state` after the first activation with roles, `client/goodbye` `user_request` on close) and `SendspinControllers` (one session
+per added server, retried after 15 s unless the end reason says not to). A pairing activation is answered with `pair/abort`
+`method_not_supported` and a `noise/handshake` in transport mode ends the session: pairing as a client and the re-handshake as responder
+are not built. **Deviation:** the reference server (aiosendspin 10.2.2) sends a UUID as `group_id`; the specification says a value that
+is not 43 base64url characters is a protocol error. The id is accepted as an opaque text of 1 to 64 bytes. The reference server's CLI
+(`sendspin serve`) offers a controller only `switch`; the rig test (`ControllerRigTest`, `-Dsendspin.rig.server=host:port`) checks
+the handshake, the activation, the group and controller state, the clock estimate and the switch command against it.
+
 **Not yet done.** Pairing with a code (CPace), Keystore wrapping of the identity and PSKs, FLAC, groups and everything of the player
 role. See `tasks.md` of the spec.
 
