@@ -58,6 +58,15 @@ public final class ServerHandshake {
         public static PskChoice sentinel() {
             return new PskChoice(SendspinPsk.sentinel(), SendspinPsk.Category.SENTINEL);
         }
+
+        /** The PSK (a copy). */
+        public byte[] psk() {
+            return psk.clone();
+        }
+
+        public SendspinPsk.Category category() {
+            return category;
+        }
     }
 
     /** Chooses the PSK for the client the server is about to speak to (a long-term PSK of a paired client, else the Sentinel). */
@@ -208,6 +217,85 @@ public final class ServerHandshake {
         }
         NoiseTransport transport = noise.split();
         return new Result(new SecureChannel(ws, transport), clientId, suite, verifiedAs, credentialMismatch);
+    }
+
+    /** How long the server waits for the player's second message of a re-handshake. */
+    static final long REHANDSHAKE_TIMEOUT_MILLIS = 10_000L;
+
+    /**
+     * The server reruns the Noise handshake inside the open channel (spec, "Re-handshake"): to the Pairing PSK for a pairing, to the
+     * long-term PSK after it. Both messages travel as encrypted {@code noise/handshake} messages; message 2 is still under the old
+     * keys; the prologue is the hash of the handshake before. No application message is sent from message 1 on (the send lock is
+     * held until the new keys are in place); messages of the player under the old keys that arrive meanwhile are kept and delivered
+     * by {@link SecureChannel#receive()} afterwards. There is no Sentinel fallback here: a message 2 under another PSK fails.
+     * <p>
+     * Must be called from the thread that reads the channel.
+     *
+     * @throws HandshakeException if the player does not answer or does not verify (the caller closes, without a message)
+     */
+    public static void rehandshake(SecureChannel channel, Identity identity, String clientId, NoiseSuite suite, PskChoice choice,
+                                   SecureRandom random) throws IOException {
+        rehandshake(channel, identity, clientId, suite, choice, random, REHANDSHAKE_TIMEOUT_MILLIS);
+    }
+
+    static void rehandshake(SecureChannel channel, Identity identity, String clientId, NoiseSuite suite, PskChoice choice,
+                            SecureRandom random, long timeoutMillis) throws IOException {
+        byte[] clientPublic = Base64Url.decode32(clientId);
+        if (clientPublic == null) {
+            throw silent("bad client id");
+        }
+        synchronized (channel.sendLock()) {
+            NoiseKkPsk2 noise = NoiseKkPsk2.initiator(suite, channel.transport().handshakeHash(), identity.keyPair(), clientPublic);
+            try {
+                JSONObject payload1 = new JSONObject().put("psk_id", SendspinPsk.pskId(choice.psk)).put("psk_category", choice.category.code());
+                byte[] message1 = noise.writeMessage1(payload1.toString().getBytes(StandardCharsets.UTF_8), random);
+                channel.sendJson(SendspinMessages.noiseHandshake(Base64Url.encode(message1)));
+            } catch (NoiseException | JSONException e) {
+                noise.destroy();
+                throw silent("could not write message 1");
+            }
+            byte[] message2 = null;
+            java.util.List<SecureChannel.Inbound> held = new java.util.ArrayList<>();
+            long deadline = System.nanoTime() + timeoutMillis * 1_000_000L;
+            try {
+                while (message2 == null) {
+                    SecureChannel.Inbound inbound;
+                    try {
+                        inbound = channel.receive();
+                    } catch (java.net.SocketTimeoutException idle) {
+                        if (System.nanoTime() - deadline > 0) {
+                            throw silent("no answer to the re-handshake");
+                        }
+                        continue;
+                    }
+                    if (inbound.isJson()) {
+                        Envelope envelope = inbound.envelope();
+                        if ("noise/handshake".equals(envelope.type())) {
+                            message2 = Base64Url.decode(SendspinMessages.parseNoiseData(envelope.payload()));
+                            if (message2 == null) {
+                                throw silent("bad noise data");
+                            }
+                            continue;
+                        }
+                    }
+                    held.add(inbound); // a message that was sent before the player saw message 1
+                }
+                byte[] payload2 = noise.readMessage2(message2, choice.psk);
+                if (!Arrays.equals(payload2, EMPTY_OBJECT)) {
+                    throw silent("bad payload of message 2");
+                }
+            } catch (ProtocolException | NoiseException e) {
+                noise.destroy();
+                throw silent("re-handshake failed");
+            } catch (HandshakeException e) {
+                noise.destroy();
+                throw e;
+            }
+            channel.installTransport(noise.split());
+            for (SecureChannel.Inbound inbound : held) {
+                channel.stash(inbound);
+            }
+        }
     }
 
     private static HandshakeException silent(String message) {

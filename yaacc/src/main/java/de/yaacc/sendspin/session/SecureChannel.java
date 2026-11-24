@@ -71,8 +71,10 @@ public final class SecureChannel {
     public static final int MAX_BODY = NoiseTransport.MAX_PLAINTEXT_LENGTH - 1;
 
     private final WsConnection ws;
-    private final NoiseTransport transport;
+    private volatile NoiseTransport transport;
     private final Object sendLock = new Object();
+    /** Messages that arrived under the old keys while a re-handshake waited for its second message; they are delivered first. */
+    private final java.util.ArrayDeque<Inbound> stash = new java.util.ArrayDeque<>();
 
     private int fragmentType = -1;
     private ByteArrayOutputStream fragments;
@@ -84,6 +86,27 @@ public final class SecureChannel {
 
     public NoiseTransport transport() {
         return transport;
+    }
+
+    /** The lock that serializes sending; a re-handshake holds it so that no application message follows Noise message 1. */
+    Object sendLock() {
+        return sendLock;
+    }
+
+    /** Puts the keys of a finished re-handshake in place (the old ones are destroyed) and forgets a half received fragmented message. */
+    void installTransport(NoiseTransport next) {
+        NoiseTransport old = transport;
+        transport = next;
+        fragmentType = -1;
+        fragments = null;
+        if (old != null) {
+            old.destroy();
+        }
+    }
+
+    /** Keeps a message that arrived under the old keys; {@link #receive()} returns it first. */
+    void stash(Inbound inbound) {
+        stash.addLast(inbound);
     }
 
     /** Sends a JSON message (id 0). */
@@ -116,6 +139,9 @@ public final class SecureChannel {
      * @throws NoiseException                  if a message does not verify (close without a message)
      */
     public Inbound receive() throws IOException, ProtocolException, NoiseException {
+        if (!stash.isEmpty()) {
+            return stash.removeFirst();
+        }
         while (true) {
             WsConnection.Message message = ws.receive();
             if (message.isText()) {

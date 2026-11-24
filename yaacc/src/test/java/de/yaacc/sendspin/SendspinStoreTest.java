@@ -141,7 +141,6 @@ public class SendspinStoreTest {
         }
         assertFalse("the oldest was dropped", approvals.isApproved(id(0)));
         assertTrue(approvals.isApproved(id(SendspinSettings.MAX_APPROVALS + 4)));
-        assertNotNull(approvals.pskFor(id(7)));
     }
 
     @Test

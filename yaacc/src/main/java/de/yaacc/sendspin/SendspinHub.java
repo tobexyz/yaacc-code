@@ -75,7 +75,7 @@ public final class SendspinHub implements SendspinReceiverSource {
     private final SharedPreferences preferences;
     private final StringSetStore store;
     private final SendspinPlayers players;
-    private final SendspinApprovals approvals;
+    private final SendspinPolicy approvals;
     private final Connector connector;
     private final HubClock clock;
     private final SecureRandom random = new SecureRandom();
@@ -111,7 +111,7 @@ public final class SendspinHub implements SendspinReceiverSource {
             }
         };
         this.players = new SendspinPlayers(store);
-        this.approvals = new SendspinApprovals(store);
+        this.approvals = new SendspinPolicy(store);
         this.connector = new Connector.Sockets();
         this.clock = HubClock.SYSTEM;
         this.nsd = new SendspinNsd(app, directory);
@@ -152,7 +152,7 @@ public final class SendspinHub implements SendspinReceiverSource {
         return players;
     }
 
-    public SendspinApprovals approvals() {
+    public SendspinPolicy approvals() {
         return approvals;
     }
 

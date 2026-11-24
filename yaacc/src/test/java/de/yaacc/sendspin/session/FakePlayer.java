@@ -161,6 +161,33 @@ public final class FakePlayer implements AutoCloseable {
         return new SecureChannel(playerWs, transport);
     }
 
+    /**
+     * The player's side of a re-handshake in the open channel: reads Noise message 1 (an encrypted {@code noise/handshake} message),
+     * runs {@code beforeMessage2} (messages sent now are under the old keys), answers with message 2 under the old keys and then
+     * switches. A PSK the player does not know fails the re-handshake: there is no Sentinel fallback (spec).
+     */
+    public void rehandshake(SecureChannel channel, Runnable beforeMessage2) throws Exception {
+        Envelope noise1 = channel.receive().envelope();
+        if (!"noise/handshake".equals(noise1.type())) {
+            throw new IllegalStateException("not a handshake message: " + noise1.type());
+        }
+        byte[] message1 = Base64Url.decode(SendspinMessages.parseNoiseData(noise1.payload()));
+        NoiseKkPsk2 noise = NoiseKkPsk2.responder(suite, channel.transport().handshakeHash(), identity.keyPair(), Base64Url.decode32(serverIdSeen));
+        JSONObject json = new JSONObject(new String(noise.readMessage1(message1), StandardCharsets.UTF_8));
+        pskIdSeen = json.getString("psk_id");
+        pskCategorySeen = json.getString("psk_category");
+        byte[] psk = knownPsks.get(pskIdSeen);
+        if (psk == null) {
+            throw new IllegalStateException("unknown PSK in a re-handshake");
+        }
+        if (beforeMessage2 != null) {
+            beforeMessage2.run();
+        }
+        byte[] message2 = noise.writeMessage2(message2Payload, psk, random);
+        channel.sendJson(SendspinMessages.noiseHandshake(Base64Url.encode(message2)));
+        channel.installTransport(noise.split());
+    }
+
     @Override
     public void close() throws IOException {
         executor.shutdownNow();

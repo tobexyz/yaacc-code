@@ -18,19 +18,15 @@
  */
 package de.yaacc.sendspin;
 
-import de.yaacc.sendspin.hub.ServerPolicy;
-import de.yaacc.sendspin.session.ServerHandshake;
-
 import java.util.HashSet;
 import java.util.Set;
 
 /**
  * The operator's approvals of unpaired players, by {@code client_id}, kept across restarts; the oldest are dropped beyond
  * {@link SendspinSettings#MAX_APPROVALS}. A stored set has no order (the preferences give a hash set), so each entry is written
- * as {@code <sequence>:<client id>} and the lowest sequence is the oldest. Every player is referenced with the Sentinel PSK until
- * the Pairing PSK flow exists, so {@link #pskFor} is always the Sentinel. Pure.
+ * as {@code <sequence>:<client id>} and the lowest sequence is the oldest. Pure.
  */
-public final class SendspinApprovals implements ServerPolicy {
+public final class SendspinApprovals {
 
     private static final int ID_LENGTH = 43;
 
@@ -38,11 +34,6 @@ public final class SendspinApprovals implements ServerPolicy {
 
     public SendspinApprovals(StringSetStore store) {
         this.store = store;
-    }
-
-    @Override
-    public ServerHandshake.PskChoice pskFor(String clientId) {
-        return ServerHandshake.PskChoice.sentinel();
     }
 
     private static String idOf(String entry) {
@@ -59,7 +50,6 @@ public final class SendspinApprovals implements ServerPolicy {
         }
     }
 
-    @Override
     public synchronized boolean isApproved(String clientId) {
         if (clientId == null) {
             return false;
@@ -72,7 +62,6 @@ public final class SendspinApprovals implements ServerPolicy {
         return false;
     }
 
-    @Override
     public synchronized void approve(String clientId) {
         if (clientId == null || clientId.length() != ID_LENGTH || clientId.indexOf(':') >= 0) {
             return;
@@ -102,7 +91,6 @@ public final class SendspinApprovals implements ServerPolicy {
         store.put(SendspinSettings.KEY_APPROVED, entries);
     }
 
-    @Override
     public synchronized void revoke(String clientId) {
         Set<String> entries = new HashSet<>(store.get(SendspinSettings.KEY_APPROVED));
         boolean changed = false;

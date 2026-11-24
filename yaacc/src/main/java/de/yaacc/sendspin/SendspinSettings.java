@@ -38,6 +38,10 @@ public final class SendspinSettings {
     public static final String KEY_APPROVED = "sendspin_approved";
     /** The key of the private key of this server identity (app-private storage; backup is off). */
     public static final String KEY_IDENTITY = "sendspin_identity";
+    /** Pairing tokens the operator pasted, not yet used: {@code <client id>:<pairing PSK, base64url>}. A credential. */
+    public static final String KEY_TOKENS = "sendspin_pairing_tokens";
+    /** The long-term PSKs of paired players: {@code <client id>:<PSK, base64url>}. A credential. */
+    public static final String KEY_PAIRINGS = "sendspin_pairings";
 
     /** The most players the user can add. */
     public static final int MAX_PLAYERS = 16;
@@ -45,6 +49,10 @@ public final class SendspinSettings {
     public static final int MAX_LISTED = 32;
     /** The most approvals the app remembers (the oldest are dropped). */
     public static final int MAX_APPROVALS = 64;
+    /** The most paired players kept; a further pairing is refused until one is removed. */
+    public static final int MAX_PAIRINGS = 64;
+    /** The most pasted tokens kept at a time. */
+    public static final int MAX_TOKENS = 16;
 
     /** Reads a boolean preference (the shape of {@code SharedPreferences.getBoolean}). */
     public interface BooleanSource {

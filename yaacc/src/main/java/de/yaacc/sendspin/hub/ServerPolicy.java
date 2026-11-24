@@ -30,7 +30,27 @@ import java.util.Set;
  */
 public interface ServerPolicy {
 
+    /**
+     * The PSK to reference for this player: its Pairing PSK if the operator pasted a token (the operator means to pair), else its
+     * long-term PSK if it is paired, else the Sentinel.
+     */
     ServerHandshake.PskChoice pskFor(String clientId);
+
+    /** The Pairing PSK from a token the operator pasted for this player, or null. */
+    byte[] pairingPsk(String clientId);
+
+    boolean isPaired(String clientId);
+
+    /**
+     * Records a pairing the player has just finished: stores its new long-term PSK, drops the token and the approval (spec: an
+     * approval is discarded on a successful pairing).
+     *
+     * @return false if the PSK is not fit to keep (the Sentinel, the pairing PSK, a wrong length) or there is no room
+     */
+    boolean completePairing(String clientId, byte[] longTermPsk);
+
+    /** Forgets the pairing and any token of this player. */
+    void unpair(String clientId);
 
     boolean isApproved(String clientId);
 
@@ -42,9 +62,51 @@ public interface ServerPolicy {
     class InMemory implements ServerPolicy {
         private final Set<String> approved = new HashSet<>();
 
+        private final java.util.Map<String, byte[]> longTerm = new java.util.HashMap<>();
+        private final java.util.Map<String, byte[]> tokens = new java.util.HashMap<>();
+
         @Override
         public synchronized ServerHandshake.PskChoice pskFor(String clientId) {
+            if (tokens.containsKey(clientId)) {
+                return new ServerHandshake.PskChoice(tokens.get(clientId), de.yaacc.sendspin.secure.SendspinPsk.Category.PAIRING);
+            }
+            if (longTerm.containsKey(clientId)) {
+                return new ServerHandshake.PskChoice(longTerm.get(clientId), de.yaacc.sendspin.secure.SendspinPsk.Category.LONG_TERM);
+            }
             return ServerHandshake.PskChoice.sentinel();
+        }
+
+        /** Test helper: the operator pasted a token. */
+        public synchronized void addToken(String clientId, byte[] pairingPsk) {
+            tokens.put(clientId, pairingPsk.clone());
+        }
+
+        @Override
+        public synchronized byte[] pairingPsk(String clientId) {
+            byte[] psk = tokens.get(clientId);
+            return psk == null ? null : psk.clone();
+        }
+
+        @Override
+        public synchronized boolean isPaired(String clientId) {
+            return longTerm.containsKey(clientId);
+        }
+
+        @Override
+        public synchronized boolean completePairing(String clientId, byte[] longTermPsk) {
+            if (longTermPsk == null || longTermPsk.length != 32 || de.yaacc.sendspin.secure.SendspinPsk.isSentinel(longTermPsk)) {
+                return false;
+            }
+            longTerm.put(clientId, longTermPsk.clone());
+            tokens.remove(clientId);
+            approved.remove(clientId);
+            return true;
+        }
+
+        @Override
+        public synchronized void unpair(String clientId) {
+            longTerm.remove(clientId);
+            tokens.remove(clientId);
         }
 
         @Override
