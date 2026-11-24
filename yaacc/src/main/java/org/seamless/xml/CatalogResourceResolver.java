@@ -14,7 +14,7 @@
   */
  package org.seamless.xml;
 
- import android.util.Log;
+ import de.yaacc.util.YaaccLogger;
 
  import org.w3c.dom.ls.LSInput;
  import org.w3c.dom.ls.LSResourceResolver;
@@ -46,10 +46,10 @@
      }
 
      public LSInput resolveResource(String type, String namespaceURI, String publicId, String systemId, String baseURI) {
-         Log.v(getClass().getName(), "Trying to resolve system identifier URI in catalog: " + systemId);
+         YaaccLogger.v(getClass().getName(), "Trying to resolve system identifier URI in catalog: " + systemId);
          URL systemURL;
          if ((systemURL = catalog.get(URI.create(systemId))) != null) {
-             Log.v(getClass().getName(), "Loading catalog resource: " + systemURL);
+             YaaccLogger.v(getClass().getName(), "Loading catalog resource: " + systemURL);
              try {
                  Input i = new Input(systemURL.openStream());
                  i.setBaseURI(baseURI);
@@ -60,7 +60,7 @@
                  throw new RuntimeException(ex);
              }
          }
-         Log.v(getClass().getName(),
+         YaaccLogger.v(getClass().getName(),
                  "System identifier not found in catalog, continuing with default resolution " +
                          "(this most likely means remote HTTP request!): " + systemId
          );

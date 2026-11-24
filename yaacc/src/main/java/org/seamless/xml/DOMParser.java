@@ -14,7 +14,7 @@
   */
  package org.seamless.xml;
 
- import android.util.Log;
+ import de.yaacc.util.YaaccLogger;
 
  import org.w3c.dom.CDATASection;
  import org.w3c.dom.Document;
@@ -281,13 +281,13 @@
 
      public void validate(URL url) throws ParserException {
          if (url == null) throw new IllegalArgumentException("Can't validate null URL");
-         Log.v(getClass().getName(), "Validating XML of URL: " + url);
+         YaaccLogger.v(getClass().getName(), "Validating XML of URL: " + url);
          validate(new StreamSource(url.toString()));
      }
 
      public void validate(String string) throws ParserException {
          if (string == null) throw new IllegalArgumentException("Can't validate null string");
-         Log.v(getClass().getName(), "Validating XML string characters: " + string.length());
+         YaaccLogger.v(getClass().getName(), "Validating XML string characters: " + string.length());
          validate(new SAXSource(new InputSource(new StringReader(string))));
      }
 
@@ -337,7 +337,7 @@
 
      public Object getXPathResult(Node context, XPath xpath, String expr, QName result) {
          try {
-             Log.v(getClass().getName(), "Evaluating xpath query: " + expr);
+             YaaccLogger.v(getClass().getName(), "Evaluating xpath query: " + expr);
              return xpath.evaluate(expr, context, result);
          } catch (Exception ex) {
              throw new RuntimeException(ex);
@@ -461,7 +461,7 @@
      // =================================================================================================
 
      public void warning(SAXParseException e) throws SAXException {
-         Log.w(getClass().getName(), e.toString());
+         YaaccLogger.w(getClass().getName(), e.toString());
      }
 
      public void error(SAXParseException e) throws SAXException {

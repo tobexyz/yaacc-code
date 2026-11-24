@@ -14,7 +14,7 @@
   */
  package org.seamless.xml;
 
- import android.util.Log;
+ import de.yaacc.util.YaaccLogger;
 
  import org.xmlpull.v1.XmlPullParser;
  import org.xmlpull.v1.XmlPullParserException;
@@ -39,7 +39,7 @@
              xmlPullParserFactory = XmlPullParserFactory.newInstance();
              xmlPullParserFactory.setNamespaceAware(true);
          } catch (XmlPullParserException e) {
-             Log.e(XmlPullParser.class.getName(), "cannot create XmlPullParserFactory instance: " + e);
+             YaaccLogger.e(XmlPullParser.class.getName(), "cannot create XmlPullParserFactory instance: " + e);
          }
      }
 
@@ -74,7 +74,7 @@
                  serializer.setFeature("http://xmlpull.org/v1/doc/features.html#indent-output", true);
                  //serializer.setProperty("http://xmlpull.org/v1/doc/properties.html#serializer-indentation", StringUtils.repeat(' ', indent));
              } catch (Exception e) {
-                 Log.w(XmlPullParser.class.getName(), "error setting feature of XmlSerializer: " + e);
+                 YaaccLogger.w(XmlPullParser.class.getName(), "error setting feature of XmlSerializer: " + e);
              }
 
          }
@@ -144,7 +144,7 @@
          }
 
          if (isFixed) {
-             Log.v(XmlPullParser.class.getName(), "fixed badly encoded entities in XML");
+             YaaccLogger.v(XmlPullParser.class.getName(), "fixed badly encoded entities in XML");
          }
 
          return fixedXml.toString();

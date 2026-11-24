@@ -506,11 +506,11 @@ public class AVTransportPlayerWrapper implements Player {
                 long minutes = Long.parseLong(parts[1]);
                 long seconds = Long.parseLong(parts[2]);
                 long durationMs = (hours * 3600 + minutes * 60 + seconds) * 1000;
-                android.util.Log.d("AVTransportPlayerWrapper", "Duration: " + duration + " = " + durationMs + "ms");
+                de.yaacc.util.YaaccLogger.d("AVTransportPlayerWrapper", "Duration: " + duration + " = " + durationMs + "ms");
                 return durationMs;
             }
         } catch (Exception e) {
-            android.util.Log.e("AVTransportPlayerWrapper", "Failed to parse duration: " + duration, e);
+            de.yaacc.util.YaaccLogger.e("AVTransportPlayerWrapper", "Failed to parse duration: " + duration, e);
         }
         return androidx.media3.common.C.TIME_UNSET;
     }

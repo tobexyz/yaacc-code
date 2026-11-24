@@ -14,7 +14,7 @@
   */
  package org.seamless.xml;
 
- import android.util.Log;
+ import de.yaacc.util.YaaccLogger;
 
  import org.xml.sax.Attributes;
  import org.xml.sax.ContentHandler;
@@ -74,12 +74,12 @@
              try {
                  factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
              } catch (SAXNotRecognizedException ex) {
-                 Log.v(getClass().getName(), "Feature disallow-doctype-decl not known");
+                 YaaccLogger.v(getClass().getName(), "Feature disallow-doctype-decl not known");
              }
              try {
                  factory.setXIncludeAware(false);
              } catch (UnsupportedOperationException usex) {
-                 Log.v(getClass().getName(), "can't set factory.setXIncludeAware(false);");
+                 YaaccLogger.v(getClass().getName(), "can't set factory.setXIncludeAware(false);");
              }
              factory.setNamespaceAware(true);
 
@@ -200,7 +200,7 @@
                                   Attributes attributes) throws SAXException {
              this.characters = new StringBuilder();
              this.attributes = new AttributesImpl(attributes); // see http://docstore.mik.ua/orelly/xml/sax2/ch05_01.htm, section 5.1.1
-             Log.v(getClass().getName(), getClass().getSimpleName() + " starting: " + localName);
+             YaaccLogger.v(getClass().getName(), getClass().getSimpleName() + " starting: " + localName);
          }
 
          @Override
@@ -213,12 +213,12 @@
                                 String qName) throws SAXException {
 
              if (isLastElement(uri, localName, qName)) {
-                 Log.v(getClass().getName(), getClass().getSimpleName() + ": last element, switching to parent: " + localName);
+                 YaaccLogger.v(getClass().getName(), getClass().getSimpleName() + ": last element, switching to parent: " + localName);
                  switchToParent();
                  return;
              }
 
-             Log.v(getClass().getName(), getClass().getSimpleName() + " ending: " + localName);
+             YaaccLogger.v(getClass().getName(), getClass().getSimpleName() + " ending: " + localName);
          }
 
          protected boolean isLastElement(String uri, String localName, String qName) {
