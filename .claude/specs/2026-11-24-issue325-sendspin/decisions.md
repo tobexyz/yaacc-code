@@ -23,6 +23,10 @@ Android reference pages: `KeyAgreement`/`KeyPairGenerator` algorithm `XDH` (X255
 - **Rig finding:** PortAudio can not open the ALSA `null` device by name; the rig uses a PulseAudio null sink (also real-time clocked). The Docker image was never built.
 - **Discovery default (decided in the build, open for the owner's veto):** the main switch *Use Sendspin players* is **off by default** (the app part is untested on a device); the search switch *Find Sendspin players* is **on by default** but acts only while the main switch is on, so nothing is sent by default. Nothing is played to a found player before the operator plays to it.
 
+## 2026-11-24 - Use cases written down (`usecases.md`, owner's request); a deviation found
+- Linking is a server concept: YAACC can link players only as the server; the phone as a player is a separate feature; the controller role controls its own group and cannot link arbitrary players. See `usecases.md`.
+- **Deviation from the specification found while writing it:** the hub declares `'playback'` when an approved or paired player says hello, not when something plays. With another server on the network (Music Assistant) YAACC could take a player by connecting. Recommended fix and its place in the order of work: `usecases.md`, open points 1 and 2. **Open for the owner.**
+
 ## 2026-11-24 - Pairing PSK built; Q5 answered for the reference player (recommended defaults)
 - **Pairing scope as recommended:** the Pairing PSK flow and operator-approved unpaired access; code-based pairing stays open (Group 11). The documentation says so and does not claim conformance.
 - **Verified against the reference player (`sendspin` 9.1.0):** with unpaired access off and a Pairing PSK in its settings dir, the server paired it from a token, re-handshook to the long-term PSK, played, and the second connection needed no token. The token was built by an independent encoder (Python) and also matches the spec's reference vector. **Not verified:** a real device, Music Assistant, ESPHome, a token shown by a real player (the reference daemon has no command to show it; the PSK was injected for the test).
