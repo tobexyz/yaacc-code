@@ -628,4 +628,16 @@
     <string name="sendspin_servers_none">尚未添加服务器</string>
     <string name="sendspin_servers_too_many">最多可添加 8 个服务器。</string>
     <string name="sendspin_server_artwork">正在播放内容的封面</string>
+    <string name="sendspin_row_settings">Sendspin 设置</string>
+    <string name="sendspin_server_not_ready">服务器尚未连接。</string>
+    <string name="sendspin_player_info_address">地址：%1$s</string>
+    <string name="sendspin_player_info_inbound">此播放器已连接到本手机。</string>
+    <string name="sendspin_player_info_legacy">未加密的连接（旧版协议）：网络中的任何人都可以读取。</string>
+    <string name="sendspin_player_info_paired">已配对：连接可证明播放器的身份。</string>
+    <string name="sendspin_player_info_approved">已由你批准，未配对：连接无法证明播放器的身份。</string>
+    <string name="sendspin_player_info_not_approved">尚未批准：向其播放即视为批准。</string>
+    <string name="sendspin_player_info_audio">音频：%1$s</string>
+    <string name="sendspin_player_enter_token">输入配对令牌</string>
+    <string name="sendspin_player_forget_pairing">忘记配对</string>
+    <string name="sendspin_player_revoke">撤销批准</string>
 </resources>

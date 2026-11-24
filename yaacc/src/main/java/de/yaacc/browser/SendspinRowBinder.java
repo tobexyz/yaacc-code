@@ -22,6 +22,7 @@ import android.content.Context;
 import android.os.SystemClock;
 import android.view.View;
 import android.widget.SeekBar;
+import android.widget.Toast;
 
 import de.yaacc.R;
 import de.yaacc.player.Player;
@@ -144,8 +145,7 @@ final class SendspinRowBinder {
         hide(views.yxcGroupVolume);
         hide(views.yxcGroupVolumeText);
         hide(views.yxcToggle);
-        hide(views.yxcActions);
-        hide(views.yxcSettings);
+        showGear(views, () -> SendspinPlayerSheet.show(context, device));
         for (View button : new View[]{views.btnPlay, views.btnPause, views.btnStop}) {
             button.setEnabled(true);
             button.setAlpha(1f);
@@ -197,6 +197,17 @@ final class SendspinRowBinder {
         }
     }
 
+    /** The gear of the card (as on the FCast and Snapcast cards): it opens the sheet of the card. */
+    private void showGear(ReceiverRowBinder.RowViews views, final Runnable open) {
+        if (views.yxcActions == null || views.yxcSettings == null) {
+            return;
+        }
+        views.yxcActions.setVisibility(View.VISIBLE);
+        views.yxcSettings.setVisibility(View.VISIBLE);
+        views.yxcSettings.setContentDescription(context.getString(R.string.sendspin_row_settings));
+        views.yxcSettings.setOnClickListener(v -> open.run());
+    }
+
     private static void hide(View view) {
         if (view != null) {
             view.setVisibility(View.GONE);
@@ -221,8 +232,14 @@ final class SendspinRowBinder {
         hide(views.yxcGroupVolume);
         hide(views.yxcGroupVolumeText);
         hide(views.yxcToggle);
-        hide(views.yxcActions);
-        hide(views.yxcSettings);
+        showGear(views, () -> {
+            ControllerSession session = sessionOf(device);
+            if (session != null && session.phase() == ControllerSession.Phase.ACTIVE) {
+                SendspinServerSheet.show(context, device);
+            } else {
+                Toast.makeText(context, R.string.sendspin_server_not_ready, Toast.LENGTH_SHORT).show();
+            }
+        });
         hide(views.checkBox); // nothing is played to a server
         views.volume.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
@@ -302,12 +319,8 @@ final class SendspinRowBinder {
                 views.yxcText.setText(text);
             }
             views.yxcText.setVisibility(View.VISIBLE);
-            if (session != null && session.phase() == ControllerSession.Phase.ACTIVE) {
-                views.yxcText.setOnClickListener(v -> SendspinServerSheet.show(context, device));
-            } else {
-                views.yxcText.setOnClickListener(null);
-                views.yxcText.setClickable(false);
-            }
+            views.yxcText.setOnClickListener(null); // the gear opens the sheet; a recycled row must not keep the tap of another card
+            views.yxcText.setClickable(false);
         }
         ControllerMessages.ControllerState controller = session == null ? null : session.controller();
         String id = device.getReceiverId();

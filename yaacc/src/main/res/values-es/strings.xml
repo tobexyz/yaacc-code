@@ -636,4 +636,16 @@
     <string name="sendspin_servers_none">Aún no se ha añadido ningún servidor</string>
     <string name="sendspin_servers_too_many">Se pueden añadir como máximo 8 servidores.</string>
     <string name="sendspin_server_artwork">Carátula de lo que suena</string>
+    <string name="sendspin_row_settings">Ajustes de Sendspin</string>
+    <string name="sendspin_server_not_ready">El servidor aún no está conectado.</string>
+    <string name="sendspin_player_info_address">Dirección: %1$s</string>
+    <string name="sendspin_player_info_inbound">Este reproductor se conectó a este teléfono.</string>
+    <string name="sendspin_player_info_legacy">Conexión sin cifrar (protocolo antiguo): cualquiera en la red puede leerla.</string>
+    <string name="sendspin_player_info_paired">Emparejado: la conexión demuestra quién es el reproductor.</string>
+    <string name="sendspin_player_info_approved">Aprobado por ti, sin emparejar: la conexión no demuestra quién es el reproductor.</string>
+    <string name="sendspin_player_info_not_approved">Aún no aprobado: reproducir en él lo aprueba.</string>
+    <string name="sendspin_player_info_audio">Audio: %1$s</string>
+    <string name="sendspin_player_enter_token">Introducir token de emparejamiento</string>
+    <string name="sendspin_player_forget_pairing">Olvidar emparejamiento</string>
+    <string name="sendspin_player_revoke">Retirar aprobación</string>
 </resources>

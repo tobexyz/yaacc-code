@@ -637,4 +637,16 @@
     <string name="sendspin_servers_none">No servers added yet</string>
     <string name="sendspin_servers_too_many">At most 8 servers can be added.</string>
     <string name="sendspin_server_artwork">Cover of what plays</string>
+    <string name="sendspin_row_settings">Sendspin settings</string>
+    <string name="sendspin_server_not_ready">The server is not connected yet.</string>
+    <string name="sendspin_player_info_address">Address: %1$s</string>
+    <string name="sendspin_player_info_inbound">This player connected to this phone.</string>
+    <string name="sendspin_player_info_legacy">Unencrypted connection (older protocol): anyone on the network can read it.</string>
+    <string name="sendspin_player_info_paired">Paired: the connection proves who the player is.</string>
+    <string name="sendspin_player_info_approved">Approved by you, not paired: the connection does not prove who the player is.</string>
+    <string name="sendspin_player_info_not_approved">Not approved yet: playing to it approves it.</string>
+    <string name="sendspin_player_info_audio">Audio: %1$s</string>
+    <string name="sendspin_player_enter_token">Enter pairing token</string>
+    <string name="sendspin_player_forget_pairing">Forget pairing</string>
+    <string name="sendspin_player_revoke">Withdraw approval</string>
 </resources>

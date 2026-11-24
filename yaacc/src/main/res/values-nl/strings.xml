@@ -632,4 +632,16 @@
     <string name="sendspin_servers_none">Nog geen servers toegevoegd</string>
     <string name="sendspin_servers_too_many">Er kunnen maximaal 8 servers worden toegevoegd.</string>
     <string name="sendspin_server_artwork">Hoes van wat er speelt</string>
+    <string name="sendspin_row_settings">Sendspin-instellingen</string>
+    <string name="sendspin_server_not_ready">De server is nog niet verbonden.</string>
+    <string name="sendspin_player_info_address">Adres: %1$s</string>
+    <string name="sendspin_player_info_inbound">Deze speler heeft verbinding gemaakt met deze telefoon.</string>
+    <string name="sendspin_player_info_legacy">Onversleutelde verbinding (ouder protocol): iedereen op het netwerk kan meelezen.</string>
+    <string name="sendspin_player_info_paired">Gekoppeld: de verbinding bewijst wie de speler is.</string>
+    <string name="sendspin_player_info_approved">Door jou goedgekeurd, niet gekoppeld: de verbinding bewijst niet wie de speler is.</string>
+    <string name="sendspin_player_info_not_approved">Nog niet goedgekeurd: erop afspelen keurt hem goed.</string>
+    <string name="sendspin_player_info_audio">Audio: %1$s</string>
+    <string name="sendspin_player_enter_token">Koppelingstoken invoeren</string>
+    <string name="sendspin_player_forget_pairing">Koppeling vergeten</string>
+    <string name="sendspin_player_revoke">Goedkeuring intrekken</string>
 </resources>

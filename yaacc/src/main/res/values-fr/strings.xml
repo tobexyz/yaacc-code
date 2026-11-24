@@ -636,4 +636,16 @@
     <string name="sendspin_servers_none">Aucun serveur ajouté pour l\'instant</string>
     <string name="sendspin_servers_too_many">Au plus 8 serveurs peuvent être ajoutés.</string>
     <string name="sendspin_server_artwork">Pochette de ce qui est lu</string>
+    <string name="sendspin_row_settings">Réglages Sendspin</string>
+    <string name="sendspin_server_not_ready">Le serveur n\'est pas encore connecté.</string>
+    <string name="sendspin_player_info_address">Adresse : %1$s</string>
+    <string name="sendspin_player_info_inbound">Ce lecteur s\'est connecté à ce téléphone.</string>
+    <string name="sendspin_player_info_legacy">Connexion non chiffrée (ancien protocole) : n\'importe qui sur le réseau peut la lire.</string>
+    <string name="sendspin_player_info_paired">Appairé : la connexion prouve l\'identité du lecteur.</string>
+    <string name="sendspin_player_info_approved">Approuvé par vous, non appairé : la connexion ne prouve pas l\'identité du lecteur.</string>
+    <string name="sendspin_player_info_not_approved">Pas encore approuvé : lui envoyer de la musique l\'approuve.</string>
+    <string name="sendspin_player_info_audio">Audio : %1$s</string>
+    <string name="sendspin_player_enter_token">Saisir le jeton d\'appairage</string>
+    <string name="sendspin_player_forget_pairing">Oublier l\'appairage</string>
+    <string name="sendspin_player_revoke">Retirer l\'approbation</string>
 </resources>

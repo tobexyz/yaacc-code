@@ -632,4 +632,16 @@
     <string name="sendspin_servers_none">Noch keine Server hinzugefügt</string>
     <string name="sendspin_servers_too_many">Es können höchstens 8 Server hinzugefügt werden.</string>
     <string name="sendspin_server_artwork">Cover des laufenden Titels</string>
+    <string name="sendspin_row_settings">Sendspin-Einstellungen</string>
+    <string name="sendspin_server_not_ready">Der Server ist noch nicht verbunden.</string>
+    <string name="sendspin_player_info_address">Adresse: %1$s</string>
+    <string name="sendspin_player_info_inbound">Dieser Player hat sich mit diesem Telefon verbunden.</string>
+    <string name="sendspin_player_info_legacy">Unverschlüsselte Verbindung (älteres Protokoll): Jeder im Netzwerk kann mitlesen.</string>
+    <string name="sendspin_player_info_paired">Gekoppelt: Die Verbindung beweist, wer der Player ist.</string>
+    <string name="sendspin_player_info_approved">Von dir freigegeben, nicht gekoppelt: Die Verbindung beweist nicht, wer der Player ist.</string>
+    <string name="sendspin_player_info_not_approved">Noch nicht freigegeben: Das Abspielen darauf gibt ihn frei.</string>
+    <string name="sendspin_player_info_audio">Audio: %1$s</string>
+    <string name="sendspin_player_enter_token">Kopplungstoken eingeben</string>
+    <string name="sendspin_player_forget_pairing">Kopplung vergessen</string>
+    <string name="sendspin_player_revoke">Freigabe zurückziehen</string>
 </resources>
