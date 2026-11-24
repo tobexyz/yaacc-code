@@ -51,6 +51,11 @@ public class ScreenCastCaptureService {
 
     private static final int FRAME_RATE = 15;
     private static final int JPEG_QUALITY = 75;
+    /**
+     * The screen delivers a frame only when its content changes, so a still screen would send nothing and a receiver that has just
+     * connected would wait for its first frame: the last frame is repeated at least this often.
+     */
+    private static final long REPEAT_MILLIS = 250L;
 
     private final Context context;
     private VirtualDisplay virtualDisplay;
@@ -58,6 +63,9 @@ public class ScreenCastCaptureService {
     private Thread captureThread;
     private volatile boolean isCapturing = false;
     private final List<PipedOutputStream> outputStreams = new java.util.concurrent.CopyOnWriteArrayList<>();
+    /** The last frame, as JPEG; a new client gets it at once. */
+    private volatile byte[] lastJpeg;
+    private volatile long lastSentMillis;
 
     private int screenWidth;
     private int screenHeight;
@@ -106,6 +114,7 @@ public class ScreenCastCaptureService {
 
     public void stopCapture() {
         isCapturing = false;
+        lastJpeg = null;
 
         if (captureThread != null) {
             try {
@@ -140,6 +149,10 @@ public class ScreenCastCaptureService {
         PipedOutputStream outputStream = new PipedOutputStream();
         PipedInputStream inputStream = new PipedInputStream(outputStream, 1024 * 1024);
 
+        byte[] last = lastJpeg;
+        if (last != null) {
+            writeFrame(outputStream, last); // before the capture thread writes to it: the first thing the client reads is a whole frame
+        }
         outputStreams.add(outputStream);
         YaaccLogger.i(getClass().getName(), "Created stream, clients: " + outputStreams.size());
 
@@ -163,34 +176,17 @@ public class ScreenCastCaptureService {
                     YaaccLogger.d(getClass().getName(), "Got image");
                     try {
                         byte[] jpegData = imageToJpeg(image);
-
                         if (jpegData != null && jpegData.length > 0) {
-                            List<PipedOutputStream> deadStreams = new java.util.ArrayList<>();
-
-                            for (PipedOutputStream stream : outputStreams) {
-                                try {
-                                    String header = "--frame\r\n" +
-                                            "Content-Type: image/jpeg\r\n" +
-                                            "Content-Length: " + jpegData.length + "\r\n\r\n";
-                                    stream.write(header.getBytes());
-                                    stream.write(jpegData);
-                                    stream.write("\r\n".getBytes());
-                                    stream.flush();
-                                } catch (IOException e) {
-                                    deadStreams.add(stream);
-                                }
-                            }
-
-                            for (PipedOutputStream dead : deadStreams) {
-                                outputStreams.remove(dead);
-                                try {
-                                    dead.close();
-                                } catch (IOException e) {
-                                }
-                            }
+                            lastJpeg = jpegData;
+                            sendToAll(jpegData);
                         }
                     } finally {
                         image.close();
+                    }
+                } else {
+                    byte[] last = lastJpeg;
+                    if (last != null && System.currentTimeMillis() - lastSentMillis >= REPEAT_MILLIS) {
+                        sendToAll(last); // a still screen: the clients still get a frame now and then
                     }
                 }
 
@@ -206,6 +202,39 @@ public class ScreenCastCaptureService {
             } catch (Exception e) {
                 if (isCapturing) YaaccLogger.e(getClass().getName(), "Capture error", e);
             }
+        }
+    }
+
+    private void sendToAll(byte[] jpegData) {
+        lastSentMillis = System.currentTimeMillis();
+        List<PipedOutputStream> deadStreams = new java.util.ArrayList<>();
+        for (PipedOutputStream stream : outputStreams) {
+            if (!writeFrame(stream, jpegData)) {
+                deadStreams.add(stream);
+            }
+        }
+        for (PipedOutputStream dead : deadStreams) {
+            outputStreams.remove(dead);
+            try {
+                dead.close();
+            } catch (IOException e) {
+            }
+        }
+    }
+
+    /** One part of the multipart stream: boundary, type, length and the JPEG. @return false if the client is gone */
+    private static boolean writeFrame(PipedOutputStream stream, byte[] jpegData) {
+        try {
+            String header = "--frame\r\n" +
+                    "Content-Type: image/jpeg\r\n" +
+                    "Content-Length: " + jpegData.length + "\r\n\r\n";
+            stream.write(header.getBytes());
+            stream.write(jpegData);
+            stream.write("\r\n".getBytes());
+            stream.flush();
+            return true;
+        } catch (IOException e) {
+            return false;
         }
     }
 

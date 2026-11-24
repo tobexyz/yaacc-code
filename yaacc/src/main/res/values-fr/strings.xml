@@ -259,6 +259,7 @@
     <string name="pick_picker_failed">Le sélecteur de fichiers n\'a pas pu être ouvert.</string>
     <string name="pick_skipped_unread">Certains fichiers n\'ont pas pu être lus.</string>
     <string name="pick_play_failed">Les fichiers choisis n\'ont pas pu être lus.</string>
+    <string name="live_pick_failed">Le flux en direct n\'a pas pu être démarré.</string>
     <string name="pick_title_files">Fichiers : %1$d</string>
     <string name="openhome_protocol_title">Protocole de lecture</string>
     <string name="openhome_protocol_openhome">OpenHome (l\'appareil gère la liste de lecture)</string>

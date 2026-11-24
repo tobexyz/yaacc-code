@@ -42,6 +42,7 @@ import java.util.concurrent.Executors;
 
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.player.PlayableItem;
 import de.yaacc.player.Player;
 import de.yaacc.share.BoundedCall;
 import de.yaacc.share.DisplayName;
@@ -93,6 +94,12 @@ final class LocalPickController {
     private final Handler mainThread = new Handler(Looper.getMainLooper());
     private final ActivityResultLauncher<String[]> filesLauncher;
     private final ActivityResultLauncher<Uri> folderLauncher;
+    /** Asks for the permissions of a live stream (the system's recording permission); set by the screen that owns the dialogs. */
+    private Runnable livePermissionRequest;
+    /** The stream that waits for the permission: true audio, false screen; null none. Static: the screen can be rebuilt meanwhile. */
+    private static volatile Boolean livePendingAudio;
+    private static volatile long livePendingSince;
+    private static final long LIVE_PENDING_MILLIS = 120_000L;
 
     /** Call from {@code Fragment.onCreate}: the launchers must be registered before the fragment starts. */
     LocalPickController(Fragment fragment) {
@@ -102,6 +109,155 @@ final class LocalPickController {
                 new ActivityResultContracts.OpenMultipleDocuments(), this::onFilesPicked);
         this.folderLauncher = fragment.registerForActivityResult(
                 new ActivityResultContracts.OpenDocumentTree(), this::onFolderPicked);
+    }
+
+    void setLivePermissionRequest(Runnable request) {
+        this.livePermissionRequest = request;
+    }
+
+    // ---- live streams of this phone (the buttons of the card) ----
+
+    /**
+     * Sends the live stream of this phone to a receiver. If the server serves that stream already (the UPnP server, the media
+     * provider and the stream switch of the server card are on) the receiver gets the server's own link; otherwise the stream is
+     * offered like the picked files: a short-lived link of its own that needs no server switch, the capture runs as long as it
+     * lives. The system's permissions are asked first when they are not there (the result comes to
+     * {@link #onLiveStreamingChanged}); the stream settings of the server card are not touched.
+     *
+     * @param audio true for the device audio, false for the screen cast
+     */
+    void playLiveStream(boolean audio) {
+        Context context = app.getApplicationContext();
+        boolean supported = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q;
+        android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context);
+        boolean serverServes = prefs.getBoolean(context.getString(R.string.settings_local_server_chkbx), false)
+                && prefs.getBoolean(context.getString(R.string.settings_local_server_provider_chkbx), false)
+                && BrowseDeviceAdapter.isStreamOn(context, audio);
+        switch (LivePickPlan.decide(supported, serverServes, supported && livePermissionsAvailable(audio))) {
+            case SEND_SERVER_LINK:
+                offerLive(audio, true);
+                break;
+            case SEND_OWN_LINK:
+                offerLive(audio, false);
+                break;
+            case ASK_PERMISSION_THEN_SEND:
+                if (livePermissionRequest == null) {
+                    toast(R.string.live_pick_failed);
+                    return;
+                }
+                livePendingAudio = audio;
+                livePendingSince = System.nanoTime();
+                livePermissionRequest.run();
+                break;
+            case NOT_SUPPORTED:
+            default:
+                break;
+        }
+    }
+
+    /** The system's permissions for a stream of our own: the screen capture, and for the device audio the recording permission too. */
+    private boolean livePermissionsAvailable(boolean audio) {
+        Context context = app.getApplicationContext();
+        return de.yaacc.upnp.server.media.MediaProjectionHelper.hasPermission()
+                && (!audio || androidx.core.content.ContextCompat.checkSelfPermission(context,
+                android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED);
+    }
+
+    /**
+     * The permission dialogs ended (granted or not): a stream that waited for them is offered now if the permissions are there,
+     * otherwise the user is told. Call from the refresh of the server list.
+     */
+    void onLiveStreamingChanged() {
+        Boolean audio = livePendingAudio;
+        if (audio == null) {
+            return;
+        }
+        livePendingAudio = null;
+        if (System.nanoTime() - livePendingSince > LIVE_PENDING_MILLIS * 1_000_000L) {
+            return; // too long ago: the user did not mean it now
+        }
+        if (livePermissionsAvailable(audio)) {
+            offerLive(audio, false);
+        } else {
+            toast(R.string.live_pick_failed);
+        }
+    }
+
+    /** The receiver picker for the live stream; the stream goes to the chosen receivers when the user confirms. */
+    private void offerLive(boolean audio, boolean serverLink) {
+        if (!fragment.isAdded()) {
+            return;
+        }
+        BrowserHost host = fragment.getActivity() instanceof BrowserHost ? (BrowserHost) fragment.getActivity() : null;
+        if (host == null) {
+            return;
+        }
+        boolean newLayout = host.providesReceiverBar();
+        Collection<String> initial = newLayout ? null : new HashSet<>(app.getUpnpClient().getReceiverDeviceIds());
+        String title = fragment.getString(audio ? R.string.system_audio_stream : R.string.screen_cast_stream);
+        boolean opened = host.pickReceivers(new PickedAction() {
+            @Override
+            public void onConfirmed(Set<String> receiverIds, Runnable done) {
+                startLive(audio, serverLink, receiverIds, newLayout, done);
+            }
+
+            @Override
+            public void onCancelled() {
+                // nothing was started: no capture, no link
+            }
+
+            @Override
+            public PickContent content() {
+                return PickContent.ofKind(audio ? "audio" : "video");
+            }
+        }, DisplayName.clean(title), initial);
+        if (!opened) {
+            toast(R.string.receiver_pick_busy);
+        }
+    }
+
+    /** The user confirmed: the item is made on a worker (a link of its own starts the capture), the players start on the main thread. */
+    private void startLive(boolean audio, boolean serverLink, Set<String> receiverIds, boolean newLayout, Runnable done) {
+        final UpnpClient upnpClient = app.getUpnpClient();
+        final Runnable afterStart = ReceiverPickController.afterStartHook(upnpClient, newLayout);
+        upnpClient.setReceiverDeviceIds(receiverIds);
+        final Runnable finish = () -> {
+            try {
+                afterStart.run();
+            } finally {
+                done.run();
+            }
+        };
+        final PlayableItem[] made = new PlayableItem[1];
+        runOnWorkerThenMain(() -> {
+            Context context = app.getApplicationContext();
+            PlayableItem item = serverLink
+                    ? new PlayableItem(new de.yaacc.upnp.server.contentdirectory.LiveStreamFolderBrowser(context)
+                    .liveItem(audio, de.yaacc.util.InterfaceResolutionHelper.getIpAddress(context)),
+                    upnpClient.getDefaultDuration())
+                    : upnpClient.createLiveStreamShare(audio, receiverIds);
+            made[0] = item;
+            return item == null ? null : upnpClient.initializePlayersWithPlayableItems(java.util.Collections.singletonList(item));
+        }, players -> {
+            try {
+                if (players == null || players.isEmpty()) {
+                    if (made[0] != null && !serverLink) {
+                        upnpClient.discardShareOf(made[0]); // no player took it: the capture is given back
+                    }
+                    toast(made[0] == null ? R.string.live_pick_failed : R.string.pick_play_failed);
+                    return;
+                }
+                for (Player player : players) {
+                    try {
+                        player.play();
+                    } catch (RuntimeException e) {
+                        YaaccLogger.w(TAG, "A player of the live stream did not start (" + e.getClass().getSimpleName() + ")");
+                    }
+                }
+            } finally {
+                finish.run();
+            }
+        }, finish);
     }
 
     void pickFiles() {

@@ -824,24 +824,28 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
             if (getApplicationContext().getString(R.string.settings_local_server_serve_system_audio_chkbx).equals(key)) {
                 boolean enabled = sharedPreferences.getBoolean(key, false);
                 YaaccLogger.d(getClass().getName(), "Audio preference changed: " + enabled);
-                if (enabled) {
-                    startAudioCapture();
-                    //FIXME experimental checkStartCombinedCapture();
-                } else {
-                    stopAudioCapture();
-                    //FIXME experimentalstopCombinedCapture();
+                synchronized (liveLock) {
+                    if (enabled) {
+                        startAudioCapture();
+                        //FIXME experimental checkStartCombinedCapture();
+                    } else if (liveAudioShares == 0) {
+                        stopAudioCapture(); // a share of the live audio still needs it
+                        //FIXME experimentalstopCombinedCapture();
+                    }
                 }
             }
             if (getApplicationContext().getString(R.string.settings_local_server_serve_screen_cast_chkbx).equals(key)) {
                 boolean enabled = sharedPreferences.getBoolean(key, false);
                 YaaccLogger.d(getClass().getName(), "Video preference changed: " + enabled);
-                if (enabled) {
-                    startVideoCapture();
-                    //checkStartCombinedCapture();
-                    //FIXME experimental startCombinedCapture();
-                } else {
-                    stopVideoCapture();
-                    //FIXME experimental stopCombinedCapture();
+                synchronized (liveLock) {
+                    if (enabled) {
+                        startVideoCapture();
+                        //checkStartCombinedCapture();
+                        //FIXME experimental startCombinedCapture();
+                    } else if (liveVideoShares == 0) {
+                        stopVideoCapture(); // a share of the live screen still needs it
+                        //FIXME experimental stopCombinedCapture();
+                    }
                 }
             }
         }
@@ -1409,6 +1413,70 @@ public class YaaccUpnpServerService extends Service implements SharedPreferences
     }
 
     // Live streaming methods (Android 10+)
+
+    private final Object liveLock = new Object();
+    /** Shares (the live stream sent to a receiver from the card "Play from this device") that need the capture; guarded by liveLock. */
+    private int liveAudioShares;
+    private int liveVideoShares;
+
+    /**
+     * A share of the live stream needs the capture: it is started if it is not running (the permission of the system must be
+     * there, see {@link MediaProjectionHelper}). Independent of the stream settings of the server card: the capture also runs
+     * for a share when those are off. Every successful call needs its {@link #releaseLiveCapture}.
+     *
+     * @return true if the capture is running
+     */
+    public boolean acquireLiveCapture(boolean audio) {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+            return false;
+        }
+        synchronized (liveLock) {
+            boolean running;
+            if (audio) {
+                liveAudioShares++;
+                startAudioCapture();
+                running = audioCapture != null && audioCapture.isCapturing();
+            } else {
+                liveVideoShares++;
+                startVideoCapture();
+                running = videoCapture != null && videoCapture.isCapturing();
+            }
+            if (!running) {
+                releaseLocked(audio);
+            }
+            return running;
+        }
+    }
+
+    /** The share does not need the capture any more: it stops unless the stream setting of the server card keeps it. */
+    public void releaseLiveCapture(boolean audio) {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+            return;
+        }
+        synchronized (liveLock) {
+            releaseLocked(audio);
+        }
+    }
+
+    @RequiresApi(api = android.os.Build.VERSION_CODES.Q)
+    private void releaseLocked(boolean audio) {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        if (audio) {
+            if (liveAudioShares > 0) {
+                liveAudioShares--;
+            }
+            if (liveAudioShares == 0 && !prefs.getBoolean(getString(R.string.settings_local_server_serve_system_audio_chkbx), false)) {
+                stopAudioCapture();
+            }
+        } else {
+            if (liveVideoShares > 0) {
+                liveVideoShares--;
+            }
+            if (liveVideoShares == 0 && !prefs.getBoolean(getString(R.string.settings_local_server_serve_screen_cast_chkbx), false)) {
+                stopVideoCapture();
+            }
+        }
+    }
 
     @RequiresApi(api = android.os.Build.VERSION_CODES.Q)
     private void startAudioCapture() {

@@ -1029,8 +1029,8 @@ public class ShareRegistryTest {
     }
 
     @Test
-    public void kindEnumHasTheTwoDocumentedValues() {
-        assertEquals(Arrays.asList(ShareRegistry.Kind.HTTP_LINK, ShareRegistry.Kind.LOCAL_FILE),
+    public void kindEnumHasTheThreeDocumentedValues() {
+        assertEquals(Arrays.asList(ShareRegistry.Kind.HTTP_LINK, ShareRegistry.Kind.LOCAL_FILE, ShareRegistry.Kind.LIVE_STREAM),
                 Arrays.asList(ShareRegistry.Kind.values()));
     }
 
