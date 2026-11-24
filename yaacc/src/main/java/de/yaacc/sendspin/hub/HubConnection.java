@@ -590,6 +590,9 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
             pairingActivations = 0;
             channel.sendJson(SendspinMessages.serverPairFinalize());
             ServerHandshake.PskChoice choice = policy.pskFor(id);
+            if (choice.category() != SendspinPsk.Category.LONG_TERM) {
+                throw new IOException("no long-term PSK after the pairing"); // a token pasted meanwhile must not start a second pairing here
+            }
             ServerHandshake.rehandshake(channel, identity, id, handshake.suite, choice, random);
             matched = choice.category();
             decide();

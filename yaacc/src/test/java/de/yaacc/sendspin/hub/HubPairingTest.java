@@ -276,4 +276,32 @@ public class HubPairingTest {
         awaitPhase(HubConnection.Phase.PAIRING_FAILED);
         assertEquals(HubConnection.PairingFailure.NOT_OFFERED, hub.pairingFailure());
     }
+
+    @Test
+    public void ifThePolicyDoesNotReferenceTheLongTermPskAfterThePairingTheConnectionEnds() throws Exception {
+        player = new FakePlayer().open();
+        ServerPolicy.InMemory odd = new ServerPolicy.InMemory() {
+            @Override
+            public boolean completePairing(String clientId, byte[] longTermPsk) {
+                super.completePairing(clientId, longTermPsk);
+                addToken(clientId, pairingPsk); // a token pasted at the wrong moment: the next reference would be the pairing PSK
+                return true;
+            }
+        };
+        odd.addToken(player.identity.id(), pairingPsk);
+        player.knownPsks.put(SendspinPsk.pskId(pairingPsk), pairingPsk);
+        Connector connector = (endpoint, random) -> player.hubLink();
+        hub = new HubConnection(new Endpoint("127.0.0.1", 8928, "/sendspin"), server, odd, connector, HubClock.SYSTEM,
+                new SecureRandom(), "YAACC test", null);
+        hub.start();
+        peer = player.handshake();
+        peer.receive();
+        peer.sendJson(helloJson("{\"pairing_psk\":{}}"));
+        nextJson();
+        peer.sendJson(pairInit(1));
+        peer.sendJson(pairFinalize(longTerm));
+        assertEquals("server/pair-finalize", nextJson().type());
+        awaitPhase(HubConnection.Phase.ENDED);
+        assertEquals(HubConnection.EndReason.FAILED, hub.endReason());
+    }
 }
