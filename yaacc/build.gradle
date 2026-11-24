@@ -73,6 +73,10 @@ dependencies {
     // FlatBuffers runtime for protocol v4 of FCast (decision D23): pure Java, Apache-2.0, released 2025-02-11; only the tables of the
     // protocol that YAACC uses are written by hand on top of it (no flatc, no generated sources)
     implementation 'com.google.flatbuffers:flatbuffers-java:25.2.10'
+    // Sendspin (issue #325): X25519 and, on API 27, ChaCha20-Poly1305 are not in the platform (XDH is API 33+, ChaCha20-Poly1305 API 28+);
+    // only the lightweight API is used (org.bouncycastle.math.ec.rfc7748.X25519, org.bouncycastle.crypto.modes.ChaCha20Poly1305),
+    // never as a JCA provider. 1.87 was published 2026-11-11 (7-day rule), SHA-1 3cf2bbc1280a743fd3d4d7d556883c13e5d28be5.
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.87'
     implementation 'com.github.chrisbanes:PhotoView:2.3.0'
 
 }
@@ -141,8 +145,9 @@ android {
         unitTests.all { testTask ->
             // opt-in rig tests (tools/snapcast-rig): -Dsnapcast.rig=<host> on the Gradle command line is handed on to
             // the test JVM; without it nothing is set and the rig tests are skipped
-            // (snapcast.rig.seconds and snapcast.rig.expectChunks tune the binary protocol rig test)
-            ['snapcast.rig', 'snapcast.rig.seconds', 'snapcast.rig.expectChunks'].each { name ->
+            // (snapcast.rig.seconds and snapcast.rig.expectChunks tune the binary protocol rig test); sendspin.rig=<host:port> and
+            // sendspin.rig.paired=<host:port> are the same for the Sendspin rig (tools/sendspin-rig)
+            ['snapcast.rig', 'snapcast.rig.seconds', 'snapcast.rig.expectChunks', 'sendspin.rig', 'sendspin.rig.paired'].each { name ->
                 if (System.getProperty(name)) {
                     testTask.systemProperty name, System.getProperty(name)
                 }
