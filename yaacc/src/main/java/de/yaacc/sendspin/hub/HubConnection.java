@@ -117,6 +117,7 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
     private final SecureRandom random;
     private final String serverName;
     private final Listener listener;
+    private final java.util.function.BooleanSupplier legacyAllowed;
     private final Object lock = new Object();
 
     private volatile Phase phase = Phase.CONNECTING;
@@ -137,6 +138,8 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
     private volatile SecureChannel channel;
     private volatile Connector.Link link;
     private volatile boolean closing;
+    /** True for a client of the older, unencrypted wire: no activation messages, the roles are in the {@code server/hello}. */
+    private volatile boolean legacy;
     private volatile StreamFormat format;
     private PcmStreamer streamer;
     private Thread thread;
@@ -149,6 +152,16 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
 
     public HubConnection(Endpoint endpoint, Identity identity, ServerPolicy policy, Connector connector, HubClock clock,
                          SecureRandom random, String serverName, Listener listener) {
+        this(endpoint, identity, policy, connector, clock, random, serverName, listener, () -> false);
+    }
+
+    /**
+     * @param legacyAllowed whether a client of the older, unencrypted wire is accepted ({@code client/hello} as the first message);
+     *                      read at each connection: the user's switch, off by default
+     */
+    public HubConnection(Endpoint endpoint, Identity identity, ServerPolicy policy, Connector connector, HubClock clock,
+                         SecureRandom random, String serverName, Listener listener, java.util.function.BooleanSupplier legacyAllowed) {
+        this.legacyAllowed = legacyAllowed;
         this.endpoint = endpoint;
         this.identity = identity;
         this.policy = policy;
@@ -189,6 +202,11 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
 
     public boolean isReady() {
         return phase == Phase.READY;
+    }
+
+    /** True if this player speaks the older, unencrypted wire (allowed by the user's switch). */
+    public boolean isLegacy() {
+        return legacy;
     }
 
     /** True if the server could not use a PSK the player had referenced earlier (spec: credential mismatch). */
@@ -311,7 +329,9 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
             playbackActive = true;
         }
         try {
-            c.sendJson(SendspinMessages.serverActivate(Collections.singletonList("playback"), Collections.singletonList("player@v1")));
+            if (!legacy) {
+                c.sendJson(SendspinMessages.serverActivate(Collections.singletonList("playback"), Collections.singletonList("player@v1")));
+            }
             c.sendJson(SendspinMessages.groupUpdate(false, GROUP_ID, serverName));
         } catch (IOException e) {
             fail(EndReason.FAILED);
@@ -345,7 +365,9 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
             return;
         }
         try {
-            c.sendJson(SendspinMessages.serverActivate(Collections.<String>emptyList(), Collections.singletonList("player@v1")));
+            if (!legacy) {
+                c.sendJson(SendspinMessages.serverActivate(Collections.<String>emptyList(), Collections.singletonList("player@v1")));
+            }
         } catch (IOException e) {
             return; // the connection is gone; the loop ends it
         }
@@ -434,7 +456,9 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
 
     @Override
     public void audio(long timestampMicros, long sendAheadMicros, byte[] pcm, int offset, int length) throws IOException {
-        channel.sendMessage(SendspinMessages.AUDIO_CHUNK_ID, SendspinMessages.audioChunk(timestampMicros, sendAheadMicros, pcm, offset, length));
+        channel.sendMessage(SendspinMessages.AUDIO_CHUNK_ID, legacy
+                ? SendspinMessages.audioChunkLegacy(timestampMicros, pcm, offset, length)
+                : SendspinMessages.audioChunk(timestampMicros, sendAheadMicros, pcm, offset, length));
     }
 
     // PcmStreamer.Timing ----------------------------------------------------
@@ -473,13 +497,19 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
                 return;
             }
             setPhase(Phase.HANDSHAKING);
-            ServerHandshake.Result result = ServerHandshake.perform(link.ws(), identity, policy::pskFor, random);
+            ServerHandshake.Result result = ServerHandshake.perform(link.ws(), identity, policy::pskFor, random, legacyAllowed.getAsBoolean());
             handshake = result;
             matched = result.verifiedAs;
             channel = result.channel;
             clientId = result.clientId;
-            channel.sendJson(SendspinMessages.serverHello(serverName));
-            setPhase(Phase.WAITING_FOR_HELLO);
+            if (result.legacy) {
+                legacy = true;
+                setPhase(Phase.WAITING_FOR_HELLO);
+                handleHello(SendspinMessages.parseLegacyClientHello(result.legacyHello)); // the hello that opened the session
+            } else {
+                channel.sendJson(SendspinMessages.serverHello(serverName));
+                setPhase(Phase.WAITING_FOR_HELLO);
+            }
             loop(result.channel);
         } catch (SocketTimeoutException e) {
             fail(EndReason.FAILED);
@@ -551,7 +581,8 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
                     break;
                 }
                 case "client/state":
-                    handleState(SendspinMessages.parseClientState(envelope.payload()));
+                    handleState(legacy ? SendspinMessages.parseLegacyClientState(envelope.payload(), hello.playerCommands)
+                            : SendspinMessages.parseClientState(envelope.payload()));
                     break;
                 case "client/pair-init":
                     handlePairInit(SendspinMessages.parsePairingIndex(envelope.payload()));
@@ -585,6 +616,10 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
 
     /** What the player may be given, from what the handshake showed and the hello said; runs again after a pairing. */
     private void decide() throws IOException {
+        if (legacy) {
+            decideLegacy();
+            return;
+        }
         SendspinMessages.ClientHello h = hello;
         ServerHandshake.Result result = handshake;
         if (!h.supportsPlayer() || choosePcm(h) == null) {
@@ -618,6 +653,32 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
             return;
         }
         activateIdle();
+    }
+
+    /**
+     * The older wire has no activation: the roles are named once, in the {@code server/hello}, so a player that the operator has not
+     * approved gets nothing at all (not even a hello) until it is approved. It is never paired.
+     */
+    private void decideLegacy() throws IOException {
+        SendspinMessages.ClientHello h = hello;
+        if (!h.supportsPlayer() || choosePcm(h) == null) {
+            sendLegacyHello(Collections.<String>emptyList());
+            setPhase(Phase.UNUSABLE);
+            return;
+        }
+        if (!policy.isApproved(clientId)) {
+            setPhase(Phase.NEEDS_APPROVAL);
+            return;
+        }
+        activateIdle();
+    }
+
+    private void sendLegacyHello(java.util.List<String> roles) throws IOException {
+        String reason;
+        synchronized (lock) {
+            reason = playbackWanted ? "playback" : "discovery";
+        }
+        channel.sendJson(SendspinMessages.legacyServerHello(identity.id(), serverName, roles, reason));
     }
 
     // ------------------------------------------------------------------ pairing with the Pairing PSK
@@ -715,9 +776,13 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
             playbackActive = withPlayback;
         }
         setPhase(Phase.ACTIVATING);
-        channel.sendJson(SendspinMessages.serverActivate(
-                withPlayback ? Collections.singletonList("playback") : Collections.<String>emptyList(),
-                Collections.singletonList("player@v1")));
+        if (legacy) {
+            sendLegacyHello(Collections.singletonList("player@v1")); // there is no server/activate on this wire
+        } else {
+            channel.sendJson(SendspinMessages.serverActivate(
+                    withPlayback ? Collections.singletonList("playback") : Collections.<String>emptyList(),
+                    Collections.singletonList("player@v1")));
+        }
         if (withPlayback) {
             channel.sendJson(SendspinMessages.groupUpdate(false, GROUP_ID, serverName));
         }

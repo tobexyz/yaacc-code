@@ -83,11 +83,22 @@ public final class ServerHandshake {
         public final SendspinPsk.Category verifiedAs;
         /** True if the client could not use the PSK that was referenced and answered with the Sentinel (spec, "Sentinel Fallback"). */
         public final boolean credentialMismatch;
+        /** True for a client of the older, unencrypted wire (allowed by the user only); its {@code client/hello} is {@link #legacyHello}. */
+        public final boolean legacy;
+        /** The payload of the {@code client/hello} that opened a legacy session, else null. */
+        public final JSONObject legacyHello;
         /** The category of the PSK the server referenced in its first message (differs from {@link #verifiedAs} after a mismatch). */
         public final SendspinPsk.Category referenced;
 
         Result(SecureChannel channel, String clientId, NoiseSuite suite, SendspinPsk.Category verifiedAs, boolean credentialMismatch,
                SendspinPsk.Category referenced) {
+            this(channel, clientId, suite, verifiedAs, credentialMismatch, referenced, null);
+        }
+
+        Result(SecureChannel channel, String clientId, NoiseSuite suite, SendspinPsk.Category verifiedAs, boolean credentialMismatch,
+               SendspinPsk.Category referenced, JSONObject legacyHello) {
+            this.legacy = legacyHello != null;
+            this.legacyHello = legacyHello;
             this.referenced = referenced;
             this.channel = channel;
             this.clientId = clientId;
@@ -117,6 +128,15 @@ public final class ServerHandshake {
      * @param identity the server's identity (its static key stays with it; the handshake does not zero it)
      */
     public static Result perform(WsConnection ws, Identity identity, PskResolver psks, SecureRandom random) throws IOException {
+        return perform(ws, identity, psks, random, false);
+    }
+
+    /**
+     * @param allowLegacy true if a first message {@code client/hello} (the older, unencrypted wire) is accepted as a legacy session
+     *                    instead of an init failure; the user's switch, off by default
+     */
+    public static Result perform(WsConnection ws, Identity identity, PskResolver psks, SecureRandom random, boolean allowLegacy)
+            throws IOException {
         // 1. client/init, cleartext
         WsConnection.Message first = ws.receive();
         if (!first.isText()) {
@@ -131,7 +151,13 @@ public final class ServerHandshake {
             }
             JSONObject root;
             try {
-                Envelope envelope = Envelope.parse(clientInitBytes, MAX_INIT_BYTES);
+                Envelope envelope = Envelope.parse(clientInitBytes, Envelope.MAX_BYTES);
+                if (allowLegacy && "client/hello".equals(envelope.type())) {
+                    return legacySession(ws, envelope.payload());
+                }
+                if (clientInitBytes.length > MAX_INIT_BYTES) {
+                    throw initFailure(ws, "malformed");
+                }
                 if (!"client/init".equals(envelope.type())) {
                     throw initFailure(ws, "malformed");
                 }
@@ -300,6 +326,17 @@ public final class ServerHandshake {
                 channel.stash(inbound);
             }
         }
+    }
+
+    /** The first message was a {@code client/hello}: the older wire without encryption, which the user allowed. */
+    private static Result legacySession(WsConnection ws, JSONObject hello) throws HandshakeException {
+        String clientId;
+        try {
+            clientId = SendspinMessages.parseLegacyClientHello(hello).clientId; // checks the id and the rest of the hello
+        } catch (ProtocolException e) {
+            throw silent("bad legacy hello");
+        }
+        return new Result(SecureChannel.plain(ws), clientId, null, SendspinPsk.Category.SENTINEL, false, SendspinPsk.Category.SENTINEL, hello);
     }
 
     private static HandshakeException silent(String message) {

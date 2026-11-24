@@ -138,6 +138,19 @@ public final class SendspinMessages {
         return buffer.array();
     }
 
+    /** The audio chunk of the older wire: the timestamp (int64, big endian) and the audio, without the send-ahead field. */
+    public static byte[] audioChunkLegacy(long timestampMicros, byte[] audio, int offset, int length) {
+        ByteBuffer buffer = ByteBuffer.allocate(8 + length);
+        buffer.putLong(timestampMicros).put(audio, offset, length);
+        return buffer.array();
+    }
+
+    /** {@code server/hello} of the older wire: it replaces {@code server/hello} and {@code server/activate} and names the active roles. */
+    public static String legacyServerHello(String serverId, String name, List<String> activeRoles, String connectionReason) {
+        return message("server/hello", json("server_id", serverId, "name", name, "version", 1, "connection_reason", connectionReason,
+                "active_roles", new JSONArray(activeRoles)));
+    }
+
     static JSONObject json(Object... pairs) {
         JSONObject object = new JSONObject();
         for (int i = 0; i < pairs.length; i += 2) {
@@ -184,9 +197,15 @@ public final class SendspinMessages {
         public final boolean unpairedAccess;
         public final List<String> pairMethods;
         public final String productName;
+        /** The {@code client_id} of a legacy hello (the encrypted protocol carries it in {@code client/init}), else null. */
+        public final String clientId;
+        /** The {@code supported_commands} of the player support object (the older wire puts them there), else empty. */
+        public final List<String> playerCommands;
 
         ClientHello(String name, List<String> roles, List<Format> formats, long bufferCapacity, boolean unpaired, List<String> pairMethods,
-                    String productName) {
+                    String productName, String clientId, List<String> playerCommands) {
+            this.clientId = clientId;
+            this.playerCommands = Collections.unmodifiableList(playerCommands);
             this.name = name;
             this.supportedRoles = Collections.unmodifiableList(roles);
             this.playerFormats = Collections.unmodifiableList(formats);
@@ -205,6 +224,29 @@ public final class SendspinMessages {
     private static final int MAX_FORMATS = 64;
 
     public static ClientHello parseClientHello(JSONObject p) throws ProtocolException {
+        return parseClientHello(p, false);
+    }
+
+    /**
+     * The hello of a client of the older, unencrypted wire: it also needs a {@code client_id} (plain text of at most 64 bytes) and a
+     * session with it is always unpaired. The player support object lists the commands the player takes.
+     */
+    public static ClientHello parseLegacyClientHello(JSONObject p) throws ProtocolException {
+        return parseClientHello(p, true);
+    }
+
+    private static ClientHello parseClientHello(JSONObject p, boolean legacy) throws ProtocolException {
+        String clientId = text(p, "client_id", 64, legacy);
+        if (legacy) {
+            if (clientId.isEmpty()) {
+                throw new ProtocolException("client_id");
+            }
+            for (int i = 0; i < clientId.length(); i++) {
+                if (Character.isISOControl(clientId.charAt(i))) {
+                    throw new ProtocolException("client_id");
+                }
+            }
+        }
         String name = text(p, "name", 64, true);
         JSONArray rolesArray = p.optJSONArray("supported_roles");
         if (rolesArray == null || rolesArray.length() > MAX_ROLES) {
@@ -219,6 +261,7 @@ public final class SendspinMessages {
             roles.add((String) role);
         }
         List<Format> formats = new ArrayList<>();
+        List<String> playerCommands = new ArrayList<>();
         long bufferCapacity = 0;
         if (roles.contains("player@v1")) {
             JSONObject support = p.optJSONObject("player@v1_support");
@@ -239,10 +282,19 @@ public final class SendspinMessages {
                         "opus".equals(codec) ? 0 : integer(f, "bit_depth", 1, 64, true)));
             }
             bufferCapacity = longInteger(support, "buffer_capacity", 0, Integer.MAX_VALUE);
+            JSONArray commandArray = support.optJSONArray("supported_commands");
+            if (commandArray != null && commandArray.length() <= 8) {
+                for (int i = 0; i < commandArray.length(); i++) {
+                    Object c = commandArray.opt(i);
+                    if (c instanceof String && ((String) c).length() <= 32) {
+                        playerCommands.add((String) c);
+                    }
+                }
+            }
         }
-        boolean unpaired = false;
+        boolean unpaired = legacy;
         JSONObject access = p.optJSONObject("unpaired_access");
-        if (access != null) {
+        if (access != null && !legacy) {
             unpaired = access.optBoolean("enabled", false);
         }
         List<String> methods = new ArrayList<>();
@@ -257,7 +309,7 @@ public final class SendspinMessages {
         }
         JSONObject device = p.optJSONObject("device_info");
         String product = device == null ? null : text(device, "product_name", 64, false);
-        return new ClientHello(name, roles, formats, bufferCapacity, unpaired, methods, product);
+        return new ClientHello(name, roles, formats, bufferCapacity, unpaired, methods, product, clientId, playerCommands);
     }
 
     /** The player object of {@code client/state}. */
@@ -291,6 +343,18 @@ public final class SendspinMessages {
     }
 
     public static ClientState parseClientState(JSONObject p) throws ProtocolException {
+        return parseClientState(p, null);
+    }
+
+    /**
+     * {@code client/state} of the older wire: the delay may be called {@code static_delay_ms} and the commands are not repeated here
+     * (they were in the hello).
+     */
+    public static ClientState parseLegacyClientState(JSONObject p, List<String> helloCommands) throws ProtocolException {
+        return parseClientState(p, helloCommands);
+    }
+
+    private static ClientState parseClientState(JSONObject p, List<String> legacyCommands) throws ProtocolException {
         if (!(p.opt("available") instanceof Boolean)) {
             throw new ProtocolException("available");
         }
@@ -310,17 +374,22 @@ public final class SendspinMessages {
             }
             List<String> commands = new ArrayList<>();
             JSONArray array = o.optJSONArray("supported_commands");
-            if (array == null || array.length() > 8) {
-                throw new ProtocolException("supported_commands");
-            }
-            for (int i = 0; i < array.length(); i++) {
-                Object c = array.opt(i);
-                if (!(c instanceof String) || ((String) c).length() > 32) {
+            if (array == null && legacyCommands != null) {
+                commands.addAll(legacyCommands);
+            } else {
+                if (array == null || array.length() > 8) {
                     throw new ProtocolException("supported_commands");
                 }
-                commands.add((String) c);
+                for (int i = 0; i < array.length(); i++) {
+                    Object c = array.opt(i);
+                    if (!(c instanceof String) || ((String) c).length() > 32) {
+                        throw new ProtocolException("supported_commands");
+                    }
+                    commands.add((String) c);
+                }
             }
-            player = new PlayerState(volume, muted, integer(o, "output_delay_ms", 0, 5000, true),
+            String delayKey = legacyCommands != null && !o.has("output_delay_ms") ? "static_delay_ms" : "output_delay_ms";
+            player = new PlayerState(volume, muted, integer(o, delayKey, 0, 5000, true),
                     integer(o, "required_lead_time_ms", 0, 600_000, true), integer(o, "min_buffer_ms", 0, 5000, true), commands);
         }
         return new ClientState((Boolean) p.opt("available"), player);

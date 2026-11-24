@@ -84,6 +84,19 @@ public final class SecureChannel {
         this.transport = transport;
     }
 
+    /**
+     * The channel of the older, unencrypted wire (the "transition mode", only when the user allows it): a JSON message is a WebSocket
+     * text message, anything else a binary message that starts with its id byte. There is no transport and nothing is encrypted.
+     */
+    public static SecureChannel plain(WsConnection ws) {
+        return new SecureChannel(ws, null);
+    }
+
+    /** True for the plain channel of the older wire. */
+    public boolean isPlain() {
+        return transport == null;
+    }
+
     public NoiseTransport transport() {
         return transport;
     }
@@ -111,6 +124,12 @@ public final class SecureChannel {
 
     /** Sends a JSON message (id 0). */
     public void sendJson(String json) throws IOException {
+        if (transport == null) {
+            synchronized (sendLock) {
+                ws.sendText(json);
+            }
+            return;
+        }
         sendMessage(SendspinMessages.JSON_ID, json.getBytes(StandardCharsets.UTF_8));
     }
 
@@ -123,6 +142,10 @@ public final class SecureChannel {
         plain[0] = (byte) id;
         System.arraycopy(body, 0, plain, 1, body.length);
         synchronized (sendLock) {
+            if (transport == null) {
+                ws.sendBinary(plain);
+                return;
+            }
             try {
                 ws.sendBinary(transport.encrypt(plain));
             } catch (NoiseException e) {
@@ -141,6 +164,17 @@ public final class SecureChannel {
     public Inbound receive() throws IOException, ProtocolException, NoiseException {
         if (!stash.isEmpty()) {
             return stash.removeFirst();
+        }
+        if (transport == null) {
+            WsConnection.Message message = ws.receive();
+            if (message.isText()) {
+                return new Inbound(SendspinMessages.JSON_ID, message.data());
+            }
+            byte[] data = message.data();
+            if (data.length == 0) {
+                throw new ProtocolException("empty message");
+            }
+            return new Inbound(data[0] & 0xFF, java.util.Arrays.copyOfRange(data, 1, data.length));
         }
         while (true) {
             WsConnection.Message message = ws.receive();
@@ -213,6 +247,8 @@ public final class SecureChannel {
         } catch (IOException ignored) {
             // the connection is gone
         }
-        transport.destroy();
+        if (transport != null) {
+            transport.destroy();
+        }
     }
 }
