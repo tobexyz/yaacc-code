@@ -46,26 +46,26 @@ import java.util.concurrent.Future;
  * handshake and then speaks over the encrypted channel, with switches to break every step. The WebSocket connection to it is a real
  * loopback connection, opened by the hub side (the server connects to the player).
  */
-final class FakePlayer implements AutoCloseable {
+public final class FakePlayer implements AutoCloseable {
 
-    final SecureRandom random = new SecureRandom();
-    final Identity identity = Identity.generate(random);
+    public final SecureRandom random = new SecureRandom();
+    public final Identity identity = Identity.generate(random);
 
     // what a test may change
-    String suiteName = NoiseSuite.CHACHA_POLY.wireName();
-    NoiseSuite suite = NoiseSuite.CHACHA_POLY;
-    Object version = 1;
-    String clientIdOverride;
-    String rawClientInit;
-    byte[] message2Payload = "{}".getBytes(StandardCharsets.UTF_8);
-    boolean breakStaticKey;
-    final Map<String, byte[]> knownPsks = new HashMap<>();
+    public String suiteName = NoiseSuite.CHACHA_POLY.wireName();
+    public NoiseSuite suite = NoiseSuite.CHACHA_POLY;
+    public Object version = 1;
+    public String clientIdOverride;
+    public String rawClientInit;
+    public byte[] message2Payload = "{}".getBytes(StandardCharsets.UTF_8);
+    public boolean breakStaticKey;
+    public final Map<String, byte[]> knownPsks = new HashMap<>();
 
     // what a test may read
-    String serverError;
-    String pskIdSeen;
-    String pskCategorySeen;
-    String serverIdSeen;
+    public String serverError;
+    public String pskIdSeen;
+    public String pskCategorySeen;
+    public String serverIdSeen;
 
     private final ExecutorService executor = Executors.newCachedThreadPool(r -> {
         Thread t = new Thread(r, "fake-player");
@@ -75,12 +75,12 @@ final class FakePlayer implements AutoCloseable {
     private Socket hubSocket;
     private Socket playerSocket;
     /** The hub's end of the WebSocket (a client). */
-    WsConnection hubWs;
+    public WsConnection hubWs;
     /** The player's end (a server). */
-    WsConnection playerWs;
+    public WsConnection playerWs;
 
     /** Opens the WebSocket connection (handshake included) between a hub end and the player end. */
-    FakePlayer open() throws Exception {
+    public FakePlayer open() throws Exception {
         try (ServerSocket server = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
             hubSocket = new Socket(InetAddress.getLoopbackAddress(), server.getLocalPort());
             playerSocket = server.accept();
@@ -100,8 +100,23 @@ final class FakePlayer implements AutoCloseable {
         return this;
     }
 
+    /** The connection as the hub's connector hands it out. */
+    public de.yaacc.sendspin.hub.Connector.Link hubLink() {
+        return new de.yaacc.sendspin.hub.Connector.Link() {
+            @Override
+            public WsConnection ws() {
+                return hubWs;
+            }
+
+            @Override
+            public void close() throws IOException {
+                hubSocket.close();
+            }
+        };
+    }
+
     /** Runs the work of the hub side on another thread. */
-    <T> Future<T> onHub(java.util.concurrent.Callable<T> work) {
+    public <T> Future<T> onHub(java.util.concurrent.Callable<T> work) {
         return executor.submit(work);
     }
 
@@ -109,7 +124,7 @@ final class FakePlayer implements AutoCloseable {
      * The player's side of the opening exchange. @return the encrypted channel, or null if the server answered with
      * {@code server/error} (then {@link #serverError} holds the reason)
      */
-    SecureChannel handshake() throws Exception {
+    public SecureChannel handshake() throws Exception {
         String clientId = clientIdOverride != null ? clientIdOverride : identity.id();
         String init = rawClientInit != null ? rawClientInit
                 : new JSONObject().put("type", "client/init").put("payload",
