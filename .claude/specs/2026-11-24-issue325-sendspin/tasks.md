@@ -1,6 +1,6 @@
 # Tasks: Sendspin support (#325)
 
-Plan: `requirements.md`, `design.md` and `usecases.md` (what YAACC can be in a Sendspin network and which use cases need which role) in this directory. Decisions: `decisions.md` (entries marked CONFIRM must be decided by the owner before the matching group starts).
+Plan: `requirements.md`, `design.md` and `usecases.md` and `controller.md` (the controller client: plan K1 to K8) (what YAACC can be in a Sendspin network and which use cases need which role) in this directory. Decisions: `decisions.md` (entries marked CONFIRM must be decided by the owner before the matching group starts).
 Rules: spec first, tests first for the pure parts; all new strings in values + de/es/fr/nl/pt/zh; license headers with a closing ` */`; package `de.yaacc.sendspin.*` (decision CONFIRM); no Sendspin logo, no product naming (requirements, Constraints); commits as tobexyz with the issue number (#325), no trailers; a general review, then a security review after each group (sequential, max 3 cycles); no Gradle while a reviewer runs; no PR unless asked; the owner tests audio on real devices and the rig (no audio tests in the sandbox).
 
 **Stages: P (proof of concept) = Groups 1 to 5, ends with the owner's go / reduce / stop. Phase 2 (server) = Groups 6 and 7. Phase 3 (client) = Groups 8 to 10. Phase 4 (extras) = Group 11. The owner decides at the end of each stage; nothing after Group 5 starts without it.**
