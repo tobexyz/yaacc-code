@@ -47,7 +47,7 @@ public final class SendspinMessages {
 
     // ------------------------------------------------------------------ building
 
-    private static String message(String type, JSONObject payload) {
+    static String message(String type, JSONObject payload) {
         try {
             return new JSONObject().put("type", type).put("payload", payload).toString();
         } catch (JSONException e) {
@@ -138,7 +138,7 @@ public final class SendspinMessages {
         return buffer.array();
     }
 
-    private static JSONObject json(Object... pairs) {
+    static JSONObject json(Object... pairs) {
         JSONObject object = new JSONObject();
         for (int i = 0; i < pairs.length; i += 2) {
             put(object, (String) pairs[i], pairs[i + 1]);
@@ -146,7 +146,7 @@ public final class SendspinMessages {
         return object;
     }
 
-    private static void put(JSONObject object, String key, Object value) {
+    static void put(JSONObject object, String key, Object value) {
         try {
             object.put(key, value);
         } catch (JSONException e) {
@@ -356,7 +356,7 @@ public final class SendspinMessages {
         return text(p, "data", 70000, true);
     }
 
-    private static String text(JSONObject o, String key, int maxBytes, boolean required) throws ProtocolException {
+    static String text(JSONObject o, String key, int maxBytes, boolean required) throws ProtocolException {
         Object value = o.opt(key);
         if (value == null || value == JSONObject.NULL) {
             if (required) {
@@ -370,7 +370,7 @@ public final class SendspinMessages {
         return (String) value;
     }
 
-    private static int integer(JSONObject o, String key, int min, int max, boolean required) throws ProtocolException {
+    static int integer(JSONObject o, String key, int min, int max, boolean required) throws ProtocolException {
         long value = longInteger(o, key, required ? min : Integer.MIN_VALUE, max);
         if (value < min) {
             throw new ProtocolException(key);
@@ -378,7 +378,7 @@ public final class SendspinMessages {
         return (int) value;
     }
 
-    private static long longInteger(JSONObject o, String key, long min, long max) throws ProtocolException {
+    static long longInteger(JSONObject o, String key, long min, long max) throws ProtocolException {
         Object value = o.opt(key);
         if (!(value instanceof Integer) && !(value instanceof Long)) {
             throw new ProtocolException(key);

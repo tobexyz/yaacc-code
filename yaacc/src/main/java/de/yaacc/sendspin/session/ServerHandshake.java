@@ -100,7 +100,7 @@ public final class ServerHandshake {
     public static final class HandshakeException extends IOException {
         private static final long serialVersionUID = 1L;
 
-        HandshakeException(String message) {
+        public HandshakeException(String message) {
             super(message);
         }
     }
