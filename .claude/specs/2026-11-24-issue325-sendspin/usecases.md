@@ -53,6 +53,7 @@ Snapcast: the Snapcast server groups; Sendspin: YAACC groups).
 | P2 | Pairing as the client: show the pairing token (copy), keep paired servers with remove, setting "allow unpaired servers" with a warning | not started |
 | P3 | Be one member of YAACC's own group, in process | not started |
 | P4 | Take part in the multi-server rules as a client (activity ranking, last-playback server, `another_server`, `concurrent_attempt`) | not started |
+| P5 | **Roles of the phone as a client, chosen by the owner** (idea of the owner, 2026-11-24): a setting that says which roles the phone offers a server: *speaker* (the player role, P1), *now playing display* (metadata), *cover display* (artwork, a full-screen cover), *visualizer* (a light or colour show that follows the music; the visualizer role). A server then uses the phone as a speaker, a picture frame or a light, or as several at once. The roles are listed in the phone's `client/hello`; a role that is off is not offered | open (needs P1; the visualizer role is not in the pinned notes and has to be read from the spec first) |
 
 ### Controller and display (the phone controls another server)
 

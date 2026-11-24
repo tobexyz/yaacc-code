@@ -41,7 +41,7 @@ Product goals (after the PoC gate):
 
 ## Non-Goals
 - Snapcast (own spec, shipped), Songcast, or a UPnP/OpenHome facade for Sendspin groups.
-- The visualizer and color roles; lighting; certification under the Sendspin partner program.
+- The visualizer and color roles; lighting; certification under the Sendspin partner program. (Not in this version; the owner's idea of choosing the roles of the phone as a client, P5 in `usecases.md`, is an open task.)
 - Using the name Sendspin as YAACC's or a component's own product name (see Constraints).
 - Hosting a Music Assistant-like library or provider system; YAACC's sources remain UPnP/DLNA servers, local files and shared content.
 - Sendspin outside the LAN (relays, cloud).

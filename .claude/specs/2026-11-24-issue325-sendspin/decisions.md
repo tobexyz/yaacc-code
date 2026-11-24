@@ -102,3 +102,6 @@ Android reference pages: `KeyAgreement`/`KeyPairGenerator` algorithm `XDH` (X255
 
 ## CONFIRM - Which players the owner has (task 1.4)
 **Question**: which Sendspin players and servers can the owner test with (a real player such as an ESPHome device, a Music Assistant installation, a Raspberry Pi or PC running the reference command line player), and does the owner accept a Docker rig like those of Snapcast and FCast for the reference player? The PoC's evidence (Q3 and Q5) depends on at least one real or reference player that accepts unpaired access or can show a pairing token.
+
+## 2026-11-24 - Owner's idea: choose the roles of the phone as a client (open)
+- The owner asked to record an option to change the roles of the YAACC device when it is a Sendspin client, so that it can act as a speaker, a cover display or a light. Recorded as P5 (`usecases.md`) and task 11.5; **not started**: it builds on the phone as a player (P1 to P4), and the visualizer role is outside the pinned notes (`requirements.md` lists it as a non-goal of the first version). The controller role of the phone (a card for another server) is already there and is not part of this choice.
