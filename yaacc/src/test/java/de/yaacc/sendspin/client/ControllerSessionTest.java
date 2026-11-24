@@ -243,9 +243,9 @@ public class ControllerSessionTest {
     }
 
     @Test
-    public void aBadGroupIdIsAProtocolError() throws Exception {
+    public void anEmptyGroupIdIsAProtocolError() throws Exception {
         becomeActive();
-        server.sendJson("{\"type\":\"group/update\",\"payload\":{\"playback_state\":\"stopped\",\"group_id\":\"x\",\"group_name\":\"g\"}}");
+        server.sendJson("{\"type\":\"group/update\",\"payload\":{\"playback_state\":\"stopped\",\"group_id\":\"\",\"group_name\":\"g\"}}");
         awaitPhase(ControllerSession.Phase.ENDED);
         assertEquals(ControllerSession.EndReason.PROTOCOL_ERROR, session.endReason());
     }

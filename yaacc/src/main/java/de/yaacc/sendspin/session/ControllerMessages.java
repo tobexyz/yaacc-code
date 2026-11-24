@@ -18,7 +18,6 @@
  */
 package de.yaacc.sendspin.session;
 
-import de.yaacc.sendspin.secure.Base64Url;
 import de.yaacc.sendspin.secure.SendspinPsk;
 
 import org.json.JSONArray;
@@ -258,9 +257,12 @@ public final class ControllerMessages {
         if (!"playing".equals(state) && !"stopped".equals(state)) {
             throw new ProtocolException("playback_state");
         }
+        // The specification says a group id of any other form than 43 base64url characters is a protocol error and the client MUST
+        // close. The reference server (aiosendspin 10.2.2) sends a UUID, and so may the servers built on it (Music Assistant): the id
+        // is only compared and shown to nobody, so it is accepted as an opaque non-empty text of at most 64 bytes.
         String id = SendspinMessages.text(p, "group_id", 64, true);
-        if (Base64Url.decode32(id) == null) {
-            throw new ProtocolException("group_id"); // the spec: the client MUST close the connection
+        if (id.isEmpty()) {
+            throw new ProtocolException("group_id");
         }
         return new Group("playing".equals(state), id, SendspinMessages.text(p, "group_name", MAX_NAME_BYTES, true));
     }

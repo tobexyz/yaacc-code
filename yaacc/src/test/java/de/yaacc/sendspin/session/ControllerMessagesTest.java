@@ -163,7 +163,7 @@ public class ControllerMessagesTest {
     }
 
     @Test
-    public void groupUpdateNeedsAnIdOf43Base64urlCharacters() throws Exception {
+    public void groupUpdateTakesTheIdAsAnOpaqueTextBecauseTheReferenceServerSendsAUuid() throws Exception {
         ControllerMessages.Group g = ControllerMessages.parseGroupUpdate(payload(
                 "{\"playback_state\":\"playing\",\"group_id\":\"" + ID + "\",\"group_name\":\"Kitchen\"}"));
         assertTrue(g.playing);
@@ -171,10 +171,16 @@ public class ControllerMessagesTest {
         assertEquals("Kitchen", g.groupName);
         assertFalse(ControllerMessages.parseGroupUpdate(payload(
                 "{\"playback_state\":\"stopped\",\"group_id\":\"" + ID + "\",\"group_name\":\"\"}")).playing);
-        rejects("", "id too short", () -> ControllerMessages.parseGroupUpdate(payload(
-                "{\"playback_state\":\"stopped\",\"group_id\":\"abc\",\"group_name\":\"x\"}")));
-        rejects("", "id with a bad character", () -> ControllerMessages.parseGroupUpdate(payload(
-                "{\"playback_state\":\"stopped\",\"group_id\":\"" + ID.substring(1) + "!\",\"group_name\":\"x\"}")));
+        assertEquals("a UUID as the reference server sends it", "275497ee-a9b9-42e4-baf7-33ac2418bfbf", ControllerMessages.parseGroupUpdate(payload(
+                "{\"playback_state\":\"stopped\",\"group_id\":\"275497ee-a9b9-42e4-baf7-33ac2418bfbf\",\"group_name\":\"x\"}")).groupId);
+        rejects("", "empty id", () -> ControllerMessages.parseGroupUpdate(payload(
+                "{\"playback_state\":\"stopped\",\"group_id\":\"\",\"group_name\":\"x\"}")));
+        char[] big = new char[65];
+        Arrays.fill(big, 'x');
+        rejects("", "id over 64 bytes", () -> ControllerMessages.parseGroupUpdate(payload(
+                "{\"playback_state\":\"stopped\",\"group_id\":\"" + new String(big) + "\",\"group_name\":\"x\"}")));
+        rejects("", "id not a text", () -> ControllerMessages.parseGroupUpdate(payload(
+                "{\"playback_state\":\"stopped\",\"group_id\":5,\"group_name\":\"x\"}")));
         rejects("", "unknown state", () -> ControllerMessages.parseGroupUpdate(payload(
                 "{\"playback_state\":\"paused\",\"group_id\":\"" + ID + "\",\"group_name\":\"x\"}")));
     }
