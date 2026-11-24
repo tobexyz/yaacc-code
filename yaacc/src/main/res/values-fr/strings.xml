@@ -648,4 +648,19 @@
     <string name="sendspin_player_enter_token">Saisir le jeton d\'appairage</string>
     <string name="sendspin_player_forget_pairing">Oublier l\'appairage</string>
     <string name="sendspin_player_revoke">Retirer l\'approbation</string>
+    <string name="sendspin_row_link">Lier des lecteurs en groupe</string>
+    <string name="sendspin_row_group_leader">groupe de %1$d lecteurs</string>
+    <string name="sendspin_row_group_member">dans le groupe de %1$s</string>
+    <string name="sendspin_link_title">Groupe de %1$s</string>
+    <string name="sendspin_link_message">Cochez les lecteurs qui jouent avec celui-ci. Lier un lecteur l\'approuve aussi.</string>
+    <string name="sendspin_link_member_of">Ce lecteur joue dans le groupe de %1$s.</string>
+    <string name="sendspin_link_leave">Quitter le groupe</string>
+    <string name="sendspin_link_none">Aucun autre lecteur trouvé pour l\'instant.</string>
+    <string name="sendspin_link_in_other_group">(groupe de %1$s)</string>
+    <string name="sendspin_link_apply">Appliquer</string>
+    <string name="sendspin_link_not_known">%1$s n\'est pas encore connecté. Réessayez dans un instant.</string>
+    <string name="sendspin_link_needs_pairing">%1$s doit d\'abord être appairé.</string>
+    <string name="sendspin_link_no_format">%1$s n\'a aucun format audio en commun avec le groupe.</string>
+    <string name="sendspin_link_full">Un groupe compte au plus 8 lecteurs.</string>
+    <string name="sendspin_link_refused">%1$s ne peut pas être lié.</string>
 </resources>

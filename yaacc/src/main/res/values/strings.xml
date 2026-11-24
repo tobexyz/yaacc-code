@@ -649,4 +649,19 @@
     <string name="sendspin_player_enter_token">Enter pairing token</string>
     <string name="sendspin_player_forget_pairing">Forget pairing</string>
     <string name="sendspin_player_revoke">Withdraw approval</string>
+    <string name="sendspin_row_link">Link players into a group</string>
+    <string name="sendspin_row_group_leader">group of %1$d players</string>
+    <string name="sendspin_row_group_member">in the group of %1$s</string>
+    <string name="sendspin_link_title">Group of %1$s</string>
+    <string name="sendspin_link_message">Tick the players that play together with this one. Linking a player also approves it.</string>
+    <string name="sendspin_link_member_of">This player plays in the group of %1$s.</string>
+    <string name="sendspin_link_leave">Leave the group</string>
+    <string name="sendspin_link_none">No other players found yet.</string>
+    <string name="sendspin_link_in_other_group">(group of %1$s)</string>
+    <string name="sendspin_link_apply">Apply</string>
+    <string name="sendspin_link_not_known">%1$s is not connected yet. Try again in a moment.</string>
+    <string name="sendspin_link_needs_pairing">%1$s needs pairing first.</string>
+    <string name="sendspin_link_no_format">%1$s has no audio format in common with the group.</string>
+    <string name="sendspin_link_full">A group has at most 8 players.</string>
+    <string name="sendspin_link_refused">%1$s can not be linked.</string>
 </resources>

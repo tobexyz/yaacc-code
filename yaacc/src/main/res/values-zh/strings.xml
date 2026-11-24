@@ -640,4 +640,19 @@
     <string name="sendspin_player_enter_token">输入配对令牌</string>
     <string name="sendspin_player_forget_pairing">忘记配对</string>
     <string name="sendspin_player_revoke">撤销批准</string>
+    <string name="sendspin_row_link">将播放器链接成组</string>
+    <string name="sendspin_row_group_leader">%1$d 个播放器的组</string>
+    <string name="sendspin_row_group_member">在 %1$s 的组中</string>
+    <string name="sendspin_link_title">%1$s 的组</string>
+    <string name="sendspin_link_message">勾选与此播放器一起播放的播放器。链接播放器同时也会批准它。</string>
+    <string name="sendspin_link_member_of">此播放器在 %1$s 的组中播放。</string>
+    <string name="sendspin_link_leave">退出该组</string>
+    <string name="sendspin_link_none">尚未找到其他播放器。</string>
+    <string name="sendspin_link_in_other_group">（%1$s 的组）</string>
+    <string name="sendspin_link_apply">应用</string>
+    <string name="sendspin_link_not_known">%1$s 尚未连接。请稍后再试。</string>
+    <string name="sendspin_link_needs_pairing">%1$s 需要先配对。</string>
+    <string name="sendspin_link_no_format">%1$s 与该组没有共同的音频格式。</string>
+    <string name="sendspin_link_full">一个组最多有 8 个播放器。</string>
+    <string name="sendspin_link_refused">无法链接 %1$s。</string>
 </resources>

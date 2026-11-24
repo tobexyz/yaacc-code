@@ -1,6 +1,6 @@
 # Linking: Sendspin groups with YAACC as the server (S7)
 
-Status: **decided by the owner on 2026-11-24 (G1 to G7 as recommended, G2 changed: every player found can be linked); built in steps: the shared timeline (`PcmStreamer` with members) is done.** Written 2026-11-24. Builds on `usecases.md` (linking belongs to the server),
+Status: **decided by the owner on 2026-11-24 (G1 to G7 as recommended, G2 changed: every player found can be linked); built: the shared timeline (`PcmStreamer` with members), the group model and the common rate, the hub (link, unlink, group volume), the app player (group streamer, keeper thread that joins and rejoins members), the link sheet and the card. Not done: measuring two real players against each other (the rig runs one player), persistence.** Written 2026-11-24. Builds on `usecases.md` (linking belongs to the server),
 `decisions.md` (the MusicCast pattern: the leader leads, members follow, "Play on" a member plays on its group; one common format;
 no persistence in the first version) and the code as it is (one `HubConnection` and one `PcmStreamer` per player, one `SendspinPlayer`
 per player card).

@@ -644,4 +644,19 @@
     <string name="sendspin_player_enter_token">Koppelingstoken invoeren</string>
     <string name="sendspin_player_forget_pairing">Koppeling vergeten</string>
     <string name="sendspin_player_revoke">Goedkeuring intrekken</string>
+    <string name="sendspin_row_link">Spelers koppelen in een groep</string>
+    <string name="sendspin_row_group_leader">groep van %1$d spelers</string>
+    <string name="sendspin_row_group_member">in de groep van %1$s</string>
+    <string name="sendspin_link_title">Groep van %1$s</string>
+    <string name="sendspin_link_message">Vink de spelers aan die samen met deze spelen. Een speler koppelen keurt hem ook goed.</string>
+    <string name="sendspin_link_member_of">Deze speler speelt in de groep van %1$s.</string>
+    <string name="sendspin_link_leave">Groep verlaten</string>
+    <string name="sendspin_link_none">Nog geen andere spelers gevonden.</string>
+    <string name="sendspin_link_in_other_group">(groep van %1$s)</string>
+    <string name="sendspin_link_apply">Toepassen</string>
+    <string name="sendspin_link_not_known">%1$s is nog niet verbonden. Probeer het zo opnieuw.</string>
+    <string name="sendspin_link_needs_pairing">%1$s moet eerst gekoppeld worden.</string>
+    <string name="sendspin_link_no_format">%1$s heeft geen audioformaat gemeen met de groep.</string>
+    <string name="sendspin_link_full">Een groep heeft hoogstens 8 spelers.</string>
+    <string name="sendspin_link_refused">%1$s kan niet gekoppeld worden.</string>
 </resources>

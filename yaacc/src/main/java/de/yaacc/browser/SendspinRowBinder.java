@@ -144,8 +144,13 @@ final class SendspinRowBinder {
         hide(views.yxcPresets);
         hide(views.yxcGroupVolume);
         hide(views.yxcGroupVolumeText);
-        hide(views.yxcToggle);
         showGear(views, () -> SendspinPlayerSheet.show(context, device));
+        if (views.yxcToggle != null) {
+            // the link icon of the MusicCast and Snapcast cards: it opens the sheet that links players into a group
+            views.yxcToggle.setVisibility(View.VISIBLE);
+            views.yxcToggle.setContentDescription(context.getString(R.string.sendspin_row_link));
+            views.yxcToggle.setOnClickListener(v -> SendspinLinkSheet.show(context, device));
+        }
         for (View button : new View[]{views.btnPlay, views.btnPause, views.btnStop}) {
             button.setEnabled(true);
             button.setAlpha(1f);
@@ -183,6 +188,11 @@ final class SendspinRowBinder {
         views.mute.setOnClickListener(v -> {
             HubConnection connection = connectionOf(device);
             rows.refreshPlan().userChanged(id, SystemClock.elapsedRealtime());
+            SendspinHub hub = SendspinHub.getShared(context);
+            if (hub.groups().isLeader(device.getReceiverId())) {
+                hub.setGroupMuted(device.getReceiverId(), views.mute.isChecked());
+                return;
+            }
             if (connection == null || !connection.setMuted(views.mute.isChecked())) {
                 views.mute.setChecked(!views.mute.isChecked()); // the player does not offer it (or is not ready): the symbol stays as it was
             }
@@ -191,6 +201,11 @@ final class SendspinRowBinder {
     }
 
     private void sendVolume(SendspinReceiverDevice device, int percent) {
+        SendspinHub hub = SendspinHub.getShared(context);
+        if (hub.groups().isLeader(device.getReceiverId())) {
+            hub.setGroupVolume(device.getReceiverId(), percent); // the leader's slider is the group's
+            return;
+        }
         HubConnection connection = connectionOf(device);
         if (connection != null) {
             connection.setVolume(percent);
@@ -368,6 +383,15 @@ final class SendspinRowBinder {
         String title = player == null ? "" : player.getCurrentItemTitle();
         String announced = connection == null || connection.hello() == null ? null : connection.hello().name;
         String text = SendspinRowText.of(announced, SendspinAddress.format(device.getEndpoint()), state, title, words);
+        SendspinHub hub = SendspinHub.getShared(context);
+        String leaderId = hub.groups().leaderOf(device.getReceiverId());
+        if (leaderId != null) {
+            SendspinReceiverDevice leader = hub.findReceiver(leaderId);
+            text += "\n" + context.getString(R.string.sendspin_row_group_member,
+                    leader == null ? leaderId : SendspinRowText.clean(leader.getName()));
+        } else if (hub.groups().isLeader(device.getReceiverId())) {
+            text += "\n" + context.getString(R.string.sendspin_row_group_leader, hub.groups().membersOf(device.getReceiverId()).size() + 1);
+        }
         if (views.yxcText != null) {
             if (!text.contentEquals(views.yxcText.getText())) {
                 views.yxcText.setText(text);
@@ -384,8 +408,11 @@ final class SendspinRowBinder {
         SendspinMessages.PlayerState playerState = connection == null || connection.state() == null ? null : connection.state().player;
         String id = idOf(device);
         long now = SystemClock.elapsedRealtime();
-        if (playerState != null && playerState.volume != null) {
-            rows.showVolume(views, id, now, playerState.volume);
+        boolean leads = hub.groups().isLeader(device.getReceiverId());
+        Integer shownVolume = leads ? hub.groupVolumeOf(device.getReceiverId())
+                : playerState == null ? null : playerState.volume;
+        if (shownVolume != null) {
+            rows.showVolume(views, id, now, shownVolume);
         } else if (!views.volume.isPressed()) {
             // nothing of the card that was in this row before stays on screen
             views.volume.setProgress(0);
@@ -394,7 +421,8 @@ final class SendspinRowBinder {
         boolean muteWorks = playerState != null && playerState.supportedCommands.contains("mute");
         views.mute.setEnabled(muteWorks);
         views.mute.setAlpha(muteWorks ? 1f : 0.5f);
-        boolean muted = muteWorks && playerState.muted != null && playerState.muted;
+        boolean muted = leads ? hub.groupMutedOf(device.getReceiverId())
+                : muteWorks && playerState.muted != null && playerState.muted;
         if (views.mute.isChecked() != muted) {
             views.mute.setChecked(muted);
         }

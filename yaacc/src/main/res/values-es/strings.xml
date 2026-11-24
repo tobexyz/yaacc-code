@@ -648,4 +648,19 @@
     <string name="sendspin_player_enter_token">Introducir token de emparejamiento</string>
     <string name="sendspin_player_forget_pairing">Olvidar emparejamiento</string>
     <string name="sendspin_player_revoke">Retirar aprobación</string>
+    <string name="sendspin_row_link">Enlazar reproductores en un grupo</string>
+    <string name="sendspin_row_group_leader">grupo de %1$d reproductores</string>
+    <string name="sendspin_row_group_member">en el grupo de %1$s</string>
+    <string name="sendspin_link_title">Grupo de %1$s</string>
+    <string name="sendspin_link_message">Marca los reproductores que suenan junto con este. Enlazar un reproductor también lo aprueba.</string>
+    <string name="sendspin_link_member_of">Este reproductor suena en el grupo de %1$s.</string>
+    <string name="sendspin_link_leave">Salir del grupo</string>
+    <string name="sendspin_link_none">Aún no se han encontrado otros reproductores.</string>
+    <string name="sendspin_link_in_other_group">(grupo de %1$s)</string>
+    <string name="sendspin_link_apply">Aplicar</string>
+    <string name="sendspin_link_not_known">%1$s aún no está conectado. Inténtalo de nuevo en un momento.</string>
+    <string name="sendspin_link_needs_pairing">%1$s necesita emparejarse primero.</string>
+    <string name="sendspin_link_no_format">%1$s no tiene ningún formato de audio en común con el grupo.</string>
+    <string name="sendspin_link_full">Un grupo tiene como máximo 8 reproductores.</string>
+    <string name="sendspin_link_refused">%1$s no se puede enlazar.</string>
 </resources>

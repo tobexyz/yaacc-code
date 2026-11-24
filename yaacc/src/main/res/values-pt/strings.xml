@@ -648,4 +648,19 @@
     <string name="sendspin_player_enter_token">Inserir token de pareamento</string>
     <string name="sendspin_player_forget_pairing">Esquecer pareamento</string>
     <string name="sendspin_player_revoke">Retirar aprovação</string>
+    <string name="sendspin_row_link">Vincular players em um grupo</string>
+    <string name="sendspin_row_group_leader">grupo de %1$d players</string>
+    <string name="sendspin_row_group_member">no grupo de %1$s</string>
+    <string name="sendspin_link_title">Grupo de %1$s</string>
+    <string name="sendspin_link_message">Marque os players que tocam junto com este. Vincular um player também o aprova.</string>
+    <string name="sendspin_link_member_of">Este player toca no grupo de %1$s.</string>
+    <string name="sendspin_link_leave">Sair do grupo</string>
+    <string name="sendspin_link_none">Nenhum outro player encontrado ainda.</string>
+    <string name="sendspin_link_in_other_group">(grupo de %1$s)</string>
+    <string name="sendspin_link_apply">Aplicar</string>
+    <string name="sendspin_link_not_known">%1$s ainda não está conectado. Tente novamente em instantes.</string>
+    <string name="sendspin_link_needs_pairing">%1$s precisa ser pareado primeiro.</string>
+    <string name="sendspin_link_no_format">%1$s não tem nenhum formato de áudio em comum com o grupo.</string>
+    <string name="sendspin_link_full">Um grupo tem no máximo 8 players.</string>
+    <string name="sendspin_link_refused">%1$s não pode ser vinculado.</string>
 </resources>
