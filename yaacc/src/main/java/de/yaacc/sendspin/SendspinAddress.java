@@ -34,6 +34,9 @@ public final class SendspinAddress {
     private SendspinAddress() {
     }
 
+    /** The prefix of the receiver id of a player that connected to this phone. */
+    public static final String INBOUND_ID_PREFIX = "sendspin-in:";
+
     /** The prefix of the receiver ids of the Sendspin servers (cards of the controller). */
     public static final String SERVER_ID_PREFIX = "sendspin-server:";
     /** The port a Sendspin server listens on by default (the player's is 8928). */
@@ -153,20 +156,25 @@ public final class SendspinAddress {
     /** The text of an endpoint as it is stored and shown: {@code host:port}, an IPv6 host in brackets. */
     public static String format(Endpoint endpoint) {
         String host = endpoint.host();
-        return (host.indexOf(':') >= 0 ? "[" + host + "]" : host) + ":" + endpoint.port();
+        String shown = host.indexOf(':') >= 0 ? "[" + host + "]" : host;
+        return endpoint.isInbound() ? shown : shown + ":" + endpoint.port();
     }
 
     /** The receiver id of the lists for an endpoint. */
     public static String idOf(Endpoint endpoint) {
-        return ID_PREFIX + format(endpoint);
+        return (endpoint.isInbound() ? INBOUND_ID_PREFIX : ID_PREFIX) + format(endpoint);
     }
 
     public static boolean isSendspinId(String id) {
-        return id != null && id.startsWith(ID_PREFIX);
+        return id != null && (id.startsWith(ID_PREFIX) || id.startsWith(INBOUND_ID_PREFIX));
     }
 
     /** @return the endpoint of a receiver id, or null if the id is not one of ours or does not parse */
     public static Endpoint endpointOf(String id) {
-        return isSendspinId(id) ? parse(id.substring(ID_PREFIX.length())) : null;
+        if (id != null && id.startsWith(INBOUND_ID_PREFIX)) {
+            Endpoint host = parse(id.substring(INBOUND_ID_PREFIX.length()));
+            return host == null ? null : Endpoint.inbound(host.host());
+        }
+        return id != null && id.startsWith(ID_PREFIX) ? parse(id.substring(ID_PREFIX.length())) : null;
     }
 }

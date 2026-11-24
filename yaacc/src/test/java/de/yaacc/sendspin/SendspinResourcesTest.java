@@ -88,7 +88,9 @@ public class SendspinResourcesTest {
                         || entry.getKey().equals("settings_sendspin_controller_enabled")
                         || entry.getKey().equals("settings_sendspin_unpaired_servers")
                         || entry.getKey().equals("settings_sendspin_servers")
-                        || entry.getKey().equals("settings_sendspin_server_discovery");
+                        || entry.getKey().equals("settings_sendspin_server_discovery")
+                        || entry.getKey().equals("settings_sendspin_legacy")
+                        || entry.getKey().equals("settings_sendspin_advertise");
                 if (key && !locale.equals("values")) {
                     continue; // a preference key is not translated
                 }
@@ -213,5 +215,35 @@ public class SendspinResourcesTest {
         assertTrue(SendspinSettings.isServerDiscoveryRelevantKey(SendspinSettings.KEY_CONTROLLER_ENABLED));
         assertTrue(SendspinSettings.isServerDiscoveryRelevantKey(SendspinSettings.KEY_SERVER_DISCOVERY));
         assertFalse(SendspinSettings.isServerDiscoveryRelevantKey(SendspinSettings.KEY_ENABLED));
+    }
+
+    @Test
+    public void theLegacyAndAdvertiseSwitchesAreOffByDefaultInTheCodeAndOnTheScreen() throws Exception {
+        assertEquals(SendspinSettings.KEY_LEGACY, sendspinStrings("values").get("settings_sendspin_legacy"));
+        assertEquals(SendspinSettings.KEY_ADVERTISE, sendspinStrings("values").get("settings_sendspin_advertise"));
+        assertFalse(SendspinSettings.LEGACY_DEFAULT);
+        assertFalse(SendspinSettings.ADVERTISE_DEFAULT);
+        String screen = read("src/main/res/xml/preference.xml");
+        for (String key : new String[]{"settings_sendspin_legacy", "settings_sendspin_advertise"}) {
+            Matcher m = Pattern.compile("<CheckBoxPreference\\s+android:defaultValue=\"(true|false)\"\\s+android:dependency=\"@string/settings_sendspin_enabled\"\\s+"
+                    + "android:key=\"@string/" + key + "\"").matcher(screen);
+            assertTrue(key + " is on the screen and depends on the main switch", m.find());
+            assertEquals(key + " is off by default", "false", m.group(1));
+        }
+    }
+
+    @Test
+    public void theLegacyAndAdvertiseSettingsReadTheirValuesAndNeedTheMainSwitch() {
+        assertFalse("off by default", SendspinSettings.isLegacyAllowed((key, def) -> def));
+        assertTrue(SendspinSettings.isLegacyAllowed((key, def) -> SendspinSettings.KEY_LEGACY.equals(key) || def));
+        assertFalse(SendspinSettings.isLegacyAllowed(null));
+        assertFalse("off by default", SendspinSettings.isAdvertiseEnabled((key, def) -> def));
+        assertFalse("the switch alone does nothing while Sendspin is off",
+                SendspinSettings.isAdvertiseEnabled((key, def) -> SendspinSettings.KEY_ADVERTISE.equals(key) || def));
+        assertTrue(SendspinSettings.isAdvertiseEnabled((key, def) ->
+                SendspinSettings.KEY_ADVERTISE.equals(key) || SendspinSettings.KEY_ENABLED.equals(key) || def));
+        assertTrue(SendspinSettings.isAdvertiseRelevantKey(SendspinSettings.KEY_ADVERTISE));
+        assertTrue(SendspinSettings.isAdvertiseRelevantKey(SendspinSettings.KEY_ENABLED));
+        assertFalse(SendspinSettings.isAdvertiseRelevantKey(SendspinSettings.KEY_LEGACY));
     }
 }

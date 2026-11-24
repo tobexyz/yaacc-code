@@ -26,6 +26,14 @@ public final class SendspinSettings {
     /** The key of the switch that makes the app list and use Sendspin players. */
     public static final String KEY_ENABLED = "settings_sendspin_enabled";
     public static final boolean ENABLED_DEFAULT = false;
+    /** The key of the switch that allows players of the older, unencrypted wire (a protocol that the specification does not define). */
+    public static final String KEY_LEGACY = "settings_sendspin_legacy";
+    /** Off: only the encrypted protocol of the specification is spoken. */
+    public static final boolean LEGACY_DEFAULT = false;
+    /** The key of the switch that makes this phone a server that players find and connect to (client-initiated mode). */
+    public static final String KEY_ADVERTISE = "settings_sendspin_advertise";
+    /** Off: nothing listens on the phone and nothing is announced. */
+    public static final boolean ADVERTISE_DEFAULT = false;
     /** The key of the switch for the mDNS search; it works only while {@link #KEY_ENABLED} is on. */
     public static final String KEY_DISCOVERY = "settings_sendspin_discovery";
     /** The search is on by default (nothing is played to a player that was only found; it is connected to and approved by playing). */
@@ -114,6 +122,35 @@ public final class SendspinSettings {
     /** True if a changed preference key is one that decides whether the search of servers runs. */
     public static boolean isServerDiscoveryRelevantKey(String key) {
         return KEY_CONTROLLER_ENABLED.equals(key) || KEY_SERVER_DISCOVERY.equals(key);
+    }
+
+    /** @return whether a player of the older, unencrypted wire may connect; false for no source or a value that can not be read */
+    public static boolean isLegacyAllowed(BooleanSource source) {
+        if (source == null) {
+            return false;
+        }
+        try {
+            return source.getBoolean(KEY_LEGACY, LEGACY_DEFAULT);
+        } catch (RuntimeException damaged) {
+            return false;
+        }
+    }
+
+    /** @return whether this phone listens for players and announces itself: Sendspin is on <b>and</b> the switch is on (default off) */
+    public static boolean isAdvertiseEnabled(BooleanSource source) {
+        if (!isEnabled(source)) {
+            return false;
+        }
+        try {
+            return source.getBoolean(KEY_ADVERTISE, ADVERTISE_DEFAULT);
+        } catch (RuntimeException damaged) {
+            return false;
+        }
+    }
+
+    /** True if a changed preference key is one that decides whether the listener and the announcement run. */
+    public static boolean isAdvertiseRelevantKey(String key) {
+        return KEY_ENABLED.equals(key) || KEY_ADVERTISE.equals(key);
     }
 
     /** @return whether the controller (Sendspin servers as cards) is switched on; false for no source or a value that can not be read */

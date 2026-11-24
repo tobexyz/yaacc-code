@@ -245,4 +245,10 @@
     <string name="settings_sendspin_server_discovery" translatable="false">settings_sendspin_server_discovery</string>
     <string name="settings_sendspin_server_discovery_title">Find Sendspin servers</string>
     <string name="settings_sendspin_server_discovery_summary">Searches the local network for Sendspin servers (mDNS) while a page with the receivers is open; on by default, but only while Control Sendspin servers is on. Found servers are not trusted: a server is connected to when its card is listed, and what it may do is up to its operator. Only addresses of the local network are accepted.</string>
+    <string name="settings_sendspin_legacy" translatable="false">settings_sendspin_legacy</string>
+    <string name="settings_sendspin_legacy_title">Allow players without encryption (less secure)</string>
+    <string name="settings_sendspin_legacy_summary">Off by default. Some older players, for example the Kodi add-on, speak an older version of the protocol without encryption, which the current specification does not define. When on, YAACC accepts them. Nothing they send or receive is protected: anyone on your network can read it and can pose as the player or as your phone, and the connection proves nothing about who the other side is. A player you have not approved still gets no audio. Use it only on a network you trust.</string>
+    <string name="settings_sendspin_advertise" translatable="false">settings_sendspin_advertise</string>
+    <string name="settings_sendspin_advertise_title">Let players find this phone (listen on the network)</string>
+    <string name="settings_sendspin_advertise_summary">Off by default. When on, and while a page with the receivers is open, this phone announces itself on the local network as a Sendspin server (mDNS, port 8927) and accepts connections from players that look for a server, for example the Kodi add-on. A player that is connected stays connected until its connection ends. Only addresses of the local network are accepted, at most 8 players at once, and a player you have not approved gets no audio. Nothing listens and nothing is announced while this is off.</string>
 </resources>

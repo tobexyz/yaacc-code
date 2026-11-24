@@ -3989,3 +3989,36 @@ addresses only: `SnapcastAddressFilter.isAcceptedForDiscovery`, port 1024 or mor
 new scan does not announce age out), started and stopped by the `SnapcastDiscoveryGate` while a receivers page is visible. The
 sandbox's own address is 192.0.2.2 (documentation range), which the filter would refuse: rig tests use added addresses, which are not
 filtered.
+
+### Sendspin: the older unencrypted wire and the listener (opt-in, both off by default)
+
+Code: `session/SendspinMessages` (`parseLegacyClientHello`, `parseLegacyClientState`, `audioChunkLegacy`, `legacyServerHello`),
+`session/SecureChannel.plain`, `session/ServerHandshake.perform(.., allowLegacy)`, `hub/HubConnection` (legacy branch),
+`hub/InboundServer`, `discovery/SendspinServerAdvert`, `SendspinHub` (`startInbound`, `acceptInbound`). Tests: `LegacyMessagesTest`,
+`LegacyHandshakeTest`, `HubLegacyTest`, `InboundServerTest`.
+
+* **Who speaks first decides.** The first WebSocket message of a client-initiated connection is `client/init` (encrypted, Noise) or
+  `client/hello` (legacy). `ServerHandshake.perform` dispatches on the first frame; `client/hello` is accepted only when `allowLegacy`
+  is true (the setting is read when the connection is made, not later). The legacy session is a `SecureChannel.plain`: JSON as text
+  messages, binary messages as `[id][body]`, nothing encrypted, no transport object. The result carries `legacy=true` and the hello;
+  the verified identity is the sentinel (unpaired), so the approval rules for unpaired players apply unchanged.
+* **Legacy wire** (from the add-on's code and the reference library, not from the pinned spec): `client/hello` has `client_id`, `name`,
+  `version: 1`, `supported_roles`, `device_info` and `player@v1_support` with `supported_formats`, `buffer_capacity` and
+  `supported_commands`; the answer `server/hello` has `server_id`, `name`, `version: 1`, `connection_reason` (`discovery`, or
+  `playback` when the operator plays) and `active_roles`. There is **no `server/activate`**: the roles in `server/hello` are the
+  activation, so a legacy connection is held without any message until the player is approved. `client/state.player` uses
+  `static_delay_ms` and carries no commands (they are in the hello); the audio chunk is `[4][int64 BE timestamp][pcm]` without the send-ahead
+  field of the current format. `stream/start`, `stream/clear`, `stream/end`, `server/command` (volume, mute), `client/time` and
+  `server/time` and `client/goodbye` are the same JSON as in the encrypted protocol. The `client_id` must be a plain non-empty
+  string of at most 64 bytes.
+* **Listener.** `InboundServer`: accept loop on a `ServerSocket` (8927, any free port as the fallback); the address filter
+  (`SnapcastAddressFilter.isAcceptedForDiscovery`) runs before any read; at most 8 connections held (the count goes down when the link
+  closes or the upgrade fails); 4 upgrade threads; `WsHandshake.accept` with Origin refused and the path required to be `/sendspin`;
+  a socket timeout. `close()` stops accepting and keeps the established connections. The announcement is an NsdManager service
+  `_sendspin-server._tcp` with the TXT keys `path` and `name`, plus a multicast lock for its lifetime. Listener and announcement are
+  started and stopped by a `SnapcastDiscoveryGate` (receivers page visible and *Let players find this phone* and the main switch).
+* **Inbound players are not endpoints you can dial.** They are keyed by a pseudo endpoint (host, port 0, path `/inbound`), id prefix
+  `sendspin-in:`. `SendspinHub.acquire` returns the existing connection or null for them; `SendspinPlayer.whenReady` turns null into
+  a "not ready" message. A player that comes back from the same address replaces the older connection.
+* **Not verified:** the add-on itself (running its harness was not allowed in the development session), Music Assistant and a phone.
+  The security review is open for these parts as for the whole client side (K10).

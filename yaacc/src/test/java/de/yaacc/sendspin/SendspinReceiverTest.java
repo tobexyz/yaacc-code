@@ -148,6 +148,26 @@ public class SendspinReceiverTest {
     }
 
     @Test
+    public void aPlayerThatConnectedToThePhoneHasAnIdOfItsOwnAndIsNeverDialed() {
+        Endpoint inbound = Endpoint.inbound("192.168.0.4");
+        assertTrue(inbound.isInbound());
+        assertFalse(SendspinAddress.parse("192.168.0.4:8928").isInbound());
+        assertEquals("sendspin-in:192.168.0.4", SendspinAddress.idOf(inbound));
+        assertEquals("192.168.0.4", SendspinAddress.format(inbound));
+        assertTrue(SendspinAddress.isSendspinId("sendspin-in:192.168.0.4"));
+        assertTrue(SendspinAddress.isSendspinId("sendspin:192.168.0.4:8928"));
+        assertFalse(SendspinAddress.isServerId("sendspin-in:192.168.0.4"));
+        assertEquals(inbound, SendspinAddress.endpointOf("sendspin-in:192.168.0.4"));
+        assertEquals(Endpoint.inbound("fe80::1"), SendspinAddress.endpointOf("sendspin-in:[fe80::1]"));
+        assertEquals("sendspin-in:[fe80::1]", SendspinAddress.idOf(Endpoint.inbound("fe80::1")));
+        assertNull("not an address", SendspinAddress.endpointOf("sendspin-in:not an address"));
+        assertNull(SendspinAddress.endpointOf("sendspin-in:"));
+        SendspinReceiverDevice device = SendspinReceiverDevice.of(inbound, "Kodi");
+        assertEquals("sendspin-in:192.168.0.4", device.getReceiverId());
+        assertEquals("Kodi (Sendspin)", device.getDisplayString());
+    }
+
+    @Test
     public void everyStateOfAServerSessionHasAStateInWords() {
         assertEquals(SendspinRowText.State.NOT_CONNECTED, SendspinRowText.stateOfServer(null, null, false));
         for (de.yaacc.sendspin.client.ControllerSession.Phase phase : de.yaacc.sendspin.client.ControllerSession.Phase.values()) {

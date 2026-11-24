@@ -135,5 +135,5 @@ Places a Sendspin receiver touches (task 1.3, read on 2026-11-24 by following FC
   - **Accept**: the draft's test vectors pass; interoperates with the reference; **kill criterion**: no confidence in correctness -> do not ship (Pairing PSK only).
 - [ ] 11.2 Controller, metadata and artwork roles (the phone as a controller of other servers, now playing in the player UI)
 - [ ] 11.3 FLAC encoding on the hub, Opus, the `source` role
-- [ ] 11.4 Client-initiated connection mode of the hub (advertise `_sendspin-server._tcp`, accept inbound sockets) if not already done in Group 6
+- [x] 11.4 Client-initiated connection mode of the hub (advertise `_sendspin-server._tcp`, accept inbound sockets), opt-in and off by default, with the legacy unencrypted wire (decisions, 2026-11-24)
   - **Accept (all)**: tests first for pure parts, general then security review, documentation update.

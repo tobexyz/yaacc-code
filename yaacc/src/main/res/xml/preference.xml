@@ -170,6 +170,18 @@
             android:key="@string/settings_sendspin_discovery"
             android:summary="@string/settings_sendspin_discovery_summary"
             android:title="@string/settings_sendspin_discovery_title" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:dependency="@string/settings_sendspin_enabled"
+            android:key="@string/settings_sendspin_legacy"
+            android:summary="@string/settings_sendspin_legacy_summary"
+            android:title="@string/settings_sendspin_legacy_title" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:dependency="@string/settings_sendspin_enabled"
+            android:key="@string/settings_sendspin_advertise"
+            android:summary="@string/settings_sendspin_advertise_summary"
+            android:title="@string/settings_sendspin_advertise_title" />
         <Preference
             android:key="@string/settings_sendspin_players"
             android:summary="@string/settings_sendspin_players_summary"

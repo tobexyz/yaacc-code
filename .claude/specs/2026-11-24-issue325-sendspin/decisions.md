@@ -29,6 +29,13 @@ Android reference pages: `KeyAgreement`/`KeyPairGenerator` algorithm `XDH` (X255
 - Not done and not recommended without the owner's word: a legacy, unencrypted mode in YAACC (it is not defined in the pinned specification, would need the older protocol's text, and weakens what the protocol requires). Cheaper first steps: test the addon against the reference server with `RIG_SERVER_ARGS=--allow-unencrypted ./run-local.sh server`; ask the addon's authors for the encrypted protocol.
 - QR code (owner's request): scanning a pairing token is added as K12 (open).
 
+## 2026-11-24 - Owner's decision: legacy unencrypted mode and the advertisement are built, both opt-in and off by default
+- Reversal of the previous entry's "not recommended without the owner's word": the owner asked for both. The addon's source (its README and client code) was read afterwards: it is a client-initiated, unencrypted ("transition mode") player that waits for a server advertising `_sendspin-server._tcp`; both parts are needed.
+- **Settings**: `settings_sendspin_legacy` (*Allow players without encryption*) and `settings_sendspin_advertise` (*Let players find this phone*), both **off by default**, both depend on the main switch; their summaries state the risk (unauthenticated, readable, can be impersonated).
+- **Design**: the first message decides (see `docs/tech.md`); a legacy session is held silent until approval (it has no activation message); the listener and the announcement run only while a receivers page is visible (gate pattern); local-network addresses only, 8 connections, no Origin; inbound players are never dialed; the same listener also accepts spec-compliant client-initiated clients (K13 done).
+- **Not verified**: the real addon (running its harness was denied in the session) and a phone. The wire details come from the addon's code and the reference library; the legacy part of the spec is not pinned (`2cfe197` does not contain it).
+- QR code pairing (K12): the owner said it can be decided later; it stays open.
+
 ## 2026-11-24 - Controller: owner's decisions and the open list
 - **Connection**: YAACC connects out (client-initiated mode), no listening socket. **UI**: a card in the receiver list (the owner chose it over an own screen and a media notification; the card controls a server's group and is not a place to play to).
 - **Added at the owner's request**: the mDNS search of servers (`_sendspin-server._tcp`) and the artwork (over the artwork role, not by fetching `artwork_url`: no HTTP to an address a server names).

@@ -27,11 +27,14 @@ import de.yaacc.multiroom.SnapcastDiscoveryGate;
 import de.yaacc.multiroom.control.MonotonicClock;
 import de.yaacc.sendspin.discovery.SendspinDirectory;
 import de.yaacc.sendspin.discovery.SendspinNsd;
+import de.yaacc.sendspin.discovery.SendspinServerAdvert;
 import de.yaacc.sendspin.discovery.SendspinServiceType;
 import de.yaacc.sendspin.hub.Connector;
 import de.yaacc.sendspin.hub.Endpoint;
 import de.yaacc.sendspin.hub.HubClock;
 import de.yaacc.sendspin.hub.HubConnection;
+import de.yaacc.sendspin.hub.InboundServer;
+import de.yaacc.multiroom.discovery.SnapcastAddressFilter;
 import de.yaacc.sendspin.secure.Base64Url;
 import de.yaacc.sendspin.secure.Identity;
 
@@ -87,6 +90,9 @@ public final class SendspinHub implements SendspinReceiverSource {
     private final SendspinDirectory serverDirectory = new SendspinDirectory(MonotonicClock.SYSTEM, SendspinDirectory.DEFAULT_GRACE_MILLIS);
     private final SendspinNsd serverNsd;
     private final SnapcastDiscoveryGate serverGate;
+    private final SendspinServerAdvert advert;
+    private final SnapcastDiscoveryGate inboundGate;
+    private InboundServer inboundServer;
     private final SharedPreferences.OnSharedPreferenceChangeListener settingListener;
     private final List<SendspinDirectory.Listener> listeners = new CopyOnWriteArrayList<>();
     private final Map<Endpoint, HubConnection> connections = new HashMap<>();
@@ -125,6 +131,19 @@ public final class SendspinHub implements SendspinReceiverSource {
                 this::controllerChanged);
         this.nsd = new SendspinNsd(app, directory);
         directory.addListener(this::fire);
+        this.advert = new SendspinServerAdvert(app);
+        this.inboundGate = new SnapcastDiscoveryGate(() -> SendspinSettings.isAdvertiseEnabled(preferences::getBoolean),
+                new SnapcastDiscoveryGate.Discovery() {
+                    @Override
+                    public void start() {
+                        startInbound();
+                    }
+
+                    @Override
+                    public void stop() {
+                        stopInbound();
+                    }
+                }, () -> { });
         this.serverNsd = new SendspinNsd(app, serverDirectory, SendspinServiceType.SERVER_TYPE);
         serverDirectory.addListener(this::fire);
         this.serverGate = new SnapcastDiscoveryGate(() -> SendspinSettings.isServerDiscoveryEnabled(preferences::getBoolean),
@@ -157,6 +176,9 @@ public final class SendspinHub implements SendspinReceiverSource {
             }
             if (SendspinSettings.isServerDiscoveryRelevantKey(key)) {
                 serverGate.settingChanged();
+            }
+            if (SendspinSettings.isAdvertiseRelevantKey(key)) {
+                inboundGate.settingChanged();
             }
         };
         preferences.registerOnSharedPreferenceChangeListener(settingListener);
@@ -211,12 +233,14 @@ public final class SendspinHub implements SendspinReceiverSource {
     public void pageStarted() {
         gate.pageStarted();
         serverGate.pageStarted();
+        inboundGate.pageStarted();
     }
 
     /** A receivers page was hidden: the search stops when no page needs it. */
     public void pageStopped() {
         gate.pageStopped();
         serverGate.pageStopped();
+        inboundGate.pageStopped();
     }
 
     /** Told when the players the app lists changed (one was announced or went, a name arrived). May be called on any thread. */
@@ -226,6 +250,76 @@ public final class SendspinHub implements SendspinReceiverSource {
 
     public void removeChangeListener(SendspinDirectory.Listener listener) {
         listeners.remove(listener);
+    }
+
+    // ------------------------------------------------------------------ players that connect to this phone
+
+    /** The most players that may be connected to the listener at once. */
+    private static final int MAX_INBOUND = 8;
+    private static final int UPGRADE_TIMEOUT_MILLIS = 5000;
+
+    /** Opens the listener and announces it (the gate calls this while a receivers page is visible and the switch is on). */
+    private void startInbound() {
+        InboundServer server = new InboundServer(SendspinAddress.DEFAULT_SERVER_PORT, "/sendspin", SnapcastAddressFilter::isAcceptedForDiscovery,
+                this::acceptInbound, MAX_INBOUND, UPGRADE_TIMEOUT_MILLIS);
+        try {
+            server.start();
+        } catch (java.io.IOException busy) {
+            // the usual port is taken (another server on this phone): any free one, the announcement names it
+            server = new InboundServer(0, "/sendspin", SnapcastAddressFilter::isAcceptedForDiscovery, this::acceptInbound, MAX_INBOUND,
+                    UPGRADE_TIMEOUT_MILLIS);
+            try {
+                server.start();
+            } catch (java.io.IOException failed) {
+                de.yaacc.util.YaaccLogger.w(getClass().getName(), "Sendspin listener could not be opened");
+                return;
+            }
+        }
+        synchronized (this) {
+            inboundServer = server;
+        }
+        advert.register(identity().id(), "YAACC", "/sendspin", server.port());
+    }
+
+    private void stopInbound() {
+        advert.unregister();
+        InboundServer server;
+        synchronized (this) {
+            server = inboundServer;
+            inboundServer = null;
+        }
+        if (server != null) {
+            server.close(); // connections that are established stay
+        }
+    }
+
+    /** A player connected to the listener: it is a connection like the others, except that nothing can dial it again. */
+    private void acceptInbound(Connector.Link link, java.net.InetAddress remote) {
+        String host = remote.getHostAddress();
+        int scope = host.indexOf('%');
+        if (scope >= 0) {
+            host = host.substring(0, scope);
+        }
+        final Endpoint endpoint = Endpoint.inbound(host);
+        synchronized (this) {
+            if (!isEnabled()) {
+                try {
+                    link.close();
+                } catch (java.io.IOException ignored) {
+                    // closed
+                }
+                return;
+            }
+            HubConnection old = connections.remove(endpoint); // a player that comes back replaces the connection it still holds
+            if (old != null) {
+                old.close();
+            }
+            HubConnection made = new HubConnection(endpoint, identity(), approvals, (e, r) -> link, clock, random, SERVER_NAME,
+                    this::connectionChanged, () -> SendspinSettings.isLegacyAllowed(preferences::getBoolean));
+            connections.put(endpoint, made);
+            made.start();
+        }
+        fire();
     }
 
     /** The lists changed from outside (a server was removed in the settings): the pages redraw. */
@@ -276,6 +370,12 @@ public final class SendspinHub implements SendspinReceiverSource {
      */
     private synchronized List<Listed> listed() {
         Map<String, Listed> byKey = new LinkedHashMap<>();
+        for (Map.Entry<Endpoint, HubConnection> inbound : new ArrayList<>(connections.entrySet())) {
+            if (inbound.getKey().isInbound() && inbound.getValue().phase() != HubConnection.Phase.ENDED) {
+                HubConnection c = inbound.getValue();
+                byKey.put(keyOf(inbound.getKey()), new Listed(inbound.getKey(), c.hello() == null ? null : c.hello().name));
+            }
+        }
         for (SendspinDirectory.Entry entry : directory.snapshot()) {
             byKey.put(keyOf(entry.endpoint()), new Listed(entry.endpoint(), entry.name()));
         }
@@ -311,6 +411,9 @@ public final class SendspinHub implements SendspinReceiverSource {
      */
     public synchronized HubConnection acquire(Endpoint endpoint, boolean force) {
         HubConnection current = connections.get(endpoint);
+        if (endpoint.isInbound()) {
+            return current != null && current.phase() != HubConnection.Phase.ENDED ? current : null; // it has to come back by itself
+        }
         long now = clock.nowMicros() / 1000L;
         if (current != null && current.phase() != HubConnection.Phase.ENDED) {
             return current;
@@ -325,7 +428,8 @@ public final class SendspinHub implements SendspinReceiverSource {
             }
         }
         lastAttempt.put(endpoint, now);
-        HubConnection made = new HubConnection(endpoint, identity(), approvals, connector, clock, random, SERVER_NAME, this::connectionChanged);
+        HubConnection made = new HubConnection(endpoint, identity(), approvals, connector, clock, random, SERVER_NAME, this::connectionChanged,
+                () -> SendspinSettings.isLegacyAllowed(preferences::getBoolean));
         connections.put(endpoint, made);
         made.start();
         return made;
@@ -408,7 +512,9 @@ public final class SendspinHub implements SendspinReceiverSource {
         SendspinPolicy.PairOutcome outcome = approvals.pairWithToken(tokenText, current == null ? null : current.clientId());
         if (outcome == SendspinPolicy.PairOutcome.STARTED) {
             disconnect(endpoint);
-            acquire(endpoint, true);
+            if (!endpoint.isInbound()) {
+                acquire(endpoint, true); // a player that connected to us has to come back by itself, now under the Pairing PSK
+            }
         }
         return outcome;
     }
@@ -570,7 +676,7 @@ public final class SendspinHub implements SendspinReceiverSource {
         if (receiverIds != null) {
             for (String id : receiverIds) {
                 Endpoint endpoint = SendspinAddress.endpointOf(id);
-                if (endpoint != null && selected.size() < SendspinSettings.MAX_LISTED) {
+                if (endpoint != null && !endpoint.isInbound() && selected.size() < SendspinSettings.MAX_LISTED) {
                     selected.add(SendspinAddress.format(endpoint));
                 }
             }

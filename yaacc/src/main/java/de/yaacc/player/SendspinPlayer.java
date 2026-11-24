@@ -197,6 +197,10 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
      */
     private void whenReady(final Runnable then) {
         final HubConnection c = hub.acquire(endpoint, true);
+        if (c == null) {
+            fail(SendspinPlayerLogic.Problem.NOT_READY); // a player that connected to this phone is gone and has to come back
+            return;
+        }
         connection = c;
         lostNoted = false;
         // playing is the operator's action: the first activation of a new connection then already declares 'playback', which wins

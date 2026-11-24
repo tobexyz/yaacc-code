@@ -26,6 +26,10 @@ public final class Endpoint {
     public static final String DEFAULT_PATH = "/sendspin";
     public static final int DEFAULT_PORT = 8928;
 
+    /** The port of a player that connected to this phone: it has no address of its own to dial. */
+    public static final int INBOUND_PORT = 0;
+    public static final String INBOUND_PATH = "/inbound";
+
     private final String host;
     private final int port;
     private final String path;
@@ -34,6 +38,16 @@ public final class Endpoint {
         this.host = Objects.requireNonNull(host);
         this.port = port;
         this.path = path == null || path.isEmpty() ? DEFAULT_PATH : path;
+    }
+
+    /** The identity of a player that connected to this phone (client-initiated mode): the address it came from. */
+    public static Endpoint inbound(String host) {
+        return new Endpoint(host, INBOUND_PORT, INBOUND_PATH);
+    }
+
+    /** True for a player that connected to this phone: it is never dialed, it has to come back by itself. */
+    public boolean isInbound() {
+        return port == INBOUND_PORT;
     }
 
     public String host() {
