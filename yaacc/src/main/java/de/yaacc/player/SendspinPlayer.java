@@ -29,11 +29,14 @@ import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.audio.AudioSink;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import de.yaacc.multiroom.feed.FeedTapChain;
 import de.yaacc.multiroom.feed.PcmFormat;
 import de.yaacc.multiroom.feed.PcmSink;
+import de.yaacc.sendspin.SendspinAddress;
 import de.yaacc.sendspin.SendspinHub;
 import de.yaacc.sendspin.SendspinReceiverDevice;
 import de.yaacc.sendspin.hub.Endpoint;
@@ -64,6 +67,7 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
 
     private static final long READY_TIMEOUT_MILLIS = 12_000L;
     private static final long READY_POLL_MILLIS = 50L;
+    private static final long GROUP_POLL_MILLIS = 1000L;
 
     private final String deviceId;
     private final Endpoint endpoint;
@@ -73,6 +77,10 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
     private volatile HubConnection connection;
     private volatile PcmStreamer streamer;
     private volatile boolean lostNoted;
+    // a group (linking): the streamer of the group while it is kept, the members that are in it, and the ones playback was declared to
+    private volatile PcmStreamer keeping;
+    private final java.util.Map<String, PcmStreamer.Member> inGroup = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Set<String> declared = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     // the tap is built before the streamer can exist for sure (the service connects on another thread)
     private final PcmSink tapSink = new PcmSink() {
@@ -165,10 +173,12 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
     @Override
     protected void stopItem(PlayableItem playableItem) {
         super.stopItem(playableItem);
+        keeping = null;
         PcmStreamer current = streamer;
         if (current != null) {
             CommandThread.run(current::end);
         }
+        stopMembers();
         // a stop (the stop button, the end of the queue) is not a pause: the playback activity is dropped, so that another server (Music
         // Assistant) can take the player; a pause keeps it, and the next start declares it again
         HubConnection c = connection;
@@ -179,6 +189,8 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
 
     @Override
     public void onDestroy() {
+        keeping = null;
+        stopMembers();
         PcmStreamer current = streamer;
         streamer = null;
         if (current != null) {
@@ -222,7 +234,7 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
                 HubConnection.Phase phase = c.phase();
                 SendspinPlayerLogic.Wait decision = SendspinPlayerLogic.waitFor(phase);
                 if (decision == SendspinPlayerLogic.Wait.READY) {
-                    final PcmStreamer made = c.streamer();
+                    final PcmStreamer made = streamerFor(c);
                     if (made == null) {
                         fail(SendspinPlayerLogic.Problem.NOT_READY);
                         return;
@@ -258,6 +270,89 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
         }, "sendspin-player-start");
         waiter.setDaemon(true);
         waiter.start();
+    }
+
+    // ---- a group (linking): the leader's streamer takes the members in and out while it plays
+
+    /** The streamer to play to: the one of the connection for a lone player, a group's streamer (one timeline) when players are linked. */
+    private PcmStreamer streamerFor(HubConnection leader) {
+        keeping = null;
+        stopMembers();
+        List<String> memberIds = hub.groups().membersOf(deviceId);
+        if (memberIds.isEmpty()) {
+            return leader.streamer();
+        }
+        final PcmStreamer group = new PcmStreamer(leader.hubClock(), sampleRate);
+        inGroup.put(deviceId, group.addMember(leader, leader));
+        keeping = group;
+        Thread keeper = new Thread(() -> {
+            while (keeping == group) {
+                keepGroup(group);
+                try {
+                    Thread.sleep(GROUP_POLL_MILLIS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }, "sendspin-group");
+        keeper.setDaemon(true);
+        keeper.start();
+        return group;
+    }
+
+    /** Brings the members that are ready into the stream, takes out the ones that left the group or lost their connection. */
+    private void keepGroup(PcmStreamer group) {
+        List<String> wanted = hub.groups().membersOf(deviceId);
+        for (String id : new ArrayList<>(inGroup.keySet())) {
+            if (id.equals(deviceId)) {
+                continue;
+            }
+            PcmStreamer.Member member = inGroup.get(id);
+            HubConnection c = connectionOf(id);
+            boolean gone = !wanted.contains(id) || c == null || c.phase() != HubConnection.Phase.READY || group.hasFailed(member);
+            if (gone && member != null) {
+                inGroup.remove(id);
+                group.removeMember(member); // stream/end to it; it comes back by itself when it is ready again
+                if (!wanted.contains(id) && c != null) {
+                    declared.remove(id);
+                    c.stopPlayback();
+                }
+            }
+        }
+        for (String id : wanted) {
+            HubConnection c = connectionOf(id);
+            if (c == null || inGroup.containsKey(id)) {
+                continue;
+            }
+            if (c.phase() == HubConnection.Phase.NEEDS_APPROVAL) {
+                c.approve(); // linking a player is the operator's action that approves it
+            }
+            if (declared.add(id)) {
+                c.startPlayback(); // declared while this player plays to it
+            }
+            if (c.phase() == HubConnection.Phase.READY && c.supportedRates().contains(sampleRate)) {
+                inGroup.put(id, group.addMember(c, c));
+            }
+        }
+    }
+
+    private HubConnection connectionOf(String receiverId) {
+        Endpoint member = SendspinAddress.endpointOf(receiverId);
+        return member == null ? null : hub.acquire(member, true);
+    }
+
+    /** Drops the playback activity of every member of the group (the leader's own is dropped by the stop of the player). */
+    private void stopMembers() {
+        for (String id : new ArrayList<>(declared)) {
+            declared.remove(id);
+            Endpoint member = SendspinAddress.endpointOf(id);
+            HubConnection c = member == null ? null : hub.connection(member);
+            if (c != null) {
+                c.stopPlayback();
+            }
+        }
+        inGroup.clear();
     }
 
     private void connectionLost() {
@@ -298,32 +393,26 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
         return state == null ? null : state.player;
     }
 
+    // the volume and the mute are the group's when players are linked (a lone player is its own group)
     @Override
     public int getVolume() {
-        de.yaacc.sendspin.session.SendspinMessages.PlayerState state = playerState();
-        return state == null || state.volume == null ? 0 : state.volume;
+        Integer volume = hub.groupVolumeOf(deviceId);
+        return volume == null ? 0 : volume;
     }
 
     @Override
     public void setVolume(int volume) {
-        HubConnection c = connection != null ? connection : hub.connection(endpoint);
-        if (c != null) {
-            c.setVolume(volume);
-        }
+        hub.setGroupVolume(deviceId, volume);
     }
 
     @Override
     public boolean getMute() {
-        de.yaacc.sendspin.session.SendspinMessages.PlayerState state = playerState();
-        return state != null && state.muted != null && state.muted;
+        return hub.groupMutedOf(deviceId);
     }
 
     @Override
     public void setMute(boolean mute) {
-        HubConnection c = connection != null ? connection : hub.connection(endpoint);
-        if (c != null) {
-            c.setMuted(mute);
-        }
+        hub.setGroupMuted(deviceId, mute);
     }
 
     @Override

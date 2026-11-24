@@ -1015,8 +1015,17 @@ public class PlayerService extends MediaSessionService {
             return null;
         }
         SendspinHub hub = SendspinHub.getShared(context);
+        // playing to a member plays to its group: the player belongs to the leader
+        String leaderId = hub.groups().leaderOf(device.getReceiverId());
+        if (leaderId != null) {
+            SendspinReceiverDevice leader = hub.findReceiver(leaderId);
+            if (leader != null) {
+                device = leader;
+            }
+        }
         hub.acquire(device.getEndpoint(), true);
-        int sampleRate = hub.sampleRateOf(device.getEndpoint());
+        int sampleRate = hub.groups().isLeader(device.getReceiverId()) ? hub.groupRateOf(device.getReceiverId())
+                : hub.sampleRateOf(device.getEndpoint());
         if (sampleRate <= 0) {
             postToast(context, R.string.sendspin_error_not_ready);
             return null;

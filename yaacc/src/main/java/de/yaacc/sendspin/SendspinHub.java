@@ -32,9 +32,11 @@ import de.yaacc.sendspin.discovery.SendspinServerAdvert;
 import de.yaacc.sendspin.discovery.SendspinServiceType;
 import de.yaacc.sendspin.hub.Connector;
 import de.yaacc.sendspin.hub.Endpoint;
+import de.yaacc.sendspin.hub.GroupFormat;
 import de.yaacc.sendspin.hub.HubClock;
 import de.yaacc.sendspin.hub.HubConnection;
 import de.yaacc.sendspin.hub.InboundServer;
+import de.yaacc.sendspin.session.SendspinMessages;
 import de.yaacc.multiroom.discovery.SnapcastAddressFilter;
 import de.yaacc.sendspin.secure.Base64Url;
 import de.yaacc.sendspin.secure.Identity;
@@ -92,6 +94,7 @@ public final class SendspinHub implements SendspinReceiverSource {
     private final SendspinNsd serverNsd;
     private final SnapcastDiscoveryGate serverGate;
     private final SendspinNames names;
+    private final SendspinGroups groups = new SendspinGroups();
     private final SendspinServerAdvert advert;
     private final SnapcastDiscoveryGate inboundGate;
     private InboundServer inboundServer;
@@ -535,6 +538,179 @@ public final class SendspinHub implements SendspinReceiverSource {
         return outcome;
     }
 
+    // ------------------------------------------------------------------ linking (groups)
+
+    /** What linking two players did. */
+    public enum LinkOutcome {
+        LINKED, ALREADY, NOT_KNOWN, NEEDS_PAIRING, NO_COMMON_FORMAT, FULL, REFUSED
+    }
+
+    /** The groups of the players (not persisted). */
+    public SendspinGroups groups() {
+        return groups;
+    }
+
+    private boolean needsPairing(HubConnection connection) {
+        SendspinRowText.State state = SendspinRowText.stateOf(connection.phase(), connection.endReason(), connection.pairingFailure(),
+                connection.isPaired(), false, false);
+        return SendspinRowText.offersPairing(state);
+    }
+
+    /**
+     * Links a player into the group of a leader (the owner's decision: every player that is found can be linked, and linking is the
+     * operator action that approves an unpaired player, as playing to it does). Refused if the group would have no common PCM rate or
+     * if a player demands a pairing that is not done.
+     */
+    public synchronized LinkOutcome link(String leaderId, String memberId) {
+        Endpoint leader = SendspinAddress.isSendspinId(leaderId) ? SendspinAddress.endpointOf(leaderId) : null;
+        Endpoint member = SendspinAddress.isSendspinId(memberId) ? SendspinAddress.endpointOf(memberId) : null;
+        if (leader == null || member == null) {
+            return LinkOutcome.NOT_KNOWN;
+        }
+        HubConnection leaderConnection = acquire(leader, true);
+        HubConnection memberConnection = acquire(member, true);
+        if (leaderConnection == null || memberConnection == null || leaderConnection.hello() == null || memberConnection.hello() == null) {
+            return LinkOutcome.NOT_KNOWN;
+        }
+        if (needsPairing(leaderConnection) || needsPairing(memberConnection)) {
+            return LinkOutcome.NEEDS_PAIRING;
+        }
+        List<java.util.Set<Integer>> rates = new ArrayList<>();
+        rates.add(leaderConnection.supportedRates());
+        for (String other : groups.membersOf(leaderId)) {
+            HubConnection c = connectionOfId(other);
+            if (c != null && !other.equals(memberId)) {
+                rates.add(c.supportedRates());
+            }
+        }
+        rates.add(memberConnection.supportedRates());
+        if (GroupFormat.commonRate(rates) == 0) {
+            return LinkOutcome.NO_COMMON_FORMAT;
+        }
+        SendspinGroups.Result result = groups.link(leaderId, memberId);
+        switch (result) {
+            case LINKED:
+                if (!memberConnection.isPaired()) {
+                    memberConnection.approve(); // linking a player is the operator's action that means to use it
+                }
+                if (!leaderConnection.isPaired()) {
+                    leaderConnection.approve();
+                }
+                fire();
+                return LinkOutcome.LINKED;
+            case ALREADY:
+                return LinkOutcome.ALREADY;
+            case FULL:
+                return LinkOutcome.FULL;
+            default:
+                return LinkOutcome.REFUSED;
+        }
+    }
+
+    public synchronized void unlink(String memberId) {
+        groups.unlink(memberId);
+        fire();
+    }
+
+    public synchronized void dissolve(String leaderId) {
+        groups.dissolve(leaderId);
+        fire();
+    }
+
+    private HubConnection connectionOfId(String receiverId) {
+        Endpoint endpoint = SendspinAddress.isSendspinId(receiverId) ? SendspinAddress.endpointOf(receiverId) : null;
+        return endpoint == null ? null : connections.get(endpoint);
+    }
+
+    /** The sample rate of the group of a leader (or of a lone player): the common rate of its members, 0 if there is none or it is not known yet. */
+    public synchronized int groupRateOf(String leaderId) {
+        List<java.util.Set<Integer>> rates = new ArrayList<>();
+        HubConnection leader = connectionOfId(leaderId);
+        if (leader == null) {
+            return 0;
+        }
+        rates.add(leader.supportedRates());
+        for (String member : groups.membersOf(leaderId)) {
+            HubConnection c = connectionOfId(member);
+            if (c == null) {
+                continue; // a member that is not connected now joins later, if it can use the rate
+            }
+            rates.add(c.supportedRates());
+        }
+        return GroupFormat.commonRate(rates);
+    }
+
+    /** The average volume of the group of a leader, or null if none of its players reports one. */
+    public synchronized Integer groupVolumeOf(String leaderId) {
+        int sum = 0;
+        int count = 0;
+        List<String> all = new ArrayList<>();
+        all.add(leaderId);
+        all.addAll(groups.membersOf(leaderId));
+        for (String id : all) {
+            HubConnection c = connectionOfId(id);
+            SendspinMessages.ClientState s = c == null ? null : c.state();
+            if (s != null && s.player != null && s.player.volume != null) {
+                sum += s.player.volume;
+                count++;
+            }
+        }
+        return count == 0 ? null : Math.round(sum / (float) count);
+    }
+
+    /**
+     * Sets the volume of the group like a Snapcast group: every player is moved by the same number of points the average moves,
+     * limited to 0 to 100. A lone player gets the value itself.
+     */
+    public synchronized void setGroupVolume(String leaderId, int percent) {
+        List<String> all = new ArrayList<>();
+        all.add(leaderId);
+        all.addAll(groups.membersOf(leaderId));
+        Integer average = all.size() == 1 ? null : groupVolumeOf(leaderId);
+        for (String id : all) {
+            HubConnection c = connectionOfId(id);
+            if (c == null) {
+                continue;
+            }
+            SendspinMessages.ClientState s = c.state();
+            int current = s != null && s.player != null && s.player.volume != null ? s.player.volume : percent;
+            int target = average == null ? percent : Math.max(0, Math.min(100, current + (percent - average)));
+            c.setVolume(target);
+        }
+    }
+
+    /** Mutes or unmutes every player of the group of a leader. */
+    public synchronized void setGroupMuted(String leaderId, boolean muted) {
+        List<String> all = new ArrayList<>();
+        all.add(leaderId);
+        all.addAll(groups.membersOf(leaderId));
+        for (String id : all) {
+            HubConnection c = connectionOfId(id);
+            if (c != null) {
+                c.setMuted(muted);
+            }
+        }
+    }
+
+    /** True if every player of the group of a leader that reports it is muted. */
+    public synchronized boolean groupMutedOf(String leaderId) {
+        List<String> all = new ArrayList<>();
+        all.add(leaderId);
+        all.addAll(groups.membersOf(leaderId));
+        boolean any = false;
+        for (String id : all) {
+            HubConnection c = connectionOfId(id);
+            SendspinMessages.ClientState s = c == null ? null : c.state();
+            if (s != null && s.player != null && s.player.muted != null) {
+                if (!s.player.muted) {
+                    return false;
+                }
+                any = true;
+            }
+        }
+        return any;
+    }
+
     /** The ids of the paired players, sorted. */
     public List<String> pairedIds() {
         return approvals.pairedIds();
@@ -581,6 +757,7 @@ public final class SendspinHub implements SendspinReceiverSource {
 
     /** Removes an added player from the list and ends its connection (a player that is announced stays while it is announced). */
     public synchronized void remove(Endpoint endpoint) {
+        groups.remove(SendspinAddress.idOf(endpoint));
         disconnect(endpoint);
         players.remove(endpoint);
         devices.remove(SendspinAddress.idOf(endpoint));

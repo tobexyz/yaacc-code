@@ -406,6 +406,25 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
         return null;
     }
 
+    /** The PCM rates (16 bit, stereo) the player lists, in its own order; empty before its hello. */
+    public java.util.Set<Integer> supportedRates() {
+        SendspinMessages.ClientHello h = hello;
+        java.util.Set<Integer> rates = new java.util.LinkedHashSet<>();
+        if (h != null && h.supportsPlayer()) {
+            for (SendspinMessages.Format f : h.playerFormats) {
+                if ("pcm".equals(f.codec) && f.bitDepth == 16 && f.channels == 2) {
+                    rates.add(f.sampleRate);
+                }
+            }
+        }
+        return rates;
+    }
+
+    /** The clock of the hub, for a group's streamer. */
+    public HubClock hubClock() {
+        return clock;
+    }
+
     /**
      * The format of the stream to this player (PCM, 16 bit, stereo, the first such entry of the player's list) from the moment its
      * hello is read, else null. The audio tap of the app needs the rate before the player is ready.
