@@ -97,6 +97,10 @@ public interface ServerPolicy {
             if (longTermPsk == null || longTermPsk.length != 32 || de.yaacc.sendspin.secure.SendspinPsk.isSentinel(longTermPsk)) {
                 return false;
             }
+            byte[] token = tokens.get(clientId);
+            if (token != null && java.util.Arrays.equals(token, longTermPsk)) {
+                return false;
+            }
             longTerm.put(clientId, longTermPsk.clone());
             tokens.remove(clientId);
             approved.remove(clientId);

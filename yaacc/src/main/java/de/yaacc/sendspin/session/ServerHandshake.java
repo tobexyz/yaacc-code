@@ -83,8 +83,12 @@ public final class ServerHandshake {
         public final SendspinPsk.Category verifiedAs;
         /** True if the client could not use the PSK that was referenced and answered with the Sentinel (spec, "Sentinel Fallback"). */
         public final boolean credentialMismatch;
+        /** The category of the PSK the server referenced in its first message (differs from {@link #verifiedAs} after a mismatch). */
+        public final SendspinPsk.Category referenced;
 
-        Result(SecureChannel channel, String clientId, NoiseSuite suite, SendspinPsk.Category verifiedAs, boolean credentialMismatch) {
+        Result(SecureChannel channel, String clientId, NoiseSuite suite, SendspinPsk.Category verifiedAs, boolean credentialMismatch,
+               SendspinPsk.Category referenced) {
+            this.referenced = referenced;
             this.channel = channel;
             this.clientId = clientId;
             this.suite = suite;
@@ -216,7 +220,7 @@ public final class ServerHandshake {
             throw silent("handshake failed");
         }
         NoiseTransport transport = noise.split();
-        return new Result(new SecureChannel(ws, transport), clientId, suite, verifiedAs, credentialMismatch);
+        return new Result(new SecureChannel(ws, transport), clientId, suite, verifiedAs, credentialMismatch, choice.category);
     }
 
     /** How long the server waits for the player's second message of a re-handshake. */

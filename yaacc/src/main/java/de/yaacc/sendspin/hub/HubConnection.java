@@ -60,6 +60,10 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
         RE_PAIR_NEEDED,
         /** The player has no {@code player@v1} role, or lists no PCM 16 bit stereo format (FLAC and Opus need an encoder). */
         UNUSABLE,
+        /** A pairing with the Pairing PSK is running (a few messages; then the connection goes on with the new long-term PSK). */
+        PAIRING,
+        /** A pairing did not complete; {@link #pairingFailure()} says why. The connection is idle. */
+        PAIRING_FAILED,
         ACTIVATING, READY, ENDED
     }
 
@@ -68,6 +72,21 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
         NONE, CLOSED_BY_APP, FAILED, PROTOCOL_ERROR,
         ANOTHER_SERVER, SHUTDOWN, RESTART, USER_REQUEST, UNAUTHORIZED, PAIRING_REQUIRED, CONCURRENT_ATTEMPT, UNPAIRED, OTHER
     }
+
+    /** Why a pairing did not complete. */
+    public enum PairingFailure {
+        NONE,
+        /** The player does not know the Pairing PSK of the pasted token (a wrong token, or the player's was replaced). */
+        TOKEN_REJECTED,
+        /** The player does not offer the Pairing PSK method (every compliant player does). */
+        NOT_OFFERED,
+        PLAYER_ABORTED,
+        /** The PSK the player delivered cannot be kept (the Sentinel, the pairing PSK itself) or there is no room. */
+        CANNOT_STORE,
+        TIMEOUT
+    }
+
+    private enum PairingStep { IDLE, ACTIVATED, INITIATED }
 
     public interface Listener {
         /** Something changed (phase, player state, name); called on the connection's thread or the caller's, never with a lock held. */
@@ -104,6 +123,15 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
     private volatile SendspinMessages.ClientHello hello;
     private volatile SendspinMessages.ClientState state;
     private volatile ServerHandshake.Result handshake;
+    /** The category the connection's keys are under now: from the handshake, and after a re-handshake the new one. */
+    private volatile SendspinPsk.Category matched;
+    private volatile PairingFailure pairingFailure = PairingFailure.NONE;
+    /** The loop thread's: where the pairing is, how many pairing activations came since the last handshake, when it must be done. */
+    private PairingStep pairingStep = PairingStep.IDLE;
+    private int pairingActivations;
+    private boolean discardPairing;
+    private long pairingDeadlineNanos;
+    private volatile long pairingTimeoutMillis = 30_000L;
     private volatile SecureChannel channel;
     private volatile Connector.Link link;
     private volatile boolean closing;
@@ -163,8 +191,17 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
     }
 
     public boolean isPaired() {
-        ServerHandshake.Result result = handshake;
-        return result != null && result.verifiedAs == SendspinPsk.Category.LONG_TERM;
+        return matched == SendspinPsk.Category.LONG_TERM;
+    }
+
+    /** Why the last pairing did not complete, else {@link PairingFailure#NONE}. */
+    public PairingFailure pairingFailure() {
+        return pairingFailure;
+    }
+
+    /** The time the server waits for the player to answer a pairing activation (30 s); tests make it short. */
+    void setPairingTimeoutMillis(long millis) {
+        pairingTimeoutMillis = millis;
     }
 
     // ------------------------------------------------------------------ lifecycle
@@ -353,6 +390,7 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
             setPhase(Phase.HANDSHAKING);
             ServerHandshake.Result result = ServerHandshake.perform(link.ws(), identity, policy::pskFor, random);
             handshake = result;
+            matched = result.verifiedAs;
             channel = result.channel;
             clientId = result.clientId;
             channel.sendJson(SendspinMessages.serverHello(serverName));
@@ -402,6 +440,9 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
                 inbound = c.receive();
                 lastRx = System.nanoTime();
             } catch (SocketTimeoutException idle) {
+                if (pairingStep != PairingStep.IDLE && System.nanoTime() - pairingDeadlineNanos > 0) {
+                    cancelPairing(PairingFailure.TIMEOUT);
+                }
                 if ((System.nanoTime() - lastRx) / 1_000_000L > IDLE_LIMIT_MILLIS) {
                     throw new IOException("no traffic");
                 }
@@ -427,6 +468,18 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
                 case "client/state":
                     handleState(SendspinMessages.parseClientState(envelope.payload()));
                     break;
+                case "client/pair-init":
+                    handlePairInit(SendspinMessages.parsePairingIndex(envelope.payload()));
+                    break;
+                case "client/pair-finalize":
+                    handlePairFinalize(SendspinMessages.parseLongTermPsk(envelope.payload()));
+                    break;
+                case "pair/abort":
+                    SendspinMessages.parsePairAbortReason(envelope.payload());
+                    if (pairingStep != PairingStep.IDLE) {
+                        cancelPairing(PairingFailure.PLAYER_ABORTED);
+                    }
+                    break;
                 case "client/goodbye":
                     end(reasonOf(SendspinMessages.parseGoodbyeReason(envelope.payload())));
                     return;
@@ -442,6 +495,12 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
         if (usable != null && h.supportsPlayer()) {
             format = new StreamFormat(usable.sampleRate);
         }
+        decide();
+    }
+
+    /** What the player may be given, from what the handshake showed and the hello said; runs again after a pairing. */
+    private void decide() throws IOException {
+        SendspinMessages.ClientHello h = hello;
         ServerHandshake.Result result = handshake;
         if (!h.supportsPlayer() || choosePcm(h) == null) {
             activateNothing();
@@ -450,10 +509,19 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
         }
         if (result.credentialMismatch) {
             activateNothing();
-            setPhase(Phase.RE_PAIR_NEEDED);
+            if (result.referenced == SendspinPsk.Category.PAIRING) {
+                pairingFailure = PairingFailure.TOKEN_REJECTED;
+                setPhase(Phase.PAIRING_FAILED);
+            } else {
+                setPhase(Phase.RE_PAIR_NEEDED);
+            }
             return;
         }
-        boolean paired = result.verifiedAs == SendspinPsk.Category.LONG_TERM;
+        if (matched == SendspinPsk.Category.PAIRING) {
+            startPairing();
+            return;
+        }
+        boolean paired = matched == SendspinPsk.Category.LONG_TERM;
         if (!paired && !h.unpairedAccess) {
             activateNothing();
             setPhase(Phase.PAIRING_REQUIRED);
@@ -465,6 +533,78 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
             return;
         }
         activatePlayback();
+    }
+
+    // ------------------------------------------------------------------ pairing with the Pairing PSK
+
+    private void startPairing() throws IOException {
+        if (!hello.pairMethods.contains("pairing_psk")) {
+            activateNothing();
+            pairingFailure = PairingFailure.NOT_OFFERED;
+            setPhase(Phase.PAIRING_FAILED);
+            return;
+        }
+        pairingFailure = PairingFailure.NONE;
+        pairingActivations++;
+        pairingStep = PairingStep.ACTIVATED;
+        discardPairing = false;
+        pairingDeadlineNanos = System.nanoTime() + pairingTimeoutMillis * 1_000_000L;
+        channel.sendJson(SendspinMessages.serverActivatePairing());
+        setPhase(Phase.PAIRING);
+    }
+
+    private void handlePairInit(int index) throws ProtocolException {
+        if (pairingStep == PairingStep.IDLE) {
+            if (discardPairing) {
+                return; // in flight from before the player saw that the attempt ended
+            }
+            throw new ProtocolException("client/pair-init without a pairing activation");
+        }
+        if (index < pairingActivations) {
+            return; // a leftover of a superseded pairing
+        }
+        if (index > pairingActivations || pairingStep != PairingStep.ACTIVATED) {
+            throw new ProtocolException("pairing_index");
+        }
+        pairingStep = PairingStep.INITIATED;
+    }
+
+    private void handlePairFinalize(String encodedPsk) throws IOException, ProtocolException {
+        if (pairingStep == PairingStep.IDLE && discardPairing) {
+            return;
+        }
+        if (pairingStep != PairingStep.INITIATED) {
+            throw new ProtocolException("client/pair-finalize out of sequence");
+        }
+        byte[] psk = de.yaacc.sendspin.secure.Base64Url.decode32(encodedPsk);
+        if (psk == null) {
+            throw new ProtocolException("long_term_psk");
+        }
+        try {
+            String id = clientId;
+            if (!policy.completePairing(id, psk)) {
+                cancelPairing(PairingFailure.CANNOT_STORE);
+                return;
+            }
+            pairingStep = PairingStep.IDLE;
+            pairingActivations = 0;
+            channel.sendJson(SendspinMessages.serverPairFinalize());
+            ServerHandshake.PskChoice choice = policy.pskFor(id);
+            ServerHandshake.rehandshake(channel, identity, id, handshake.suite, choice, random);
+            matched = choice.category();
+            decide();
+        } finally {
+            java.util.Arrays.fill(psk, (byte) 0);
+        }
+    }
+
+    /** Ends the attempt without a pairing: a {@code server/activate} with nothing, as the specification has it. */
+    private void cancelPairing(PairingFailure why) throws IOException {
+        pairingStep = PairingStep.IDLE;
+        discardPairing = true;
+        pairingFailure = why;
+        activateNothing();
+        setPhase(Phase.PAIRING_FAILED);
     }
 
     private void activateNothing() throws IOException {

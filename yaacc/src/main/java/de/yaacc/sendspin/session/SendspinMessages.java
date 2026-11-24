@@ -75,6 +75,17 @@ public final class SendspinMessages {
         return message("server/activate", json("activities", new JSONArray(activities), "active_roles", new JSONArray(activeRoles)));
     }
 
+    /** {@code server/activate} that admits a pairing attempt with the Pairing PSK (no playback, no roles). */
+    public static String serverActivatePairing() {
+        return message("server/activate", json("activities", new JSONArray(Collections.singletonList("pairing")),
+                "active_roles", new JSONArray(), "pairing", json("method", "pairing_psk")));
+    }
+
+    /** {@code server/pair-finalize}: the server has stored the pairing record. */
+    public static String serverPairFinalize() {
+        return message("server/pair-finalize", new JSONObject());
+    }
+
     public static String serverTime(long clientTransmitted, long serverReceived, long serverTransmitted) {
         return message("server/time", json("client_transmitted", clientTransmitted, "server_received", serverReceived,
                 "server_transmitted", serverTransmitted));
@@ -322,6 +333,21 @@ public final class SendspinMessages {
 
     /** {@code client/goodbye}: the reason, as the protocol names it. */
     public static String parseGoodbyeReason(JSONObject p) throws ProtocolException {
+        return text(p, "reason", 32, true);
+    }
+
+    /** {@code client/pair-init}: the pairing index (the number of pairing activations the client has seen since the last handshake). */
+    public static int parsePairingIndex(JSONObject p) throws ProtocolException {
+        return integer(p, "pairing_index", 0, Integer.MAX_VALUE, true);
+    }
+
+    /** {@code client/pair-finalize} of the Pairing PSK flow: the 43 characters of the long-term PSK. */
+    public static String parseLongTermPsk(JSONObject p) throws ProtocolException {
+        return text(p, "long_term_psk", 64, true);
+    }
+
+    /** {@code pair/abort}: the reason. */
+    public static String parsePairAbortReason(JSONObject p) throws ProtocolException {
         return text(p, "reason", 32, true);
     }
 
