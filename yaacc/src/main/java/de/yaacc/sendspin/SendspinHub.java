@@ -71,6 +71,7 @@ public final class SendspinHub implements SendspinReceiverSource {
     private final SecureRandom random = new SecureRandom();
     private final Map<Endpoint, HubConnection> connections = new HashMap<>();
     private final Map<Endpoint, Long> lastAttempt = new HashMap<>();
+    private final Map<Endpoint, Integer> rates = new HashMap<>();
     private final Map<String, SendspinReceiverDevice> devices = new HashMap<>();
     private Identity identity;
 
@@ -181,6 +182,19 @@ public final class SendspinHub implements SendspinReceiverSource {
             default:
                 return true; // failed, shutdown, restart, concurrent attempt, other
         }
+    }
+
+    /**
+     * The sample rate of the stream to a player: from its connection if the hello is known, else the one remembered from an earlier
+     * connection, else 0. The audio tap needs it before the player of the app is built.
+     */
+    public synchronized int sampleRateOf(Endpoint endpoint) {
+        HubConnection current = connections.get(endpoint);
+        if (current != null && current.streamFormat() != null) {
+            rates.put(endpoint, current.streamFormat().sampleRate);
+        }
+        Integer rate = rates.get(endpoint);
+        return rate == null ? 0 : rate;
     }
 
     /** Ends the connection to a player and forgets it (the player stays in the list unless it is removed). */

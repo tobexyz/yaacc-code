@@ -246,7 +246,10 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
         return null;
     }
 
-    /** The sample rate of the stream to this player once it is ready (PCM, 16 bit, stereo), else null. */
+    /**
+     * The format of the stream to this player (PCM, 16 bit, stereo, the first such entry of the player's list) from the moment its
+     * hello is read, else null. The audio tap of the app needs the rate before the player is ready.
+     */
     public StreamFormat streamFormat() {
         return format;
     }
@@ -435,6 +438,10 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
 
     private void handleHello(SendspinMessages.ClientHello h) throws IOException {
         hello = h;
+        SendspinMessages.Format usable = choosePcm(h);
+        if (usable != null && h.supportsPlayer()) {
+            format = new StreamFormat(usable.sampleRate);
+        }
         ServerHandshake.Result result = handshake;
         if (!h.supportsPlayer() || choosePcm(h) == null) {
             activateNothing();
@@ -473,7 +480,6 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
             if (chosen == null) {
                 return;
             }
-            format = new StreamFormat(chosen.sampleRate);
             activated = true;
         }
         setPhase(Phase.ACTIVATING);

@@ -56,6 +56,8 @@ import de.yaacc.multiroom.SnapcastHub;
 import de.yaacc.multiroom.SnapcastReceivers;
 import de.yaacc.multiroom.SnapcastSettings;
 import de.yaacc.multiroom.SnapcastRendererOutput;
+import de.yaacc.sendspin.SendspinHub;
+import de.yaacc.sendspin.SendspinReceiverDevice;
 import de.yaacc.share.ContentDuration;
 import de.yaacc.share.PickedQueue;
 import de.yaacc.share.QueueItems;
@@ -984,6 +986,50 @@ public class PlayerService extends MediaSessionService {
         return newFCastPlayer(upnpClient, device);
     }
 
+    /**
+     * Makes the player of a Sendspin player (the seam of the tests); {@code sampleRate} is the rate of its stream, which the audio
+     * tap of the player converts to.
+     */
+    @OptIn(markerClass = UnstableApi.class)
+    Player newSendspinPlayer(UpnpClient upnpClient, SendspinReceiverDevice device, int sampleRate) {
+        String friendlyName = device.getDetails().getFriendlyName();
+        return new SendspinPlayer(upnpClient, device, sampleRate, upnpClient.getContext().getString(R.string.playerNameMusic)
+                + "@" + friendlyName, friendlyName);
+    }
+
+    /**
+     * One player per Sendspin player: an earlier one for the same player ends first. Music only (the stream is audio). The player
+     * is made only when the rate of its stream is known (its hello was read): the audio tap of ExoPlayer converts to it and
+     * ExoPlayer is built later; the list of receivers started the connection, so this is the case unless the player was added a
+     * moment ago.
+     */
+    @OptIn(markerClass = UnstableApi.class)
+    Player createSendspinPlayer(UpnpClient upnpClient, SendspinReceiverDevice device, boolean video, boolean image, boolean music) {
+        final android.content.Context context = upnpClient.getContext();
+        if (video || image || !music) {
+            postToast(context, R.string.sendspin_audio_only);
+            return null;
+        }
+        SendspinHub hub = SendspinHub.getShared(context);
+        hub.acquire(device.getEndpoint(), true);
+        int sampleRate = hub.sampleRateOf(device.getEndpoint());
+        if (sampleRate <= 0) {
+            postToast(context, R.string.sendspin_error_not_ready);
+            return null;
+        }
+        String deviceId = device.getReceiverId();
+        for (Player player : getCurrentPlayersOfType(SendspinPlayer.class)) {
+            if (deviceId.equals(player.getDeviceId())) {
+                shutdown(player);
+            }
+        }
+        return newSendspinPlayer(upnpClient, device, sampleRate);
+    }
+
+    private static void postToast(final android.content.Context context, final int text) {
+        new android.os.Handler(Looper.getMainLooper()).post(() -> Toast.makeText(context, text, Toast.LENGTH_LONG).show());
+    }
+
     /** One player per group: an earlier one for the same group ends first. Music only. */
     @OptIn(markerClass = UnstableApi.class)
     private Player createSnapcastPlayer(UpnpClient upnpClient, SnapcastGroupDevice device,
@@ -1029,6 +1075,9 @@ public class PlayerService extends MediaSessionService {
         if (receiverDevice instanceof FCastReceiverDevice) {
             // music, video and pictures all go to the receiver, which fetches the files itself
             return createFCastPlayer(upnpClient, (FCastReceiverDevice) receiverDevice);
+        }
+        if (receiverDevice instanceof SendspinReceiverDevice) {
+            return createSendspinPlayer(upnpClient, (SendspinReceiverDevice) receiverDevice, video, image, music);
         }
 
         Player result;

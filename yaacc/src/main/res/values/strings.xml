@@ -579,4 +579,11 @@
     <string name="fcast_link_note_v4">The receiver will be added to your list of FCast receivers. Nothing is played on it until you select it. This link carries the receiver’s key: on Android 10 or later the connection is encrypted (protocol v4).</string>
     <string name="fcast_key_refused">The receiver’s key is not the one that was announced, so YAACC did not connect. If the receiver was reinstalled, remove it and add it again with its connection link.</string>
     <string name="fcast_secure_failed">The encrypted connection (version 4) to the receiver could not be made, so YAACC did not connect. You can turn version 4 off in Settings > FCast.</string>
+    <string name="sendspin_audio_only">Sendspin players play music only</string>
+    <string name="sendspin_error_not_ready">The Sendspin player is not ready yet. Try again in a moment.</string>
+    <string name="sendspin_error_pairing_required">This Sendspin player only accepts paired servers. Pairing is not supported yet.</string>
+    <string name="sendspin_error_re_pair">This Sendspin player lost its pairing with YAACC and has to be paired again. Pairing is not supported yet.</string>
+    <string name="sendspin_error_unusable">YAACC can not play to this Sendspin player: it offers no PCM format with 16 bit and two channels.</string>
+    <string name="sendspin_error_in_use">This Sendspin player is in use by another server.</string>
+    <string name="sendspin_error_lost">The connection to the Sendspin player was lost.</string>
 </resources>
