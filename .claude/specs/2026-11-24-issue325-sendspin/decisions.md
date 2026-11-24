@@ -14,6 +14,15 @@ Android reference pages: `KeyAgreement`/`KeyPairGenerator` algorithm `XDH` (X255
 ## 2026-11-24 - Reference implementation found (task 1.4)
 `sendspin` 9.1.0 on PyPI (command line player and server, Apache-2.0, repository `Sendspin-Protocol/sendspin`) on top of `aiosendspin` 10.2.2 (Apache-2.0; uses `noiseprotocol`, `cpace`, `cryptography`, `zeroconf`). `sendspin daemon --unpaired-access true --audio-device null` runs a headless player (listens on 8928, path `/sendspin`, advertises `_sendspin._tcp`) in the sandbox without audio hardware (PortAudio plus the ALSA null device); `sendspin serve` is a reference server. The player prints its identity; behavior is compared, no code is copied.
 
+## 2026-11-24 - Proof of concept result so far (Q1 to Q5; the owner's listening is open)
+- **Q1 Crypto: yes.** Noise `KKpsk2` in plain Java with Bouncy Castle's lightweight `X25519` and `ChaCha20Poly1305` and the platform's AES-GCM: byte-identical to an independent implementation for both suites, accepted by the reference player. Cost: a 7.3 MB jar, no minification (`docs/adr/0001`); not measured in an APK.
+- **Q2 Transport: an in-house WebSocket is enough** (RFC 6455 subset, both sides, 19 tests including every violation); no library was needed.
+- **Q3 Server sync: works as far as a machine can tell, not heard.** The reference player's own measure converges to 0 ms within 25 s and stays within +-3 ms for 40 s of streaming, with a seek, a pause and a resume; no underrun. The first 25 s start at -60 to -130 ms, corrected at the player's speed cap, which is what the specification prescribes; a real listening test of the first seconds is the owner's (task 4.6).
+- **Q4 Fit: yes with the FCast and Snapcast pattern**; the touched places are listed in `tasks.md`. One design point found: the tap's sample rate must be known when the ExoPlayer is created, so the hub keeps a connection per known player.
+- **Q5 Interop: one reference player so far** (`sendspin` 9.1.0). Verified: unpaired with operator approval; a player with unpaired access off is recognized and shown as needing pairing. **Not verified:** the Pairing PSK (the reference daemon shows no token), Music Assistant, ESPHome, the owner's Kodi device.
+- **Rig finding:** PortAudio can not open the ALSA `null` device by name; the rig uses a PulseAudio null sink (also real-time clocked). The Docker image was never built.
+- **Discovery default:** until the app part has been tried on a device, a Sendspin switch (when it exists) is **off by default**, which replaces the recommendation "on by default" below for the first release; the owner can turn the default on after the first test.
+
 ## 2026-11-09 - Server and client, MusicCast-like linking (owner)
 **Decision**: YAACC implements both roles. Linking follows the MusicCast pattern: the server leads, members follow, "Play on" a member plays on its group.
 **Rationale**: owner's request.

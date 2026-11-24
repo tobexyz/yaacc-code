@@ -5,37 +5,49 @@ Rules: spec first, tests first for the pure parts; all new strings in values + d
 
 **Stages: P (proof of concept) = Groups 1 to 5, ends with the owner's go / reduce / stop. Phase 2 (server) = Groups 6 and 7. Phase 3 (client) = Groups 8 to 10. Phase 4 (extras) = Group 11. The owner decides at the end of each stage; nothing after Group 5 starts without it.**
 
+## Status (2026-11-24, end of the first working session)
+
+Done and verified (JVM tests, and the rig for the protocol parts; no listening test, no device):
+- **Group 1**: protocol notes in `docs/tech.md`; crypto inventory (decisions.md); the places a receiver touches (below); the rig (`tools/sendspin-rig/`, local run verified, Docker image never built).
+- **Group 2 (as production code, not a throw-away spike)**: the handshake with the real reference player (ChaChaPoly chosen by the player; the AESGCM suite is verified against the Python vectors only), hello, activate, time, state, 40 s of PCM, seek, pause, resume, volume. 2.2 (pairing PSK) is **not** done.
+- **Group 3**: WebSocket (both sides), Noise `KKpsk2` with both suites, PSK ids, Sentinel fallback, identity, the codec of the PoC messages with hostile-input guards, the secure channel with fragmentation on receive. 3.4 (pairing token and store) and 3.5 (Keystore) are **not** done. 3.2: sending fragments is not needed yet.
+- **Group 4, protocol part**: 4.1 `PcmStreamer`, 4.2 `HubConnection` (admission rules, activation, time, state, commands, goodbye reasons). 72 plus 30 tests, and `HubRigTest` against the reference player.
+
+Not done: 4.3 (directory, mDNS, synthetic `Device`), 4.4 (`SendspinPlayer`, `PlayerService`), 4.5 (rows, approval list, settings, strings), 4.6 (the owner listens), all of Group 5 (Pairing PSK and the gate) and everything after it. The app has no Sendspin code that a user can reach yet; nothing existing was changed (only `yaacc/build.gradle`: the Bouncy Castle dependency and the rig property).
+
+Places a Sendspin receiver touches (task 1.3, read on 2026-11-24 by following FCast and Snapcast): `UpnpClient` (the receiver list at the `fcastReceivers` hooks, `findDevice` by id, the selection change), `PlayerService.createPlayer` (an `instanceof` branch, one player per receiver) and a player in `de.yaacc.player` (the shape of `SnapcastPlayer`: ExoPlayer built with `FeedTapChain` and a `PcmSink`; ExoPlayer is created lazily after the service connects, so the tap's sample rate must be known from the receiver device, which means the hub keeps a connection per known player and exposes the format), `ReceiverRowBinder` (branches in bind, bindStatus, bindPower, the transport action, `logName`), `RendererStatusMonitor` (excluded for non-UPnP receivers), `ReceiverVolumeLiveUpdater`, a row class next to `FCastRowBinder`, a settings entry with an add-by-address dialog, strings in 7 locales, and the tests that enumerate receiver kinds.
+
 ## Group 1: Checks before code (P0 prerequisites)
-- [ ] 1.1 Protocol notes in `docs/tech.md`, in our own words, wire version 1, spec at `2cfe197` | `docs/tech.md`
+- [x] 1.1 Protocol notes in `docs/tech.md`, in our own words, wire version 1, spec at `2cfe197` | `docs/tech.md`
   - **Accept**: notes cover the handshake order, `client/init`/`server/init`/`noise/handshake` fields, the Noise pattern details (prologue, payloads, counters, re-handshake), PSK ids and the Sentinel constants, the fields we use of `server/hello`/`client/hello`/`server/activate`/`client/state`/`server/time`/`stream/*`/`server/command`/`client/goodbye`, binary ids and the audio chunk layout, the player role messages, the pairing PSK flow and the token encoding, unpaired access and operator approval; each item cites the spec section; resolves every (verify) marker of `design.md` that does not need the rig.
   - **Verify**: `grep -c "(verify)" .claude/specs/2026-11-24-issue325-sendspin/design.md` shrinks accordingly; nothing copied verbatim; license terms recorded.
   - **Constraints**: no code from the Apache-2.0 reference implementations is copied; compare behavior only.
-- [ ] 1.2 Crypto inventory: what the platform has on API 27 (X25519, ChaCha20-Poly1305, AES-GCM with 12-byte nonces, HMAC-SHA256/512, SHA-256/512) confirmed on a device or from the platform sources, and the library candidates measured (Bouncy Castle lightweight `X25519`/`ChaCha20Poly1305` only, Tink's subtle classes): version, license, age (7-day rule), added size of the debug APK and with the project's minification setting (`docs/adr/0001-no-r8-proguard-minification.md`) | `docs/tech.md`, `decisions.md`
+- [x] 1.2 Crypto inventory: what the platform has on API 27 (X25519, ChaCha20-Poly1305, AES-GCM with 12-byte nonces, HMAC-SHA256/512, SHA-256/512) confirmed on a device or from the platform sources, and the library candidates measured (Bouncy Castle lightweight `X25519`/`ChaCha20Poly1305` only, Tink's subtle classes): version, license, age (7-day rule), added size of the debug APK and with the project's minification setting (`docs/adr/0001-no-r8-proguard-minification.md`) | `docs/tech.md`, `decisions.md`
   - **Accept**: a table of need / platform / library; a recommendation for the CONFIRM entry "Cryptography library"; the owner confirms the choice before task 2.1.
-- [ ] 1.3 Inventory of the places a Sendspin receiver touches (synthetic `Device`, `PlayerService.createPlayer`, `ReceiverRowBinder` and its siblings, `ReceiverVolumeLiveUpdater`, `RendererStatusMonitor`, selection and persistence of selected receivers, notification and lock-screen paths, settings, tests that enumerate receiver kinds) by reading how FCast and Snapcast hook in | `design.md` (Context, section update)
+- [x] 1.3 Inventory of the places a Sendspin receiver touches (synthetic `Device`, `PlayerService.createPlayer`, `ReceiverRowBinder` and its siblings, `ReceiverVolumeLiveUpdater`, `RendererStatusMonitor`, selection and persistence of selected receivers, notification and lock-screen paths, settings, tests that enumerate receiver kinds) by reading how FCast and Snapcast hook in | `design.md` (Context, section update)
   - **Accept**: a list of the places and the change each needs; no code.
-- [ ] 1.4 Test rig and players: which Sendspin players and servers the owner can use (a real device or the reference command line player) and which of them accept unpaired access; a Docker rig for the reference player(s) and a reference server, images pinned by tag, null/file audio backend | `tools/sendspin-rig/` (`docker-compose.yml`, README)
+- [x] 1.4 Test rig and players: which Sendspin players and servers the owner can use (a real device or the reference command line player) and which of them accept unpaired access; a Docker rig for the reference player(s) and a reference server, images pinned by tag, null/file audio backend | `tools/sendspin-rig/` (`docker-compose.yml`, README)
   - **Accept**: the owner's answer is recorded in `decisions.md`; `docker compose config` validates; the README commands list the discovered players; local ports only; no audio files committed.
   - **Constraints**: the names and the options of the reference implementations are verified from their own repositories at this step (they were not reachable when this spec was written).
 
 ## Group 2: P0 spike, throw-away (P)
-- [ ] 2.1 Java program: WebSocket client, `client/init`..`server/hello`/`client/hello`/`server/activate` with the reference player under the Sentinel PSK, both cipher suites, `server/time` answers, `client/state` read | `tools/sendspin-rig/spike/` (not production code)
+- [x] 2.1 Java program: WebSocket client, `client/init`..`server/hello`/`client/hello`/`server/activate` with the reference player under the Sentinel PSK, both cipher suites, `server/time` answers, `client/state` read | `tools/sendspin-rig/spike/` (not production code)
   - **Accept**: the run log shows the full sequence with a reference player; uses only library primitives of the choice of 1.2; keys and PSKs are generated for the spike, never committed.
   - **Verify**: run log attached to `docs/tech.md`. **Kill criterion (decision with the owner, not mine to take alone):** no interoperable Noise handshake with reasonable effort -> stop, or reduce to a mirror-only path.
 - [ ] 2.2 The same under a pairing PSK from a token, then the re-handshake to a long-term PSK and a reconnect under it | same folder
   - **Accept**: log of pairing, restart of the spike, reconnect with the long-term PSK, no pairing needed the second time.
-- [ ] 2.3 Send audio: a generated sine as PCM chunks with server-clock timestamps and a fixed lead; the owner listens through the reference player | same folder
+- [x] 2.3 Send audio: a generated sine as PCM chunks with server-clock timestamps and a fixed lead; the owner listens through the reference player | same folder
   - **Accept**: a steady tone for 5 minutes, no gaps; the player's own log shows no late chunks (where it reports them).
 
 ## Group 3: Foundations (P, pure Java, tests first)
-- [ ] 3.1 WebSocket subset (client) | `de.yaacc.sendspin.session`, tests `WsFramingTest`, `WsHandshakeTest`, `WsConnectionTest`
+- [x] 3.1 WebSocket subset (client) | `de.yaacc.sendspin.session`, tests `WsFramingTest`, `WsHandshakeTest`, `WsConnectionTest`
   - **Accept**: handshake (accept key check, no `Origin` header on outgoing upgrade), text/binary frames up to the cap, client masking, ping/pong, close with codes, protocol violations close with 1002/1009; idle and handshake timeouts; no unbounded buffers. The server side (the player role's listener) and fragmentation of large messages are Group 6 and Group 9.
   - **Verify**: `./gradlew :yaacc:testDebugUnitTest --tests 'de.yaacc.sendspin.session.Ws*'` green; opt-in rig test.
   - **Constraints**: CONFIRM (in-house vs library); security review focus.
-- [ ] 3.2 Message codec for the PoC messages (core and player role, small messages) | same package, tests with fixtures from the spec's examples
+- [x] 3.2 Message codec for the PoC messages (core and player role, small messages) | same package, tests with fixtures from the spec's examples
   - **Accept**: every message of the PoC round-trips; unknown `type`/fields/ids are ignored as specified; out-of-range values close the connection; size caps hold.
   - **Verify**: `SessionCodecTest`.
-- [ ] 3.3 Noise `KKpsk2` and PSK handling | `de.yaacc.sendspin.secure`, tests `NoiseHandshakeTest` (published vectors), `PskIdTest` (Sentinel constants from the spec), `SentinelFallbackTest`, `RehandshakeTest`
+- [x] 3.3 Noise `KKpsk2` and PSK handling | `de.yaacc.sendspin.secure`, tests `NoiseHandshakeTest` (published vectors), `PskIdTest` (Sentinel constants from the spec), `SentinelFallbackTest`, `RehandshakeTest`
   - **Accept**: handshake with both suites matches the vectors and interoperates with the reference (rig test); a wrong PSK or identity fails silently as specified; counters reject replays; re-handshake swaps keys.
   - **Constraints**: no own curve or cipher code; keys zeroed after use where the library allows; CONFIRM (library).
 - [ ] 3.4 Identity, pairing token, pairing records | `de.yaacc.sendspin.secure`, tests `PairingTokenTest` (the spec's reference vector), `PairingStoreTest`, `IdentityTest`
@@ -44,10 +56,10 @@ Rules: spec first, tests first for the pure parts; all new strings in values + d
   - **Accept**: identity keys and PSKs are never stored in the clear; backup excluded (`allowBackup` rules checked); nothing secret in logs; CONFIRM (key storage).
 
 ## Group 4: P1, play to one player, unpaired with approval (P)
-- [ ] 4.1 Chunking and pacing from the PCM tap: 48 kHz 16-bit stereo, 20 ms chunks, server-clock timestamps, fixed lead; `stream/start|clear|end` rules for play, seek, track jump, pause and stop | `de.yaacc.sendspin.hub`, tests with a simulated clock and a simulated player buffer
+- [x] 4.1 Chunking and pacing from the PCM tap: 48 kHz 16-bit stereo, 20 ms chunks, server-clock timestamps, fixed lead; `stream/start|clear|end` rules for play, seek, track jump, pause and stop | `de.yaacc.sendspin.hub`, tests with a simulated clock and a simulated player buffer
   - **Accept**: never more than the player's `buffer_capacity` ahead; track changes continue the timeline; seek and jump send `stream/clear`; pause sends `stream/end`; the first timestamp respects the player's `min_buffer_ms + output_delay_ms`. (verify: how `RealTimePacer` and the slot model of `de.yaacc.multiroom.feed` fit; if not, own pacing behind the same tap.)
   - **Verify**: `ChunkPacingTest`, `StreamLifecycleTest`.
-- [ ] 4.2 `HubConnection`: server-initiated connect, handshake, hello, activate, `server/time`, goodbye handling and reconnect rules (`another_server`: stop and show; `shutdown`/`restart`: retry with backoff; `concurrent_attempt`: retry later; `pairing_required`/`unpaired`: stop and ask) | `de.yaacc.sendspin.hub`, tests with a fake player peer (in-memory transport)
+- [x] 4.2 `HubConnection`: server-initiated connect, handshake, hello, activate, `server/time`, goodbye handling and reconnect rules (`another_server`: stop and show; `shutdown`/`restart`: retry with backoff; `concurrent_attempt`: retry later; `pairing_required`/`unpaired`: stop and ask) | `de.yaacc.sendspin.hub`, tests with a fake player peer (in-memory transport)
   - **Accept**: each goodbye reason causes its specified behavior; unapproved players stay at empty `activities`; the server declares `'playback'` only while it streams; limits for connections and memory.
   - **Verify**: `HubConnectionTest`; opt-in rig test.
 - [ ] 4.3 Discovery and directory: `NsdManager` `_sendspin._tcp` plus manual `host:port`, one entry per `client_id`, a synthetic `SendspinReceiverDevice` (id `sendspin:<client_id>`), scanning only while a receiver page is open | `de.yaacc.sendspin.hub`, `de.yaacc.sendspin.discovery`

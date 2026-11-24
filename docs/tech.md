@@ -3892,7 +3892,7 @@ HMAC-SHA256 are the platform's.
 approved the server sends empty sets; `['playback']` with `['player@v1']` only for an approved or paired player, and for an unpaired
 one only if its `client/hello` says `unpaired_access.enabled`. The reference player logs `Admitted server ... (activities=[...])`.
 It admits one connection at a time. The player's first `client/state` says `available: false` and turns `true` after its time
-filter started (two `client/time` bursts in the runs): the server must not stream before `available: true` and a `player` state.
+filter started (after two `client/time` messages in the runs): the server must not stream before `available: true` and a `player` state.
 
 **Time.** `client/time` (`client_transmitted`) is answered with `server/time` (`client_transmitted`, `server_received`,
 `server_transmitted`, microseconds of one monotonic server clock, here `System.nanoTime()/1000`). The server needs no filter; the
