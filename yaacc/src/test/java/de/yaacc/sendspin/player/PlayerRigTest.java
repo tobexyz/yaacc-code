@@ -88,6 +88,15 @@ public class PlayerRigTest {
             @Override
             public void save(int volume, boolean muted, int outputDelayMs) {
             }
+
+            @Override
+            public String lastPlaybackServer() {
+                return null;
+            }
+
+            @Override
+            public void setLastPlaybackServer(String serverId) {
+            }
         };
         SendspinPlayerHost host = new SendspinPlayerHost(Identity.generate(new SecureRandom()), new SendspinClientPairings(store, new SecureRandom()),
                 () -> true, () -> Boolean.getBoolean("sendspin.rig.flac"), "YAACC rig phone", (OffsetSource offsets, MicroClock clock) -> new SendspinPlayerHost.Engine() {

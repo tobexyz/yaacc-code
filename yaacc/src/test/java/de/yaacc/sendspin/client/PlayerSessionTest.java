@@ -257,6 +257,43 @@ public class PlayerSessionTest {
     }
 
     @Test
+    public void aRejectedActivationGetsConcurrentAttemptAndEndsTheSession() throws Exception {
+        link = new FakePlayer().open();
+        List<de.yaacc.sendspin.session.PlayerMessages.Offer> formats = Arrays.asList(new de.yaacc.sendspin.session.PlayerMessages.Offer("pcm", 48000, 2, 16));
+        session = new PlayerSession(link.hubLink(), clientIdentity, true, null, HubClock.SYSTEM, new SecureRandom(), "Phone", formats, 1_000_000L, 500,
+                800, audio, controls, null, (s, activities) -> false);
+        Future<ServerHandshake.Result> s = link.onHub(
+                () -> ServerHandshake.perform(link.playerWs, serverIdentity, id -> ServerHandshake.PskChoice.sentinel(), new SecureRandom()));
+        session.start();
+        server = s.get(5, TimeUnit.SECONDS).channel;
+        server.sendJson(SendspinMessages.serverHello("Music Assistant"));
+        assertEquals("client/hello", next().type());
+        server.sendJson("{\"type\":\"server/activate\",\"payload\":{\"activities\":[\"playback\"],\"active_roles\":[\"player@v1\"]}}");
+        Envelope goodbye = next();
+        assertEquals("client/goodbye", goodbye.type());
+        assertEquals("concurrent_attempt", goodbye.payload().getString("reason"));
+        awaitPhase(PlayerSession.Phase.ENDED);
+        assertEquals(PlayerSession.EndReason.REJECTED, session.endReason());
+    }
+
+    @Test
+    public void aConnectionThatDoesNotActivateInTimeIsDropped() throws Exception {
+        link = new FakePlayer().open();
+        List<de.yaacc.sendspin.session.PlayerMessages.Offer> formats = Arrays.asList(new de.yaacc.sendspin.session.PlayerMessages.Offer("pcm", 48000, 2, 16));
+        session = new PlayerSession(link.hubLink(), clientIdentity, true, null, HubClock.SYSTEM, new SecureRandom(), "Phone", formats, 1_000_000L, 500,
+                800, audio, controls, null);
+        session.setProvisionalLimitMillis(300);
+        Future<ServerHandshake.Result> s = link.onHub(
+                () -> ServerHandshake.perform(link.playerWs, serverIdentity, id -> ServerHandshake.PskChoice.sentinel(), new SecureRandom()));
+        session.start();
+        server = s.get(5, TimeUnit.SECONDS).channel;
+        server.sendJson(SendspinMessages.serverHello("Silent"));
+        assertEquals("client/hello", next().type());
+        awaitPhase(PlayerSession.Phase.ENDED); // no activation: the read timeout of the fake link fires and the limit is checked
+        assertEquals(PlayerSession.EndReason.FAILED, session.endReason());
+    }
+
+    @Test
     public void aStreamInAFormatThatWasNotOfferedEndsTheSession() throws Exception {
         activatePlayer();
         server.sendJson(SendspinMessages.streamStartPcm(1_000L, 22050, 2, 16));

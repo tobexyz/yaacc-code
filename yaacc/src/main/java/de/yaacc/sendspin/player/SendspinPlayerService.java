@@ -177,6 +177,16 @@ public final class SendspinPlayerService extends Service {
         }
 
         @Override
+        public String lastPlaybackServer() {
+            return preferences.getString("sendspin_player_last_playback", null);
+        }
+
+        @Override
+        public void setLastPlaybackServer(String serverId) {
+            preferences.edit().putString("sendspin_player_last_playback", serverId).apply();
+        }
+
+        @Override
         public void save(int volume, boolean muted, int outputDelayMs) {
             preferences.edit().putInt("sendspin_player_volume", volume).putBoolean("sendspin_player_muted", muted)
                     .putInt("sendspin_player_delay", outputDelayMs).apply();

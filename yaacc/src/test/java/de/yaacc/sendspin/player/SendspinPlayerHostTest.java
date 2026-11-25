@@ -107,6 +107,17 @@ public class SendspinPlayerHostTest {
         int volume = 70;
         boolean muted;
         int delay = 15;
+        String lastPlayback;
+
+        @Override
+        public String lastPlaybackServer() {
+            return lastPlayback;
+        }
+
+        @Override
+        public void setLastPlaybackServer(String serverId) {
+            lastPlayback = serverId;
+        }
 
         @Override
         public Set<String> get(String key) {
@@ -153,13 +164,19 @@ public class SendspinPlayerHostTest {
         }
 
         void connect() throws Exception {
+            connect(true);
+        }
+
+        /** @param playback true: the activation declares the playback activity; false: the server only holds the connection */
+        void connect(boolean playback) throws Exception {
             Future<ServerHandshake.Result> s = link.onHub(
                     () -> ServerHandshake.perform(link.playerWs, identity, id -> ServerHandshake.PskChoice.sentinel(), new SecureRandom()));
             host.accept(link.hubLink());
             channel = s.get(5, TimeUnit.SECONDS).channel;
             channel.sendJson(SendspinMessages.serverHello("Server"));
             assertEquals("client/hello", next().type());
-            channel.sendJson("{\"type\":\"server/activate\",\"payload\":{\"activities\":[\"playback\"],\"active_roles\":[\"player@v1\"]}}");
+            channel.sendJson("{\"type\":\"server/activate\",\"payload\":{\"activities\":" + (playback ? "[\"playback\"]" : "[]")
+                    + ",\"active_roles\":[\"player@v1\"]}}");
             assertEquals("client/state", next().type());
         }
 
@@ -242,15 +259,40 @@ public class SendspinPlayerHostTest {
         a.stream(48000);
         await("header1");
         Server b = newServer();
-        b.connect();
-        b.stream(44100);
-        await("header2");
+        b.connect(); // its activation declares the playback activity: it ranks equal and wins, as the specification says
         Envelope goodbye = a.next();
         assertEquals("client/goodbye", goodbye.type());
         assertEquals("another_server", goodbye.payload().getString("reason"));
+        assertEquals("the server that last held playback is remembered", b.identity.id(), store.lastPlayback);
+        b.stream(44100);
+        await("header2");
         b.chunk(9_000_000L);
         await("chunk2");
         assertTrue("the first engine was closed", events.log.contains("close1"));
+    }
+
+    @Test
+    public void aServerThatOnlyConnectsIsAdmittedBesideAPlayingOneWithoutTakingItsPlace() throws Exception {
+        Server a = newServer();
+        a.connect();
+        a.stream(48000);
+        await("header1");
+        Server idle = newServer();
+        idle.link.onHub(() -> null);
+        Future<ServerHandshake.Result> s = idle.link.onHub(
+                () -> ServerHandshake.perform(idle.link.playerWs, idle.identity, id -> ServerHandshake.PskChoice.sentinel(), new SecureRandom()));
+        host.accept(idle.link.hubLink());
+        idle.channel = s.get(5, TimeUnit.SECONDS).channel;
+        idle.channel.sendJson(SendspinMessages.serverHello("Idle"));
+        assertEquals("client/hello", idle.next().type());
+        idle.channel.sendJson("{\"type\":\"server/activate\",\"payload\":{\"activities\":[],\"active_roles\":[]}}");
+        long deadline = System.nanoTime() + 3_000_000_000L;
+        while (host.sessionInfos().size() < 2 && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        Thread.sleep(300);
+        assertEquals("the playing server was not displaced", "Server", host.playingServerName());
+        assertEquals(2, host.sessionCount());
     }
 
     @Test
@@ -296,7 +338,7 @@ public class SendspinPlayerHostTest {
     @Test
     public void connectionsBeyondTheLimitAreClosedAtOnce() throws Exception {
         for (int i = 0; i < SendspinPlayerHost.MAX_SESSIONS; i++) {
-            newServer().connect();
+            newServer().connect(false); // idle servers do not displace each other
         }
         assertEquals(SendspinPlayerHost.MAX_SESSIONS, host.sessionCount());
         Server extra = newServer();

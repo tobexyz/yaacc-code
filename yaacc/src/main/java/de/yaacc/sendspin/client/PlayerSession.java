@@ -61,7 +61,9 @@ public final class PlayerSession {
     }
 
     public enum EndReason {
-        NONE, CLOSED_BY_APP, FAILED, PROTOCOL_ERROR, PAIRING_REQUIRED, UNAUTHORIZED, UNPAIRED, SERVER_CLOSED
+        NONE, CLOSED_BY_APP, FAILED, PROTOCOL_ERROR, PAIRING_REQUIRED, UNAUTHORIZED, UNPAIRED, SERVER_CLOSED,
+        /** The phone took another server's activation instead (a rejected connection). */
+        REJECTED
     }
 
     /** What the app does with the stream; the calls come from the session's thread. */
@@ -102,6 +104,15 @@ public final class PlayerSession {
         void onChanged(PlayerSession session);
     }
 
+    /** Decides at every {@code server/activate} whether this connection may hold the activities it declares (several servers, one player). */
+    public interface Arbiter {
+        /**
+         * @return true to go on; false to reject the connection ({@code concurrent_attempt}); a connection that is displaced for it gets
+         * {@code another_server} from the arbiter
+         */
+        boolean admit(PlayerSession session, java.util.Set<String> activities);
+    }
+
     static final List<String> COMMANDS = Collections.unmodifiableList(new ArrayList<>(java.util.Arrays.asList("volume", "mute", "set_output_delay")));
     private static final String ROLE = "player@v1";
     private static final long IDLE_LIMIT_MILLIS = 60_000L;
@@ -123,6 +134,7 @@ public final class PlayerSession {
     private final Audio audio;
     private final Controls controls;
     private final Listener listener;
+    private final Arbiter arbiter;
     private final ServerClock serverClock = new ServerClock();
     private final Object lock = new Object();
 
@@ -132,6 +144,9 @@ public final class PlayerSession {
     private volatile String serverId;
     private volatile boolean streaming;
     private volatile boolean closing;
+    private volatile boolean activated;
+    private volatile long provisionalLimitMillis = 30_000L;
+    private final long startedNanos = System.nanoTime();
     private volatile SecureChannel channel;
     private volatile long burstIntervalMillis = 3000L;
     private Thread thread;
@@ -156,6 +171,15 @@ public final class PlayerSession {
     public PlayerSession(Connector.Link link, Identity identity, boolean unpairedAccess, ClientCredentials credentials, HubClock clock,
                          SecureRandom random, String name, List<PlayerMessages.Offer> formats, long bufferCapacity, int requiredLeadMs, int minBufferMs,
                          Audio audio, Controls controls, Listener listener) {
+        this(link, identity, unpairedAccess, credentials, clock, random, name, formats, bufferCapacity, requiredLeadMs, minBufferMs, audio, controls,
+                listener, null);
+    }
+
+    /** @param arbiter decides between servers at every activation; null: every activation is taken (a single server) */
+    public PlayerSession(Connector.Link link, Identity identity, boolean unpairedAccess, ClientCredentials credentials, HubClock clock,
+                         SecureRandom random, String name, List<PlayerMessages.Offer> formats, long bufferCapacity, int requiredLeadMs, int minBufferMs,
+                         Audio audio, Controls controls, Listener listener, Arbiter arbiter) {
+        this.arbiter = arbiter;
         this.link = link;
         this.identity = identity;
         this.unpairedAccess = unpairedAccess;
@@ -222,6 +246,16 @@ public final class PlayerSession {
 
     void setBurstIntervalMillis(long millis) {
         burstIntervalMillis = millis;
+    }
+
+    /** For tests: how long a connection may wait for its first activation (the specification says 30 seconds). */
+    void setProvisionalLimitMillis(long millis) {
+        provisionalLimitMillis = millis;
+    }
+
+    /** True while a pairing of a server with this app is under way on this connection (it is not displaced then). */
+    public boolean isPairing() {
+        return pendingLongTerm != null;
     }
 
     // ------------------------------------------------------------------ lifecycle
@@ -314,6 +348,13 @@ public final class PlayerSession {
         }
     }
 
+    /** A connection that has not activated within the limit is dropped (spec: a provisional connection, 30 seconds). */
+    private void checkProvisional() throws IOException {
+        if (!activated && (System.nanoTime() - startedNanos) / 1_000_000L > provisionalLimitMillis) {
+            throw new IOException("no activation");
+        }
+    }
+
     private void loop(SecureChannel c) throws IOException, ProtocolException, NoiseException {
         long lastRx = System.nanoTime();
         boolean helloSeen = false;
@@ -324,11 +365,13 @@ public final class PlayerSession {
                 lastRx = System.nanoTime();
             } catch (SocketTimeoutException idle) {
                 serveBursts(c);
+                checkProvisional();
                 if ((System.nanoTime() - lastRx) / 1_000_000L > IDLE_LIMIT_MILLIS) {
                     throw new IOException("no traffic");
                 }
                 continue;
             }
+            checkProvisional();
             serveBursts(c); // not only when the line is idle: the audio of a stream keeps it busy
             if (!inbound.isJson()) {
                 if (inbound.id() == 4 && streaming && playerActive) {
@@ -437,6 +480,15 @@ public final class PlayerSession {
             default:
                 break;
         }
+        if (arbiter != null && !arbiter.admit(this, a.activities)) {
+            // another server holds what this one asks for and ranks higher (or equal and paired): this connection is turned away
+            c.sendJson(a.activities.contains("pairing") ? ControllerMessages.pairAbort("concurrent_attempt")
+                    : ControllerMessages.clientGoodbye("concurrent_attempt"));
+            c.close(WsConnection.CLOSE_NORMAL);
+            end(EndReason.REJECTED);
+            return;
+        }
+        activated = true;
         if (a.activities.contains("pairing")) {
             startPairing(c);
             return;

@@ -82,6 +82,11 @@ public final class SendspinPlayerHost {
         int outputDelayMs();
 
         void save(int volume, boolean muted, int outputDelayMs);
+
+        /** The {@code server_id} of the server that last held an admitted connection with the playback activity, or null. */
+        String lastPlaybackServer();
+
+        void setLastPlaybackServer(String serverId);
     }
 
     public interface Listener {
@@ -92,6 +97,9 @@ public final class SendspinPlayerHost {
     private final class Entry {
         PlayerSession session;
         boolean closed;
+        /** Admitted: the first activation was arbitrated and won. */
+        boolean admitted;
+        final java.util.Set<String> activities = new java.util.HashSet<>();
     }
 
     private final Identity identity;
@@ -105,6 +113,7 @@ public final class SendspinPlayerHost {
     private final SecureRandom random;
     private final Store store;
     private final Listener listener;
+    private final PlayerArbiter arbiter = new PlayerArbiter(MAX_SESSIONS);
     private final Object lock = new Object();
     private final List<Entry> entries = new ArrayList<>();
 
@@ -218,9 +227,63 @@ public final class SendspinPlayerHost {
             entries.add(entry);
         }
         entry.session = new PlayerSession(link, identity, unpairedAllowed.getAsBoolean(), credentials, clock, random, name, offers(preferFlac.getAsBoolean()),
-                BUFFER_CAPACITY, REQUIRED_LEAD_MS, MIN_BUFFER_MS, new Port(entry), controls, session -> onSessionChanged(entry));
+                BUFFER_CAPACITY, REQUIRED_LEAD_MS, MIN_BUFFER_MS, new Port(entry), controls, session -> onSessionChanged(entry),
+                (session, activities) -> arbitrate(entry, activities));
         entry.session.start();
         fire();
+    }
+
+    /** The rules of the specification for several servers (see {@link PlayerArbiter}); called by a session at its every activation. */
+    private boolean arbitrate(Entry entry, java.util.Set<String> activities) {
+        List<PlayerSession> displaced = new ArrayList<>();
+        boolean admit;
+        synchronized (lock) {
+            java.util.Map<PlayerArbiter.Conn, Entry> byConn = new java.util.IdentityHashMap<>();
+            List<PlayerArbiter.Conn> admitted = new ArrayList<>();
+            for (Entry e : entries) {
+                if (e != entry && e.admitted && e.session != null) {
+                    PlayerArbiter.Conn c = connOf(e);
+                    c.activities.addAll(e.activities);
+                    admitted.add(c);
+                    byConn.put(c, e);
+                }
+            }
+            PlayerArbiter.Conn mine = connOf(entry);
+            PlayerArbiter.Verdict verdict = arbiter.decide(mine, activities, admitted, !entry.admitted, store.lastPlaybackServer());
+            admit = verdict.admit;
+            if (admit) {
+                for (PlayerArbiter.Conn c : verdict.displace) {
+                    Entry gone = byConn.get(c);
+                    if (gone != null) {
+                        gone.admitted = false;
+                        gone.activities.clear();
+                        displaced.add(gone.session);
+                        if (owner == gone) {
+                            releaseEngineLocked();
+                        }
+                    }
+                }
+                entry.admitted = true;
+                entry.activities.clear();
+                entry.activities.addAll(activities);
+                if (activities.contains(PlayerArbiter.PLAYBACK)) {
+                    store.setLastPlaybackServer(entry.session.serverId());
+                } else if (owner == entry) {
+                    releaseEngineLocked(); // the server dropped the playback activity
+                }
+            }
+        }
+        for (PlayerSession s : displaced) {
+            s.displace();
+        }
+        fire();
+        return admit;
+    }
+
+    private PlayerArbiter.Conn connOf(Entry e) {
+        PlayerArbiter.Conn c = new PlayerArbiter.Conn(e.session.serverId(), e.session.isPaired());
+        c.pairingInProgress = e.session.isPairing();
+        return c;
     }
 
     private static void closeQuietly(Connector.Link link) {
@@ -387,14 +450,10 @@ public final class SendspinPlayerHost {
 
         @Override
         public void start(String codec, int sampleRate, int channels, int bitDepth, byte[] codecHeader) {
-            Entry displaced = null;
             SendspinAudioEngine mine;
             synchronized (lock) {
-                if (closed) {
-                    return;
-                }
-                if (owner != null && owner != entry) {
-                    displaced = owner; // the server whose stream started last plays
+                if (closed || !entry.admitted || !entry.activities.contains(PlayerArbiter.PLAYBACK)) {
+                    return; // a stream without the playback activity is not played (the spec: the activity is what is admitted)
                 }
                 releaseEngineLocked();
                 owner = entry;
@@ -420,9 +479,6 @@ public final class SendspinPlayerHost {
                 audio.setMuted(muted);
                 audio.setOutputDelayMs(outputDelayMs);
                 mine = audio;
-            }
-            if (displaced != null && displaced.session != null) {
-                displaced.session.displace();
             }
             try {
                 mine.start(codec, sampleRate, channels, bitDepth, codecHeader);
