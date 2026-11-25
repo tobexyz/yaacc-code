@@ -270,12 +270,12 @@ public final class SendspinHub implements SendspinReceiverSource {
     /** Opens the listener and announces it (the gate calls this while a receivers page is visible and the switch is on). */
     private void startInbound() {
         InboundServer server = new InboundServer(SendspinAddress.DEFAULT_SERVER_PORT, "/sendspin", SendspinHub::acceptsInbound,
-                inboundListener(), MAX_INBOUND, UPGRADE_TIMEOUT_MILLIS);
+                this::acceptInbound, MAX_INBOUND, UPGRADE_TIMEOUT_MILLIS);
         try {
             server.start();
         } catch (java.io.IOException busy) {
             // the usual port is taken (another server on this phone): any free one, the announcement names it
-            server = new InboundServer(0, "/sendspin", SendspinHub::acceptsInbound, inboundListener(), MAX_INBOUND,
+            server = new InboundServer(0, "/sendspin", SendspinHub::acceptsInbound, this::acceptInbound, MAX_INBOUND,
                     UPGRADE_TIMEOUT_MILLIS);
             try {
                 server.start();
@@ -288,20 +288,6 @@ public final class SendspinHub implements SendspinReceiverSource {
             inboundServer = server;
         }
         advert.register(identity().id(), "YAACC", "/sendspin", server.port());
-    }
-
-    private InboundServer.Listener inboundListener() {
-        return new InboundServer.Listener() {
-            @Override
-            public void onConnection(Connector.Link link, java.net.InetAddress remote) {
-                acceptInbound(link, remote, 0);
-            }
-
-            @Override
-            public void onConnection(Connector.Link link, java.net.InetAddress remote, int remotePort) {
-                acceptInbound(link, remote, remotePort);
-            }
-        };
     }
 
     /** Who may connect to the listener: the local network, and never this phone itself (its own search finds its announcement). */
@@ -322,13 +308,13 @@ public final class SendspinHub implements SendspinReceiverSource {
     }
 
     /** A player connected to the listener: it is a connection like the others, except that nothing can dial it again. */
-    private void acceptInbound(Connector.Link link, java.net.InetAddress remote, int remotePort) {
+    private void acceptInbound(Connector.Link link, java.net.InetAddress remote) {
         String host = remote.getHostAddress();
         int scope = host.indexOf('%');
         if (scope >= 0) {
             host = host.substring(0, scope);
         }
-        final Endpoint endpoint = Endpoint.inbound(host, remotePort);
+        final Endpoint endpoint = Endpoint.inbound(host);
         synchronized (this) {
             if (!isEnabled()) {
                 try {
@@ -389,8 +375,7 @@ public final class SendspinHub implements SendspinReceiverSource {
     }
 
     private static String keyOf(Endpoint endpoint) {
-        // a player that connected to the phone is told apart by the port it came from, which is in its path
-        return endpoint.isInbound() ? endpoint.host() + ":0" + endpoint.path() : endpoint.host() + ":" + endpoint.port();
+        return endpoint.host() + ":" + endpoint.port();
     }
 
     /**

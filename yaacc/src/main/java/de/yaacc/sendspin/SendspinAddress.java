@@ -169,12 +169,9 @@ public final class SendspinAddress {
 
     /** The receiver id of the lists for an endpoint. */
     public static String idOf(Endpoint endpoint) {
-        if (endpoint.isInbound()) {
-            String path = endpoint.path();
-            String port = path.startsWith(Endpoint.INBOUND_PATH + "/") ? "#" + path.substring(Endpoint.INBOUND_PATH.length() + 1) : "";
-            return INBOUND_ID_PREFIX + format(endpoint) + port;
-        }
-        return ID_PREFIX + format(endpoint);
+        // a player that connected to the phone is known by its address, not by the port it came from (that changes at every reconnect, and
+        // the group links, the selection and the card must stay); two players behind one address replace each other
+        return (endpoint.isInbound() ? INBOUND_ID_PREFIX : ID_PREFIX) + format(endpoint);
     }
 
     public static boolean isSendspinId(String id) {
@@ -184,21 +181,8 @@ public final class SendspinAddress {
     /** @return the endpoint of a receiver id, or null if the id is not one of ours or does not parse */
     public static Endpoint endpointOf(String id) {
         if (id != null && id.startsWith(INBOUND_ID_PREFIX)) {
-            String text = id.substring(INBOUND_ID_PREFIX.length());
-            int hash = text.lastIndexOf('#');
-            Endpoint host = parse(hash >= 0 ? text.substring(0, hash) : text);
-            if (host == null) {
-                return null;
-            }
-            if (hash < 0) {
-                return Endpoint.inbound(host.host());
-            }
-            try {
-                int port = Integer.parseInt(text.substring(hash + 1));
-                return port >= 1 && port <= 65535 ? Endpoint.inbound(host.host(), port) : null;
-            } catch (NumberFormatException e) {
-                return null;
-            }
+            Endpoint host = parse(id.substring(INBOUND_ID_PREFIX.length()));
+            return host == null ? null : Endpoint.inbound(host.host());
         }
         return id != null && id.startsWith(ID_PREFIX) ? parse(id.substring(ID_PREFIX.length())) : null;
     }

@@ -77,6 +77,8 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
     private volatile HubConnection connection;
     private volatile PcmStreamer streamer;
     private volatile boolean lostNoted;
+    /** Counts the starts: a start that was overtaken (a stop, a new start, the end of the player) does nothing when its player is ready. */
+    private final java.util.concurrent.atomic.AtomicInteger startGeneration = new java.util.concurrent.atomic.AtomicInteger();
     // a group (linking): the streamer of the group while it is kept, the members that are in it, and the ones playback was declared to
     private volatile PcmStreamer keeping;
     private final java.util.Map<String, PcmStreamer.Member> inGroup = new java.util.concurrent.ConcurrentHashMap<>();
@@ -173,6 +175,7 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
     @Override
     protected void stopItem(PlayableItem playableItem) {
         super.stopItem(playableItem);
+        startGeneration.incrementAndGet(); // a start that is still waiting for the player is given up
         keeping = null;
         PcmStreamer current = streamer;
         if (current != null) {
@@ -189,6 +192,7 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
 
     @Override
     public void onDestroy() {
+        startGeneration.incrementAndGet();
         keeping = null;
         stopMembers();
         PcmStreamer current = streamer;
@@ -223,20 +227,28 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
         }
         connection = c;
         lostNoted = false;
+        final int generation = startGeneration.incrementAndGet();
         // playing is the operator's action: the first activation of a new connection then already declares 'playback', which wins
         // against another server that merely holds the player (an idle first activation would tie with it and lose)
         c.startPlayback();
         Thread waiter = new Thread(() -> {
+          try {
             long deadline = System.nanoTime() + READY_TIMEOUT_MILLIS * 1_000_000L;
             boolean approved = false;
             boolean activated = false;
             while (true) {
+                if (startGeneration.get() != generation) {
+                    return; // stopped or started again meanwhile
+                }
                 HubConnection.Phase phase = c.phase();
                 SendspinPlayerLogic.Wait decision = SendspinPlayerLogic.waitFor(phase);
                 if (decision == SendspinPlayerLogic.Wait.READY) {
                     final PcmStreamer made = streamerFor(c);
                     if (made == null) {
                         fail(SendspinPlayerLogic.Problem.NOT_READY);
+                        return;
+                    }
+                    if (startGeneration.get() != generation) {
                         return;
                     }
                     made.begin();
@@ -267,6 +279,10 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
                     return;
                 }
             }
+          } catch (RuntimeException unexpected) {
+              YaaccLogger.d(getClass().getName(), "start failed: " + unexpected.getClass().getSimpleName());
+              fail(SendspinPlayerLogic.Problem.NOT_READY);
+          }
         }, "sendspin-player-start");
         waiter.setDaemon(true);
         waiter.start();
@@ -279,8 +295,12 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
         keeping = null;
         stopMembers();
         List<String> memberIds = hub.groups().membersOf(deviceId);
-        if (memberIds.isEmpty()) {
+        HubConnection.StreamFormat own = leader.streamFormat();
+        if (memberIds.isEmpty() && own != null && own.sampleRate == sampleRate) {
             return leader.streamer();
+        }
+        if (!leader.supportedRates().contains(sampleRate)) {
+            return null; // the audio is converted to this rate: a player that can not take it is not played to at another one
         }
         final PcmStreamer group = new PcmStreamer(leader.hubClock(), sampleRate);
         inGroup.put(deviceId, group.addMember(leader, leader));

@@ -330,6 +330,55 @@ public class PcmStreamerGroupTest {
         assertFalse(writer.isAlive());
     }
 
+    @Test(timeout = 15000)
+    public void aStuckMemberIsAbortedAndTheOthersAreLeftAlone() throws Exception {
+        Stuck stuck = new Stuck();
+        final java.util.concurrent.atomic.AtomicInteger healthyAborts = new java.util.concurrent.atomic.AtomicInteger();
+        PcmStreamer.Output healthy = new PcmStreamer.Output() {
+            @Override
+            public void streamStart(long t, int rate) {
+            }
+
+            @Override
+            public void streamClear(long t) {
+            }
+
+            @Override
+            public void streamEnd() {
+            }
+
+            @Override
+            public void audio(long t, long ahead, byte[] pcm, int offset, int length) {
+            }
+
+            @Override
+            public void abort() {
+                healthyAborts.incrementAndGet();
+            }
+        };
+        PcmStreamer streamer = new PcmStreamer(HubClock.SYSTEM, RATE);
+        streamer.setStuckMillis(100);
+        streamer.addMember(healthy, new Player(clock));
+        streamer.addMember(stuck, stuck);
+        Thread writer = new Thread(() -> streamer.write(new byte[CHUNK_BYTES], 0, CHUNK_BYTES));
+        writer.start();
+        assertTrue(stuck.inWrite.await(5, java.util.concurrent.TimeUnit.SECONDS));
+        Thread.sleep(250);
+        streamer.end();
+        assertEquals("the stuck one was told", 0, stuck.aborted.getCount());
+        assertEquals("the healthy one keeps its connection", 0, healthyAborts.get());
+        writer.join(5000);
+    }
+
+    @Test
+    public void aPlayerThatGaveNoBufferSizeIsNotLimitedAndNeverWaitsForItsOwnChunks() {
+        Player unlimited = join();
+        unlimited.capacity = 0;
+        play(50);
+        assertEquals(50, unlimited.timestamps.size());
+        assertEquals("no waits for the buffer", 0, group.statistics().capacityWaits);
+    }
+
     @Test
     public void aGroupWithoutMembersFailsOnTheFirstWrite() {
         assertFalse(group.write(new byte[CHUNK_BYTES], 0, CHUNK_BYTES));

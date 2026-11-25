@@ -178,6 +178,12 @@
         <CheckBoxPreference
             android:defaultValue="false"
             android:dependency="@string/settings_sendspin_player"
+            android:key="@string/settings_sendspin_player_unpaired"
+            android:summary="@string/settings_sendspin_player_unpaired_summary"
+            android:title="@string/settings_sendspin_player_unpaired_title" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:dependency="@string/settings_sendspin_player"
             android:key="@string/settings_sendspin_player_flac"
             android:summary="@string/settings_sendspin_player_flac_summary"
             android:title="@string/settings_sendspin_player_flac_title" />

@@ -45,11 +45,6 @@ public final class Endpoint {
         return new Endpoint(host, INBOUND_PORT, INBOUND_PATH);
     }
 
-    /** As {@link #inbound(String)}, for one of several players behind one address: the port it connected from is part of the identity. */
-    public static Endpoint inbound(String host, int remotePort) {
-        return new Endpoint(host, INBOUND_PORT, INBOUND_PATH + "/" + remotePort);
-    }
-
     /** True for a player that connected to this phone: it is never dialed, it has to come back by itself. */
     public boolean isInbound() {
         return port == INBOUND_PORT;

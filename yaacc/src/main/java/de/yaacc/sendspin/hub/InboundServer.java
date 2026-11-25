@@ -172,6 +172,7 @@ public final class InboundServer {
 
     private void upgrade(final Socket client) {
         boolean delivered = false;
+        final AtomicInteger closed = new AtomicInteger(); // the slot is given back once, whoever closes first
         try {
             client.setSoTimeout(timeoutMillis);
             client.setTcpNoDelay(true);
@@ -181,7 +182,6 @@ public final class InboundServer {
                 throw new IOException("another path");
             }
             final WsConnection ws = new WsConnection(in, client.getOutputStream(), false, MAX_MESSAGE_BYTES, random);
-            final AtomicInteger closed = new AtomicInteger();
             Connector.Link link = new Connector.Link() {
                 @Override
                 public WsConnection ws() {
@@ -202,7 +202,9 @@ public final class InboundServer {
             YaaccLogger.d(getClass().getName(), "inbound upgrade failed: " + e.getClass().getSimpleName());
         } finally {
             if (!delivered) {
-                held.decrementAndGet();
+                if (closed.getAndSet(1) == 0) {
+                    held.decrementAndGet();
+                }
                 closeQuietly(client);
             }
         }

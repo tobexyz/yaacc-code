@@ -104,6 +104,29 @@ public class HubLegacyTest {
         awaitPhase(HubConnection.Phase.AVAILABLE);
     }
 
+    private void connectWithFormats(String formats) throws Exception {
+        player = new FakePlayer().open();
+        Connector connector = (endpoint, random) -> player.hubLink();
+        hub = new HubConnection(new Endpoint("127.0.0.1", 8928, "/sendspin"), server, policy, connector, HubClock.SYSTEM,
+                new SecureRandom(), "YAACC test", null, () -> legacyAllowed);
+        hub.start();
+        player.playerWs.sendText(HELLO.replace("{\"codec\":\"pcm\",\"channels\":2,\"sample_rate\":48000,\"bit_depth\":16}", formats));
+    }
+
+    @Test
+    public void aRateTheStreamerWouldRefuseIsSkippedAndAPlayerWithOnlyThoseIsUnusable() throws Exception {
+        connectWithFormats("{\"codec\":\"pcm\",\"channels\":2,\"sample_rate\":11025,\"bit_depth\":16},"
+                + "{\"codec\":\"pcm\",\"channels\":2,\"sample_rate\":44100,\"bit_depth\":16}");
+        awaitPhase(HubConnection.Phase.NEEDS_APPROVAL);
+        assertEquals("the next entry is taken", 44100, hub.streamFormat().sampleRate);
+        assertEquals(java.util.Collections.singleton(44100), hub.supportedRates());
+        hub.close();
+        player.close();
+        connectWithFormats("{\"codec\":\"pcm\",\"channels\":2,\"sample_rate\":11025,\"bit_depth\":16}");
+        awaitPhase(HubConnection.Phase.UNUSABLE);
+        assertNull(hub.streamer());
+    }
+
     @Test
     public void anUnapprovedLegacyPlayerGetsNothingUntilTheOperatorApproves() throws Exception {
         connect();

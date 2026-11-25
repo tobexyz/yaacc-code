@@ -399,8 +399,8 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
     /** The first PCM entry with 16 bit and two channels in the player's own order, or null. */
     private static SendspinMessages.Format choosePcm(SendspinMessages.ClientHello hello) {
         for (SendspinMessages.Format f : hello.playerFormats) {
-            if ("pcm".equals(f.codec) && f.bitDepth == 16 && f.channels == 2) {
-                return f;
+            if ("pcm".equals(f.codec) && f.bitDepth == 16 && f.channels == 2 && GroupFormat.usable(f.sampleRate)) {
+                return f; // a rate the streamer would refuse (11025 Hz) is skipped, the next entry is tried
             }
         }
         return null;
@@ -412,7 +412,7 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
         java.util.Set<Integer> rates = new java.util.LinkedHashSet<>();
         if (h != null && h.supportsPlayer()) {
             for (SendspinMessages.Format f : h.playerFormats) {
-                if ("pcm".equals(f.codec) && f.bitDepth == 16 && f.channels == 2) {
+                if ("pcm".equals(f.codec) && f.bitDepth == 16 && f.channels == 2 && GroupFormat.usable(f.sampleRate)) {
                     rates.add(f.sampleRate);
                 }
             }

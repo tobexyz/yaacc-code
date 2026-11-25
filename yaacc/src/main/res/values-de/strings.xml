@@ -679,4 +679,6 @@
     <string name="sendspin_self_sheet_none">Kein Server ist verbunden.</string>
     <string name="sendspin_self_disconnect">%1$s trennen</string>
     <string name="sendspin_self_switch_off">Player ausschalten</string>
+    <string name="sendspin_self_pairing">Kopplungstoken</string>
+    <string name="sendspin_self_pair_title">Kopplungstoken dieses Telefons</string>
 </resources>

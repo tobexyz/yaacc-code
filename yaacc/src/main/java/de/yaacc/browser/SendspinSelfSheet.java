@@ -75,6 +75,15 @@ final class SendspinSelfSheet {
             });
             root.addView(disconnect);
         }
+        Button token = new Button(context);
+        token.setText(R.string.sendspin_self_pairing);
+        token.setOnClickListener(v -> {
+            if (dialog[0] != null) {
+                dialog[0].dismiss();
+            }
+            SendspinClientPairDialog.showToken(context);
+        });
+        root.addView(token);
         Button off = new Button(context);
         off.setText(R.string.sendspin_self_switch_off);
         off.setOnClickListener(v -> {

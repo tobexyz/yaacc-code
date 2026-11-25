@@ -675,4 +675,6 @@
     <string name="sendspin_self_sheet_none">没有已连接的服务器。</string>
     <string name="sendspin_self_disconnect">断开 %1$s</string>
     <string name="sendspin_self_switch_off">关闭播放器</string>
+    <string name="sendspin_self_pairing">配对令牌</string>
+    <string name="sendspin_self_pair_title">此手机的配对令牌</string>
 </resources>

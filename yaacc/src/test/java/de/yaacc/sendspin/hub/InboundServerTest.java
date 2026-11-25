@@ -151,6 +151,38 @@ public class InboundServerTest {
     }
 
     @Test
+    public void aListenerThatClosesTheLinkAndThenThrowsGivesTheSlotBackOnlyOnce() throws Exception {
+        java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+        server = new InboundServer(0, "/sendspin", address -> true, (link, remote) -> {
+            if (calls.incrementAndGet() == 1) {
+                try {
+                    link.close();
+                } catch (IOException ignored) {
+                    // closed
+                }
+                throw new IllegalStateException("after the close");
+            }
+            arrivals.add(new Arrival(link, remote));
+        }, 1, 2000);
+        server.start();
+        try {
+            connect("/sendspin");
+        } catch (IOException | RuntimeException expected) {
+            // closed by the listener
+        }
+        Thread.sleep(300);
+        connect("/sendspin");
+        assertNotNull(arrivals.poll(5, TimeUnit.SECONDS));
+        // the cap is still one: a second client while the first is held is refused (a counter that went below zero would let it in)
+        try {
+            connect("/sendspin");
+        } catch (IOException | RuntimeException expected) {
+            // refused
+        }
+        assertNull("the cap was not weakened", arrivals.poll(700, TimeUnit.MILLISECONDS));
+    }
+
+    @Test
     public void aListenerThatThrowsLosesNeitherTheSocketNorTheSlot() throws Exception {
         java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
         server = new InboundServer(0, "/sendspin", address -> true, (link, remote) -> {

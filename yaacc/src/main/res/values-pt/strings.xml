@@ -683,4 +683,6 @@
     <string name="sendspin_self_sheet_none">Nenhum servidor está conectado.</string>
     <string name="sendspin_self_disconnect">Desconectar %1$s</string>
     <string name="sendspin_self_switch_off">Desativar o player</string>
+    <string name="sendspin_self_pairing">Token de pareamento</string>
+    <string name="sendspin_self_pair_title">Token de pareamento deste telefone</string>
 </resources>

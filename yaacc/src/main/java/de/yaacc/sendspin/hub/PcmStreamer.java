@@ -103,6 +103,8 @@ public final class PcmStreamer implements PcmSink {
         private boolean started;
         private boolean failed;
         private boolean removed;
+        /** When the audio thread began the write to this member (nanoTime), 0 if it is in none. */
+        private volatile long writingSinceNanos;
 
         private Member(Output out, Timing timing) {
             this.out = out;
@@ -127,8 +129,6 @@ public final class PcmStreamer implements PcmSink {
     private final byte[] pending;
     private final Object lock = new Object();
     private final java.util.concurrent.CopyOnWriteArrayList<Member> members = new java.util.concurrent.CopyOnWriteArrayList<>();
-    /** When the audio thread began the write it is in now (nanoTime), 0 if it is in none: a write that is stuck is aborted. */
-    private volatile long writingSinceNanos;
     private volatile long stuckNanos = 1_000_000_000L;
     private final Statistics statistics = new Statistics();
 
@@ -167,11 +167,11 @@ public final class PcmStreamer implements PcmSink {
         stuckNanos = millis * 1_000_000L;
     }
 
-    /** If the audio thread is stuck in a write, the outputs are told to break it: the lock is then free for the caller. */
+    /** The member whose write is stuck is told to break it (only that one: the others go on); the lock is then free for the caller. */
     private void abortIfStuck() {
-        long since = writingSinceNanos;
-        if (since != 0 && System.nanoTime() - since > stuckNanos) {
-            for (Member m : members) {
+        for (Member m : members) {
+            long since = m.writingSinceNanos;
+            if (since != 0 && System.nanoTime() - since > stuckNanos) {
                 m.out.abort();
             }
         }
@@ -378,9 +378,9 @@ public final class PcmStreamer implements PcmSink {
                 boolean wasStreaming = streaming;
                 boolean joined = false;
                 // a member that is not started yet (the first start of the stream, or a player that came in while it runs)
-                writingSinceNanos = System.nanoTime();
                 for (Member m : members) {
                     if (m.active() && !m.started) {
+                        m.writingSinceNanos = System.nanoTime();
                         try {
                             m.out.streamStart(now, sampleRate);
                             m.started = true;
@@ -388,10 +388,11 @@ public final class PcmStreamer implements PcmSink {
                             joined = joined || wasStreaming;
                         } catch (IOException e) {
                             m.failed = true;
+                        } finally {
+                            m.writingSinceNanos = 0;
                         }
                     }
                 }
-                writingSinceNanos = 0;
                 if (activeCount() == 0) {
                     failed = true;
                     return false;
@@ -418,7 +419,8 @@ public final class PcmStreamer implements PcmSink {
                 if (wait <= 0) {
                     long capacityWait = 0;
                     for (Member m : members) {
-                        if (m.active() && m.inFlightBytes + size > m.timing.capacityBytes() && !m.inFlight.isEmpty()) {
+                        long capacity = m.timing.capacityBytes(); // a player that gave none (0) is not limited
+                        if (m.active() && capacity > 0 && m.inFlightBytes + size > capacity && !m.inFlight.isEmpty()) {
                             capacityWait = Math.max(capacityWait, Math.max(1000L, m.inFlight.peekFirst()[0] - now));
                         }
                     }
@@ -428,20 +430,21 @@ public final class PcmStreamer implements PcmSink {
                     }
                 }
                 if (wait <= 0) {
-                    writingSinceNanos = System.nanoTime();
                     for (Member m : members) {
                         if (!m.active()) {
                             continue;
                         }
+                        m.writingSinceNanos = System.nanoTime();
                         try {
                             m.out.audio(nextTimestamp, nextTimestamp - now, pending, 0, chunkBytes);
                             m.inFlight.addLast(new long[]{nextTimestamp + chunkMicros - m.timing.outputDelayMicros(), size});
                             m.inFlightBytes += size;
                         } catch (IOException e) {
                             m.failed = true; // it leaves the group; the others go on
+                        } finally {
+                            m.writingSinceNanos = 0;
                         }
                     }
-                    writingSinceNanos = 0;
                     statistics.chunks++;
                     nextTimestamp += chunkMicros;
                     pendingLength = 0;

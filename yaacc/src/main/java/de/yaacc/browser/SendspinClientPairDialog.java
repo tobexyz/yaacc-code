@@ -46,6 +46,44 @@ final class SendspinClientPairDialog {
     private SendspinClientPairDialog() {
     }
 
+    /** The token of this app for a server that dials the phone (the phone as a player): shown and copied; nothing to connect to here. */
+    static void showToken(final Context context) {
+        if (!(context instanceof Activity) || ((Activity) context).isFinishing()) {
+            return;
+        }
+        final SendspinHub hub = SendspinHub.getShared(context);
+        final String token = hub.clientPairingToken();
+        float density = context.getResources().getDisplayMetrics().density;
+        int pad = (int) (16 * density);
+        LinearLayout root = new LinearLayout(context);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(pad, (int) (8 * density), pad, 0);
+        TextView message = new TextView(context);
+        message.setText(R.string.sendspin_clientpair_message);
+        message.setTextAppearance(android.R.style.TextAppearance_Material_Body1);
+        root.addView(message);
+        TextView shown = new TextView(context);
+        shown.setText(token);
+        shown.setTypeface(Typeface.MONOSPACE);
+        shown.setTextIsSelectable(true);
+        shown.setPadding(0, (int) (12 * density), 0, (int) (8 * density));
+        root.addView(shown, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        final AlertDialog dialog = new AlertDialog.Builder(context)
+                .setTitle(R.string.sendspin_self_pair_title)
+                .setView(root)
+                .setPositiveButton(android.R.string.ok, null)
+                .setNeutralButton(R.string.sendspin_clientpair_copy, null)
+                .create();
+        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+            ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(SensitiveClip.plainText("Sendspin pairing token", token));
+                Toast.makeText(context, R.string.sendspin_clientpair_copied, Toast.LENGTH_SHORT).show();
+            }
+        }));
+        dialog.show();
+    }
+
     static void show(final Context context, final SendspinReceiverDevice device) {
         if (!(context instanceof Activity) || ((Activity) context).isFinishing()) {
             return;

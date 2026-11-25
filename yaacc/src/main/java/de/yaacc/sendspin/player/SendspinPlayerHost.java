@@ -219,6 +219,10 @@ public final class SendspinPlayerHost {
     /** A server dialled the phone: its connection becomes a session. A connection beyond the limit is closed at once. */
     public void accept(Connector.Link link) {
         final Entry entry = new Entry();
+        // the session is there before the entry is listed, so that the positions of sessionInfos() and disconnect() are the same
+        entry.session = new PlayerSession(link, identity, unpairedAllowed.getAsBoolean(), credentials, clock, random, name, offers(preferFlac.getAsBoolean()),
+                BUFFER_CAPACITY, REQUIRED_LEAD_MS, MIN_BUFFER_MS, new Port(entry), controls, session -> onSessionChanged(entry),
+                (session, activities) -> arbitrate(entry, activities));
         synchronized (lock) {
             if (closed || entries.size() >= MAX_SESSIONS) {
                 closeQuietly(link);
@@ -226,9 +230,6 @@ public final class SendspinPlayerHost {
             }
             entries.add(entry);
         }
-        entry.session = new PlayerSession(link, identity, unpairedAllowed.getAsBoolean(), credentials, clock, random, name, offers(preferFlac.getAsBoolean()),
-                BUFFER_CAPACITY, REQUIRED_LEAD_MS, MIN_BUFFER_MS, new Port(entry), controls, session -> onSessionChanged(entry),
-                (session, activities) -> arbitrate(entry, activities));
         entry.session.start();
         fire();
     }

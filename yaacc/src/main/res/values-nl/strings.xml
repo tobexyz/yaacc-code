@@ -679,4 +679,6 @@
     <string name="sendspin_self_sheet_none">Er is geen server verbonden.</string>
     <string name="sendspin_self_disconnect">%1$s loskoppelen</string>
     <string name="sendspin_self_switch_off">Speler uitschakelen</string>
+    <string name="sendspin_self_pairing">Koppelingstoken</string>
+    <string name="sendspin_self_pair_title">Koppelingstoken van deze telefoon</string>
 </resources>

@@ -92,7 +92,8 @@ public class SendspinResourcesTest {
                         || entry.getKey().equals("settings_sendspin_legacy")
                         || entry.getKey().equals("settings_sendspin_advertise")
                         || entry.getKey().equals("settings_sendspin_player")
-                        || entry.getKey().equals("settings_sendspin_player_flac");
+                        || entry.getKey().equals("settings_sendspin_player_flac")
+                        || entry.getKey().equals("settings_sendspin_player_unpaired");
                 if (key && !locale.equals("values")) {
                     continue; // a preference key is not translated
                 }
@@ -232,6 +233,15 @@ public class SendspinResourcesTest {
             assertTrue(key + " is on the screen and depends on the main switch", m.find());
             assertEquals(key + " is off by default", "false", m.group(1));
         }
+    }
+
+    @Test
+    public void unpairedServersMayPlayOnThePhoneOnlyWhenItsOwnSwitchIsOnAndItIsOffByDefault() {
+        assertFalse(SendspinSettings.isPlayerUnpairedAllowed((key, def) -> def));
+        assertFalse(SendspinSettings.isPlayerUnpairedAllowed(null));
+        assertTrue(SendspinSettings.isPlayerUnpairedAllowed((key, def) -> SendspinSettings.KEY_PLAYER_UNPAIRED.equals(key) || def));
+        assertFalse("not the switch of the controller", SendspinSettings.isPlayerUnpairedAllowed(
+                (key, def) -> SendspinSettings.KEY_UNPAIRED_SERVERS.equals(key)));
     }
 
     @Test

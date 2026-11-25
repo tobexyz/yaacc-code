@@ -683,4 +683,6 @@
     <string name="sendspin_self_sheet_none">Aucun serveur n\'est connecté.</string>
     <string name="sendspin_self_disconnect">Déconnecter %1$s</string>
     <string name="sendspin_self_switch_off">Désactiver le lecteur</string>
+    <string name="sendspin_self_pairing">Jeton d\'appairage</string>
+    <string name="sendspin_self_pair_title">Jeton d\'appairage de ce téléphone</string>
 </resources>

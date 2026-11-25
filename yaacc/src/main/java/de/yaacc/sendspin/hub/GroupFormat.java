@@ -31,7 +31,8 @@ public final class GroupFormat {
     private GroupFormat() {
     }
 
-    private static boolean usable(int rate) {
+    /** A rate that gives whole chunks of 20 ms and that the streamer takes (a multiple of 50, 8000 to 384000 Hz). */
+    public static boolean usable(int rate) {
         return rate >= 8000 && rate <= 384000 && rate % 50 == 0;
     }
 

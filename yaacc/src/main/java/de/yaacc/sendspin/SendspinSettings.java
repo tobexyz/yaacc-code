@@ -37,6 +37,8 @@ public final class SendspinSettings {
     public static final boolean PLAYER_DEFAULT = false;
     /** Offers FLAC before PCM when the phone is a player; default off (PCM first). */
     public static final String KEY_PLAYER_FLAC = "settings_sendspin_player_flac";
+    /** Lets servers that are not paired play on the phone as a player; default off (its own switch, not the controller's). */
+    public static final String KEY_PLAYER_UNPAIRED = "settings_sendspin_player_unpaired";
     /** Off: nothing listens on the phone and nothing is announced. */
     public static final boolean ADVERTISE_DEFAULT = false;
     /** The key of the switch for the mDNS search; it works only while {@link #KEY_ENABLED} is on. */
@@ -154,6 +156,14 @@ public final class SendspinSettings {
         }
         try {
             return source.getBoolean(KEY_ADVERTISE, ADVERTISE_DEFAULT);
+        } catch (RuntimeException damaged) {
+            return false;
+        }
+    }
+
+    public static boolean isPlayerUnpairedAllowed(BooleanSource source) {
+        try {
+            return source != null && source.getBoolean(KEY_PLAYER_UNPAIRED, false);
         } catch (RuntimeException damaged) {
             return false;
         }
