@@ -203,6 +203,13 @@ public final class PlayerSession {
         }
     }
 
+    /** The offset of the server's clock from the client's (server minus client), in microseconds. */
+    public long serverOffsetMicros() {
+        synchronized (lock) {
+            return serverClock.offsetMicros();
+        }
+    }
+
     public boolean hasClockEstimate() {
         synchronized (lock) {
             return serverClock.hasEstimate();
@@ -228,6 +235,15 @@ public final class PlayerSession {
 
     /** Ends the session: tells the server and closes. Safe to call more than once and from the main thread. */
     public void close() {
+        close("user_request");
+    }
+
+    /** Ends the session because another server plays to this player now ({@code client/goodbye} {@code another_server}). */
+    public void displace() {
+        close("another_server");
+    }
+
+    private void close(final String reason) {
         if (closing) {
             return;
         }
@@ -236,7 +252,7 @@ public final class PlayerSession {
         CommandThread.run(() -> {
             if (c != null) {
                 try {
-                    c.sendJson(ControllerMessages.clientGoodbye("user_request"));
+                    c.sendJson(ControllerMessages.clientGoodbye(reason));
                 } catch (IOException ignored) {
                     // the connection is gone
                 }
