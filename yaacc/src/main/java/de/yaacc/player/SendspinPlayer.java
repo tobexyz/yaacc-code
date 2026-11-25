@@ -80,7 +80,7 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
     // a group (linking): the streamer of the group while it is kept, the members that are in it, and the ones playback was declared to
     private volatile PcmStreamer keeping;
     private final java.util.Map<String, PcmStreamer.Member> inGroup = new java.util.concurrent.ConcurrentHashMap<>();
-    private final java.util.Set<String> declared = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private final java.util.Map<String, HubConnection> declared = new java.util.concurrent.ConcurrentHashMap<>();
 
     // the tap is built before the streamer can exist for sure (the service connects on another thread)
     private final PcmSink tapSink = new PcmSink() {
@@ -328,8 +328,9 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
             if (c.phase() == HubConnection.Phase.NEEDS_APPROVAL) {
                 c.approve(); // linking a player is the operator's action that approves it
             }
-            if (declared.add(id)) {
-                c.startPlayback(); // declared while this player plays to it
+            if (declared.get(id) != c) {
+                declared.put(id, c);
+                c.startPlayback(); // declared while this player plays to it; a new connection of the player (after an end) declares again
             }
             if (c.phase() == HubConnection.Phase.READY && c.supportedRates().contains(sampleRate)) {
                 inGroup.put(id, group.addMember(c, c));
@@ -337,17 +338,15 @@ public class SendspinPlayer extends LocalMediaSessionPlayer {
         }
     }
 
+    /** The connection of a member; made again by the same rules as the list does (no force: the pause and the end reasons count). */
     private HubConnection connectionOf(String receiverId) {
-        Endpoint member = SendspinAddress.endpointOf(receiverId);
-        return member == null ? null : hub.acquire(member, true);
+        return hub.connectionById(receiverId, true);
     }
 
     /** Drops the playback activity of every member of the group (the leader's own is dropped by the stop of the player). */
     private void stopMembers() {
-        for (String id : new ArrayList<>(declared)) {
-            declared.remove(id);
-            Endpoint member = SendspinAddress.endpointOf(id);
-            HubConnection c = member == null ? null : hub.connection(member);
+        for (String id : new ArrayList<>(declared.keySet())) {
+            HubConnection c = declared.remove(id);
             if (c != null) {
                 c.stopPlayback();
             }

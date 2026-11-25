@@ -56,6 +56,14 @@ public final class PcmStreamer implements PcmSink {
         void streamEnd() throws IOException;
 
         void audio(long timestampMicros, long sendAheadMicros, byte[] pcm, int offset, int length) throws IOException;
+
+        /**
+         * Breaks a write that does not end: the streamer calls it when a write has been stuck for a while (the player is gone and the socket
+         * can not take more), so that {@code end}, {@code discard} and {@code removeMember} are not held up behind it. Any thread; the stuck
+         * write then fails with an {@link IOException}.
+         */
+        default void abort() {
+        }
     }
 
     /** What the player asked for, read at every chunk (it may change while a stream runs). */
@@ -118,7 +126,10 @@ public final class PcmStreamer implements PcmSink {
     private final long chunkMicros;
     private final byte[] pending;
     private final Object lock = new Object();
-    private final ArrayList<Member> members = new ArrayList<>();
+    private final java.util.concurrent.CopyOnWriteArrayList<Member> members = new java.util.concurrent.CopyOnWriteArrayList<>();
+    /** When the audio thread began the write it is in now (nanoTime), 0 if it is in none: a write that is stuck is aborted. */
+    private volatile long writingSinceNanos;
+    private volatile long stuckNanos = 1_000_000_000L;
     private final Statistics statistics = new Statistics();
 
     private int pendingLength;
@@ -151,6 +162,21 @@ public final class PcmStreamer implements PcmSink {
         return statistics;
     }
 
+    /** For tests: how long a write may last before it counts as stuck. */
+    void setStuckMillis(long millis) {
+        stuckNanos = millis * 1_000_000L;
+    }
+
+    /** If the audio thread is stuck in a write, the outputs are told to break it: the lock is then free for the caller. */
+    private void abortIfStuck() {
+        long since = writingSinceNanos;
+        if (since != 0 && System.nanoTime() - since > stuckNanos) {
+            for (Member m : members) {
+                m.out.abort();
+            }
+        }
+    }
+
     /**
      * Adds a player to the group. It never writes to the network itself: while a stream runs, the audio thread starts the member with
      * the next chunk (so this may be called from any thread).
@@ -169,6 +195,7 @@ public final class PcmStreamer implements PcmSink {
      * from a thread that may.
      */
     public void removeMember(Member member) {
+        abortIfStuck();
         synchronized (lock) {
             if (member.removed) {
                 return;
@@ -257,6 +284,7 @@ public final class PcmStreamer implements PcmSink {
 
     @Override
     public void discard() {
+        abortIfStuck();
         synchronized (lock) {
             generation++;
             pendingLength = 0;
@@ -284,6 +312,7 @@ public final class PcmStreamer implements PcmSink {
 
     /** Pause or stop: {@code stream/end} to every member; audio is refused until {@link #begin()}. */
     public void end() {
+        abortIfStuck();
         synchronized (lock) {
             generation++;
             pendingLength = 0;
@@ -349,6 +378,7 @@ public final class PcmStreamer implements PcmSink {
                 boolean wasStreaming = streaming;
                 boolean joined = false;
                 // a member that is not started yet (the first start of the stream, or a player that came in while it runs)
+                writingSinceNanos = System.nanoTime();
                 for (Member m : members) {
                     if (m.active() && !m.started) {
                         try {
@@ -361,6 +391,7 @@ public final class PcmStreamer implements PcmSink {
                         }
                     }
                 }
+                writingSinceNanos = 0;
                 if (activeCount() == 0) {
                     failed = true;
                     return false;
@@ -397,6 +428,7 @@ public final class PcmStreamer implements PcmSink {
                     }
                 }
                 if (wait <= 0) {
+                    writingSinceNanos = System.nanoTime();
                     for (Member m : members) {
                         if (!m.active()) {
                             continue;
@@ -409,6 +441,7 @@ public final class PcmStreamer implements PcmSink {
                             m.failed = true; // it leaves the group; the others go on
                         }
                     }
+                    writingSinceNanos = 0;
                     statistics.chunks++;
                     nextTimestamp += chunkMicros;
                     pendingLength = 0;

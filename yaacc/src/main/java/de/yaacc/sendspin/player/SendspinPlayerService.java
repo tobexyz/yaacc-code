@@ -75,6 +75,7 @@ public final class SendspinPlayerService extends Service {
     private static final int MAX_CONNECTIONS = 8;
     private static final int UPGRADE_TIMEOUT_MILLIS = 5000;
 
+    private volatile boolean destroyed;
     private SendspinPlayerHost host;
     private InboundServer server;
     private SendspinServerAdvert advert;
@@ -116,7 +117,7 @@ public final class SendspinPlayerService extends Service {
             return START_NOT_STICKY;
         }
         ensureRunning();
-        return START_STICKY;
+        return START_NOT_STICKY; // not restarted by the system after an exit or a kill: the app start brings it back (sync)
     }
 
     private synchronized void ensureRunning() {
@@ -241,6 +242,9 @@ public final class SendspinPlayerService extends Service {
     // ------------------------------------------------------------------ notification and locks
 
     private void refresh() {
+        if (destroyed) {
+            return; // the sessions that end after the service ended must not post its notification again
+        }
         SendspinPlayerHost current = host;
         boolean playing = current != null && current.isPlaying();
         updateLocks(playing);
@@ -317,6 +321,7 @@ public final class SendspinPlayerService extends Service {
 
     @Override
     public void onDestroy() {
+        destroyed = true;
         SendspinServerAdvert a = advert;
         advert = null;
         if (a != null) {

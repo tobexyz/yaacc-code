@@ -262,6 +262,20 @@ public class HubPairingTest {
     }
 
     @Test
+    public void aPlayerThatKeepsTheLineBusyIsCancelledAfterTheTimeoutToo() throws Exception {
+        connect(true, 300);
+        peer.sendJson(helloJson("{\"pairing_psk\":{}}"));
+        nextJson();
+        long end = System.nanoTime() + 3_000_000_000L;
+        while (hub.phase() != HubConnection.Phase.PAIRING_FAILED && System.nanoTime() < end) {
+            peer.sendJson("{\"type\":\"client/time\",\"payload\":{\"client_transmitted\":3}}"); // never silent for the read timeout
+            Thread.sleep(50);
+        }
+        assertEquals(HubConnection.Phase.PAIRING_FAILED, hub.phase());
+        assertEquals(HubConnection.PairingFailure.TIMEOUT, hub.pairingFailure());
+    }
+
+    @Test
     public void aPlayerThatDoesNotKnowThePairingPskMeansTheTokenIsRejected() throws Exception {
         connect(false, 30_000); // it answers with the Sentinel
         peer.sendJson(helloJson("{\"pairing_psk\":{}}"));

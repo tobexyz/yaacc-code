@@ -146,9 +146,7 @@ public final class ServerHandshake {
         String clientId;
         NoiseSuite suite;
         try {
-            if (clientInitBytes.length > MAX_INIT_BYTES) {
-                throw initFailure(ws, "malformed");
-            }
+            // the size of a client/init is checked below, after the type is known: a legacy client/hello may be larger (Envelope.MAX_BYTES)
             JSONObject root;
             try {
                 Envelope envelope = Envelope.parse(clientInitBytes, Envelope.MAX_BYTES);

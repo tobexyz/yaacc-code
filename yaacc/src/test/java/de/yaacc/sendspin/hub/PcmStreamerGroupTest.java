@@ -263,6 +263,73 @@ public class PcmStreamerGroupTest {
         assertEquals(a.timestamps, b.timestamps);
     }
 
+    /** An output whose write blocks until it is aborted: a player whose socket is full. */
+    private static final class Stuck implements PcmStreamer.Output, PcmStreamer.Timing {
+        final java.util.concurrent.CountDownLatch inWrite = new java.util.concurrent.CountDownLatch(1);
+        final java.util.concurrent.CountDownLatch aborted = new java.util.concurrent.CountDownLatch(1);
+
+        @Override
+        public void streamStart(long t, int rate) {
+        }
+
+        @Override
+        public void streamClear(long t) {
+        }
+
+        @Override
+        public void streamEnd() {
+        }
+
+        @Override
+        public void audio(long t, long ahead, byte[] pcm, int offset, int length) throws IOException {
+            inWrite.countDown();
+            try {
+                if (!aborted.await(20, java.util.concurrent.TimeUnit.SECONDS)) {
+                    throw new IOException("never aborted");
+                }
+            } catch (InterruptedException e) {
+                throw new IOException("interrupted");
+            }
+            throw new IOException("the socket was closed");
+        }
+
+        @Override
+        public void abort() {
+            aborted.countDown();
+        }
+
+        @Override
+        public long leadMicros() {
+            return 0;
+        }
+
+        @Override
+        public long outputDelayMicros() {
+            return 0;
+        }
+
+        @Override
+        public long capacityBytes() {
+            return 32_000_000L;
+        }
+    }
+
+    @Test(timeout = 15000)
+    public void anEndWhileAWriteIsStuckBreaksTheWriteInsteadOfWaitingForIt() throws Exception {
+        Stuck stuck = new Stuck();
+        PcmStreamer streamer = new PcmStreamer(HubClock.SYSTEM, RATE);
+        streamer.setStuckMillis(100);
+        streamer.addMember(stuck, stuck);
+        Thread writer = new Thread(() -> streamer.write(new byte[CHUNK_BYTES], 0, CHUNK_BYTES));
+        writer.start();
+        assertTrue(stuck.inWrite.await(5, java.util.concurrent.TimeUnit.SECONDS));
+        Thread.sleep(250); // the write is stuck for longer than the limit
+        streamer.end(); // would wait for the lock of the stuck write without the abort
+        assertEquals("the output was told to break the write", 0, stuck.aborted.getCount());
+        writer.join(5000);
+        assertFalse(writer.isAlive());
+    }
+
     @Test
     public void aGroupWithoutMembersFailsOnTheFirstWrite() {
         assertFalse(group.write(new byte[CHUNK_BYTES], 0, CHUNK_BYTES));

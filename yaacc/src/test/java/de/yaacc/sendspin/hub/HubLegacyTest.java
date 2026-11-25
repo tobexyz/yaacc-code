@@ -165,6 +165,20 @@ public class HubLegacyTest {
     }
 
     @Test
+    public void aPlayGivenUpBeforeTheHelloDoesNotMakeTheConnectionReasonPlayback() throws Exception {
+        player = new FakePlayer().open();
+        policy.approve("kodi-1");
+        Connector connector = (endpoint, random) -> player.hubLink();
+        hub = new HubConnection(new Endpoint("127.0.0.1", 8928, "/sendspin"), server, policy, connector, HubClock.SYSTEM,
+                new SecureRandom(), "YAACC test", null, () -> true);
+        assertTrue(hub.startPlayback());
+        hub.stopPlayback(); // the play was given up before the player said hello
+        hub.start();
+        player.playerWs.sendText(HELLO);
+        assertEquals("discovery", nextText().payload().getString("connection_reason"));
+    }
+
+    @Test
     public void theStreamStartsAsJsonAndTheAudioHasNoSendAheadField() throws Exception {
         becomeAvailable();
         assertTrue(hub.startPlayback());

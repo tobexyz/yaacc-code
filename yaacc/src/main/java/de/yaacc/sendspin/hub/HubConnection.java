@@ -368,11 +368,11 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
         PcmStreamer current;
         SecureChannel c = channel;
         synchronized (lock) {
+            playbackWanted = false; // also when nothing was declared yet: a start that was given up must not declare playback later
             if (!playbackActive) {
                 return;
             }
             playbackActive = false;
-            playbackWanted = false;
             current = streamer;
         }
         if (current != null) {
@@ -476,6 +476,19 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
     }
 
     // PcmStreamer.Output ----------------------------------------------------
+
+    /** A write is stuck (the player is gone and the socket is full): the socket is closed, so that the write fails and nothing waits for it. */
+    @Override
+    public void abort() {
+        Connector.Link l = link;
+        if (l != null) {
+            try {
+                l.close();
+            } catch (IOException ignored) {
+                // closed
+            }
+        }
+    }
 
     @Override
     public void streamStart(long serverTransmittedMicros, int sampleRate) throws IOException {
@@ -600,6 +613,9 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
                     throw new IOException("no traffic");
                 }
                 continue;
+            }
+            if (pairingStep != PairingStep.IDLE && System.nanoTime() - pairingDeadlineNanos > 0) {
+                cancelPairing(PairingFailure.TIMEOUT); // also for a player that keeps the line busy with clock bursts
             }
             if (!inbound.isJson()) {
                 continue; // the player sends no binary data in the role it has; ignored as the specification asks

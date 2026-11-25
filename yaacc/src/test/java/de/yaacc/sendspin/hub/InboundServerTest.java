@@ -151,6 +151,27 @@ public class InboundServerTest {
     }
 
     @Test
+    public void aListenerThatThrowsLosesNeitherTheSocketNorTheSlot() throws Exception {
+        java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+        server = new InboundServer(0, "/sendspin", address -> true, (link, remote) -> {
+            if (calls.incrementAndGet() == 1) {
+                throw new IllegalStateException("not ready");
+            }
+            arrivals.add(new Arrival(link, remote));
+        }, 1, 2000);
+        server.start();
+        try {
+            connect("/sendspin"); // the listener throws: the connection is closed, the one slot is free again
+        } catch (IOException | RuntimeException expected) {
+            // the server may close before or after the upgrade answer was read
+        }
+        Thread.sleep(300);
+        WsConnection second = connect("/sendspin");
+        assertNotNull("the slot was freed", arrivals.poll(5, TimeUnit.SECONDS));
+        assertNotNull(second);
+    }
+
+    @Test
     public void aClientThatSaysNothingIsDroppedAfterTheTimeout() throws Exception {
         start(address -> true, 1, 300);
         try (Socket silent = new Socket(InetAddress.getLoopbackAddress(), server.port())) {

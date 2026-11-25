@@ -270,12 +270,12 @@ public final class SendspinHub implements SendspinReceiverSource {
     /** Opens the listener and announces it (the gate calls this while a receivers page is visible and the switch is on). */
     private void startInbound() {
         InboundServer server = new InboundServer(SendspinAddress.DEFAULT_SERVER_PORT, "/sendspin", SendspinHub::acceptsInbound,
-                this::acceptInbound, MAX_INBOUND, UPGRADE_TIMEOUT_MILLIS);
+                inboundListener(), MAX_INBOUND, UPGRADE_TIMEOUT_MILLIS);
         try {
             server.start();
         } catch (java.io.IOException busy) {
             // the usual port is taken (another server on this phone): any free one, the announcement names it
-            server = new InboundServer(0, "/sendspin", SendspinHub::acceptsInbound, this::acceptInbound, MAX_INBOUND,
+            server = new InboundServer(0, "/sendspin", SendspinHub::acceptsInbound, inboundListener(), MAX_INBOUND,
                     UPGRADE_TIMEOUT_MILLIS);
             try {
                 server.start();
@@ -288,6 +288,20 @@ public final class SendspinHub implements SendspinReceiverSource {
             inboundServer = server;
         }
         advert.register(identity().id(), "YAACC", "/sendspin", server.port());
+    }
+
+    private InboundServer.Listener inboundListener() {
+        return new InboundServer.Listener() {
+            @Override
+            public void onConnection(Connector.Link link, java.net.InetAddress remote) {
+                acceptInbound(link, remote, 0);
+            }
+
+            @Override
+            public void onConnection(Connector.Link link, java.net.InetAddress remote, int remotePort) {
+                acceptInbound(link, remote, remotePort);
+            }
+        };
     }
 
     /** Who may connect to the listener: the local network, and never this phone itself (its own search finds its announcement). */
@@ -308,13 +322,13 @@ public final class SendspinHub implements SendspinReceiverSource {
     }
 
     /** A player connected to the listener: it is a connection like the others, except that nothing can dial it again. */
-    private void acceptInbound(Connector.Link link, java.net.InetAddress remote) {
+    private void acceptInbound(Connector.Link link, java.net.InetAddress remote, int remotePort) {
         String host = remote.getHostAddress();
         int scope = host.indexOf('%');
         if (scope >= 0) {
             host = host.substring(0, scope);
         }
-        final Endpoint endpoint = Endpoint.inbound(host);
+        final Endpoint endpoint = Endpoint.inbound(host, remotePort);
         synchronized (this) {
             if (!isEnabled()) {
                 try {
@@ -375,7 +389,40 @@ public final class SendspinHub implements SendspinReceiverSource {
     }
 
     private static String keyOf(Endpoint endpoint) {
-        return endpoint.host() + ":" + endpoint.port();
+        // a player that connected to the phone is told apart by the port it came from, which is in its path
+        return endpoint.isInbound() ? endpoint.host() + ":0" + endpoint.path() : endpoint.host() + ":" + endpoint.port();
+    }
+
+    /**
+     * The endpoint a receiver id stands for, as the connections have it: a found player brings its own path, the id has the default one, and
+     * the lookups of the groups have to meet the connection that is there (not open a second one under another path).
+     */
+    public synchronized Endpoint endpointOfId(String receiverId) {
+        Endpoint wanted = SendspinAddress.isSendspinId(receiverId) ? SendspinAddress.endpointOf(receiverId) : null;
+        if (wanted == null) {
+            return null;
+        }
+        String key = keyOf(wanted);
+        for (Endpoint known : connections.keySet()) {
+            if (keyOf(known).equals(key)) {
+                return known;
+            }
+        }
+        for (Listed player : listed()) {
+            if (keyOf(player.endpoint).equals(key)) {
+                return player.endpoint;
+            }
+        }
+        return wanted;
+    }
+
+    /** The connection of a receiver id; made (as a list refresh does, with its pause and the end reasons) if {@code create}, else only found. */
+    public synchronized HubConnection connectionById(String receiverId, boolean create) {
+        Endpoint endpoint = endpointOfId(receiverId);
+        if (endpoint == null) {
+            return null;
+        }
+        return create ? acquire(endpoint, false) : connections.get(endpoint);
     }
 
     /**
@@ -565,8 +612,8 @@ public final class SendspinHub implements SendspinReceiverSource {
      * if a player demands a pairing that is not done.
      */
     public synchronized LinkOutcome link(String leaderId, String memberId) {
-        Endpoint leader = SendspinAddress.isSendspinId(leaderId) ? SendspinAddress.endpointOf(leaderId) : null;
-        Endpoint member = SendspinAddress.isSendspinId(memberId) ? SendspinAddress.endpointOf(memberId) : null;
+        Endpoint leader = endpointOfId(leaderId);
+        Endpoint member = endpointOfId(memberId);
         if (leader == null || member == null) {
             return LinkOutcome.NOT_KNOWN;
         }
@@ -621,8 +668,7 @@ public final class SendspinHub implements SendspinReceiverSource {
     }
 
     private HubConnection connectionOfId(String receiverId) {
-        Endpoint endpoint = SendspinAddress.isSendspinId(receiverId) ? SendspinAddress.endpointOf(receiverId) : null;
-        return endpoint == null ? null : connections.get(endpoint);
+        return connectionById(receiverId, false);
     }
 
     /** The sample rate of the group of a leader (or of a lone player): the common rate of its members, 0 if there is none or it is not known yet. */

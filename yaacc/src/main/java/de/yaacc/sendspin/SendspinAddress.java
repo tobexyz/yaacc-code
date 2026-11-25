@@ -169,7 +169,12 @@ public final class SendspinAddress {
 
     /** The receiver id of the lists for an endpoint. */
     public static String idOf(Endpoint endpoint) {
-        return (endpoint.isInbound() ? INBOUND_ID_PREFIX : ID_PREFIX) + format(endpoint);
+        if (endpoint.isInbound()) {
+            String path = endpoint.path();
+            String port = path.startsWith(Endpoint.INBOUND_PATH + "/") ? "#" + path.substring(Endpoint.INBOUND_PATH.length() + 1) : "";
+            return INBOUND_ID_PREFIX + format(endpoint) + port;
+        }
+        return ID_PREFIX + format(endpoint);
     }
 
     public static boolean isSendspinId(String id) {
@@ -179,8 +184,21 @@ public final class SendspinAddress {
     /** @return the endpoint of a receiver id, or null if the id is not one of ours or does not parse */
     public static Endpoint endpointOf(String id) {
         if (id != null && id.startsWith(INBOUND_ID_PREFIX)) {
-            Endpoint host = parse(id.substring(INBOUND_ID_PREFIX.length()));
-            return host == null ? null : Endpoint.inbound(host.host());
+            String text = id.substring(INBOUND_ID_PREFIX.length());
+            int hash = text.lastIndexOf('#');
+            Endpoint host = parse(hash >= 0 ? text.substring(0, hash) : text);
+            if (host == null) {
+                return null;
+            }
+            if (hash < 0) {
+                return Endpoint.inbound(host.host());
+            }
+            try {
+                int port = Integer.parseInt(text.substring(hash + 1));
+                return port >= 1 && port <= 65535 ? Endpoint.inbound(host.host(), port) : null;
+            } catch (NumberFormatException e) {
+                return null;
+            }
         }
         return id != null && id.startsWith(ID_PREFIX) ? parse(id.substring(ID_PREFIX.length())) : null;
     }

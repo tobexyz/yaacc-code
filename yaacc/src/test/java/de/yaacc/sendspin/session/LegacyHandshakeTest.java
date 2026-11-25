@@ -61,6 +61,23 @@ public class LegacyHandshakeTest {
     }
 
     @Test
+    public void aLegacyHelloLargerThanAnInitIsStillAccepted() throws Exception {
+        link = new FakePlayer().open();
+        Future<ServerHandshake.Result> hub = hub(true);
+        StringBuilder formats = new StringBuilder();
+        for (int i = 0; i < 20; i++) {
+            formats.append(i == 0 ? "" : ",").append("{\"codec\":\"pcm\",\"channels\":2,\"sample_rate\":").append(44100 + i * 50)
+                    .append(",\"bit_depth\":16}");
+        }
+        String big = "{\"type\":\"client/hello\",\"payload\":{\"client_id\":\"kodi-1\",\"name\":\"Kodi\",\"version\":1,\"supported_roles\":"
+                + "[\"player@v1\"],\"player@v1_support\":{\"supported_formats\":[" + formats + "],\"buffer_capacity\":1000000,"
+                + "\"supported_commands\":[\"volume\"]}}}";
+        assertTrue("larger than the limit of a client/init: " + big.length(), big.length() > 1024);
+        link.playerWs.sendText(big);
+        assertTrue(hub.get(5, TimeUnit.SECONDS).legacy);
+    }
+
+    @Test
     public void aClientHelloAsTheFirstMessageIsALegacySessionWhenItIsAllowed() throws Exception {
         link = new FakePlayer().open();
         Future<ServerHandshake.Result> hub = hub(true);

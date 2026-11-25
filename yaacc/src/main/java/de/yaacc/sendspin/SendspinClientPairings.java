@@ -109,7 +109,7 @@ public final class SendspinClientPairings implements ClientCredentials {
 
     private static String serverOf(String entry) {
         int first = entry.indexOf(':');
-        return first < 0 || entry.length() < first + 1 + ID_LENGTH || entry.charAt(first + 1 + ID_LENGTH) != ':' ? null
+        return first < 0 || entry.length() < first + 1 + ID_LENGTH + 1 || entry.charAt(first + 1 + ID_LENGTH) != ':' ? null
                 : entry.substring(first + 1, first + 1 + ID_LENGTH);
     }
 

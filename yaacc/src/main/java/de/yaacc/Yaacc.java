@@ -513,7 +513,8 @@ public class Yaacc extends Application {
                         client.unbindServices();
                     }
                 })
-                .add("stop the server service", () -> stopService(new Intent(this, YaaccUpnpServerService.class)));
+                .add("stop the server service", () -> stopService(new Intent(this, YaaccUpnpServerService.class)))
+                .add("stop the Sendspin player service", () -> stopService(new Intent(this, de.yaacc.sendspin.player.SendspinPlayerService.class)));
         if (playersEnded) {
             sequence.add("stop the player service", () -> {
                 stopService(new Intent(this, PlayerService.class));

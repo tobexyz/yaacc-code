@@ -51,6 +51,11 @@ public final class InboundServer {
     /** Receives a connection whose WebSocket upgrade is done. */
     public interface Listener {
         void onConnection(Connector.Link link, InetAddress remote);
+
+        /** As above, with the port the client connected from (several clients behind one address); by default it is the same call. */
+        default void onConnection(Connector.Link link, InetAddress remote, int remotePort) {
+            onConnection(link, remote);
+        }
     }
 
     private static final int MAX_MESSAGE_BYTES = 1 << 20;
@@ -191,8 +196,8 @@ public final class InboundServer {
                     client.close();
                 }
             };
-            delivered = true;
-            listener.onConnection(link, client.getInetAddress());
+            listener.onConnection(link, client.getInetAddress(), client.getPort());
+            delivered = true; // only a link that the listener took is its to close; after an exception the socket and the slot are freed below
         } catch (IOException | RuntimeException e) {
             YaaccLogger.d(getClass().getName(), "inbound upgrade failed: " + e.getClass().getSimpleName());
         } finally {

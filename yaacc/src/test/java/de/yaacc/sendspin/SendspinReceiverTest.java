@@ -129,6 +129,22 @@ public class SendspinReceiverTest {
     }
 
     @Test
+    public void twoPlayersBehindOneAddressHaveIdsOfTheirOwnByTheirPorts() {
+        de.yaacc.sendspin.hub.Endpoint a = de.yaacc.sendspin.hub.Endpoint.inbound("192.168.0.9", 40001);
+        de.yaacc.sendspin.hub.Endpoint b = de.yaacc.sendspin.hub.Endpoint.inbound("192.168.0.9", 40002);
+        assertTrue(a.isInbound());
+        assertFalse(SendspinAddress.idOf(a).equals(SendspinAddress.idOf(b)));
+        assertEquals("sendspin-in:192.168.0.9#40001", SendspinAddress.idOf(a));
+        assertEquals(a, SendspinAddress.endpointOf(SendspinAddress.idOf(a)));
+        assertEquals(b, SendspinAddress.endpointOf(SendspinAddress.idOf(b)));
+        assertEquals("the old id without a port still means the address", de.yaacc.sendspin.hub.Endpoint.inbound("192.168.0.9"),
+                SendspinAddress.endpointOf("sendspin-in:192.168.0.9"));
+        assertEquals(null, SendspinAddress.endpointOf("sendspin-in:192.168.0.9#0"));
+        assertEquals(null, SendspinAddress.endpointOf("sendspin-in:192.168.0.9#x"));
+        assertEquals(null, SendspinAddress.endpointOf("sendspin-in:192.168.0.9#70000"));
+    }
+
+    @Test
     public void theCardOfThisPhoneHasAnIdOfItsOwnAndIsNeitherAServerNorAPlayerToPlayTo() {
         SendspinReceiverDevice self = SendspinReceiverDevice.ofSelf("  YAACC Phone ");
         assertTrue(self.isSelf());

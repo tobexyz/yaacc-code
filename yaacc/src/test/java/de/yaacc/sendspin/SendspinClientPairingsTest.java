@@ -134,6 +134,14 @@ public class SendspinClientPairingsTest {
     }
 
     @Test
+    public void anEntryThatEndsRightAfterTheServerIdDoesNotCrashTheRead() {
+        store.put(SendspinSettings.KEY_CLIENT_PAIRINGS, new HashSet<>(java.util.Arrays.asList("0:" + serverId(5))));
+        assertTrue(pairings.pairedServerIds().isEmpty());
+        assertFalse(pairings.isPairedWith(serverId(5)));
+        assertNull(pairings.find(SendspinPsk.pskId(psk(1)), SendspinPsk.Category.LONG_TERM));
+    }
+
+    @Test
     public void damagedEntriesAreIgnored() {
         store.put(SendspinSettings.KEY_CLIENT_PAIRINGS, new HashSet<>(java.util.Arrays.asList("x", "1:short:" + Base64Url.encode(psk(1)),
                 "2:" + serverId(5) + ":AAAA")));
