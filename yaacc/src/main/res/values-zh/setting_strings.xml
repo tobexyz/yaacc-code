@@ -188,5 +188,5 @@
     <string name="settings_sendspin_player_title">允许服务器在此手机上播放</string>
     <string name="settings_sendspin_player_summary">默认关闭。开启后，手机是 Sendspin 播放器：带通知的服务会保持一个监听端口（8928）并在本地网络中通告手机，使 Music Assistant 或其他服务器可以在其上播放音乐。同一时间只有一个服务器播放，即最后启动流的那个。仅接受本地网络地址，同时最多 3 个服务器。未配对的服务器只有在开启“允许未配对的服务器”时才会播放；其连接已加密，但无法证明其身份。开启期间手机会持续监听并通告。</string>
     <string name="settings_sendspin_player_flac_title">手机作为播放器时优先使用 FLAC</string>
-    <string name="settings_sendspin_player_flac_summary">默认关闭。开启后，服务器在可能时会发送 FLAC（流更小，约为 PCM 的一半），由手机用自己的解码器解码；与 Snapcast 客户端相同的路径，尚未用 Sendspin 服务器试听过。PCM 仍作为第二选择提供。对服务器的下一次连接生效。</string>
+    <string name="settings_sendspin_player_flac_summary">默认关闭。开启后，服务器在可能时会发送 FLAC（流更小，约为 PCM 的一半），由手机用自己的解码器解码；与 Snapcast 客户端相同的路径，尚未与 Sendspin 服务器实际验证过。PCM 仍作为第二选择提供。对服务器的下一次连接生效。</string>
 </resources>
