@@ -32,6 +32,9 @@ public final class SendspinSettings {
     public static final boolean LEGACY_DEFAULT = false;
     /** The key of the switch that makes this phone a server that players find and connect to (client-initiated mode). */
     public static final String KEY_ADVERTISE = "settings_sendspin_advertise";
+    /** The switch that makes this phone a Sendspin player (a service listens and announces it); default off. */
+    public static final String KEY_PLAYER = "settings_sendspin_player";
+    public static final boolean PLAYER_DEFAULT = false;
     /** Off: nothing listens on the phone and nothing is announced. */
     public static final boolean ADVERTISE_DEFAULT = false;
     /** The key of the switch for the mDNS search; it works only while {@link #KEY_ENABLED} is on. */
@@ -149,6 +152,18 @@ public final class SendspinSettings {
         }
         try {
             return source.getBoolean(KEY_ADVERTISE, ADVERTISE_DEFAULT);
+        } catch (RuntimeException damaged) {
+            return false;
+        }
+    }
+
+    /** @return whether this phone is a Sendspin player: the switch is on (default off); independent of the other Sendspin switches */
+    public static boolean isPlayerEnabled(BooleanSource source) {
+        if (source == null) {
+            return false;
+        }
+        try {
+            return source.getBoolean(KEY_PLAYER, PLAYER_DEFAULT);
         } catch (RuntimeException damaged) {
             return false;
         }

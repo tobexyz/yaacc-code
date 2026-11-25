@@ -672,4 +672,8 @@
     <string name="sendspin_clientpair_paired">Pareado com este servidor.</string>
     <string name="sendspin_clientpair_forget">Esquecer pareamento</string>
     <string name="sendspin_server_pairing">Pareamento…</string>
+    <string name="sendspin_player_notification_title">Player Sendspin</string>
+    <string name="sendspin_player_notification_waiting">Aguardando um servidor</string>
+    <string name="sendspin_player_notification_playing">Tocando de %1$s</string>
+    <string name="sendspin_player_notification_stop">Desativar</string>
 </resources>

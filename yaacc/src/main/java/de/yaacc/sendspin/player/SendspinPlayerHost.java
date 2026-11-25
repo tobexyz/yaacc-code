@@ -236,6 +236,17 @@ public final class SendspinPlayerHost {
         }
     }
 
+    /** The phase of every session, for a log line. */
+    public List<String> sessionPhases() {
+        List<String> phases = new ArrayList<>();
+        synchronized (lock) {
+            for (Entry e : entries) {
+                phases.add(e.session == null ? "?" : e.session.phase() + "/" + e.session.endReason());
+            }
+        }
+        return phases;
+    }
+
     public boolean isPlaying() {
         synchronized (lock) {
             return owner != null;

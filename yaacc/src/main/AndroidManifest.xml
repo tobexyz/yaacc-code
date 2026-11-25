@@ -144,6 +144,11 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
         <service
+            android:name=".sendspin.player.SendspinPlayerService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+        <service
             android:name=".upnp.server.YaaccUpnpServerService"
             android:enabled="true"
             android:foregroundServiceType="mediaProjection" />

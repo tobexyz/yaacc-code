@@ -42,11 +42,13 @@ public final class PlayerMessages {
     /**
      * @param formats        PCM formats as {sample rate, channels, bit depth}, in the order of preference
      * @param bufferCapacity the bytes the player can hold ({@code buffer_capacity})
-     * @param commands       the player commands it takes ({@code volume}, {@code mute}, {@code set_output_delay})
      * @param roles          the roles it offers, for example {@code player@v1}
+     *                       <p>The commands the player takes are not in the hello: the current wire schema puts them in the
+     *                       {@code client/state} player object (the reference library rejects other values at the hello level; found
+     *                       against it, 2026-11-25).
      */
     public static String clientHello(String name, String productName, boolean unpairedAccess, List<int[]> formats, long bufferCapacity,
-                                     List<String> commands, List<String> roles) {
+                                     List<String> roles) {
         JSONArray formatArray = new JSONArray();
         for (int[] f : formats) {
             formatArray.put(SendspinMessages.json("codec", "pcm", "channels", f[1], "sample_rate", f[0], "bit_depth", f[2]));
@@ -56,7 +58,7 @@ public final class PlayerMessages {
                 "unpaired_access", SendspinMessages.json("enabled", unpairedAccess));
         if (roles.contains("player@v1")) {
             SendspinMessages.put(payload, "player@v1_support", SendspinMessages.json("supported_formats", formatArray,
-                    "buffer_capacity", bufferCapacity, "supported_commands", new JSONArray(commands)));
+                    "buffer_capacity", bufferCapacity));
         }
         if (productName != null) {
             SendspinMessages.put(payload, "device_info", SendspinMessages.json("product_name", productName));

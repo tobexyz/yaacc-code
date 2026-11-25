@@ -197,6 +197,8 @@ public class Yaacc extends Application {
         }
         // the held-back start of the Snapcast client, or the one more try after a start that the system refused in the background
         SnapcastClientPowers.restore(this, SnapcastClientRestore.Point.SCREEN_START, false);
+        // the phone as a Sendspin player comes back when its switch is on (a start the system refuses is tried again at the next screen)
+        de.yaacc.sendspin.player.SendspinPlayerService.sync(this);
     }
 
     /**

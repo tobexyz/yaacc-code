@@ -668,4 +668,8 @@
     <string name="sendspin_clientpair_paired">Mit diesem Server gekoppelt.</string>
     <string name="sendspin_clientpair_forget">Kopplung vergessen</string>
     <string name="sendspin_server_pairing">Kopplung …</string>
+    <string name="sendspin_player_notification_title">Sendspin-Player</string>
+    <string name="sendspin_player_notification_waiting">Wartet auf einen Server</string>
+    <string name="sendspin_player_notification_playing">Spielt von %1$s</string>
+    <string name="sendspin_player_notification_stop">Ausschalten</string>
 </resources>

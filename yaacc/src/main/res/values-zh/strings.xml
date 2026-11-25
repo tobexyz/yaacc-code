@@ -664,4 +664,8 @@
     <string name="sendspin_clientpair_paired">已与此服务器配对。</string>
     <string name="sendspin_clientpair_forget">忘记配对</string>
     <string name="sendspin_server_pairing">配对…</string>
+    <string name="sendspin_player_notification_title">Sendspin 播放器</string>
+    <string name="sendspin_player_notification_waiting">等待服务器</string>
+    <string name="sendspin_player_notification_playing">正在播放来自 %1$s</string>
+    <string name="sendspin_player_notification_stop">关闭</string>
 </resources>

@@ -34,7 +34,8 @@ public enum NotificationId {
     BACKGROUND_MUSIC_SERVICE(9),
     YAACC(10),
     SNAPCAST_CLIENT(11),
-    SNAPCAST_CLIENT_ENDED(12);
+    SNAPCAST_CLIENT_ENDED(12),
+    SENDSPIN_PLAYER(13);
 
 
     private final int id;

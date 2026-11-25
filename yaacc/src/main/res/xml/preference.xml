@@ -172,6 +172,11 @@
             android:title="@string/settings_sendspin_discovery_title" />
         <CheckBoxPreference
             android:defaultValue="false"
+            android:key="@string/settings_sendspin_player"
+            android:summary="@string/settings_sendspin_player_summary"
+            android:title="@string/settings_sendspin_player_title" />
+        <CheckBoxPreference
+            android:defaultValue="false"
             android:dependency="@string/settings_sendspin_enabled"
             android:key="@string/settings_sendspin_legacy"
             android:summary="@string/settings_sendspin_legacy_summary"

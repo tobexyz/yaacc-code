@@ -186,6 +186,9 @@ public final class SendspinHub implements SendspinReceiverSource {
             if (SendspinSettings.isAdvertiseRelevantKey(key)) {
                 inboundGate.settingChanged();
             }
+            if (SendspinSettings.KEY_PLAYER.equals(key)) {
+                de.yaacc.sendspin.player.SendspinPlayerService.sync(app); // the phone as a player: the service follows the switch
+            }
         };
         preferences.registerOnSharedPreferenceChangeListener(settingListener);
     }
@@ -719,6 +722,16 @@ public final class SendspinHub implements SendspinReceiverSource {
      */
     public String clientPairingToken() {
         return controllers.credentials().token(clientIdentity());
+    }
+
+    /** The key pair of this app as a Sendspin client (the controller and the player use the same). */
+    public Identity clientKeys() {
+        return clientIdentity();
+    }
+
+    /** The pairing records of this app as a client. */
+    public SendspinClientPairings clientPairings() {
+        return controllers.credentials();
     }
 
     public boolean holdsClientToken() {

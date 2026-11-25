@@ -672,4 +672,8 @@
     <string name="sendspin_clientpair_paired">Emparejado con este servidor.</string>
     <string name="sendspin_clientpair_forget">Olvidar emparejamiento</string>
     <string name="sendspin_server_pairing">Emparejamiento…</string>
+    <string name="sendspin_player_notification_title">Reproductor Sendspin</string>
+    <string name="sendspin_player_notification_waiting">Esperando a un servidor</string>
+    <string name="sendspin_player_notification_playing">Reproduciendo desde %1$s</string>
+    <string name="sendspin_player_notification_stop">Desactivar</string>
 </resources>

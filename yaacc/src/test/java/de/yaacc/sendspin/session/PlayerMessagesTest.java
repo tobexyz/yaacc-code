@@ -41,7 +41,7 @@ public class PlayerMessagesTest {
     @Test
     public void theHelloOffersThePlayerRoleWithItsFormatsBufferAndCommandsAndIsReadBackByTheServerSide() throws Exception {
         String hello = PlayerMessages.clientHello("Phone", "YAACC", false,
-                Arrays.asList(new int[]{48000, 2, 16}, new int[]{44100, 2, 16}), 1_000_000L, Arrays.asList("volume", "mute"),
+                Arrays.asList(new int[]{48000, 2, 16}, new int[]{44100, 2, 16}), 1_000_000L,
                 Arrays.asList("player@v1", "controller@v1"));
         SendspinMessages.ClientHello parsed = SendspinMessages.parseClientHello(Envelope.parse(hello.getBytes("UTF-8")).payload());
         assertEquals("Phone", parsed.name);

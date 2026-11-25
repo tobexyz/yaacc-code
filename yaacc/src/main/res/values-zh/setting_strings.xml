@@ -185,4 +185,6 @@
     <string name="settings_sendspin_legacy_summary">默认关闭。一些较旧的播放器（例如 Kodi 插件）使用不加密的旧版协议，当前规范并未定义该协议。开启后，YAACC 会接受它们。它们收发的内容均不受保护：网络中的任何人都可以读取，并冒充播放器或你的手机，而且连接无法证明对方的身份。你未批准的播放器仍然收不到音频。仅在你信任的网络中使用。</string>
     <string name="settings_sendspin_advertise_title">允许播放器发现此手机（在网络上监听）</string>
     <string name="settings_sendspin_advertise_summary">默认关闭。开启后，在显示接收器的页面打开期间，此手机会在本地网络中以 Sendspin 服务器身份自我通告（mDNS，端口 8927），并接受正在寻找服务器的播放器的连接，例如 Kodi 插件。已连接的播放器会保持连接，直到其连接结束。仅接受本地网络地址，同时最多 8 个播放器，未获批准的播放器收不到音频。关闭时不监听，也不通告。</string>
+    <string name="settings_sendspin_player_title">允许服务器在此手机上播放</string>
+    <string name="settings_sendspin_player_summary">默认关闭。开启后，手机是 Sendspin 播放器：带通知的服务会保持一个监听端口（8928）并在本地网络中通告手机，使 Music Assistant 或其他服务器可以在其上播放音乐。同一时间只有一个服务器播放，即最后启动流的那个。仅接受本地网络地址，同时最多 3 个服务器。未配对的服务器只有在开启“允许未配对的服务器”时才会播放；其连接已加密，但无法证明其身份。开启期间手机会持续监听并通告。</string>
 </resources>

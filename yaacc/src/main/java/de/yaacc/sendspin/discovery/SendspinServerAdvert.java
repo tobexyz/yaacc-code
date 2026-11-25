@@ -51,6 +51,11 @@ public final class SendspinServerAdvert {
      * @param path         the {@code path} of the TXT record, the one the listener serves
      */
     public synchronized void register(String instanceName, String displayName, String path, int port) {
+        register(SendspinServiceType.SERVER_TYPE, instanceName, displayName, path, port);
+    }
+
+    /** As above, for another service type: {@link SendspinServiceType#TYPE} announces a player (the phone as a player). */
+    public synchronized void register(String serviceType, String instanceName, String displayName, String path, int port) {
         if (listener != null) {
             return;
         }
@@ -61,7 +66,7 @@ public final class SendspinServerAdvert {
         acquireLock();
         NsdServiceInfo info = new NsdServiceInfo();
         info.setServiceName(instanceName);
-        info.setServiceType(SendspinServiceType.SERVER_TYPE);
+        info.setServiceType(serviceType);
         info.setPort(port);
         info.setAttribute("path", path);
         info.setAttribute("name", displayName);

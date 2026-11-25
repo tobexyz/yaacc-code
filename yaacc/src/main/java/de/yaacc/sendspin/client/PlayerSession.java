@@ -342,7 +342,7 @@ public final class PlayerSession {
                 }
                 serverName = ControllerMessages.parseServerHello(envelope.payload());
                 helloSeen = true;
-                c.sendJson(PlayerMessages.clientHello(name, PRODUCT_NAME, unpairedAccess, formats, bufferCapacity, COMMANDS,
+                c.sendJson(PlayerMessages.clientHello(name, PRODUCT_NAME, unpairedAccess, formats, bufferCapacity,
                         Collections.singletonList(ROLE)));
                 setPhase(Phase.WAITING_FOR_ACTIVATION);
                 continue;
@@ -410,7 +410,8 @@ public final class PlayerSession {
     // ------------------------------------------------------------------ activation, stream, commands
 
     private void handleActivate(SecureChannel c, ControllerMessages.Activate a) throws IOException {
-        List<String> effective = a.activeRoles != null ? a.activeRoles : Collections.<String>emptyList();
+        // an activation without active_roles leaves the roles as they are: all the roles this client offered (the reference server does this)
+        List<String> effective = a.activeRoles != null ? a.activeRoles : Collections.singletonList(ROLE);
         boolean canPair = credentials != null && matched == SendspinPsk.Category.PAIRING && credentials.holdsPairingPsk()
                 && "pairing_psk".equals(a.pairingMethod);
         ControllerMessages.Admission admission = ControllerMessages.admit(matched, unpairedAccess, a.activities, effective, canPair);

@@ -672,4 +672,8 @@
     <string name="sendspin_clientpair_paired">Appairé avec ce serveur.</string>
     <string name="sendspin_clientpair_forget">Oublier l\'appairage</string>
     <string name="sendspin_server_pairing">Appairage…</string>
+    <string name="sendspin_player_notification_title">Lecteur Sendspin</string>
+    <string name="sendspin_player_notification_waiting">En attente d\'un serveur</string>
+    <string name="sendspin_player_notification_playing">Lecture depuis %1$s</string>
+    <string name="sendspin_player_notification_stop">Désactiver</string>
 </resources>

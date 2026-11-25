@@ -673,4 +673,8 @@
     <string name="sendspin_clientpair_paired">Paired with this server.</string>
     <string name="sendspin_clientpair_forget">Forget pairing</string>
     <string name="sendspin_server_pairing">Pairing…</string>
+    <string name="sendspin_player_notification_title">Sendspin player</string>
+    <string name="sendspin_player_notification_waiting">Waiting for a server</string>
+    <string name="sendspin_player_notification_playing">Playing from %1$s</string>
+    <string name="sendspin_player_notification_stop">Switch off</string>
 </resources>
