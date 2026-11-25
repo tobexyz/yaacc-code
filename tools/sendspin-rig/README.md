@@ -19,6 +19,12 @@ tools/sendspin-rig/run-local.sh server 8927                   # the reference se
 
 Needs Python 3.11+, PortAudio (`sudo apt-get install libportaudio2`) and PulseAudio (`pulseaudio`). `RIG_LOG_LEVEL=DEBUG` shows
 the player's sync error (`Sync error: ... ms`), dropped and inserted frames and every stream message. The virtual environment,
+**A group of two players** (linking): start two players that admit unpaired servers on two ports (for example `run-local.sh player 8928 A true` and `run-local.sh player 8930 B true`, with `RIG_LOG_LEVEL=DEBUG` so that they log their sync error) and run
+`./gradlew :yaacc:testDebugUnitTest --tests de.yaacc.sendspin.hub.HubGroupRigTest -Dsendspin.rig=127.0.0.1:8928 -Dsendspin.rig.second=127.0.0.1:8930 -Dsendspin.rig.seconds=45`.
+The test plays one tone to both through one timeline (the second player joins while it runs, then a seek, a pause, and the second
+leaves); the `Sync error` lines of the two players' logs show the result. Both players share the rig's one PulseAudio sink, so their
+volumes are one volume. Measured 2026-11-25: both start at -127 ms, converge to between -4 and +1.3 ms after 45 s, no dropped audio.
+
 identity and settings are kept in `./.sendspin-rig` (ignored by git; `RIG_DIR` changes it); delete it to get a new player identity.
 
 **Verified in the sandbox of issue #325** with `sendspin` 9.1.0: the handshake under the Sentinel PSK, the operator approval, 12 to
