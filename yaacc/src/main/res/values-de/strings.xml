@@ -615,7 +615,7 @@
     <string name="sendspin_server_row_type">Sendspin-Server</string>
     <string name="sendspin_server_state_connected">verbunden</string>
     <string name="sendspin_server_state_waiting">verbunden, wartet darauf, dass der Server die Steuerung erlaubt</string>
-    <string name="sendspin_server_state_needs_pairing">erfordert Kopplung (noch nicht unterstützt)</string>
+    <string name="sendspin_server_state_needs_pairing">erfordert Kopplung: Token über das Zahnrad</string>
     <string name="sendspin_server_state_refused">vom Server nicht erlaubt</string>
     <string name="sendspin_server_not_a_target">Diese Karte steuert einen Sendspin-Server. Wähle einen Player zum Abspielen.</string>
     <string name="sendspin_server_previous">Zurück</string>
@@ -659,4 +659,13 @@
     <string name="sendspin_link_no_format">%1$s hat kein Audioformat, das mit der Gruppe übereinstimmt.</string>
     <string name="sendspin_link_full">Eine Gruppe hat höchstens 8 Player.</string>
     <string name="sendspin_link_refused">%1$s kann nicht verbunden werden.</string>
+    <string name="sendspin_clientpair_title">Mit %1$s koppeln</string>
+    <string name="sendspin_clientpair_message">Gib dem Server dieses Token: Trage es in dessen Einstellungen als Kopplungstoken dieses Clients ein (Music Assistant: Kopplungscode bzw. -token des Clients). Das Token ist ein Geheimnis: Wer es kennt, kann einen Server mit dieser App koppeln. Tippe danach auf Erneut verbinden.</string>
+    <string name="sendspin_clientpair_connect">Erneut verbinden</string>
+    <string name="sendspin_clientpair_copy">Token kopieren</string>
+    <string name="sendspin_clientpair_copied">Token kopiert</string>
+    <string name="sendspin_clientpair_new">Neues Token</string>
+    <string name="sendspin_clientpair_paired">Mit diesem Server gekoppelt.</string>
+    <string name="sendspin_clientpair_forget">Kopplung vergessen</string>
+    <string name="sendspin_server_pairing">Kopplung …</string>
 </resources>

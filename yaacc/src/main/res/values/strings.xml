@@ -620,7 +620,7 @@
     <string name="sendspin_server_row_type">Sendspin server</string>
     <string name="sendspin_server_state_connected">connected</string>
     <string name="sendspin_server_state_waiting">connected, waiting for the server to allow control</string>
-    <string name="sendspin_server_state_needs_pairing">needs pairing (not supported yet)</string>
+    <string name="sendspin_server_state_needs_pairing">needs pairing: open the gear for the token</string>
     <string name="sendspin_server_state_refused">not allowed by the server</string>
     <string name="sendspin_server_not_a_target">This card controls a Sendspin server. Choose a player to play on.</string>
     <string name="sendspin_server_previous">Previous</string>
@@ -664,4 +664,13 @@
     <string name="sendspin_link_no_format">%1$s has no audio format in common with the group.</string>
     <string name="sendspin_link_full">A group has at most 8 players.</string>
     <string name="sendspin_link_refused">%1$s can not be linked.</string>
+    <string name="sendspin_clientpair_title">Pair with %1$s</string>
+    <string name="sendspin_clientpair_message">Give this token to the server: in its settings, enter it as the pairing token of this client (Music Assistant: the pairing code or token of the client). The token is a secret: anyone who has it can pair a server with this app. Then tap Connect again.</string>
+    <string name="sendspin_clientpair_connect">Connect again</string>
+    <string name="sendspin_clientpair_copy">Copy token</string>
+    <string name="sendspin_clientpair_copied">Token copied</string>
+    <string name="sendspin_clientpair_new">New token</string>
+    <string name="sendspin_clientpair_paired">Paired with this server.</string>
+    <string name="sendspin_clientpair_forget">Forget pairing</string>
+    <string name="sendspin_server_pairing">Pairing…</string>
 </resources>

@@ -19,6 +19,7 @@
 package de.yaacc.sendspin.client;
 
 import de.yaacc.sendspin.hub.Connector;
+import de.yaacc.sendspin.secure.Base64Url;
 import de.yaacc.sendspin.hub.Endpoint;
 import de.yaacc.sendspin.hub.HubClock;
 import de.yaacc.sendspin.secure.Identity;
@@ -88,6 +89,7 @@ public final class ControllerSession {
     private final SecureRandom random;
     private final String clientName;
     private final Listener listener;
+    private final ClientCredentials credentials;
     private final Object lock = new Object();
 
     private volatile Phase phase = Phase.CONNECTING;
@@ -108,6 +110,8 @@ public final class ControllerSession {
     // the loop thread's
     private SendspinPsk.Category matched = SendspinPsk.Category.SENTINEL;
     private List<String> roles = Collections.emptyList();
+    private int pairingActivations;
+    private byte[] pendingLongTerm;
     private boolean stateSent;
     private boolean artworkStateSent;
     private int burstSent;
@@ -117,6 +121,13 @@ public final class ControllerSession {
 
     public ControllerSession(Endpoint endpoint, Identity identity, boolean unpairedAccess, Connector connector, HubClock clock,
                              SecureRandom random, String clientName, Listener listener) {
+        this(endpoint, identity, unpairedAccess, connector, clock, random, clientName, listener, null);
+    }
+
+    /** @param credentials the pairing records of this client; null: no pairing (the Sentinel only, a pairing activation is declined) */
+    public ControllerSession(Endpoint endpoint, Identity identity, boolean unpairedAccess, Connector connector, HubClock clock,
+                             SecureRandom random, String clientName, Listener listener, ClientCredentials credentials) {
+        this.credentials = credentials;
         this.endpoint = endpoint;
         this.identity = identity;
         this.unpairedAccess = unpairedAccess;
@@ -340,7 +351,7 @@ public final class ControllerSession {
             }
             setPhase(Phase.HANDSHAKING);
             ClientHandshake.Result result = ClientHandshake.perform(link.ws(), identity, NoiseSuite.CHACHA_POLY,
-                    (id, category) -> null, random);
+                    (id, category) -> credentials == null ? null : credentials.find(id, category), random);
             channel = result.channel;
             serverId = result.serverId;
             matched = result.matched;
@@ -452,27 +463,82 @@ public final class ControllerSession {
                 case "server/time":
                     handleServerTime(c, ControllerMessages.parseServerTime(envelope.payload()));
                     break;
+                case "server/pair-finalize":
+                    finishPairing(c);
+                    break;
+                case "pair/abort":
+                    clearPending(); // the server gave the attempt up
+                    break;
                 case "server/unpair":
                     if (matched == SendspinPsk.Category.LONG_TERM) { // an unpaired session ignores it (spec)
+                        if (credentials != null && serverId != null) {
+                            credentials.unpair(serverId);
+                        }
                         c.sendJson(ControllerMessages.clientGoodbye("unpaired"));
                         c.close(WsConnection.CLOSE_NORMAL);
                         end(EndReason.UNPAIRED);
                         return;
                     }
                     break;
-                case "noise/handshake":
-                    // a re-handshake needs the responder side with the pairing records of this client: not part of this slice
-                    throw new IOException("re-handshake is not supported");
+                case "noise/handshake": {
+                    // the server moves to the long-term PSK after a pairing: this client is the responder
+                    if (credentials == null || serverId == null || c.isPlain()) {
+                        throw new IOException("re-handshake is not supported");
+                    }
+                    byte[] message1 = Base64Url.decode(SendspinMessages.parseNoiseData(envelope.payload()));
+                    if (message1 == null) {
+                        throw new ProtocolException("bad noise data");
+                    }
+                    matched = ClientHandshake.rehandshake(c, identity, serverId, NoiseSuite.CHACHA_POLY, credentials, message1, random);
+                    pairingActivations = 0; // a new handshake starts the count again
+                    break;
+                }
                 default:
                     break; // unknown types are ignored
             }
         }
     }
 
+    /** The Pairing PSK flow, client side: {@code client/pair-init}, then {@code client/pair-finalize} with a long-term PSK of our own. */
+    private void startPairing(SecureChannel c) throws IOException {
+        pairingActivations++;
+        clearPending();
+        byte[] longTerm = new byte[32];
+        do {
+            random.nextBytes(longTerm);
+        } while (SendspinPsk.isSentinel(longTerm));
+        pendingLongTerm = longTerm;
+        c.sendJson(ControllerMessages.clientPairInit(pairingActivations));
+        c.sendJson(ControllerMessages.clientPairFinalize(Base64Url.encode(longTerm)));
+    }
+
+    /** {@code server/pair-finalize}: the server stored the long-term PSK; so does this client (the re-handshake follows). */
+    private void finishPairing(SecureChannel c) throws IOException {
+        byte[] longTerm = pendingLongTerm;
+        pendingLongTerm = null;
+        if (longTerm == null || credentials == null || serverId == null) {
+            return; // not a pairing of ours: ignored
+        }
+        boolean kept = credentials.completePairing(serverId, longTerm);
+        java.util.Arrays.fill(longTerm, (byte) 0);
+        if (!kept) {
+            c.sendJson(ControllerMessages.pairAbort("failed"));
+        }
+    }
+
+    private void clearPending() {
+        if (pendingLongTerm != null) {
+            java.util.Arrays.fill(pendingLongTerm, (byte) 0);
+            pendingLongTerm = null;
+        }
+    }
+
     private void handleActivate(SecureChannel c, ControllerMessages.Activate a) throws IOException {
         List<String> effective = a.activeRoles != null ? a.activeRoles : roles;
-        // this client offers the Pairing PSK in its hello but has no way to complete a pairing yet: any method is one it can not do
-        ControllerMessages.Admission admission = ControllerMessages.admit(matched, unpairedAccess, a.activities, effective, false);
+        // the Pairing PSK flow is the one method this client offers, and only while it holds a Pairing PSK (the user asked for a token)
+        boolean canPair = credentials != null && matched == SendspinPsk.Category.PAIRING && credentials.holdsPairingPsk()
+                && "pairing_psk".equals(a.pairingMethod);
+        ControllerMessages.Admission admission = ControllerMessages.admit(matched, unpairedAccess, a.activities, effective, canPair);
         switch (admission) {
             case PAIRING_REQUIRED:
                 c.sendJson(ControllerMessages.clientGoodbye("pairing_required"));
@@ -490,6 +556,10 @@ public final class ControllerSession {
             case OK:
             default:
                 break;
+        }
+        if (a.activities.contains("pairing")) {
+            startPairing(c);
+            return; // a pairing activation carries no roles: the roles come with the activation after the re-handshake
         }
         roles = new ArrayList<>(effective);
         boolean wantsArtwork = roles.contains("artwork@v1");

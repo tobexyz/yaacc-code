@@ -130,6 +130,16 @@ public final class ControllerMessages {
         return SendspinMessages.message("client/goodbye", SendspinMessages.json("reason", reason));
     }
 
+    /** {@code client/pair-init}: the number of pairing activations this client has seen since the last handshake (1 for the first). */
+    public static String clientPairInit(int pairingIndex) {
+        return SendspinMessages.message("client/pair-init", SendspinMessages.json("pairing_index", pairingIndex));
+    }
+
+    /** {@code client/pair-finalize}: the long-term PSK this client made, 43 characters of base64url. */
+    public static String clientPairFinalize(String longTermPsk) {
+        return SendspinMessages.message("client/pair-finalize", SendspinMessages.json("long_term_psk", longTermPsk));
+    }
+
     public static String pairAbort(String reason) {
         return SendspinMessages.message("pair/abort", SendspinMessages.json("reason", reason));
     }

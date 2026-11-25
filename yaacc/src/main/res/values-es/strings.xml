@@ -619,7 +619,7 @@
     <string name="sendspin_server_row_type">Servidor Sendspin</string>
     <string name="sendspin_server_state_connected">conectado</string>
     <string name="sendspin_server_state_waiting">conectado, esperando a que el servidor permita el control</string>
-    <string name="sendspin_server_state_needs_pairing">requiere emparejamiento (aún no compatible)</string>
+    <string name="sendspin_server_state_needs_pairing">requiere emparejamiento: abre el engranaje para el token</string>
     <string name="sendspin_server_state_refused">no permitido por el servidor</string>
     <string name="sendspin_server_not_a_target">Esta tarjeta controla un servidor Sendspin. Elige un reproductor para reproducir.</string>
     <string name="sendspin_server_previous">Anterior</string>
@@ -663,4 +663,13 @@
     <string name="sendspin_link_no_format">%1$s no tiene ningún formato de audio en común con el grupo.</string>
     <string name="sendspin_link_full">Un grupo tiene como máximo 8 reproductores.</string>
     <string name="sendspin_link_refused">%1$s no se puede enlazar.</string>
+    <string name="sendspin_clientpair_title">Emparejar con %1$s</string>
+    <string name="sendspin_clientpair_message">Dale este token al servidor: en sus ajustes, introdúcelo como token de emparejamiento de este cliente (Music Assistant: el código o token de emparejamiento del cliente). El token es un secreto: quien lo tenga puede emparejar un servidor con esta app. Después toca Conectar de nuevo.</string>
+    <string name="sendspin_clientpair_connect">Conectar de nuevo</string>
+    <string name="sendspin_clientpair_copy">Copiar token</string>
+    <string name="sendspin_clientpair_copied">Token copiado</string>
+    <string name="sendspin_clientpair_new">Nuevo token</string>
+    <string name="sendspin_clientpair_paired">Emparejado con este servidor.</string>
+    <string name="sendspin_clientpair_forget">Olvidar emparejamiento</string>
+    <string name="sendspin_server_pairing">Emparejamiento…</string>
 </resources>

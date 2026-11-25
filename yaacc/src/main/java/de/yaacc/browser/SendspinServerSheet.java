@@ -118,6 +118,7 @@ final class SendspinServerSheet {
         LinearLayout group = row(context);
         group.addView(button(context, R.string.sendspin_server_switch, controller != null && controller.supports("switch"),
                 () -> session.switchGroup()));
+        group.addView(button(context, R.string.sendspin_server_pairing, true, () -> SendspinClientPairDialog.show(context, device)));
         root.addView(group);
 
         String name = SendspinRowText.clean(session.serverName());

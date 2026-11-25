@@ -619,7 +619,7 @@
     <string name="sendspin_server_row_type">Servidor Sendspin</string>
     <string name="sendspin_server_state_connected">conectado</string>
     <string name="sendspin_server_state_waiting">conectado, aguardando o servidor permitir o controle</string>
-    <string name="sendspin_server_state_needs_pairing">requer emparelhamento (ainda não suportado)</string>
+    <string name="sendspin_server_state_needs_pairing">requer pareamento: abra a engrenagem para o token</string>
     <string name="sendspin_server_state_refused">não permitido pelo servidor</string>
     <string name="sendspin_server_not_a_target">Este cartão controla um servidor Sendspin. Escolha um player para reproduzir.</string>
     <string name="sendspin_server_previous">Anterior</string>
@@ -663,4 +663,13 @@
     <string name="sendspin_link_no_format">%1$s não tem nenhum formato de áudio em comum com o grupo.</string>
     <string name="sendspin_link_full">Um grupo tem no máximo 8 players.</string>
     <string name="sendspin_link_refused">%1$s não pode ser vinculado.</string>
+    <string name="sendspin_clientpair_title">Parear com %1$s</string>
+    <string name="sendspin_clientpair_message">Dê este token ao servidor: nas configurações dele, insira-o como token de pareamento deste cliente (Music Assistant: o código ou token de pareamento do cliente). O token é um segredo: quem o tem pode parear um servidor com este app. Depois toque em Conectar novamente.</string>
+    <string name="sendspin_clientpair_connect">Conectar novamente</string>
+    <string name="sendspin_clientpair_copy">Copiar token</string>
+    <string name="sendspin_clientpair_copied">Token copiado</string>
+    <string name="sendspin_clientpair_new">Novo token</string>
+    <string name="sendspin_clientpair_paired">Pareado com este servidor.</string>
+    <string name="sendspin_clientpair_forget">Esquecer pareamento</string>
+    <string name="sendspin_server_pairing">Pareamento…</string>
 </resources>

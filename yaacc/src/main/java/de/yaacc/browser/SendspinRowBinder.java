@@ -252,7 +252,7 @@ final class SendspinRowBinder {
             if (session != null && session.phase() == ControllerSession.Phase.ACTIVE) {
                 SendspinServerSheet.show(context, device);
             } else {
-                Toast.makeText(context, R.string.sendspin_server_not_ready, Toast.LENGTH_SHORT).show();
+                SendspinClientPairDialog.show(context, device); // a server that is not active may be waiting for the pairing token
             }
         });
         hide(views.checkBox); // nothing is played to a server

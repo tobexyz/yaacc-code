@@ -25,6 +25,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import de.yaacc.sendspin.hub.Connector;
+
 import de.yaacc.sendspin.hub.Endpoint;
 import de.yaacc.sendspin.hub.HubClock;
 import de.yaacc.sendspin.secure.Identity;
@@ -69,13 +70,17 @@ public class ControllerSessionTest {
     }
 
     private void connect(boolean unpairedAccess) throws Exception {
+        connect(unpairedAccess, null, ServerHandshake.PskChoice.sentinel());
+    }
+
+    private void connect(boolean unpairedAccess, ClientCredentials credentials, ServerHandshake.PskChoice choice) throws Exception {
         link = new FakePlayer().open();
         Connector connector = (endpoint, random) -> link.hubLink();
         session = new ControllerSession(new Endpoint("127.0.0.1", 8927, "/sendspin"), clientIdentity, unpairedAccess, connector,
-                HubClock.SYSTEM, new SecureRandom(), "YAACC test", null);
+                HubClock.SYSTEM, new SecureRandom(), "YAACC test", null, credentials);
         session.setBurstIntervalMillis(100);
         Future<ServerHandshake.Result> s = link.onHub(
-                () -> ServerHandshake.perform(link.playerWs, serverIdentity, id -> ServerHandshake.PskChoice.sentinel(), new SecureRandom()));
+                () -> ServerHandshake.perform(link.playerWs, serverIdentity, id -> choice, new SecureRandom()));
         session.start();
         server = s.get(5, TimeUnit.SECONDS).channel;
         server.sendJson(SendspinMessages.serverHello("Music Assistant"));
@@ -134,6 +139,72 @@ public class ControllerSessionTest {
         while (session.controller() == null && System.nanoTime() < deadline) {
             Thread.sleep(10);
         }
+    }
+
+    private static final class MapStore implements de.yaacc.sendspin.StringSetStore {
+        final java.util.Map<String, java.util.Set<String>> map = new java.util.HashMap<>();
+
+        @Override
+        public java.util.Set<String> get(String key) {
+            java.util.Set<String> found = map.get(key);
+            return found == null ? new java.util.HashSet<String>() : new java.util.HashSet<>(found);
+        }
+
+        @Override
+        public void put(String key, java.util.Set<String> values) {
+            map.put(key, new java.util.HashSet<>(values));
+        }
+    }
+
+    /** The server's operator pasted the token of this client; the pairing runs, the re-handshake moves to the long-term PSK. */
+    private byte[] pairWithTheToken(de.yaacc.sendspin.SendspinClientPairings pairings) throws Exception {
+        de.yaacc.sendspin.secure.PairingToken token = de.yaacc.sendspin.secure.PairingToken.decode(pairings.token(clientIdentity));
+        connect(false, pairings, new ServerHandshake.PskChoice(token.pairingPsk(), SendspinPsk.Category.PAIRING));
+        server.sendJson(SendspinMessages.serverActivatePairing());
+        Envelope init = nextJson();
+        assertEquals("client/pair-init", init.type());
+        assertEquals("the first pairing activation since the handshake", 1, init.payload().getInt("pairing_index"));
+        Envelope finalize = nextJson();
+        assertEquals("client/pair-finalize", finalize.type());
+        byte[] longTerm = de.yaacc.sendspin.secure.Base64Url.decode(finalize.payload().getString("long_term_psk"));
+        assertEquals(32, longTerm.length);
+        server.sendJson(SendspinMessages.serverPairFinalize());
+        ServerHandshake.rehandshake(server, serverIdentity, clientIdentity.id(), de.yaacc.sendspin.secure.NoiseSuite.CHACHA_POLY,
+                new ServerHandshake.PskChoice(longTerm, SendspinPsk.Category.LONG_TERM), new SecureRandom());
+        return longTerm;
+    }
+
+    @Test
+    public void aTokenPairsTheClientAndTheSessionGoesOnUnderTheLongTermPsk() throws Exception {
+        de.yaacc.sendspin.SendspinClientPairings pairings = new de.yaacc.sendspin.SendspinClientPairings(new MapStore(), new SecureRandom());
+        pairWithTheToken(pairings);
+        activate("[]", ROLES); // the first message under the new keys
+        assertEquals("client/state", nextJson().type());
+        awaitPhase(ControllerSession.Phase.ACTIVE);
+        assertTrue("the record is kept", pairings.isPairedWith(serverIdentity.id()));
+        assertFalse("the token is used up", pairings.holdsPairingPsk());
+    }
+
+    @Test
+    public void aLaterConnectionUsesTheLongTermPskAndNeedsNoUnpairedAccess() throws Exception {
+        MapStore store = new MapStore();
+        de.yaacc.sendspin.SendspinClientPairings pairings = new de.yaacc.sendspin.SendspinClientPairings(store, new SecureRandom());
+        byte[] longTerm = pairWithTheToken(pairings);
+        session.close();
+        link.close();
+        connect(false, pairings, new ServerHandshake.PskChoice(longTerm, SendspinPsk.Category.LONG_TERM));
+        activate("[]", ROLES);
+        assertEquals("client/state", nextJson().type());
+        awaitPhase(ControllerSession.Phase.ACTIVE);
+    }
+
+    @Test
+    public void aPairingActivationWithoutATokenIsDeclined() throws Exception {
+        connect(true); // the Sentinel session, no credentials
+        server.sendJson(SendspinMessages.serverActivatePairing());
+        Envelope abort = nextJson();
+        assertEquals("pair/abort", abort.type());
+        assertEquals("method_not_supported", abort.payload().getString("reason"));
     }
 
     @Test

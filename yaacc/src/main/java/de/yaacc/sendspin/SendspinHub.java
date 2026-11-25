@@ -711,6 +711,36 @@ public final class SendspinHub implements SendspinReceiverSource {
         return any;
     }
 
+    // ------------------------------------------------------------------ pairing as a client (the controller)
+
+    /**
+     * The pairing token of this app for the user to give to a server (Music Assistant or another): made at the first call and the
+     * same until a pairing used it up or the user withdraws it.
+     */
+    public String clientPairingToken() {
+        return controllers.credentials().token(clientIdentity());
+    }
+
+    public boolean holdsClientToken() {
+        return controllers.credentials().holdsPairingPsk();
+    }
+
+    public void withdrawClientToken() {
+        controllers.credentials().withdrawToken();
+        fire();
+    }
+
+    public boolean isPairedWithServer(String serverId) {
+        return serverId != null && controllers.credentials().isPairedWith(serverId);
+    }
+
+    /** Forgets the pairing with a server and ends the session with it (the server's list entry is untouched). */
+    public synchronized void unpairServer(String serverId) {
+        controllers.credentials().unpair(serverId);
+        controllers.endSessionsOf(serverId);
+        fire();
+    }
+
     /** The ids of the paired players, sorted. */
     public List<String> pairedIds() {
         return approvals.pairedIds();

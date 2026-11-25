@@ -179,6 +179,47 @@ public final class ClientHandshake {
         }
     }
 
+    /**
+     * The responder side of a re-handshake inside the open channel (the server starts one after a pairing, to move to the long-term PSK):
+     * reads Noise message 1 (already received, decoded), looks up the PSK it names (no Sentinel fallback here: a PSK this client does not
+     * hold ends the connection), answers with message 2 under the old keys and puts the new keys in place. The prologue is the
+     * previous handshake hash. The send lock is held until the new keys are in, so no application message goes out between.
+     *
+     * @return the category of the PSK the new keys are under
+     */
+    public static SendspinPsk.Category rehandshake(SecureChannel channel, Identity identity, String serverId, NoiseSuite suite,
+                                                   PskLookup psks, byte[] message1, SecureRandom random) throws IOException {
+        byte[] serverPublic = Base64Url.decode32(serverId);
+        if (serverPublic == null || channel.transport() == null) {
+            throw fail("no re-handshake here");
+        }
+        synchronized (channel.sendLock()) {
+            NoiseKkPsk2 noise = NoiseKkPsk2.responder(suite, channel.transport().handshakeHash(), identity.keyPair(), serverPublic);
+            try {
+                JSONObject payload1 = new JSONObject(new String(noise.readMessage1(message1), StandardCharsets.UTF_8));
+                String pskId = payload1.getString("psk_id");
+                SendspinPsk.Category category = SendspinPsk.Category.fromCode(payload1.getString("psk_category"));
+                if (category == null || category == SendspinPsk.Category.SENTINEL || pskId.length() != 43) {
+                    throw fail("bad re-handshake payload");
+                }
+                Held held = psks.find(pskId, category);
+                if (held == null || (held.serverId != null && !held.serverId.equals(serverId))) {
+                    throw fail("the re-handshake names a PSK this client does not hold");
+                }
+                byte[] message2 = noise.writeMessage2(EMPTY_OBJECT, held.psk, random);
+                channel.sendJson(SendspinMessages.noiseHandshake(Base64Url.encode(message2))); // still under the old keys
+                channel.installTransport(noise.split());
+                return category;
+            } catch (NoiseException | org.json.JSONException e) {
+                noise.destroy();
+                throw fail("re-handshake failed");
+            } catch (ServerHandshake.HandshakeException e) {
+                noise.destroy();
+                throw e;
+            }
+        }
+    }
+
     private static ServerHandshake.HandshakeException fail(String message) {
         return new ServerHandshake.HandshakeException(message);
     }

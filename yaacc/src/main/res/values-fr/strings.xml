@@ -619,7 +619,7 @@
     <string name="sendspin_server_row_type">Serveur Sendspin</string>
     <string name="sendspin_server_state_connected">connecté</string>
     <string name="sendspin_server_state_waiting">connecté, en attente que le serveur autorise le contrôle</string>
-    <string name="sendspin_server_state_needs_pairing">nécessite un appairage (pas encore pris en charge)</string>
+    <string name="sendspin_server_state_needs_pairing">nécessite un appairage : ouvrez la roue dentée pour le jeton</string>
     <string name="sendspin_server_state_refused">refusé par le serveur</string>
     <string name="sendspin_server_not_a_target">Cette carte contrôle un serveur Sendspin. Choisissez un lecteur pour la lecture.</string>
     <string name="sendspin_server_previous">Précédent</string>
@@ -663,4 +663,13 @@
     <string name="sendspin_link_no_format">%1$s n\'a aucun format audio en commun avec le groupe.</string>
     <string name="sendspin_link_full">Un groupe compte au plus 8 lecteurs.</string>
     <string name="sendspin_link_refused">%1$s ne peut pas être lié.</string>
+    <string name="sendspin_clientpair_title">Appairer avec %1$s</string>
+    <string name="sendspin_clientpair_message">Donnez ce jeton au serveur : dans ses réglages, saisissez-le comme jeton d\'appairage de ce client (Music Assistant : le code ou jeton d\'appairage du client). Le jeton est un secret : quiconque le possède peut appairer un serveur avec cette appli. Appuyez ensuite sur Se reconnecter.</string>
+    <string name="sendspin_clientpair_connect">Se reconnecter</string>
+    <string name="sendspin_clientpair_copy">Copier le jeton</string>
+    <string name="sendspin_clientpair_copied">Jeton copié</string>
+    <string name="sendspin_clientpair_new">Nouveau jeton</string>
+    <string name="sendspin_clientpair_paired">Appairé avec ce serveur.</string>
+    <string name="sendspin_clientpair_forget">Oublier l\'appairage</string>
+    <string name="sendspin_server_pairing">Appairage…</string>
 </resources>

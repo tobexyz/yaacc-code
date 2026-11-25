@@ -67,6 +67,10 @@ public final class SendspinSettings {
     public static final String KEY_SERVERS = "sendspin_servers";
     /** The key of the private key of the identity this app uses as a Sendspin client (app-private storage; backup is off). */
     public static final String KEY_CLIENT_IDENTITY = "sendspin_client_identity";
+    /** The Pairing PSK behind the token this app shows as a client (one at most). */
+    public static final String KEY_CLIENT_PAIRING_PSK = "sendspin_client_pairing_psk";
+    /** The long-term PSKs of the servers this app is paired with as a client. */
+    public static final String KEY_CLIENT_PAIRINGS = "sendspin_client_pairings";
     /** The most servers the user can add. */
     public static final int MAX_SERVERS = 8;
 

@@ -54,6 +54,7 @@ public final class SendspinControllers {
     private final SecureRandom random;
     private final Supplier<List<SendspinDirectory.Entry>> found;
     private final java.util.function.Consumer<ControllerSession> changed;
+    private final SendspinClientPairings credentials;
     private final Map<Endpoint, ControllerSession> sessions = new HashMap<>();
     private final Map<Endpoint, Long> lastAttempt = new HashMap<>();
 
@@ -61,6 +62,7 @@ public final class SendspinControllers {
                                Supplier<List<SendspinDirectory.Entry>> found, Connector connector, HubClock clock, SecureRandom random,
                                java.util.function.Consumer<ControllerSession> changed) {
         this.servers = SendspinPlayers.servers(store);
+        this.credentials = new SendspinClientPairings(store, random);
         this.identity = identity;
         this.unpairedAllowed = unpairedAllowed;
         this.found = found;
@@ -68,6 +70,20 @@ public final class SendspinControllers {
         this.clock = clock;
         this.random = random;
         this.changed = changed;
+    }
+
+    /** Ends the sessions with the server of this id; the user's next action makes them again. */
+    public synchronized void endSessionsOf(String serverId) {
+        for (ControllerSession session : new java.util.ArrayList<>(sessions.values())) {
+            if (serverId != null && serverId.equals(session.serverId())) {
+                session.close();
+            }
+        }
+    }
+
+    /** The pairing records of this app as a client: the token it shows and the servers it is paired with. */
+    public SendspinClientPairings credentials() {
+        return credentials;
     }
 
     /** The servers the user added; the settings dialog edits them. */
@@ -108,7 +124,7 @@ public final class SendspinControllers {
         }
         lastAttempt.put(endpoint, now);
         ControllerSession made = new ControllerSession(endpoint, identity.get(), unpairedAllowed.getAsBoolean(), connector, clock, random,
-                CLIENT_NAME, changed::accept);
+                CLIENT_NAME, changed::accept, credentials);
         sessions.put(endpoint, made);
         made.start();
         return made;
