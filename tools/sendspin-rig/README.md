@@ -21,7 +21,7 @@ Needs Python 3.11+, PortAudio (`sudo apt-get install libportaudio2`) and PulseAu
 the player's sync error (`Sync error: ... ms`), dropped and inserted frames and every stream message. The virtual environment,
 **The phone as a player** (the reference server dials it): `./gradlew :yaacc:testDebugUnitTest --tests de.yaacc.sendspin.player.PlayerRigTest -Dsendspin.rig.player=8948 -Dsendspin.rig.wait=60` listens on that port; in a second terminal
 `sendspin serve /path/to/tone.wav --client ws://127.0.0.1:8948/sendspin` (a local file: the `--demo` source is an internet radio). The test passes when the
-server's stream arrived with audio chunks. Measured 2026-11-25: Noise handshake as a client, hello, activation, a PCM 48000 Hz stream, 200+ chunks. (The server rejected a first
+server's stream arrived with audio chunks (add `-Dsendspin.rig.flac=true` to prefer FLAC: the real FLAC header and 200 chunks arrive). Measured 2026-11-25: Noise handshake as a client, hello, activation, a PCM 48000 Hz stream, 200+ chunks. (The server rejected a first
 version of the hello that listed `supported_commands` inside the player support object: the current schema has them only in `client/state`.)
 
 **A group of two players** (linking): start two players that admit unpaired servers on two ports (for example `run-local.sh player 8928 A true` and `run-local.sh player 8930 B true`, with `RIG_LOG_LEVEL=DEBUG` so that they log their sync error) and run

@@ -51,8 +51,8 @@ public class PlayerSessionTest {
         final List<Long> timestamps = new CopyOnWriteArrayList<>();
 
         @Override
-        public void start(int sampleRate, int channels, int bitDepth) {
-            events.add("start " + sampleRate + "/" + channels + "/" + bitDepth);
+        public void start(String codec, int sampleRate, int channels, int bitDepth, byte[] codecHeader) {
+            events.add("start " + codec + " " + sampleRate + "/" + channels + "/" + bitDepth + (codecHeader == null ? "" : " header" + codecHeader.length));
         }
 
         @Override
@@ -128,7 +128,8 @@ public class PlayerSessionTest {
 
     private void connect(boolean unpairedAccess) throws Exception {
         link = new FakePlayer().open();
-        List<int[]> formats = Arrays.asList(new int[]{48000, 2, 16}, new int[]{44100, 2, 16});
+        List<de.yaacc.sendspin.session.PlayerMessages.Offer> formats = Arrays.asList(new de.yaacc.sendspin.session.PlayerMessages.Offer("pcm", 48000, 2, 16),
+                new de.yaacc.sendspin.session.PlayerMessages.Offer("pcm", 44100, 2, 16), new de.yaacc.sendspin.session.PlayerMessages.Offer("flac", 48000, 2, 16));
         session = new PlayerSession(link.hubLink(), clientIdentity, unpairedAccess, null, HubClock.SYSTEM, new SecureRandom(), "Phone", formats,
                 1_000_000L, 500, 800, audio, controls, null);
         session.setBurstIntervalMillis(100);
@@ -186,7 +187,7 @@ public class PlayerSessionTest {
         Envelope hello = next();
         assertEquals("client/hello", hello.type());
         assertTrue(hello.payload().getJSONArray("supported_roles").toString().contains("player@v1"));
-        assertEquals(2, hello.payload().getJSONObject("player@v1_support").getJSONArray("supported_formats").length());
+        assertEquals(3, hello.payload().getJSONObject("player@v1_support").getJSONArray("supported_formats").length());
         server.sendJson("{\"type\":\"server/activate\",\"payload\":{\"activities\":[\"playback\"],\"active_roles\":[\"player@v1\"]}}");
         Envelope state = next();
         assertEquals("client/state", state.type());
@@ -200,7 +201,7 @@ public class PlayerSessionTest {
         activatePlayer();
         server.sendJson(SendspinMessages.streamStartPcm(1_000L, 48000, 2, 16));
         awaitEvents(1);
-        assertEquals("start 48000/2/16", audio.events.get(0));
+        assertEquals("start pcm 48000/2/16", audio.events.get(0));
         server.sendMessage(4, SendspinMessages.audioChunk(7_000_000L, 500_000L, new byte[3840], 0, 3840));
         server.sendMessage(4, SendspinMessages.audioChunk(7_020_000L, 500_000L, new byte[3840], 0, 3840));
         awaitEvents(3);
@@ -238,6 +239,21 @@ public class PlayerSessionTest {
         server.sendJson(SendspinMessages.commandOutputDelay(120));
         assertEquals(120, next().payload().getJSONObject("player").getInt("output_delay_ms"));
         assertEquals(120, controls.delay);
+    }
+
+    @Test
+    public void aFlacStreamWithItsHeaderIsHandedToTheAudioAndOneWithoutAHeaderEndsTheSession() throws Exception {
+        activatePlayer();
+        byte[] header = new byte[42];
+        String text = java.util.Base64.getEncoder().encodeToString(header);
+        server.sendJson("{\"type\":\"stream/start\",\"payload\":{\"server_transmitted\":1,\"player\":{\"codec\":\"flac\",\"sample_rate\":48000,"
+                + "\"channels\":2,\"bit_depth\":16,\"codec_header\":\"" + text + "\"}}}");
+        awaitEvents(1);
+        assertEquals("start flac 48000/2/16 header42", audio.events.get(0));
+        server.sendJson("{\"type\":\"stream/start\",\"payload\":{\"server_transmitted\":2,\"player\":{\"codec\":\"flac\",\"sample_rate\":48000,"
+                + "\"channels\":2,\"bit_depth\":16}}}");
+        awaitPhase(PlayerSession.Phase.ENDED);
+        assertEquals(PlayerSession.EndReason.PROTOCOL_ERROR, session.endReason());
     }
 
     @Test

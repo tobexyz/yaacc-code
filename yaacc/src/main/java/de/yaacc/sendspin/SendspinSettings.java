@@ -35,6 +35,8 @@ public final class SendspinSettings {
     /** The switch that makes this phone a Sendspin player (a service listens and announces it); default off. */
     public static final String KEY_PLAYER = "settings_sendspin_player";
     public static final boolean PLAYER_DEFAULT = false;
+    /** Offers FLAC before PCM when the phone is a player; default off (PCM first). */
+    public static final String KEY_PLAYER_FLAC = "settings_sendspin_player_flac";
     /** Off: nothing listens on the phone and nothing is announced. */
     public static final boolean ADVERTISE_DEFAULT = false;
     /** The key of the switch for the mDNS search; it works only while {@link #KEY_ENABLED} is on. */
@@ -152,6 +154,14 @@ public final class SendspinSettings {
         }
         try {
             return source.getBoolean(KEY_ADVERTISE, ADVERTISE_DEFAULT);
+        } catch (RuntimeException damaged) {
+            return false;
+        }
+    }
+
+    public static boolean isPlayerFlacPreferred(BooleanSource source) {
+        try {
+            return source != null && source.getBoolean(KEY_PLAYER_FLAC, false);
         } catch (RuntimeException damaged) {
             return false;
         }

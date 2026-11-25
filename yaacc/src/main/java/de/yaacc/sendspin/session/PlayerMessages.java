@@ -34,10 +34,29 @@ import java.util.List;
  */
 public final class PlayerMessages {
 
+    /** The longest codec header that is accepted: a FLAC stream info is 42 bytes; room for the other metadata blocks. */
+    private static final int MAX_HEADER_BYTES = 8192;
+    private static final int MAX_HEADER_TEXT = 12000;
+
     private PlayerMessages() {
     }
 
     // ------------------------------------------------------------------ what the phone says
+
+    /** One audio format the player offers: the codec ({@code pcm} or {@code flac}), the rate, the channels and the bit depth. */
+    public static final class Offer {
+        public final String codec;
+        public final int sampleRate;
+        public final int channels;
+        public final int bitDepth;
+
+        public Offer(String codec, int sampleRate, int channels, int bitDepth) {
+            this.codec = codec;
+            this.sampleRate = sampleRate;
+            this.channels = channels;
+            this.bitDepth = bitDepth;
+        }
+    }
 
     /**
      * @param formats        PCM formats as {sample rate, channels, bit depth}, in the order of preference
@@ -47,11 +66,11 @@ public final class PlayerMessages {
      *                       {@code client/state} player object (the reference library rejects other values at the hello level; found
      *                       against it, 2026-11-25).
      */
-    public static String clientHello(String name, String productName, boolean unpairedAccess, List<int[]> formats, long bufferCapacity,
+    public static String clientHello(String name, String productName, boolean unpairedAccess, List<Offer> formats, long bufferCapacity,
                                      List<String> roles) {
         JSONArray formatArray = new JSONArray();
-        for (int[] f : formats) {
-            formatArray.put(SendspinMessages.json("codec", "pcm", "channels", f[1], "sample_rate", f[0], "bit_depth", f[2]));
+        for (Offer f : formats) {
+            formatArray.put(SendspinMessages.json("codec", f.codec, "channels", f.channels, "sample_rate", f.sampleRate, "bit_depth", f.bitDepth));
         }
         JSONObject payload = SendspinMessages.json("name", name, "supported_roles", new JSONArray(roles),
                 "supported_pair_methods", SendspinMessages.json("pairing_psk", new JSONObject()),
@@ -131,12 +150,15 @@ public final class PlayerMessages {
         public final int sampleRate;
         public final int channels;
         public final int bitDepth;
+        /** The codec header (for FLAC: {@code fLaC} and the stream info), null if the start has none. */
+        public final byte[] codecHeader;
 
-        StreamStart(String codec, int sampleRate, int channels, int bitDepth) {
+        StreamStart(String codec, int sampleRate, int channels, int bitDepth, byte[] codecHeader) {
             this.codec = codec;
             this.sampleRate = sampleRate;
             this.channels = channels;
             this.bitDepth = bitDepth;
+            this.codecHeader = codecHeader;
         }
     }
 
@@ -153,7 +175,19 @@ public final class PlayerMessages {
         int sampleRate = SendspinMessages.integer(o, "sample_rate", 1, 1_000_000, true);
         int channels = SendspinMessages.integer(o, "channels", 1, 8, true);
         int bitDepth = "opus".equals(codec) ? 0 : SendspinMessages.integer(o, "bit_depth", 1, 32, true);
-        return new StreamStart(codec, sampleRate, channels, bitDepth);
+        byte[] header = null;
+        if (o.has("codec_header")) {
+            String text = SendspinMessages.text(o, "codec_header", MAX_HEADER_TEXT, true);
+            try {
+                header = java.util.Base64.getDecoder().decode(text.replaceAll("\\s", "")); // standard base64; white space is tolerated
+            } catch (IllegalArgumentException e) {
+                throw new ProtocolException("codec_header");
+            }
+            if (header.length > MAX_HEADER_BYTES) {
+                throw new ProtocolException("codec_header");
+            }
+        }
+        return new StreamStart(codec, sampleRate, channels, bitDepth, header);
     }
 
     /** True if a {@code stream/clear} or {@code stream/end} concerns the player: it names the player role or no role at all. */

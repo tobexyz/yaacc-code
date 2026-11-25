@@ -131,8 +131,14 @@ public final class SendspinAudioEngine implements PlayerSession.Audio {
     // ------------------------------------------------------------------ PlayerSession.Audio
 
     @Override
-    public void start(int sampleRate, int channels, int bitDepth) {
-        header = CodecHeaderMessage.of(Codec.PCM, wavHeader(sampleRate, channels, bitDepth));
+    public void start(String codec, int sampleRate, int channels, int bitDepth, byte[] codecHeader) {
+        // PCM: the engine reads the format from a RIFF header made here; FLAC: the header of the server (fLaC and the stream info)
+        CodecHeaderMessage made = "flac".equals(codec) ? CodecHeaderMessage.of(Codec.FLAC, codecHeader)
+                : CodecHeaderMessage.of(Codec.PCM, wavHeader(sampleRate, channels, bitDepth));
+        if (made.getSampleRate() != sampleRate || made.getChannels() != channels) {
+            throw new IllegalArgumentException("the header does not match the stream");
+        }
+        header = made;
         sendSettings();
         target.onCodecHeader(header);
     }

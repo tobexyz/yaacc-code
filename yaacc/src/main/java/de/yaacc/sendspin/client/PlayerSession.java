@@ -66,8 +66,12 @@ public final class PlayerSession {
 
     /** What the app does with the stream; the calls come from the session's thread. */
     public interface Audio {
-        /** A stream starts: PCM at this format (the session checked that it is one the player offered). */
-        void start(int sampleRate, int channels, int bitDepth);
+        /**
+         * A stream starts in this format (the session checked that it is one the player offered; {@code codecHeader} is null for PCM).
+         *
+         * @throws IllegalArgumentException if the codec header is not one the player can play (the session ends)
+         */
+        void start(String codec, int sampleRate, int channels, int bitDepth, byte[] codecHeader);
 
         /** One chunk: the audio and the time it has to be heard, on the server's clock. */
         void chunk(long serverTimestampMicros, byte[] pcm);
@@ -112,7 +116,7 @@ public final class PlayerSession {
     private final HubClock clock;
     private final SecureRandom random;
     private final String name;
-    private final List<int[]> formats;
+    private final List<PlayerMessages.Offer> formats;
     private final long bufferCapacity;
     private final int requiredLeadMs;
     private final int minBufferMs;
@@ -144,13 +148,13 @@ public final class PlayerSession {
 
     /**
      * @param link           the connection (its WebSocket handshake is done)
-     * @param formats        the PCM formats offered, {sample rate, channels, bit depth}
+     * @param formats        the formats offered, in the order of preference
      * @param bufferCapacity the bytes the player can hold
      * @param requiredLeadMs how far ahead of the play time a chunk has to arrive at least
      * @param minBufferMs    the audio the player wants to hold at least
      */
     public PlayerSession(Connector.Link link, Identity identity, boolean unpairedAccess, ClientCredentials credentials, HubClock clock,
-                         SecureRandom random, String name, List<int[]> formats, long bufferCapacity, int requiredLeadMs, int minBufferMs,
+                         SecureRandom random, String name, List<PlayerMessages.Offer> formats, long bufferCapacity, int requiredLeadMs, int minBufferMs,
                          Audio audio, Controls controls, Listener listener) {
         this.link = link;
         this.identity = identity;
@@ -480,14 +484,22 @@ public final class PlayerSession {
             return;
         }
         boolean offered = false;
-        for (int[] f : formats) {
-            offered |= "pcm".equals(start.codec) && f[0] == start.sampleRate && f[1] == start.channels && f[2] == start.bitDepth;
+        for (PlayerMessages.Offer f : formats) {
+            offered |= f.codec.equals(start.codec) && f.sampleRate == start.sampleRate && f.channels == start.channels
+                    && f.bitDepth == start.bitDepth;
         }
         if (!offered) {
             throw new ProtocolException("a format that was not offered");
         }
+        if ("flac".equals(start.codec) && start.codecHeader == null) {
+            throw new ProtocolException("a flac stream without its header");
+        }
+        try {
+            audio.start(start.codec, start.sampleRate, start.channels, start.bitDepth, start.codecHeader);
+        } catch (IllegalArgumentException badHeader) {
+            throw new ProtocolException("codec_header");
+        }
         streaming = true;
-        audio.start(start.sampleRate, start.channels, start.bitDepth);
         notifyChanged();
     }
 

@@ -91,7 +91,8 @@ public class SendspinResourcesTest {
                         || entry.getKey().equals("settings_sendspin_server_discovery")
                         || entry.getKey().equals("settings_sendspin_legacy")
                         || entry.getKey().equals("settings_sendspin_advertise")
-                        || entry.getKey().equals("settings_sendspin_player");
+                        || entry.getKey().equals("settings_sendspin_player")
+                        || entry.getKey().equals("settings_sendspin_player_flac");
                 if (key && !locale.equals("values")) {
                     continue; // a preference key is not translated
                 }

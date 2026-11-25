@@ -254,4 +254,7 @@
     <string name="settings_sendspin_player" translatable="false">settings_sendspin_player</string>
     <string name="settings_sendspin_player_title">Let servers play on this phone</string>
     <string name="settings_sendspin_player_summary">Off by default. When on, the phone is a Sendspin player: a service with a notification keeps a listening socket open (port 8928) and announces the phone on the local network, so that Music Assistant or another server can play music on it. One server plays at a time, the one whose stream started last. Only addresses of the local network are accepted, at most 3 servers at once. A server that is not paired plays only if Allow unpaired servers is on; its connection is encrypted but does not prove who it is. The phone listens and announces itself as long as this is on.</string>
+    <string name="settings_sendspin_player_flac" translatable="false">settings_sendspin_player_flac</string>
+    <string name="settings_sendspin_player_flac_title">Prefer FLAC for the phone as a player</string>
+    <string name="settings_sendspin_player_flac_summary">Off by default. A server then sends FLAC (a smaller stream, about half of PCM) when it can, which the phone decodes with its own decoder; the same decoder path as the Snapcast client, not yet heard with a Sendspin server. PCM is still offered as the second choice. Takes effect for the next connection of a server.</string>
 </resources>

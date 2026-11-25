@@ -127,7 +127,8 @@ public final class SendspinPlayerService extends Service {
         final SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         final MicroClock micro = MicroClock.fromNanoSource(SystemClock::elapsedRealtimeNanos);
         host = new SendspinPlayerHost(hub.clientKeys(), hub.clientPairings(),
-                () -> SendspinSettings.isUnpairedServersAllowed(preferences::getBoolean), phoneName(), (offsets, clock) -> openEngine(offsets, clock),
+                () -> SendspinSettings.isUnpairedServersAllowed(preferences::getBoolean),
+                () -> SendspinSettings.isPlayerFlacPreferred(preferences::getBoolean), phoneName(), (offsets, clock) -> openEngine(offsets, clock),
                 micro, new SecureRandom(), new PreferenceStore(preferences), this::refresh);
         server = new InboundServer(PORT, PATH, address -> SnapcastAddressFilter.isAcceptedForDiscovery(address) && !SendspinSelf.isThisDevice(address),
                 (link, remote) -> host.accept(link), MAX_CONNECTIONS, UPGRADE_TIMEOUT_MILLIS);

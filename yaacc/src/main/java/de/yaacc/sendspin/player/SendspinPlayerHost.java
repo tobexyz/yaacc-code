@@ -23,6 +23,7 @@ import de.yaacc.multiroom.protocol.OffsetSource;
 import de.yaacc.sendspin.SendspinClientPairings;
 import de.yaacc.sendspin.hub.Connector;
 import de.yaacc.sendspin.hub.HubClock;
+import de.yaacc.sendspin.session.PlayerMessages;
 import de.yaacc.sendspin.client.PlayerSession;
 import de.yaacc.sendspin.secure.Identity;
 import de.yaacc.util.YaaccLogger;
@@ -44,7 +45,18 @@ public final class SendspinPlayerHost {
 
     public static final int MAX_SESSIONS = 3;
     /** Offers 48000 and 44100 Hz first (the formats the group and the Kodi add-on use); PCM 16 bit stereo only. */
-    static final List<int[]> FORMATS = java.util.Collections.unmodifiableList(Arrays.asList(new int[]{48000, 2, 16}, new int[]{44100, 2, 16}));
+    static final List<PlayerMessages.Offer> PCM = java.util.Collections.unmodifiableList(Arrays.asList(
+            new PlayerMessages.Offer("pcm", 48000, 2, 16), new PlayerMessages.Offer("pcm", 44100, 2, 16)));
+    static final List<PlayerMessages.Offer> FLAC = java.util.Collections.unmodifiableList(Arrays.asList(
+            new PlayerMessages.Offer("flac", 48000, 2, 16), new PlayerMessages.Offer("flac", 44100, 2, 16)));
+
+    /** PCM first, FLAC after it; with FLAC preferred, FLAC first (the server takes the first format it can send). */
+    static List<PlayerMessages.Offer> offers(boolean preferFlac) {
+        List<PlayerMessages.Offer> all = new ArrayList<>();
+        all.addAll(preferFlac ? FLAC : PCM);
+        all.addAll(preferFlac ? PCM : FLAC);
+        return all;
+    }
     static final long BUFFER_CAPACITY = 2_000_000L;
     static final int REQUIRED_LEAD_MS = 500;
     static final int MIN_BUFFER_MS = 1000;
@@ -85,6 +97,7 @@ public final class SendspinPlayerHost {
     private final Identity identity;
     private final SendspinClientPairings credentials;
     private final BooleanSupplier unpairedAllowed;
+    private final BooleanSupplier preferFlac;
     private final String name;
     private final EngineFactory engines;
     private final MicroClock micro;
@@ -105,6 +118,13 @@ public final class SendspinPlayerHost {
 
     public SendspinPlayerHost(Identity identity, SendspinClientPairings credentials, BooleanSupplier unpairedAllowed, String name,
                               EngineFactory engines, MicroClock micro, SecureRandom random, Store store, Listener listener) {
+        this(identity, credentials, unpairedAllowed, () -> false, name, engines, micro, random, store, listener);
+    }
+
+    /** @param preferFlac read for every new connection: true offers FLAC before PCM */
+    public SendspinPlayerHost(Identity identity, SendspinClientPairings credentials, BooleanSupplier unpairedAllowed, BooleanSupplier preferFlac,
+                              String name, EngineFactory engines, MicroClock micro, SecureRandom random, Store store, Listener listener) {
+        this.preferFlac = preferFlac;
         this.identity = identity;
         this.credentials = credentials;
         this.unpairedAllowed = unpairedAllowed;
@@ -197,7 +217,7 @@ public final class SendspinPlayerHost {
             }
             entries.add(entry);
         }
-        entry.session = new PlayerSession(link, identity, unpairedAllowed.getAsBoolean(), credentials, clock, random, name, FORMATS,
+        entry.session = new PlayerSession(link, identity, unpairedAllowed.getAsBoolean(), credentials, clock, random, name, offers(preferFlac.getAsBoolean()),
                 BUFFER_CAPACITY, REQUIRED_LEAD_MS, MIN_BUFFER_MS, new Port(entry), controls, session -> onSessionChanged(entry));
         entry.session.start();
         fire();
@@ -366,7 +386,7 @@ public final class SendspinPlayerHost {
         }
 
         @Override
-        public void start(int sampleRate, int channels, int bitDepth) {
+        public void start(String codec, int sampleRate, int channels, int bitDepth, byte[] codecHeader) {
             Entry displaced = null;
             SendspinAudioEngine mine;
             synchronized (lock) {
@@ -404,7 +424,16 @@ public final class SendspinPlayerHost {
             if (displaced != null && displaced.session != null) {
                 displaced.session.displace();
             }
-            mine.start(sampleRate, channels, bitDepth);
+            try {
+                mine.start(codec, sampleRate, channels, bitDepth, codecHeader);
+            } catch (IllegalArgumentException badHeader) {
+                synchronized (lock) {
+                    if (owner == entry) {
+                        releaseEngineLocked();
+                    }
+                }
+                throw badHeader; // the session ends with a protocol error
+            }
             fire();
         }
 

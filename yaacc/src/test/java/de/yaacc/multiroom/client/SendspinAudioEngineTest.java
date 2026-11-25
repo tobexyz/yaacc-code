@@ -55,7 +55,7 @@ public class SendspinAudioEngineTest {
 
     @Test
     public void aStreamIsPlayedAtTheTimeOfItsTimestampOnTheServersClock() {
-        audio.start(RATE, 2, 16);
+        audio.start("pcm", RATE, 2, 16, null);
         long startedAt = clock.nowMicros();
         for (int i = 0; i < 40; i++) {
             send(400);
@@ -73,7 +73,7 @@ public class SendspinAudioEngineTest {
 
     @Test
     public void aClearFlushesTheOutputAndTheStreamGoesOnWithTheNextChunks() {
-        audio.start(RATE, 2, 16);
+        audio.start("pcm", RATE, 2, 16, null);
         for (int i = 0; i < 20; i++) {
             send(400);
         }
@@ -93,7 +93,7 @@ public class SendspinAudioEngineTest {
 
     @Test
     public void anEndFlushesAndAChunkWithoutAStreamIsIgnored() {
-        audio.start(RATE, 2, 16);
+        audio.start("pcm", RATE, 2, 16, null);
         send(400);
         run(100);
         audio.end();
@@ -109,7 +109,7 @@ public class SendspinAudioEngineTest {
 
     @Test
     public void volumeMuteAndOutputDelayReachTheEngine() {
-        audio.start(RATE, 2, 16);
+        audio.start("pcm", RATE, 2, 16, null);
         audio.setVolume(40);
         audio.setMuted(true);
         audio.setOutputDelayMs(120);
@@ -123,8 +123,43 @@ public class SendspinAudioEngineTest {
     }
 
     @Test
+    public void aFlacStreamTakesTheHeaderOfTheServerAndItsChunksReachTheEngine() {
+        // the platform's FLAC decoder is not there on the JVM: the test's decoder passes 16 bit stereo through, as in the engine's own tests
+        SnapcastClientEngine flacEngine = new SnapcastClientEngine(new ClientEngineConfig(), sink,
+                (h, m) -> new SnapcastClientEngineTest.PassThroughDecoder(), offsets, clock);
+        SendspinAudioEngine flacAudio = new SendspinAudioEngine(SendspinAudioEngine.direct(flacEngine));
+        byte[] header = ClientFixtures.flacHeader(RATE, 2, 16, 4608, 4608);
+        flacAudio.start("flac", RATE, 2, 16, header);
+        for (int i = 0; i < 2; i++) {
+            flacAudio.chunk(clock.nowMicros() + OFFSET + 400_000L + i * 20_000L, new byte[CHUNK_FRAMES * 4]);
+        }
+        for (int t = 0; t < 100; t += 5) {
+            flacEngine.tick();
+            clock.advanceMillis(5);
+        }
+        assertEquals("the chunks reached the engine", 2L, flacEngine.status().chunksReceived);
+    }
+
+    @Test
+    public void aFlacHeaderThatDoesNotMatchTheStreamIsRefused() {
+        byte[] header = ClientFixtures.flacHeader(44100, 2, 16, 4608, 4608);
+        try {
+            audio.start("flac", RATE, 2, 16, header);
+            org.junit.Assert.fail("a header of another rate");
+        } catch (IllegalArgumentException expected) {
+            // the session ends
+        }
+        try {
+            audio.start("flac", RATE, 2, 16, new byte[10]);
+            org.junit.Assert.fail("not a flac header");
+        } catch (IllegalArgumentException expected) {
+            // the session ends
+        }
+    }
+
+    @Test
     public void aTimestampTheEngineCanNotTakeIsIgnored() {
-        audio.start(RATE, 2, 16);
+        audio.start("pcm", RATE, 2, 16, null);
         audio.chunk(-5L, new byte[CHUNK_FRAMES * 4]);
         audio.chunk(Long.MAX_VALUE, new byte[CHUNK_FRAMES * 4]);
         run(100);

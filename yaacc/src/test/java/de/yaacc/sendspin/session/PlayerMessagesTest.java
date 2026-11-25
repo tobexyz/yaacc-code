@@ -41,7 +41,7 @@ public class PlayerMessagesTest {
     @Test
     public void theHelloOffersThePlayerRoleWithItsFormatsBufferAndCommandsAndIsReadBackByTheServerSide() throws Exception {
         String hello = PlayerMessages.clientHello("Phone", "YAACC", false,
-                Arrays.asList(new int[]{48000, 2, 16}, new int[]{44100, 2, 16}), 1_000_000L,
+                Arrays.asList(new PlayerMessages.Offer("flac", 48000, 2, 16), new PlayerMessages.Offer("pcm", 44100, 2, 16)), 1_000_000L,
                 Arrays.asList("player@v1", "controller@v1"));
         SendspinMessages.ClientHello parsed = SendspinMessages.parseClientHello(Envelope.parse(hello.getBytes("UTF-8")).payload());
         assertEquals("Phone", parsed.name);
@@ -49,7 +49,8 @@ public class PlayerMessagesTest {
         assertTrue(parsed.supportedRoles.contains("controller@v1"));
         assertEquals(2, parsed.playerFormats.size());
         assertEquals(48000, parsed.playerFormats.get(0).sampleRate);
-        assertEquals("pcm", parsed.playerFormats.get(0).codec);
+        assertEquals("flac", parsed.playerFormats.get(0).codec);
+        assertEquals("pcm", parsed.playerFormats.get(1).codec);
         assertEquals(1_000_000L, parsed.playerBufferCapacity);
         assertFalse(parsed.unpairedAccess);
         assertTrue(parsed.pairMethods.contains("pairing_psk"));
@@ -115,6 +116,36 @@ public class PlayerMessagesTest {
         assertEquals(2, start.channels);
         assertEquals(16, start.bitDepth);
         assertNull("a start without a player object is for other roles", PlayerMessages.parseStreamStart(payload("{\"artwork\":{}}")));
+    }
+
+    @Test
+    public void theCodecHeaderOfAFlacStreamIsDecodedFromBase64() throws Exception {
+        byte[] header = new byte[42];
+        header[0] = 'f';
+        header[1] = 'L';
+        header[2] = 'a';
+        header[3] = 'C';
+        String text = java.util.Base64.getEncoder().encodeToString(header);
+        PlayerMessages.StreamStart start = PlayerMessages.parseStreamStart(payload(
+                "{\"player\":{\"codec\":\"flac\",\"sample_rate\":48000,\"channels\":2,\"bit_depth\":16,\"codec_header\":\"" + text + "\"}}"));
+        assertArrayEquals(header, start.codecHeader);
+        assertNull("PCM has none", PlayerMessages.parseStreamStart(payload(
+                "{\"player\":{\"codec\":\"pcm\",\"sample_rate\":48000,\"channels\":2,\"bit_depth\":16}}")).codecHeader);
+        try {
+            PlayerMessages.parseStreamStart(payload(
+                    "{\"player\":{\"codec\":\"flac\",\"sample_rate\":48000,\"channels\":2,\"bit_depth\":16,\"codec_header\":\"%%%\"}}"));
+            fail("not base64");
+        } catch (ProtocolException expected) {
+            // refused
+        }
+        String big = java.util.Base64.getEncoder().encodeToString(new byte[9000]);
+        try {
+            PlayerMessages.parseStreamStart(payload(
+                    "{\"player\":{\"codec\":\"flac\",\"sample_rate\":48000,\"channels\":2,\"bit_depth\":16,\"codec_header\":\"" + big + "\"}}"));
+            fail("too big");
+        } catch (ProtocolException expected) {
+            // refused
+        }
     }
 
     @Test

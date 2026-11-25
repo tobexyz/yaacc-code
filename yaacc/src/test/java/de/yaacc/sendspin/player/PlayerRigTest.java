@@ -55,6 +55,7 @@ public class PlayerRigTest {
         final AtomicInteger headers = new AtomicInteger();
         final AtomicInteger chunks = new AtomicInteger();
         final AtomicInteger lastRate = new AtomicInteger();
+        final java.util.concurrent.atomic.AtomicReference<String> codec = new java.util.concurrent.atomic.AtomicReference<>("");
         final Map<String, Set<String>> map = new HashMap<>();
         StringSetStore store = new StringSetStore() {
             @Override
@@ -89,7 +90,7 @@ public class PlayerRigTest {
             }
         };
         SendspinPlayerHost host = new SendspinPlayerHost(Identity.generate(new SecureRandom()), new SendspinClientPairings(store, new SecureRandom()),
-                () -> true, "YAACC rig phone", (OffsetSource offsets, MicroClock clock) -> new SendspinPlayerHost.Engine() {
+                () -> true, () -> Boolean.getBoolean("sendspin.rig.flac"), "YAACC rig phone", (OffsetSource offsets, MicroClock clock) -> new SendspinPlayerHost.Engine() {
             @Override
             public SendspinAudioEngine.Target target() {
                 return new SendspinAudioEngine.Target() {
@@ -101,6 +102,7 @@ public class PlayerRigTest {
                     public void onCodecHeader(CodecHeaderMessage h) {
                         headers.incrementAndGet();
                         lastRate.set(h.getSampleRate());
+                        codec.set(h.getCodec().toString());
                     }
 
                     @Override
@@ -130,7 +132,7 @@ public class PlayerRigTest {
             while (chunks.get() < 200 && System.nanoTime() < deadline) {
                 Thread.sleep(200);
             }
-            System.out.println("rig player: headers " + headers.get() + ", chunks " + chunks.get() + ", rate " + lastRate.get() + ", server '"
+            System.out.println("rig player: headers " + headers.get() + ", chunks " + chunks.get() + ", codec " + codec.get() + ", rate " + lastRate.get() + ", server '"
                     + host.playingServerName() + "', sessions " + host.sessionCount() + " " + host.sessionPhases());
             assertTrue("a stream with audio arrived: " + chunks.get(), chunks.get() >= 200);
         } finally {
