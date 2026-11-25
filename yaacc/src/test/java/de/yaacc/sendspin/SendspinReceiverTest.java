@@ -129,6 +129,21 @@ public class SendspinReceiverTest {
     }
 
     @Test
+    public void theCardOfThisPhoneHasAnIdOfItsOwnAndIsNeitherAServerNorAPlayerToPlayTo() {
+        SendspinReceiverDevice self = SendspinReceiverDevice.ofSelf("  YAACC Phone ");
+        assertTrue(self.isSelf());
+        assertFalse(self.isServer());
+        assertEquals(SendspinAddress.SELF_ID, self.getReceiverId());
+        assertTrue(SendspinAddress.isSelfId(self.getReceiverId()));
+        assertFalse(SendspinAddress.isSendspinId(SendspinAddress.SELF_ID));
+        assertFalse(SendspinAddress.isServerId(SendspinAddress.SELF_ID));
+        assertEquals("YAACC Phone", self.getName());
+        assertTrue(self.showsSame("YAACC Phone"));
+        assertFalse(self.showsSame("Another"));
+        assertEquals("YAACC", SendspinReceiverDevice.ofSelf("").getName());
+    }
+
+    @Test
     public void aServerCardIsAnotherKindOfDeviceWithItsOwnIdAndName() {
         Endpoint endpoint = SendspinAddress.parseServer("music.local");
         SendspinReceiverDevice server = SendspinReceiverDevice.ofServer(endpoint, "Music Assistant");

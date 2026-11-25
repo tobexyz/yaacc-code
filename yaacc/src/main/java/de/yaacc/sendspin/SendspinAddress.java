@@ -39,6 +39,13 @@ public final class SendspinAddress {
 
     /** The prefix of the receiver ids of the Sendspin servers (cards of the controller). */
     public static final String SERVER_ID_PREFIX = "sendspin-server:";
+    /** The receiver id of the card of this phone as a Sendspin player (there is one). */
+    public static final String SELF_ID = "sendspin-self:phone";
+
+    public static boolean isSelfId(String id) {
+        return SELF_ID.equals(id);
+    }
+
     /** The port a Sendspin server listens on by default (the player's is 8928). */
     public static final int DEFAULT_SERVER_PORT = 8927;
 

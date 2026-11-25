@@ -236,6 +236,69 @@ public final class SendspinPlayerHost {
         }
     }
 
+    /** One connected server, for the card of this phone. */
+    public static final class SessionInfo {
+        public final String serverName;
+        public final PlayerSession.Phase phase;
+        public final boolean playing;
+
+        SessionInfo(String serverName, PlayerSession.Phase phase, boolean playing) {
+            this.serverName = serverName;
+            this.phase = phase;
+            this.playing = playing;
+        }
+    }
+
+    public List<SessionInfo> sessionInfos() {
+        List<SessionInfo> infos = new ArrayList<>();
+        synchronized (lock) {
+            for (Entry e : entries) {
+                if (e.session != null) {
+                    infos.add(new SessionInfo(e.session.serverName(), e.session.phase(), e == owner));
+                }
+            }
+        }
+        return infos;
+    }
+
+    /** Ends the connection of the server at this position of {@link #sessionInfos()}. */
+    public void disconnect(int index) {
+        PlayerSession session = null;
+        synchronized (lock) {
+            if (index >= 0 && index < entries.size()) {
+                session = entries.get(index).session;
+            }
+        }
+        if (session != null) {
+            session.close();
+        }
+    }
+
+    /** The user set the volume on the phone: the servers are told. */
+    public void setVolumeOnPhone(int percent) {
+        controls.setVolume(percent);
+        announceToServers();
+    }
+
+    public void setMutedOnPhone(boolean mute) {
+        controls.setMuted(mute);
+        announceToServers();
+    }
+
+    private void announceToServers() {
+        List<PlayerSession> sessions = new ArrayList<>();
+        synchronized (lock) {
+            for (Entry e : entries) {
+                if (e.session != null) {
+                    sessions.add(e.session);
+                }
+            }
+        }
+        for (PlayerSession s : sessions) {
+            s.announceState();
+        }
+    }
+
     /** The phase of every session, for a log line. */
     public List<String> sessionPhases() {
         List<String> phases = new ArrayList<>();

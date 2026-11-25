@@ -454,6 +454,21 @@ public final class PlayerSession {
         }
     }
 
+    /** Tells the server the volume, the mute and the delay as they are now (the user changed them on the phone). Any thread. */
+    public void announceState() {
+        final SecureChannel c = channel;
+        if (c == null || !playerActive || closing) {
+            return;
+        }
+        CommandThread.run(() -> {
+            try {
+                sendState(c, true);
+            } catch (IOException e) {
+                // the connection is gone; its thread ends the session
+            }
+        });
+    }
+
     private void sendState(SecureChannel c, boolean available) throws IOException {
         c.sendJson(PlayerMessages.clientState(available, controls.volume(), controls.muted(), controls.outputDelayMs(), requiredLeadMs,
                 minBufferMs, COMMANDS));

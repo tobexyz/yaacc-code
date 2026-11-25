@@ -672,4 +672,11 @@
     <string name="sendspin_player_notification_waiting">Wacht op een server</string>
     <string name="sendspin_player_notification_playing">Speelt van %1$s</string>
     <string name="sendspin_player_notification_stop">Uitschakelen</string>
+    <string name="sendspin_self_state_off">luistert nog niet</string>
+    <string name="sendspin_self_state_waiting">wacht op een server</string>
+    <string name="sendspin_self_state_connected">verbonden met %1$s</string>
+    <string name="sendspin_self_state_playing">speelt van %1$s</string>
+    <string name="sendspin_self_sheet_none">Er is geen server verbonden.</string>
+    <string name="sendspin_self_disconnect">%1$s loskoppelen</string>
+    <string name="sendspin_self_switch_off">Speler uitschakelen</string>
 </resources>

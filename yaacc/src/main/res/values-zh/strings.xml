@@ -668,4 +668,11 @@
     <string name="sendspin_player_notification_waiting">等待服务器</string>
     <string name="sendspin_player_notification_playing">正在播放来自 %1$s</string>
     <string name="sendspin_player_notification_stop">关闭</string>
+    <string name="sendspin_self_state_off">尚未监听</string>
+    <string name="sendspin_self_state_waiting">等待服务器</string>
+    <string name="sendspin_self_state_connected">已连接到 %1$s</string>
+    <string name="sendspin_self_state_playing">正在播放来自 %1$s</string>
+    <string name="sendspin_self_sheet_none">没有已连接的服务器。</string>
+    <string name="sendspin_self_disconnect">断开 %1$s</string>
+    <string name="sendspin_self_switch_off">关闭播放器</string>
 </resources>

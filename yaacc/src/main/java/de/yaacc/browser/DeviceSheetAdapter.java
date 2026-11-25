@@ -241,7 +241,8 @@ final class DeviceSheetAdapter extends RecyclerView.Adapter<RecyclerView.ViewHol
      * controls it. Every other receiver is always offered.
      */
     static boolean offersReceiver(Device<?, ?, ?> device, PickContent content) {
-        if (device instanceof de.yaacc.sendspin.SendspinReceiverDevice && ((de.yaacc.sendspin.SendspinReceiverDevice) device).isServer()) {
+        if (device instanceof de.yaacc.sendspin.SendspinReceiverDevice && (((de.yaacc.sendspin.SendspinReceiverDevice) device).isServer()
+                || ((de.yaacc.sendspin.SendspinReceiverDevice) device).isSelf())) {
             return false;
         }
         return !(device instanceof SnapcastGroupDevice) || content == null || content.offersAudioOnlyReceivers();

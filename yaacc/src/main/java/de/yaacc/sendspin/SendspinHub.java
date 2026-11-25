@@ -835,6 +835,13 @@ public final class SendspinHub implements SendspinReceiverSource {
                 }
             }
         }
+        if (SendspinSettings.isPlayerEnabled(preferences::getBoolean)) {
+            SendspinReceiverDevice self = selfDevice();
+            if (self != null) {
+                result.add(self);
+                current.add(self.getReceiverId());
+            }
+        }
         devices.keySet().retainAll(current);
         Collections.sort(result, new Comparator<SendspinReceiverDevice>() {
             @Override
@@ -844,6 +851,20 @@ public final class SendspinHub implements SendspinReceiverSource {
             }
         });
         return result;
+    }
+
+    /** The card of this phone as a player: one object while its name stays the same (the lists redraw a row when the object changes). */
+    private SendspinReceiverDevice selfDevice() {
+        String name = de.yaacc.sendspin.player.SendspinPlayerService.phoneName();
+        SendspinReceiverDevice cached = devices.get(SendspinAddress.SELF_ID);
+        if (cached != null && cached.showsSame(name)) {
+            return cached;
+        }
+        SendspinReceiverDevice made = SendspinReceiverDevice.ofSelf(name);
+        if (made != null) {
+            devices.put(SendspinAddress.SELF_ID, made);
+        }
+        return made;
     }
 
     private SendspinReceiverDevice serverDeviceFor(Endpoint endpoint) {
@@ -865,6 +886,9 @@ public final class SendspinHub implements SendspinReceiverSource {
 
     @Override
     public synchronized SendspinReceiverDevice findReceiver(String receiverId) {
+        if (SendspinAddress.isSelfId(receiverId)) {
+            return SendspinSettings.isPlayerEnabled(preferences::getBoolean) ? selfDevice() : null;
+        }
         if (SendspinAddress.isServerId(receiverId)) {
             Endpoint server = SendspinAddress.serverEndpointOf(receiverId);
             if (server == null || !isControllerEnabled() || !controllers.listed().contains(server)) {

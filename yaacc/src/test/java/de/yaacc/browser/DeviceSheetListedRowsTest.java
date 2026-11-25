@@ -89,6 +89,12 @@ public class DeviceSheetListedRowsTest {
     }
 
     @Test
+    public void theCardOfThisPhoneAsAPlayerIsNeverOfferedAsAPlaceToPlay() {
+        assertFalse(DeviceSheetAdapter.offersReceiver(de.yaacc.sendspin.SendspinReceiverDevice.ofSelf("YAACC Phone"), PickContent.ofKind("audio")));
+        assertTrue(de.yaacc.sendspin.SendspinReceiverDevice.ofSelf("YAACC Phone").isSelf());
+    }
+
+    @Test
     public void everyOtherReceiverIsOfferedForEveryContent() {
         org.fourthline.cling.model.meta.Device<?, ?, ?> other = org.mockito.Mockito.mock(org.fourthline.cling.model.meta.Device.class);
 

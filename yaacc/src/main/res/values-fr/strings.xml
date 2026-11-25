@@ -676,4 +676,11 @@
     <string name="sendspin_player_notification_waiting">En attente d\'un serveur</string>
     <string name="sendspin_player_notification_playing">Lecture depuis %1$s</string>
     <string name="sendspin_player_notification_stop">Désactiver</string>
+    <string name="sendspin_self_state_off">n\'écoute pas encore</string>
+    <string name="sendspin_self_state_waiting">en attente d\'un serveur</string>
+    <string name="sendspin_self_state_connected">connecté à %1$s</string>
+    <string name="sendspin_self_state_playing">lecture depuis %1$s</string>
+    <string name="sendspin_self_sheet_none">Aucun serveur n\'est connecté.</string>
+    <string name="sendspin_self_disconnect">Déconnecter %1$s</string>
+    <string name="sendspin_self_switch_off">Désactiver le lecteur</string>
 </resources>

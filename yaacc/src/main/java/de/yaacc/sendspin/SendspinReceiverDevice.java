@@ -49,18 +49,22 @@ import java.util.List;
 public final class SendspinReceiverDevice extends Device {
     private static final String PRODUCT_NOTE = " (Sendspin)";
     private static final String SERVER_NOTE = " (Sendspin server)";
+    private static final String SELF_NOTE = " (Sendspin player, this phone)";
 
     private final Endpoint endpoint;
     private final String name;
     private final String friendlyName;
     private final boolean server;
+    private final boolean self;
 
-    private SendspinReceiverDevice(Endpoint endpoint, String name, boolean server) throws ValidationException {
-        super(new DeviceIdentity(new UDN(server ? SendspinAddress.serverIdOf(endpoint) : SendspinAddress.idOf(endpoint))));
+    private SendspinReceiverDevice(Endpoint endpoint, String name, boolean server, boolean self) throws ValidationException {
+        super(new DeviceIdentity(new UDN(self ? SendspinAddress.SELF_ID : server ? SendspinAddress.serverIdOf(endpoint)
+                : SendspinAddress.idOf(endpoint))));
         this.endpoint = endpoint;
         this.name = name;
         this.server = server;
-        this.friendlyName = name + (server ? SERVER_NOTE : PRODUCT_NOTE);
+        this.self = self;
+        this.friendlyName = name + (self ? SELF_NOTE : server ? SERVER_NOTE : PRODUCT_NOTE);
     }
 
     /**
@@ -81,6 +85,17 @@ public final class SendspinReceiverDevice extends Device {
         return make(endpoint, announcedName, true);
     }
 
+    /** The card of this phone as a Sendspin player: it shows who plays on the phone and controls its volume; nothing is played to it. */
+    public static SendspinReceiverDevice ofSelf(String phoneName) {
+        String cleaned = SendspinRowText.clean(phoneName);
+        try {
+            return new SendspinReceiverDevice(new Endpoint("localhost", Endpoint.DEFAULT_PORT, "/sendspin"), cleaned.isEmpty() ? "YAACC" : cleaned,
+                    false, true);
+        } catch (ValidationException e) {
+            return null;
+        }
+    }
+
     private static SendspinReceiverDevice make(Endpoint endpoint, String announcedName, boolean server) {
         if (endpoint == null) {
             return null;
@@ -88,7 +103,7 @@ public final class SendspinReceiverDevice extends Device {
         String cleaned = SendspinRowText.clean(announcedName);
         String shown = cleaned.isEmpty() ? SendspinAddress.format(endpoint) : cleaned;
         try {
-            return new SendspinReceiverDevice(endpoint, shown, server);
+            return new SendspinReceiverDevice(endpoint, shown, server, false);
         } catch (ValidationException e) {
             return null; // not expected: a device without a type is not validated
         }
@@ -99,9 +114,14 @@ public final class SendspinReceiverDevice extends Device {
         return server;
     }
 
+    /** True for the card of this phone as a player. */
+    public boolean isSelf() {
+        return self;
+    }
+
     /** The receiver id of the lists. */
     public String getReceiverId() {
-        return server ? SendspinAddress.serverIdOf(endpoint) : SendspinAddress.idOf(endpoint);
+        return self ? SendspinAddress.SELF_ID : server ? SendspinAddress.serverIdOf(endpoint) : SendspinAddress.idOf(endpoint);
     }
 
     public Endpoint getEndpoint() {
@@ -116,6 +136,9 @@ public final class SendspinReceiverDevice extends Device {
     /** True if a snapshot made with this announced name would look the same as this one. */
     boolean showsSame(String announcedName) {
         String cleaned = SendspinRowText.clean(announcedName);
+        if (self) {
+            return name.equals(cleaned.isEmpty() ? "YAACC" : cleaned);
+        }
         return name.equals(cleaned.isEmpty() ? SendspinAddress.format(endpoint) : cleaned);
     }
 

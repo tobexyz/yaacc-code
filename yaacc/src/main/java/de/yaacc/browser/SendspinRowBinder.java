@@ -31,6 +31,8 @@ import de.yaacc.sendspin.SendspinHub;
 import de.yaacc.sendspin.SendspinReceiverDevice;
 import de.yaacc.sendspin.SendspinRowText;
 import de.yaacc.sendspin.client.ControllerSession;
+import de.yaacc.sendspin.player.SendspinPlayerHost;
+import de.yaacc.sendspin.player.SendspinPlayerRuntime;
 import de.yaacc.sendspin.hub.HubConnection;
 import de.yaacc.sendspin.session.ControllerMessages;
 import de.yaacc.sendspin.session.SendspinMessages;
@@ -133,6 +135,10 @@ final class SendspinRowBinder {
 
     /** Wires the parts of the row that belong to a Sendspin player: the volume slider and the mute symbol. */
     void bind(final ReceiverRowBinder.RowViews views, final SendspinReceiverDevice device, final UpnpClientAccess upnp) {
+        if (device.isSelf()) {
+            bindSelf(views, device);
+            return;
+        }
         if (device.isServer()) {
             bindServer(views, device);
             return;
@@ -320,6 +326,108 @@ final class SendspinRowBinder {
         }
     }
 
+    // ------------------------------------------------------------------ the card of this phone as a player
+
+    private void bindSelf(final ReceiverRowBinder.RowViews views, final SendspinReceiverDevice device) {
+        final String id = device.getReceiverId();
+        hide(views.yxcSource);
+        hide(views.ohActions);
+        hide(views.yxcPresets);
+        hide(views.yxcGroupVolume);
+        hide(views.yxcGroupVolumeText);
+        hide(views.yxcToggle);
+        hide(views.checkBox); // nothing is played to this card: the servers play on the phone
+        showGear(views, () -> SendspinSelfSheet.show(context, device));
+        enable(views.btnPlay, false);
+        enable(views.btnPause, false);
+        enable(views.btnStop, false);
+        views.volume.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+                rows.refreshPlan().userTouchStarted(id, SystemClock.elapsedRealtime());
+                seekBar.getParent().requestDisallowInterceptTouchEvent(true);
+            }
+
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (!fromUser) {
+                    return;
+                }
+                rows.refreshPlan().userChanged(id, SystemClock.elapsedRealtime());
+                views.volumeText.setText(progress + "%");
+                SendspinPlayerHost host = SendspinPlayerRuntime.host();
+                if (host != null) {
+                    host.setVolumeOnPhone(progress);
+                }
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                rows.refreshPlan().userTouchEnded(id, SystemClock.elapsedRealtime());
+                seekBar.getParent().requestDisallowInterceptTouchEvent(false);
+            }
+        });
+        views.mute.setOnClickListener(v -> {
+            SendspinPlayerHost host = SendspinPlayerRuntime.host();
+            rows.refreshPlan().userChanged(id, SystemClock.elapsedRealtime());
+            if (host == null) {
+                views.mute.setChecked(!views.mute.isChecked());
+            } else {
+                host.setMutedOnPhone(views.mute.isChecked());
+            }
+        });
+        showSelf(views, device);
+    }
+
+    private void showSelf(ReceiverRowBinder.RowViews views, SendspinReceiverDevice device) {
+        SendspinPlayerHost host = SendspinPlayerRuntime.host();
+        String state;
+        if (host == null) {
+            state = context.getString(R.string.sendspin_self_state_off);
+        } else {
+            java.util.List<SendspinPlayerHost.SessionInfo> servers = host.sessionInfos();
+            String playing = null;
+            String connected = null;
+            for (SendspinPlayerHost.SessionInfo info : servers) {
+                String name = SendspinRowText.clean(info.serverName);
+                if (info.playing) {
+                    playing = name;
+                } else if (connected == null) {
+                    connected = name;
+                }
+            }
+            state = playing != null ? context.getString(R.string.sendspin_self_state_playing, playing)
+                    : connected != null ? context.getString(R.string.sendspin_self_state_connected, connected)
+                    : context.getString(R.string.sendspin_self_state_waiting);
+        }
+        if (views.yxcText != null) {
+            String text = device.getDisplayString() + "\n" + state;
+            if (!text.contentEquals(views.yxcText.getText())) {
+                views.yxcText.setText(text);
+            }
+            views.yxcText.setVisibility(View.VISIBLE);
+            views.yxcText.setOnClickListener(null);
+            views.yxcText.setClickable(false);
+        }
+        String id = device.getReceiverId();
+        long now = SystemClock.elapsedRealtime();
+        if (host != null) {
+            rows.showVolume(views, id, now, host.volume());
+        } else if (!views.volume.isPressed()) {
+            views.volume.setProgress(0);
+            views.volumeText.setText("");
+        }
+        views.volume.setEnabled(host != null);
+        views.volume.setAlpha(host != null ? 1f : 0.5f);
+        views.mute.setEnabled(host != null);
+        views.mute.setAlpha(host != null ? 1f : 0.5f);
+        boolean muted = host != null && host.muted();
+        if (views.mute.isChecked() != muted) {
+            views.mute.setChecked(muted);
+        }
+        SnapcastMuteToggle.syncState(context, views.mute);
+    }
+
     private void showServer(ReceiverRowBinder.RowViews views, final SendspinReceiverDevice device) {
         ControllerSession session = sessionOf(device);
         ControllerMessages.Group group = session == null ? null : session.group();
@@ -369,6 +477,10 @@ final class SendspinRowBinder {
 
     /** Shows the text, the volume and the mute state of the player in its row. Main thread. */
     void show(ReceiverRowBinder.RowViews views, SendspinReceiverDevice device, Player player) {
+        if (device.isSelf()) {
+            showSelf(views, device);
+            return;
+        }
         if (device.isServer()) {
             showServer(views, device);
             return;

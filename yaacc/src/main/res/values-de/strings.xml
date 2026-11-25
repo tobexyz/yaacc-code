@@ -672,4 +672,11 @@
     <string name="sendspin_player_notification_waiting">Wartet auf einen Server</string>
     <string name="sendspin_player_notification_playing">Spielt von %1$s</string>
     <string name="sendspin_player_notification_stop">Ausschalten</string>
+    <string name="sendspin_self_state_off">hört noch nicht zu</string>
+    <string name="sendspin_self_state_waiting">wartet auf einen Server</string>
+    <string name="sendspin_self_state_connected">verbunden mit %1$s</string>
+    <string name="sendspin_self_state_playing">spielt von %1$s</string>
+    <string name="sendspin_self_sheet_none">Kein Server ist verbunden.</string>
+    <string name="sendspin_self_disconnect">%1$s trennen</string>
+    <string name="sendspin_self_switch_off">Player ausschalten</string>
 </resources>

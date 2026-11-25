@@ -676,4 +676,11 @@
     <string name="sendspin_player_notification_waiting">Esperando a un servidor</string>
     <string name="sendspin_player_notification_playing">Reproduciendo desde %1$s</string>
     <string name="sendspin_player_notification_stop">Desactivar</string>
+    <string name="sendspin_self_state_off">aún no escucha</string>
+    <string name="sendspin_self_state_waiting">esperando a un servidor</string>
+    <string name="sendspin_self_state_connected">conectado a %1$s</string>
+    <string name="sendspin_self_state_playing">reproduciendo desde %1$s</string>
+    <string name="sendspin_self_sheet_none">Ningún servidor está conectado.</string>
+    <string name="sendspin_self_disconnect">Desconectar %1$s</string>
+    <string name="sendspin_self_switch_off">Desactivar el reproductor</string>
 </resources>

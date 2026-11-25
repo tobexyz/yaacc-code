@@ -84,7 +84,7 @@ final class SendspinLinkSheet {
         final List<String> members = groups.membersOf(id);
         for (SendspinReceiverDevice other : hub.receivers()) {
             String otherId = other.getReceiverId();
-            if (other.isServer() || otherId.equals(id) || groups.isLeader(otherId)) {
+            if (other.isServer() || other.isSelf() || otherId.equals(id) || groups.isLeader(otherId)) {
                 continue; // a leader of another group has to give up its group first
             }
             CheckBox box = new CheckBox(context);

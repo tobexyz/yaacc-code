@@ -264,6 +264,36 @@ public class SendspinPlayerHostTest {
     }
 
     @Test
+    public void aVolumeSetOnThePhoneIsAnnouncedToTheServersAndTheServersAreListed() throws Exception {
+        Server a = newServer();
+        a.connect();
+        assertEquals(1, host.sessionInfos().size());
+        assertEquals("Server", host.sessionInfos().get(0).serverName);
+        host.setVolumeOnPhone(35);
+        Envelope state = a.next();
+        assertEquals("client/state", state.type());
+        assertEquals(35, state.payload().getJSONObject("player").getInt("volume"));
+        host.setMutedOnPhone(true);
+        assertTrue(a.next().payload().getJSONObject("player").getBoolean("muted"));
+        assertTrue(host.muted());
+    }
+
+    @Test
+    public void aServerCanBeDisconnectedFromThePhone() throws Exception {
+        Server a = newServer();
+        a.connect();
+        host.disconnect(0);
+        Envelope goodbye = a.next();
+        assertEquals("client/goodbye", goodbye.type());
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (host.sessionCount() > 0 && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        assertEquals(0, host.sessionCount());
+        host.disconnect(5); // no such server: nothing happens
+    }
+
+    @Test
     public void connectionsBeyondTheLimitAreClosedAtOnce() throws Exception {
         for (int i = 0; i < SendspinPlayerHost.MAX_SESSIONS; i++) {
             newServer().connect();

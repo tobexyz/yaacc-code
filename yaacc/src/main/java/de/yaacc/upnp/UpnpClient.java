@@ -651,7 +651,7 @@ public class UpnpClient implements RegistryListener, ServiceConnection {
             // nor is an FCast receiver: null when it is not known (any more)
             return fcastReceivers.findReceiver(identifier);
         }
-        if (SendspinAddress.isSendspinId(identifier) || SendspinAddress.isServerId(identifier)) {
+        if (SendspinAddress.isSendspinId(identifier) || SendspinAddress.isServerId(identifier) || SendspinAddress.isSelfId(identifier)) {
             // nor is a Sendspin player: null when it is not known (any more) or Sendspin is switched off
             return sendspinReceivers.findReceiver(identifier);
         }

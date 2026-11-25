@@ -1372,6 +1372,9 @@ final class ReceiverRowBinder {
         if (isLocalDevice(device) || device instanceof SnapcastGroupDevice
                 || device instanceof de.yaacc.fcast.discovery.FCastReceiverDevice
                 || device instanceof de.yaacc.sendspin.SendspinReceiverDevice) {
+            if (device instanceof de.yaacc.sendspin.SendspinReceiverDevice && ((de.yaacc.sendspin.SendspinReceiverDevice) device).isSelf()) {
+                return; // the card of this phone as a player has no transport: the servers play
+            }
             if (device instanceof de.yaacc.sendspin.SendspinReceiverDevice && ((de.yaacc.sendspin.SendspinReceiverDevice) device).isServer()) {
                 // the card of a Sendspin server: the buttons are commands to its group, there is no player of this app
                 sendspinRows.controlServer((de.yaacc.sendspin.SendspinReceiverDevice) device,

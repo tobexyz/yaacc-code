@@ -147,6 +147,7 @@ public final class SendspinPlayerService extends Service {
                 return;
             }
         }
+        SendspinPlayerRuntime.set(host);
         advert = new SendspinServerAdvert(this);
         advert.register(SendspinServiceType.TYPE, hub.clientKeys().id(), phoneName(), PATH, port);
         refresh();
@@ -181,7 +182,8 @@ public final class SendspinPlayerService extends Service {
         }
     }
 
-    private String phoneName() {
+    /** The name of this phone as a player, for the card and the announcement. */
+    public static String phoneName() {
         String model = Build.MODEL == null ? "" : Build.MODEL.trim();
         return model.isEmpty() ? "YAACC" : "YAACC " + model;
     }
@@ -316,6 +318,7 @@ public final class SendspinPlayerService extends Service {
         }
         SendspinPlayerHost h = host;
         host = null;
+        SendspinPlayerRuntime.set(null);
         if (h != null) {
             h.close();
         }
