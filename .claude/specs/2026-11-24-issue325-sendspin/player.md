@@ -40,4 +40,10 @@ other roles) and not the in-process path of YAACC's own groups.
 | P-5 | Pairing | the Pairing PSK flow as a client (K8) is there; *Allow unpaired servers* decides whether an unpaired server may play |
 
 ## Done
-- (updated below as slices land)
+- **Slice 1 (messages)**: `PlayerMessages` (hello with the player support object, state with the player object, the commands, the stream
+  start, clear and end, the audio chunk), `PlayerMessagesTest` (round trips through the server-side parsers, hostile input).
+- **Slice 2 (session)**: `PlayerSession` (handshake as a client, hello, activation with the admission rules and the pairing as a client,
+  state, clock bursts, the stream to an `Audio` port, volume, mute and output delay commands), `PlayerSessionTest` (a fake server that uses
+  the real handshake code). Known debt: the pairing and clock-burst code is copied from `ControllerSession`; a later change moves both onto one base.
+- **Open**: slice 3 (the audio engine behind `PlayerSession.Audio`), slice 4 (the listening socket and announcement of `_sendspin._tcp`, the
+  service, the setting, the card), a test against the reference server (`sendspin serve --client ws://host:8928/sendspin`) in the rig.
