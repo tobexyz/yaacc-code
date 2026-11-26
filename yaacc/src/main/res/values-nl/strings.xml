@@ -689,4 +689,8 @@
     <string name="sendspin_pair_scan">QR-code scannen</string>
     <string name="sendspin_pair_scan_prompt">Richt de camera op de QR-code van het koppelingstoken op de andere telefoon</string>
     <string name="sendspin_row_this_phone">deze telefoon</string>
+    <string name="sendspin_devices_add_title">Apparaat toevoegen met zijn koppelingstoken</string>
+    <string name="sendspin_devices_add_message">Voer het koppelingstoken in dat de andere telefoon toont (zijn kaart van deze telefoon, tandwiel, Koppelingstoken) of scan zijn QR-code. Het apparaat mag deze telefoon dan gebruiken, als speler en als bediening, ook als niet-gekoppelde apparaten niet zijn toegestaan.</string>
+    <string name="sendspin_devices_add">Apparaat toevoegen</string>
+    <string name="sendspin_devices_added">Het apparaat mag deze telefoon gebruiken zodra het verbindt.</string>
 </resources>

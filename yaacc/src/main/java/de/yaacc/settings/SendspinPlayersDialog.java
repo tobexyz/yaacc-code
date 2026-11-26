@@ -76,6 +76,9 @@ final class SendspinPlayersDialog {
         list = new LinearLayout(context);
         list.setOrientation(LinearLayout.VERTICAL);
         root.addView(list, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        if (!servers) {
+            addDeviceSection(root, density);
+        }
         refresh();
         android.widget.ScrollView scroll = new android.widget.ScrollView(context);
         scroll.addView(root);
@@ -84,6 +87,56 @@ final class SendspinPlayersDialog {
                 .setView(scroll)
                 .setPositiveButton(android.R.string.ok, null)
                 .show();
+    }
+
+    /** The entry of a device's pairing token before it connects: by text or by scanning the QR code on the other phone. */
+    private void addDeviceSection(LinearLayout root, float density) {
+        TextView heading = new TextView(context);
+        heading.setText(R.string.sendspin_devices_add_title);
+        heading.setTextAppearance(android.R.style.TextAppearance_Material_Subhead);
+        heading.setPadding(0, (int) (20 * density), 0, (int) (4 * density));
+        root.addView(heading);
+        TextView about = new TextView(context);
+        about.setText(R.string.sendspin_devices_add_message);
+        root.addView(about);
+        final EditText token = new EditText(context);
+        token.setHint(R.string.sendspin_pair_hint);
+        token.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                | android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
+        token.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(400)});
+        root.addView(token, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout buttons = new LinearLayout(context);
+        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        buttons.setGravity(Gravity.END);
+        Button scan = new Button(context);
+        scan.setText(R.string.sendspin_pair_scan);
+        scan.setOnClickListener(v -> de.yaacc.sendspin.QrScan.scan(context, text -> {
+            token.setText(text);
+            addDevice(token);
+        }));
+        Button addDevice = new Button(context);
+        addDevice.setText(R.string.sendspin_devices_add);
+        addDevice.setOnClickListener(v -> addDevice(token));
+        buttons.addView(scan);
+        buttons.addView(addDevice);
+        root.addView(buttons);
+    }
+
+    private void addDevice(EditText token) {
+        switch (hub.addDeviceToken(token.getText().toString())) {
+            case STARTED:
+                token.setText("");
+                toast(R.string.sendspin_devices_added);
+                refresh();
+                break;
+            case NO_ROOM:
+                toast(R.string.sendspin_pair_no_room);
+                break;
+            case NOT_A_TOKEN:
+            default:
+                toast(R.string.sendspin_pair_not_a_token);
+                break;
+        }
     }
 
     static void show(Context context) {

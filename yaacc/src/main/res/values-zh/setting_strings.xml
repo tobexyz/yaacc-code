@@ -189,6 +189,6 @@
     <string name="settings_sendspin_player_summary">默认关闭。开启后，手机是 Sendspin 播放器：带通知的服务会保持一个监听端口（8928）并在本地网络中通告手机，使 Music Assistant 或其他服务器可以在其上播放音乐。同一时间只有一个服务器播放（协议对多个服务器的规则）。仅接受本地网络地址，同时最多 3 个服务器。你已配对的服务器可以播放；其他服务器见“允许未配对的服务器在此手机上播放”（默认关闭）。开启期间手机会持续监听并通告。</string>
     <string name="settings_sendspin_player_flac_title">手机作为播放器时优先使用 FLAC</string>
     <string name="settings_sendspin_player_flac_summary">默认关闭。开启后，服务器在可能时会发送 FLAC（流更小，约为 PCM 的一半），由手机用自己的解码器解码；与 Snapcast 客户端相同的路径，尚未与 Sendspin 服务器实际验证过。PCM 仍作为第二选择提供。对服务器的下一次连接生效。</string>
-    <string name="settings_sendspin_player_unpaired_title">允许未配对的服务器在此手机上播放</string>
-    <string name="settings_sendspin_player_unpaired_summary">默认关闭。开启后，未配对的服务器无需证明身份即可在手机上播放：网络中任何找到手机的设备都可以连接并播放（连接已加密，但未经身份验证）。关闭时，只有你已配对的服务器才能播放：打开此手机卡片的齿轮，复制其配对令牌并输入到服务器中（在 Music Assistant 中，在它要求客户端配对令牌的地方）。</string>
+    <string name="settings_sendspin_player_unpaired_title">允许未配对的设备使用此手机</string>
+    <string name="settings_sendspin_player_unpaired_summary">默认关闭。其他设备可以对此手机做的所有事情共用这一个设置：在其上播放（当它是播放器时）以及控制它正在播放的内容。开启后，未配对的设备无需证明身份即可这样做：网络中任何找到手机的设备都可以连接（连接已加密，但未经身份验证）。关闭时，只有你已配对的设备可以：在已配对设备列表中使用“添加设备”（扫描二维码或输入另一部手机的令牌），或者对播放器，在此手机的卡片中输入其令牌。</string>
 </resources>

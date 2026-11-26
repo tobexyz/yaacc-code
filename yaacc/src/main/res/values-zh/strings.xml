@@ -685,4 +685,8 @@
     <string name="sendspin_pair_scan">扫描二维码</string>
     <string name="sendspin_pair_scan_prompt">将相机对准另一部手机上配对令牌的二维码</string>
     <string name="sendspin_row_this_phone">此手机</string>
+    <string name="sendspin_devices_add_title">通过配对令牌添加设备</string>
+    <string name="sendspin_devices_add_message">输入另一部手机显示的配对令牌（其“此手机”卡片、齿轮、配对令牌），或扫描它的二维码。之后该设备即使在不允许未配对设备时也可以使用此手机，无论作为播放器还是控制器。</string>
+    <string name="sendspin_devices_add">添加设备</string>
+    <string name="sendspin_devices_added">设备连接后即可使用此手机。</string>
 </resources>

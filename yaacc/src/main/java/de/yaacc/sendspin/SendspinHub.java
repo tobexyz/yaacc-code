@@ -609,6 +609,15 @@ public final class SendspinHub implements SendspinReceiverSource {
 
     // ------------------------------------------------------------------ pairing and approvals
 
+    /** Enters the pairing token of a device that has not connected yet (K15: one pairing for every role of a device). */
+    public SendspinPolicy.PairOutcome addDeviceToken(String tokenText) {
+        SendspinPolicy.PairOutcome outcome = approvals.addDeviceToken(tokenText);
+        if (outcome == SendspinPolicy.PairOutcome.STARTED) {
+            fire();
+        }
+        return outcome;
+    }
+
     /** The id the player at this endpoint presented, null while there is no connection (for the message of the pairing dialog). */
     public synchronized String connectedClientId(Endpoint endpoint) {
         HubConnection current = connections.get(endpoint);

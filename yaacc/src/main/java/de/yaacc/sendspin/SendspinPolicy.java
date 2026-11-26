@@ -96,6 +96,19 @@ public final class SendspinPolicy implements ServerPolicy {
         return approvals.ids();
     }
 
+    /**
+     * The operator enters the token of a device before it connects (the settings' "Add device", by text or by scanning its QR code):
+     * the token is kept under the key it carries, so the device's next connection references the Pairing PSK and is paired, for
+     * whatever role it comes in. There is no connection to check the key against yet; the PSK only works for the key it belongs to.
+     */
+    public PairOutcome addDeviceToken(String text) {
+        PairingToken token = PairingToken.decode(text);
+        if (token == null) {
+            return PairOutcome.NOT_A_TOKEN;
+        }
+        return pairings.addToken(token) ? PairOutcome.STARTED : PairOutcome.NO_ROOM;
+    }
+
     /** What pasting a token did. */
     public enum PairOutcome {
         /** The token is kept; the next connection to the player references its Pairing PSK and pairs. */

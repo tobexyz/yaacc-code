@@ -693,4 +693,8 @@
     <string name="sendspin_pair_scan">Escanear código QR</string>
     <string name="sendspin_pair_scan_prompt">Apunta la cámara al código QR del token de emparejamiento en el otro teléfono</string>
     <string name="sendspin_row_this_phone">este teléfono</string>
+    <string name="sendspin_devices_add_title">Añadir un dispositivo con su token de emparejamiento</string>
+    <string name="sendspin_devices_add_message">Introduce el token de emparejamiento que muestra el otro teléfono (su tarjeta de este teléfono, engranaje, Token de emparejamiento) o escanea su código QR. El dispositivo podrá entonces usar este teléfono, como reproductor y como control, aunque no se permitan dispositivos sin emparejar.</string>
+    <string name="sendspin_devices_add">Añadir dispositivo</string>
+    <string name="sendspin_devices_added">El dispositivo podrá usar este teléfono cuando se conecte.</string>
 </resources>

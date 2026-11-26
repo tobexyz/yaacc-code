@@ -694,4 +694,8 @@
     <string name="sendspin_pair_scan">Scan QR code</string>
     <string name="sendspin_pair_scan_prompt">Point the camera at the QR code of the pairing token on the other phone</string>
     <string name="sendspin_row_this_phone">this phone</string>
+    <string name="sendspin_devices_add_title">Add a device by its pairing token</string>
+    <string name="sendspin_devices_add_message">Enter the pairing token that the other phone shows (its card of this phone, gear, Pairing token), or scan its QR code. The device may then use this phone, as a player and as a controller, even when unpaired devices are not allowed.</string>
+    <string name="sendspin_devices_add">Add device</string>
+    <string name="sendspin_devices_added">The device may use this phone once it connects.</string>
 </resources>

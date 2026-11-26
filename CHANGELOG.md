@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- Sendspin: the YAACC server offers the controller role: other Sendspin controllers (another YAACC phone, or any client of the protocol) see what plays (title, artist, album, progress, cover) and control it (play, pause, stop, next, previous, volume, mute, repeat, shuffle, seek, switch group); only paired devices, or all with *Allow unpaired devices to use this phone* (one setting for all roles); *Add a device by its pairing token* in the settings (text or QR code); group volume follows the protocol's rule
 - Sendspin: groups are easier to read: the leader's card names its members, a member (also the card of this phone) says whose group it plays in, and members are listed directly under their leader
 - Sendspin: the phone itself can be a member of a group: the link sheet of another player lists the card of this phone, so that the music plays on both in sync (the app's own hub dials its own player over the loopback address, no pairing needed for it)
 - Sendspin: the pairing token of the phone as a player can be shown as a QR code (*Show QR code* on the token screen, which now blocks screenshots); and a *Scan QR code* button in the dialog that enters a player's token (camera permission asked only when it is tapped); uses the ZXing library

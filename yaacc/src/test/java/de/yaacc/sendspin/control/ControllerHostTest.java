@@ -243,4 +243,41 @@ public class ControllerHostTest {
         host.refreshAll();
         waitFor("cleared", () -> c.artwork() == null);
     }
+
+    @Test(timeout = 90000)
+    public void aControllerWhoseTokenWasEnteredBeforeItConnectsIsPairedAndServedEvenThoughUnpairedDevicesAreRefused() throws Exception {
+        unpairedAllowed.set(false);
+        de.yaacc.sendspin.SendspinClientPairings clientPairings = new de.yaacc.sendspin.SendspinClientPairings(new MapStore(), new SecureRandom());
+        String token = clientPairings.token(clientKeys); // what the controlling phone shows
+        SendspinPolicy policy = new SendspinPolicy(new MapStore());
+        assertEquals(SendspinPolicy.PairOutcome.STARTED, policy.addDeviceToken(token)); // entered on this phone before it connects
+        assertEquals(SendspinPolicy.PairOutcome.NOT_A_TOKEN, policy.addDeviceToken("hello"));
+
+        final FakePlayer fake = new FakePlayer().open();
+        toClose.add(fake);
+        HubConnection hub = new HubConnection(new Endpoint("127.0.0.1", 8927, "/sendspin"), serverKeys, policy, (e, r) -> fake.hubLink(),
+                HubClock.SYSTEM, new SecureRandom(), "Phone", null);
+        hub.setControllerHost(host);
+        toClose.add(hub::close);
+        Connector.Link clientEnd = new Connector.Link() {
+            @Override
+            public WsConnection ws() {
+                return fake.playerWs;
+            }
+
+            @Override
+            public void close() throws IOException {
+                fake.close();
+            }
+        };
+        ControllerSession c = new ControllerSession(new Endpoint("127.0.0.1", 8927, "/sendspin"), clientKeys, false, (e, r) -> clientEnd,
+                HubClock.SYSTEM, new SecureRandom(), "Remote", null, clientPairings);
+        toClose.add(c::close);
+        hub.start();
+        c.start();
+        waitFor("paired and active", () -> c.phase() == ControllerSession.Phase.ACTIVE && c.controller() != null);
+        assertTrue(policy.isPaired(clientKeys.id()));
+        assertTrue(c.pause());
+        waitFor("the command of a paired controller reaches the player", () -> group.log.contains("pause"));
+    }
 }

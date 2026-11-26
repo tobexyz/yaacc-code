@@ -177,7 +177,7 @@
             android:title="@string/settings_sendspin_player_title" />
         <CheckBoxPreference
             android:defaultValue="false"
-            android:dependency="@string/settings_sendspin_player"
+            android:dependency="@string/settings_sendspin_enabled"
             android:key="@string/settings_sendspin_player_unpaired"
             android:summary="@string/settings_sendspin_player_unpaired_summary"
             android:title="@string/settings_sendspin_player_unpaired_title" />

@@ -689,4 +689,8 @@
     <string name="sendspin_pair_scan">QR-Code scannen</string>
     <string name="sendspin_pair_scan_prompt">Richte die Kamera auf den QR-Code des Kopplungstokens auf dem anderen Telefon</string>
     <string name="sendspin_row_this_phone">dieses Telefon</string>
+    <string name="sendspin_devices_add_title">Gerät mit seinem Kopplungstoken hinzufügen</string>
+    <string name="sendspin_devices_add_message">Gib das Kopplungstoken ein, das das andere Telefon anzeigt (dessen Karte dieses Telefons, Zahnrad, Kopplungstoken), oder scanne seinen QR-Code. Das Gerät darf dieses Telefon dann nutzen, als Player und als Steuerung, auch wenn nicht gekoppelte Geräte nicht erlaubt sind.</string>
+    <string name="sendspin_devices_add">Gerät hinzufügen</string>
+    <string name="sendspin_devices_added">Das Gerät darf dieses Telefon nutzen, sobald es sich verbindet.</string>
 </resources>

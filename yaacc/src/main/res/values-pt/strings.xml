@@ -693,4 +693,8 @@
     <string name="sendspin_pair_scan">Escanear código QR</string>
     <string name="sendspin_pair_scan_prompt">Aponte a câmera para o código QR do token de pareamento no outro telefone</string>
     <string name="sendspin_row_this_phone">este telefone</string>
+    <string name="sendspin_devices_add_title">Adicionar um dispositivo com o token de pareamento</string>
+    <string name="sendspin_devices_add_message">Insira o token de pareamento que o outro telefone mostra (o cartão deste telefone, engrenagem, Token de pareamento) ou escaneie o código QR dele. O dispositivo poderá então usar este telefone, como player e como controle, mesmo que dispositivos não pareados não sejam permitidos.</string>
+    <string name="sendspin_devices_add">Adicionar dispositivo</string>
+    <string name="sendspin_devices_added">O dispositivo poderá usar este telefone quando se conectar.</string>
 </resources>
