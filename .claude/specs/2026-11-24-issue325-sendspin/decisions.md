@@ -118,3 +118,8 @@ Android reference pages: `KeyAgreement`/`KeyPairGenerator` algorithm `XDH` (X255
 - The player accepts the loopback address (the filter keeps the other addresses of the phone refused) and treats a connection over it as the app itself: it admits it as unpaired whatever the player's setting for unpaired servers says, so no pairing with itself is needed. **Open (K10, postponed security review):** another app on the same phone can also connect to the loopback port and play on the player; the impact is audio on this phone only, and the player only runs while the owner switched it on.
 - The connection to the own player is made when the link sheet opens (`connectionById(self, true)`), because `link` needs the hello; a message "not known yet" means it was not ready.
 
+## 2026-11-26 - Cards per phone, controller role of the server, remote linking (owner's answers)
+- Agreed: one card per YAACC phone (K14); the controller role of the YAACC server (K15); groups easier to read (K17).
+- Remote linking (MusicCast-like) is **not part of the protocol**, so it is only a future enhancement to be discussed (K16); nothing is decided.
+- Why a group is invisible on another phone: groups exist only in the app that plays (the hub); the protocol has no group object that a second app can read. K15 can show the group read-only.
+

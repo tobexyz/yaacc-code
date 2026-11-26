@@ -326,6 +326,20 @@ final class SendspinRowBinder {
         }
     }
 
+    /** The names of the members of a group, for the line of its leader. */
+    private String memberNames(SendspinHub hub, String leaderId) {
+        StringBuilder names = new StringBuilder();
+        for (String member : hub.groups().membersOf(leaderId)) {
+            SendspinReceiverDevice other = hub.findReceiver(member);
+            if (names.length() > 0) {
+                names.append(", ");
+            }
+            String name = other == null ? member : SendspinRowText.clean(other.getName());
+            names.append(other != null && other.isSelf() ? context.getString(R.string.sendspin_row_this_phone) : name);
+        }
+        return names.toString();
+    }
+
     // ------------------------------------------------------------------ the card of this phone as a player
 
     private void bindSelf(final ReceiverRowBinder.RowViews views, final SendspinReceiverDevice device) {
@@ -402,6 +416,13 @@ final class SendspinRowBinder {
         }
         if (views.yxcText != null) {
             String text = device.getDisplayString() + "\n" + state;
+            SendspinHub hub = SendspinHub.getShared(context);
+            String leaderId = hub.groups().leaderOf(device.getReceiverId());
+            if (leaderId != null) {
+                SendspinReceiverDevice leader = hub.findReceiver(leaderId);
+                text += "\n" + context.getString(R.string.sendspin_row_group_member,
+                        leader == null ? leaderId : SendspinRowText.clean(leader.getName()));
+            }
             if (!text.contentEquals(views.yxcText.getText())) {
                 views.yxcText.setText(text);
             }
@@ -502,7 +523,7 @@ final class SendspinRowBinder {
             text += "\n" + context.getString(R.string.sendspin_row_group_member,
                     leader == null ? leaderId : SendspinRowText.clean(leader.getName()));
         } else if (hub.groups().isLeader(device.getReceiverId())) {
-            text += "\n" + context.getString(R.string.sendspin_row_group_leader, hub.groups().membersOf(device.getReceiverId()).size() + 1);
+            text += "\n" + context.getString(R.string.sendspin_row_group_leader, memberNames(hub, device.getReceiverId()));
         }
         if (views.yxcText != null) {
             if (!text.contentEquals(views.yxcText.getText())) {

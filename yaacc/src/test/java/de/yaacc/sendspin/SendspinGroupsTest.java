@@ -115,4 +115,16 @@ public class SendspinGroupsTest {
         assertTrue(groups.membersOf(null).isEmpty());
         assertNull(groups.leaderOf(null));
     }
+
+    @Test
+    public void membersAreListedDirectlyUnderTheirLeaderAndTheRestKeepsItsOrder() {
+        java.util.Map<String, String> leaderOf = new java.util.HashMap<>();
+        leaderOf.put("c", "a");
+        leaderOf.put("e", "a");
+        leaderOf.put("d", "zz"); // its leader is not in the list: it stays
+        java.util.List<String> sorted = java.util.Arrays.asList("a", "b", "c", "d", "e", "(not a player)");
+        java.util.List<String> grouped = SendspinGroups.groupedOrder(sorted, s -> s.startsWith("(") ? null : s, leaderOf::get);
+        assertEquals(java.util.Arrays.asList("a", "c", "e", "b", "d", "(not a player)"), grouped);
+        assertEquals("no groups, no change", sorted, SendspinGroups.groupedOrder(sorted, s -> s.startsWith("(") ? null : s, id -> null));
+    }
 }

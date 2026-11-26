@@ -645,7 +645,7 @@
     <string name="sendspin_player_forget_pairing">Koppeling vergeten</string>
     <string name="sendspin_player_revoke">Goedkeuring intrekken</string>
     <string name="sendspin_row_link">Spelers koppelen in een groep</string>
-    <string name="sendspin_row_group_leader">groep van %1$d spelers</string>
+    <string name="sendspin_row_group_leader">leidt een groep met: %1$s</string>
     <string name="sendspin_row_group_member">in de groep van %1$s</string>
     <string name="sendspin_link_title">Groep van %1$s</string>
     <string name="sendspin_link_message">Vink de spelers aan die samen met deze spelen. Een speler koppelen keurt hem ook goed.</string>
@@ -688,4 +688,5 @@
     <string name="sendspin_selfpair_qr_description">Koppelingstoken van deze telefoon als QR-code</string>
     <string name="sendspin_pair_scan">QR-code scannen</string>
     <string name="sendspin_pair_scan_prompt">Richt de camera op de QR-code van het koppelingstoken op de andere telefoon</string>
+    <string name="sendspin_row_this_phone">deze telefoon</string>
 </resources>

@@ -649,7 +649,7 @@
     <string name="sendspin_player_forget_pairing">Esquecer pareamento</string>
     <string name="sendspin_player_revoke">Retirar aprovação</string>
     <string name="sendspin_row_link">Vincular players em um grupo</string>
-    <string name="sendspin_row_group_leader">grupo de %1$d players</string>
+    <string name="sendspin_row_group_leader">lidera um grupo com: %1$s</string>
     <string name="sendspin_row_group_member">no grupo de %1$s</string>
     <string name="sendspin_link_title">Grupo de %1$s</string>
     <string name="sendspin_link_message">Marque os players que tocam junto com este. Vincular um player também o aprova.</string>
@@ -692,4 +692,5 @@
     <string name="sendspin_selfpair_qr_description">Token de pareamento deste telefone como código QR</string>
     <string name="sendspin_pair_scan">Escanear código QR</string>
     <string name="sendspin_pair_scan_prompt">Aponte a câmera para o código QR do token de pareamento no outro telefone</string>
+    <string name="sendspin_row_this_phone">este telefone</string>
 </resources>

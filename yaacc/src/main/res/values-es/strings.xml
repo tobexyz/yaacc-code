@@ -649,7 +649,7 @@
     <string name="sendspin_player_forget_pairing">Olvidar emparejamiento</string>
     <string name="sendspin_player_revoke">Retirar aprobación</string>
     <string name="sendspin_row_link">Enlazar reproductores en un grupo</string>
-    <string name="sendspin_row_group_leader">grupo de %1$d reproductores</string>
+    <string name="sendspin_row_group_leader">dirige un grupo con: %1$s</string>
     <string name="sendspin_row_group_member">en el grupo de %1$s</string>
     <string name="sendspin_link_title">Grupo de %1$s</string>
     <string name="sendspin_link_message">Marca los reproductores que suenan junto con este. Enlazar un reproductor también lo aprueba.</string>
@@ -692,4 +692,5 @@
     <string name="sendspin_selfpair_qr_description">Token de emparejamiento de este teléfono como código QR</string>
     <string name="sendspin_pair_scan">Escanear código QR</string>
     <string name="sendspin_pair_scan_prompt">Apunta la cámara al código QR del token de emparejamiento en el otro teléfono</string>
+    <string name="sendspin_row_this_phone">este teléfono</string>
 </resources>

@@ -650,7 +650,7 @@
     <string name="sendspin_player_forget_pairing">Forget pairing</string>
     <string name="sendspin_player_revoke">Withdraw approval</string>
     <string name="sendspin_row_link">Link players into a group</string>
-    <string name="sendspin_row_group_leader">group of %1$d players</string>
+    <string name="sendspin_row_group_leader">leads a group with: %1$s</string>
     <string name="sendspin_row_group_member">in the group of %1$s</string>
     <string name="sendspin_link_title">Group of %1$s</string>
     <string name="sendspin_link_message">Tick the players that play together with this one. Linking a player also approves it.</string>
@@ -693,4 +693,5 @@
     <string name="sendspin_selfpair_qr_description">Pairing token of this phone as a QR code</string>
     <string name="sendspin_pair_scan">Scan QR code</string>
     <string name="sendspin_pair_scan_prompt">Point the camera at the QR code of the pairing token on the other phone</string>
+    <string name="sendspin_row_this_phone">this phone</string>
 </resources>

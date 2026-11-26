@@ -66,8 +66,11 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
     };
 
 
+    private final Context context;
+
     public BrowseReceiverDeviceAdapter(Context ctx, UpnpClient upnpClient, RecyclerView devicesListView, Collection<Device<?, ?, ?>> devices, Collection<Device<?, ?, ?>> selectedDevices) {
         super();
+        this.context = ctx;
         this.devices = new ArrayList<>(devices);
         this.selectedDevices = new LinkedList<>(selectedDevices);
         this.devicesListView = devicesListView;
@@ -119,6 +122,20 @@ public class BrowseReceiverDeviceAdapter extends RecyclerView.Adapter<BrowseRece
             // 2. Then by name
             return d1.getDetails().getFriendlyName().compareTo(d2.getDetails().getFriendlyName());
         });
+        // 3. The members of a Sendspin group directly under their leader, so that a group reads as one block
+        boolean anySendspin = false;
+        for (Device<?, ?, ?> d : devices) {
+            anySendspin |= d instanceof de.yaacc.sendspin.SendspinReceiverDevice;
+        }
+        if (!anySendspin) {
+            return; // nothing of Sendspin in the list: its hub is not even created for this
+        }
+        de.yaacc.sendspin.SendspinHub hub = de.yaacc.sendspin.SendspinHub.getShared(context);
+        List<Device<?, ?, ?>> grouped = de.yaacc.sendspin.SendspinGroups.groupedOrder(new ArrayList<>(devices),
+                d -> d instanceof de.yaacc.sendspin.SendspinReceiverDevice ? ((de.yaacc.sendspin.SendspinReceiverDevice) d).getReceiverId() : null,
+                id -> hub.groups().leaderOf(id));
+        devices.clear();
+        devices.addAll(grouped);
     }
 
     @Override

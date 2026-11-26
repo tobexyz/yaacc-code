@@ -645,7 +645,7 @@
     <string name="sendspin_player_forget_pairing">Kopplung vergessen</string>
     <string name="sendspin_player_revoke">Freigabe zurückziehen</string>
     <string name="sendspin_row_link">Player zu einer Gruppe verbinden</string>
-    <string name="sendspin_row_group_leader">Gruppe mit %1$d Playern</string>
+    <string name="sendspin_row_group_leader">leitet eine Gruppe mit: %1$s</string>
     <string name="sendspin_row_group_member">in der Gruppe von %1$s</string>
     <string name="sendspin_link_title">Gruppe von %1$s</string>
     <string name="sendspin_link_message">Wähle die Player, die zusammen mit diesem spielen. Das Verbinden gibt einen Player auch frei.</string>
@@ -688,4 +688,5 @@
     <string name="sendspin_selfpair_qr_description">Kopplungstoken dieses Telefons als QR-Code</string>
     <string name="sendspin_pair_scan">QR-Code scannen</string>
     <string name="sendspin_pair_scan_prompt">Richte die Kamera auf den QR-Code des Kopplungstokens auf dem anderen Telefon</string>
+    <string name="sendspin_row_this_phone">dieses Telefon</string>
 </resources>

@@ -649,7 +649,7 @@
     <string name="sendspin_player_forget_pairing">Oublier l\'appairage</string>
     <string name="sendspin_player_revoke">Retirer l\'approbation</string>
     <string name="sendspin_row_link">Lier des lecteurs en groupe</string>
-    <string name="sendspin_row_group_leader">groupe de %1$d lecteurs</string>
+    <string name="sendspin_row_group_leader">dirige un groupe avec : %1$s</string>
     <string name="sendspin_row_group_member">dans le groupe de %1$s</string>
     <string name="sendspin_link_title">Groupe de %1$s</string>
     <string name="sendspin_link_message">Cochez les lecteurs qui jouent avec celui-ci. Lier un lecteur l\'approuve aussi.</string>
@@ -692,4 +692,5 @@
     <string name="sendspin_selfpair_qr_description">Jeton d\'appairage de ce téléphone sous forme de code QR</string>
     <string name="sendspin_pair_scan">Scanner le code QR</string>
     <string name="sendspin_pair_scan_prompt">Dirigez la caméra vers le code QR du jeton d\'appairage sur l\'autre téléphone</string>
+    <string name="sendspin_row_this_phone">ce téléphone</string>
 </resources>

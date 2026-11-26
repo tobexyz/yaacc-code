@@ -124,4 +124,41 @@ public final class SendspinGroups {
     public synchronized boolean isInGroup(String id) {
         return isLeader(id) || (id != null && leaderOfMember.containsKey(id));
     }
+
+    /**
+     * The list with every member directly after its leader (in the order the list had), so that a group reads as one block. A member
+     * whose leader is not in the list, and everything that is no player of a group, stays where it was. Pure.
+     *
+     * @param idOf     the receiver id of an item, null for an item that is no Sendspin player
+     * @param leaderOf the leader of the group a receiver id is a member of, null if it is none
+     */
+    public static <T> List<T> groupedOrder(List<T> sorted, java.util.function.Function<T, String> idOf,
+                                           java.util.function.Function<String, String> leaderOf) {
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        for (T item : sorted) {
+            String id = idOf.apply(item);
+            if (id != null) {
+                ids.add(id);
+            }
+        }
+        List<T> result = new ArrayList<>(sorted.size());
+        for (T item : sorted) {
+            String id = idOf.apply(item);
+            String leader = id == null ? null : leaderOf.apply(id);
+            if (leader != null && ids.contains(leader)) {
+                continue; // placed under its leader
+            }
+            result.add(item);
+            if (id == null) {
+                continue;
+            }
+            for (T other : sorted) {
+                String otherId = idOf.apply(other);
+                if (otherId != null && id.equals(leaderOf.apply(otherId))) {
+                    result.add(other);
+                }
+            }
+        }
+        return result;
+    }
 }

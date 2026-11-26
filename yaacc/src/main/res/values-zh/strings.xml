@@ -641,7 +641,7 @@
     <string name="sendspin_player_forget_pairing">忘记配对</string>
     <string name="sendspin_player_revoke">撤销批准</string>
     <string name="sendspin_row_link">将播放器链接成组</string>
-    <string name="sendspin_row_group_leader">%1$d 个播放器的组</string>
+    <string name="sendspin_row_group_leader">带领的分组成员：%1$s</string>
     <string name="sendspin_row_group_member">在 %1$s 的组中</string>
     <string name="sendspin_link_title">%1$s 的组</string>
     <string name="sendspin_link_message">勾选与此播放器一起播放的播放器。链接播放器同时也会批准它。</string>
@@ -684,4 +684,5 @@
     <string name="sendspin_selfpair_qr_description">此手机的配对令牌（二维码）</string>
     <string name="sendspin_pair_scan">扫描二维码</string>
     <string name="sendspin_pair_scan_prompt">将相机对准另一部手机上配对令牌的二维码</string>
+    <string name="sendspin_row_this_phone">此手机</string>
 </resources>
