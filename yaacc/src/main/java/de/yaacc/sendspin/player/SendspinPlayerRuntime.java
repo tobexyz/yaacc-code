@@ -22,12 +22,22 @@ package de.yaacc.sendspin.player;
 public final class SendspinPlayerRuntime {
 
     private static volatile SendspinPlayerHost host;
+    private static volatile int port;
 
     private SendspinPlayerRuntime() {
     }
 
     static void set(SendspinPlayerHost running) {
         host = running;
+    }
+
+    static void setPort(int listening) {
+        port = listening;
+    }
+
+    /** @return the port the player listens on, 0 while it does not run (the hub dials it over the loopback address to play on this phone) */
+    public static int port() {
+        return port;
     }
 
     /** @return the running host, or null */

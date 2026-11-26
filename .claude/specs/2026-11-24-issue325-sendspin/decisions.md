@@ -112,3 +112,9 @@ Android reference pages: `KeyAgreement`/`KeyPairGenerator` algorithm `XDH` (X255
 - Step 2: a Scan QR code button in the entry dialog of a player's token; the camera permission is requested only when it is tapped and the camera is declared `required=false`. The scanned text goes through the same check as a pasted one (the key must be the id of the player of the card).
 - Only the token of the phone as a player gets a QR code; the token that the app shows as a client of a server (Music Assistant) is typed into that server, which has no scanner.
 
+## 2026-11-26 - The phone as a member of a group (owner's request: peer to peer)
+- Owner: with two phones, "I share the QR code with the other device and then both play in sync"; so the phone's own player is a valid member of a group (it was left out of the link sheet and the loopback address was refused).
+- The hub of the phone dials its own player over the loopback address (`127.0.0.1:<port of the player>`, `SendspinHub.selfEndpoint()`); the id of the member in a group is the id of the card of this phone (`sendspin-self:phone`); the loopback endpoint is never listed as a card of its own. The card of this phone leads nothing (`link` with it as leader is refused).
+- The player accepts the loopback address (the filter keeps the other addresses of the phone refused) and treats a connection over it as the app itself: it admits it as unpaired whatever the player's setting for unpaired servers says, so no pairing with itself is needed. **Open (K10, postponed security review):** another app on the same phone can also connect to the loopback port and play on the player; the impact is audio on this phone only, and the player only runs while the owner switched it on.
+- The connection to the own player is made when the link sheet opens (`connectionById(self, true)`), because `link` needs the hello; a message "not known yet" means it was not ready.
+

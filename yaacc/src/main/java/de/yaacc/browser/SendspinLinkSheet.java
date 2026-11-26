@@ -84,8 +84,11 @@ final class SendspinLinkSheet {
         final List<String> members = groups.membersOf(id);
         for (SendspinReceiverDevice other : hub.receivers()) {
             String otherId = other.getReceiverId();
-            if (other.isServer() || other.isSelf() || otherId.equals(id) || groups.isLeader(otherId)) {
+            if (other.isServer() || otherId.equals(id) || groups.isLeader(otherId)) {
                 continue; // a leader of another group has to give up its group first
+            }
+            if (other.isSelf()) {
+                hub.connectionById(otherId, true); // the phone's own player: the connection is made now, so that it is ready when "Link" is tapped
             }
             CheckBox box = new CheckBox(context);
             String inOther = groups.leaderOf(otherId);

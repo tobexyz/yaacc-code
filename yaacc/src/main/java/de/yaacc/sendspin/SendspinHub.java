@@ -383,6 +383,9 @@ public final class SendspinHub implements SendspinReceiverSource {
      * the lookups of the groups have to meet the connection that is there (not open a second one under another path).
      */
     public synchronized Endpoint endpointOfId(String receiverId) {
+        if (SendspinAddress.isSelfId(receiverId)) {
+            return selfEndpoint();
+        }
         Endpoint wanted = SendspinAddress.isSendspinId(receiverId) ? SendspinAddress.endpointOf(receiverId) : null;
         if (wanted == null) {
             return null;
@@ -399,6 +402,18 @@ public final class SendspinHub implements SendspinReceiverSource {
             }
         }
         return wanted;
+    }
+
+    /**
+     * Where this phone's own player listens, as the hub dials it (over the loopback address, so that the phone can be a member of a
+     * group that plays on it too); null while the player does not run. Never listed as a card of its own: the card of this phone is it.
+     */
+    public synchronized Endpoint selfEndpoint() {
+        return selfEndpointOf(de.yaacc.sendspin.player.SendspinPlayerRuntime.port(), SendspinSettings.isPlayerEnabled(preferences::getBoolean));
+    }
+
+    static Endpoint selfEndpointOf(int playerPort, boolean playerEnabled) {
+        return playerPort <= 0 || !playerEnabled ? null : new Endpoint("127.0.0.1", playerPort, "/sendspin");
     }
 
     /** The connection of a receiver id; made (as a list refresh does, with its pause and the end reasons) if {@code create}, else only found. */
@@ -614,6 +629,9 @@ public final class SendspinHub implements SendspinReceiverSource {
      * if a player demands a pairing that is not done.
      */
     public synchronized LinkOutcome link(String leaderId, String memberId) {
+        if (SendspinAddress.isSelfId(leaderId)) {
+            return LinkOutcome.REFUSED; // the card of this phone leads nothing: it is played to, never from
+        }
         Endpoint leader = endpointOfId(leaderId);
         Endpoint member = endpointOfId(memberId);
         if (leader == null || member == null) {

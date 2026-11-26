@@ -282,4 +282,14 @@ public class SendspinReceiverTest {
         assertFalse("not connected, the id of the player is not known", SendspinRowText.offersTokenEntry(ready, false, false));
         assertTrue("the card asks for it", SendspinRowText.offersTokenEntry(SendspinRowText.State.PAIRING_REQUIRED, false, false));
     }
+
+    @Test
+    public void theOwnPlayerIsDialledOverTheLoopbackAddressOnlyWhileItRuns() {
+        assertNull("the player does not run", SendspinHub.selfEndpointOf(0, true));
+        assertNull("the switch is off", SendspinHub.selfEndpointOf(8928, false));
+        Endpoint own = SendspinHub.selfEndpointOf(8928, true);
+        assertEquals("127.0.0.1", own.host());
+        assertEquals(8928, own.port());
+        assertFalse("an outgoing connection, not a listed inbound one", own.isInbound());
+    }
 }

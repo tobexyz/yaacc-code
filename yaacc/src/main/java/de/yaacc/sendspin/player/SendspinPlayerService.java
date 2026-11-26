@@ -120,6 +120,18 @@ public final class SendspinPlayerService extends Service {
         return START_NOT_STICKY; // not restarted by the system after an exit or a kill: the app start brings it back (sync)
     }
 
+    /**
+     * Which remote addresses are read at all: the local network, never an address of the phone itself, with one exception: the
+     * loopback address, which is the app's own hub playing on its own phone (the phone as a member of a group). Whoever connects
+     * over it counts as the app itself and needs no pairing.
+     */
+    static boolean acceptsAddress(java.net.InetAddress address) {
+        if (address != null && address.isLoopbackAddress()) {
+            return true;
+        }
+        return SnapcastAddressFilter.isAcceptedForDiscovery(address) && !SendspinSelf.isThisDevice(address);
+    }
+
     private synchronized void ensureRunning() {
         if (host != null) {
             return;
@@ -131,15 +143,15 @@ public final class SendspinPlayerService extends Service {
                 () -> SendspinSettings.isPlayerUnpairedAllowed(preferences::getBoolean),
                 () -> SendspinSettings.isPlayerFlacPreferred(preferences::getBoolean), phoneName(), (offsets, clock) -> openEngine(offsets, clock),
                 micro, new SecureRandom(), new PreferenceStore(preferences), this::refresh);
-        server = new InboundServer(PORT, PATH, address -> SnapcastAddressFilter.isAcceptedForDiscovery(address) && !SendspinSelf.isThisDevice(address),
-                (link, remote) -> host.accept(link), MAX_CONNECTIONS, UPGRADE_TIMEOUT_MILLIS);
+        server = new InboundServer(PORT, PATH, SendspinPlayerService::acceptsAddress,
+                (link, remote) -> host.accept(link, remote.isLoopbackAddress()), MAX_CONNECTIONS, UPGRADE_TIMEOUT_MILLIS);
         int port;
         try {
             server.start();
             port = server.port();
         } catch (IOException busy) {
-            server = new InboundServer(0, PATH, address -> SnapcastAddressFilter.isAcceptedForDiscovery(address) && !SendspinSelf.isThisDevice(address),
-                    (link, remote) -> host.accept(link), MAX_CONNECTIONS, UPGRADE_TIMEOUT_MILLIS);
+            server = new InboundServer(0, PATH, SendspinPlayerService::acceptsAddress,
+                    (link, remote) -> host.accept(link, remote.isLoopbackAddress()), MAX_CONNECTIONS, UPGRADE_TIMEOUT_MILLIS);
             try {
                 server.start();
                 port = server.port();
@@ -150,6 +162,7 @@ public final class SendspinPlayerService extends Service {
             }
         }
         SendspinPlayerRuntime.set(host);
+        SendspinPlayerRuntime.setPort(port);
         advert = new SendspinServerAdvert(this);
         advert.register(SendspinServiceType.TYPE, hub.clientKeys().id(), phoneName(), PATH, port);
         refresh();
@@ -335,6 +348,7 @@ public final class SendspinPlayerService extends Service {
         SendspinPlayerHost h = host;
         host = null;
         SendspinPlayerRuntime.set(null);
+        SendspinPlayerRuntime.setPort(0);
         if (h != null) {
             h.close();
         }
