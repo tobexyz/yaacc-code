@@ -76,6 +76,8 @@ public final class SendspinHub implements SendspinReceiverSource {
 
     private static final long RETRY_PAUSE_MILLIS = 15_000L;
     private static final String SERVER_NAME = "YAACC";
+    /** How many controllers (clients that are no players) the server serves at once. */
+    private static final int MAX_CONTROLLERS = 4;
 
     private static SendspinHub shared;
 
@@ -106,9 +108,12 @@ public final class SendspinHub implements SendspinReceiverSource {
     private final Map<String, SendspinReceiverDevice> devices = new HashMap<>();
     private Identity identity;
     private Identity clientIdentity;
+    private final Context appContext;
+    private de.yaacc.sendspin.control.ControllerHost controllerHost;
 
     private SendspinHub(Context context) {
         final Context app = context.getApplicationContext();
+        this.appContext = app;
         this.preferences = PreferenceManager.getDefaultSharedPreferences(app);
         this.store = new StringSetStore() {
             @Override
@@ -331,6 +336,7 @@ public final class SendspinHub implements SendspinReceiverSource {
             HubConnection made = new HubConnection(endpoint, identity(), approvals, (e, r) -> link, clock, random, SERVER_NAME,
                     this::connectionChanged, () -> SendspinSettings.isLegacyAllowed(preferences::getBoolean));
             connections.put(endpoint, made);
+            made.setControllerHost(controllerHost());
             made.start();
         }
         fire();
@@ -345,6 +351,26 @@ public final class SendspinHub implements SendspinReceiverSource {
         for (SendspinDirectory.Listener listener : listeners) {
             listener.changed();
         }
+        de.yaacc.sendspin.control.ControllerHost host;
+        synchronized (this) {
+            host = controllerHost;
+        }
+        if (host != null) {
+            host.refreshAll(); // a controller sees a change of the groups or of the playback at once (the poll finds the rest)
+        }
+    }
+
+    /**
+     * The controller role of this server (K15), made when the first client that is no player connects: the playback of the app as the
+     * groups of this hub. The same policy as for the players decides who may use it (paired, or the one setting for unpaired devices).
+     */
+    private synchronized de.yaacc.sendspin.control.ControllerHost controllerHost() {
+        if (controllerHost == null) {
+            controllerHost = new de.yaacc.sendspin.control.ControllerHost(
+                    new de.yaacc.sendspin.control.ControllerLogic(new HubPlaybackBridge(appContext, this), SERVER_NAME, random), clock,
+                    () -> SendspinSettings.isPlayerUnpairedAllowed(preferences::getBoolean), MAX_CONTROLLERS);
+        }
+        return controllerHost;
     }
 
     private synchronized Identity identity() {

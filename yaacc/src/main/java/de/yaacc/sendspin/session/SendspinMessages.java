@@ -218,6 +218,14 @@ public final class SendspinMessages {
         public boolean supportsPlayer() {
             return supportedRoles.contains("player@v1");
         }
+
+        public boolean supportsController() {
+            return supportedRoles.contains("controller@v1");
+        }
+
+        public boolean supportsMetadata() {
+            return supportedRoles.contains("metadata@v1");
+        }
     }
 
     private static final int MAX_ROLES = 64;

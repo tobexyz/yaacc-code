@@ -144,6 +144,9 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
     private volatile StreamFormat format;
     private PcmStreamer streamer;
     private Thread thread;
+    /** The controller role of the server (K15): set before {@link #start()}; null: a client without a player role is not served. */
+    private volatile de.yaacc.sendspin.control.ControllerHost controllerHost;
+    private de.yaacc.sendspin.control.ControllerHost.Session controllerSession;
     /** The loop's and the callers': the player role is activated (first activation sent). */
     private boolean rolesActive;
     /** A YAACC player plays to this player: the {@code 'playback'} activity is declared (spec: only while it plays). */
@@ -171,6 +174,11 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
         this.random = random;
         this.serverName = serverName;
         this.listener = listener;
+    }
+
+    /** Lets this connection serve a client that is a controller and no player (call before {@link #start()}). */
+    public void setControllerHost(de.yaacc.sendspin.control.ControllerHost host) {
+        this.controllerHost = host;
     }
 
     // ------------------------------------------------------------------ what the app can read
@@ -591,6 +599,10 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
             if (current != null) {
                 current.end();
             }
+            de.yaacc.sendspin.control.ControllerHost.Session controller = controllerSession;
+            if (controller != null) {
+                controller.close();
+            }
             closeLink();
             if (phase != Phase.ENDED) {
                 end(endReason == EndReason.NONE ? EndReason.FAILED : endReason);
@@ -632,6 +644,13 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
                     long received = clock.nowMicros();
                     long clientTime = SendspinMessages.parseClientTime(envelope.payload());
                     c.sendJson(SendspinMessages.serverTime(clientTime, received, clock.nowMicros()));
+                    break;
+                }
+                case "client/command": {
+                    de.yaacc.sendspin.control.ControllerHost.Session controller = controllerSession;
+                    if (controller != null) {
+                        controller.command(envelope.payload());
+                    }
                     break;
                 }
                 case "client/state":
@@ -676,19 +695,16 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
         }
         SendspinMessages.ClientHello h = hello;
         ServerHandshake.Result result = handshake;
+        if (!h.supportsPlayer() && h.supportsController() && controllerHost != null) {
+            decideController();
+            return;
+        }
         if (!h.supportsPlayer() || choosePcm(h) == null) {
             activateNothing();
             setPhase(Phase.UNUSABLE);
             return;
         }
-        if (result.credentialMismatch) {
-            activateNothing();
-            if (result.referenced == SendspinPsk.Category.PAIRING) {
-                pairingFailure = PairingFailure.TOKEN_REJECTED;
-                setPhase(Phase.PAIRING_FAILED);
-            } else {
-                setPhase(Phase.RE_PAIR_NEEDED);
-            }
+        if (decideCredentialMismatch(result)) {
             return;
         }
         if (matched == SendspinPsk.Category.PAIRING) {
@@ -707,6 +723,59 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
             return;
         }
         activateIdle();
+    }
+
+    /** A client that referenced a PSK the server does not honour: shown as such and not activated. @return true if that was the case */
+    private boolean decideCredentialMismatch(ServerHandshake.Result result) throws IOException {
+        if (!result.credentialMismatch) {
+            return false;
+        }
+        activateNothing();
+        if (result.referenced == SendspinPsk.Category.PAIRING) {
+            pairingFailure = PairingFailure.TOKEN_REJECTED;
+            setPhase(Phase.PAIRING_FAILED);
+        } else {
+            setPhase(Phase.RE_PAIR_NEEDED);
+        }
+        return true;
+    }
+
+    /**
+     * A client with the controller role and no player (K15): served when it is paired, or when the setting for devices that are not
+     * paired lets it in (one policy for every role of the phone). The pairing is the one of the players.
+     */
+    private void decideController() throws IOException {
+        if (decideCredentialMismatch(handshake)) {
+            return;
+        }
+        if (matched == SendspinPsk.Category.PAIRING) {
+            startPairing();
+            return;
+        }
+        boolean paired = matched == SendspinPsk.Category.LONG_TERM;
+        if (!paired && !controllerHost.unpairedAllowed()) {
+            activateNothing();
+            setPhase(Phase.PAIRING_REQUIRED);
+            return;
+        }
+        de.yaacc.sendspin.control.ControllerHost.Session session;
+        synchronized (lock) {
+            if (controllerSession != null) {
+                return;
+            }
+            session = controllerHost.open(channel, hello);
+            if (session != null) {
+                controllerSession = session;
+            }
+        }
+        if (session == null) {
+            activateNothing();
+            setPhase(Phase.UNUSABLE); // no room for another controller
+            return;
+        }
+        channel.sendJson(SendspinMessages.serverActivate(Collections.<String>emptyList(), session.activeRoles()));
+        session.start();
+        setPhase(Phase.READY);
     }
 
     /**
