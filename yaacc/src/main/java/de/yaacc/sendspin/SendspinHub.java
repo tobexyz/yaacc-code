@@ -414,12 +414,23 @@ public final class SendspinHub implements SendspinReceiverSource {
      * The players in the order of their importance (found, then added, then remembered), one per address and port, at most
      * {@value SendspinSettings#MAX_LISTED}. A found player brings its own path; the others use the default one.
      */
+    /**
+     * Whether a connection that came to the listener is shown as a receiver: only when it said it is a player. Until its hello is
+     * read it is not known what it is, and a client that is no player (the controller of another phone, which also finds this
+     * listener) has nothing to play on, so it gets no card.
+     */
+    static boolean isListedInbound(SendspinMessages.ClientHello hello) {
+        return hello != null && hello.supportsPlayer();
+    }
+
     private synchronized List<Listed> listed() {
         Map<String, Listed> byKey = new LinkedHashMap<>();
         for (Map.Entry<Endpoint, HubConnection> inbound : new ArrayList<>(connections.entrySet())) {
             if (inbound.getKey().isInbound() && inbound.getValue().phase() != HubConnection.Phase.ENDED) {
                 HubConnection c = inbound.getValue();
-                byKey.put(keyOf(inbound.getKey()), new Listed(inbound.getKey(), c.hello() == null ? null : c.hello().name));
+                if (isListedInbound(c.hello())) {
+                    byKey.put(keyOf(inbound.getKey()), new Listed(inbound.getKey(), c.hello().name));
+                }
             }
         }
         for (SendspinDirectory.Entry entry : directory.snapshot()) {

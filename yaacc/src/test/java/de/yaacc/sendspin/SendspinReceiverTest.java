@@ -260,4 +260,17 @@ public class SendspinReceiverTest {
         assertTrue(SendspinHub.mayRetry(HubConnection.EndReason.RESTART));
         assertTrue(SendspinHub.mayRetry(HubConnection.EndReason.CONCURRENT_ATTEMPT));
     }
+
+    @Test
+    public void aClientOfTheListenerIsListedOnlyWhenItIsAPlayer() throws Exception {
+        String support = "\"player@v1_support\":{\"supported_formats\":[{\"codec\":\"pcm\",\"channels\":2,\"sample_rate\":48000,\"bit_depth\":16}],"
+                + "\"buffer_capacity\":1000000}";
+        de.yaacc.sendspin.session.SendspinMessages.ClientHello player = de.yaacc.sendspin.session.SendspinMessages.parseClientHello(
+                new org.json.JSONObject("{\"name\":\"Kitchen\",\"supported_roles\":[\"player@v1\"]," + support + "}"));
+        de.yaacc.sendspin.session.SendspinMessages.ClientHello controller = de.yaacc.sendspin.session.SendspinMessages.parseClientHello(
+                new org.json.JSONObject("{\"name\":\"YAACC\",\"supported_roles\":[\"controller@v1\"]}"));
+        assertTrue(SendspinHub.isListedInbound(player));
+        assertFalse("another phone's controller has nothing to play on", SendspinHub.isListedInbound(controller));
+        assertFalse("not known yet what it is", SendspinHub.isListedInbound(null));
+    }
 }
