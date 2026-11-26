@@ -49,6 +49,7 @@ public final class ControllerHost implements AutoCloseable {
     private final HubClock clock;
     private final BooleanSupplier unpairedAllowed;
     private final int maxSessions;
+    private final ArtworkEncoder encoder;
     private final List<Session> sessions = new CopyOnWriteArrayList<>();
     private Thread poller;
     private volatile boolean closed;
@@ -58,6 +59,12 @@ public final class ControllerHost implements AutoCloseable {
      * @param maxSessions     how many controllers at most are served at once
      */
     public ControllerHost(ControllerLogic logic, HubClock clock, BooleanSupplier unpairedAllowed, int maxSessions) {
+        this(logic, clock, unpairedAllowed, maxSessions, null);
+    }
+
+    /** @param encoder makes the images of the artwork role; null: the role is not offered */
+    public ControllerHost(ControllerLogic logic, HubClock clock, BooleanSupplier unpairedAllowed, int maxSessions, ArtworkEncoder encoder) {
+        this.encoder = encoder;
         this.logic = logic;
         this.clock = clock;
         this.unpairedAllowed = unpairedAllowed;
@@ -74,7 +81,8 @@ public final class ControllerHost implements AutoCloseable {
         if (closed || sessions.size() >= maxSessions) {
             return null;
         }
-        Session session = new Session(channel, hello.supportsController(), hello.supportsMetadata());
+        Session session = new Session(channel, hello.supportsController(), hello.supportsMetadata(),
+                hello.supportsArtwork() && encoder != null ? new ArtworkFeed(channel, encoder, clock) : null);
         sessions.add(session);
         if (poller == null) {
             poller = new Thread(this::poll, "sendspin-controller-poll");
@@ -134,12 +142,14 @@ public final class ControllerHost implements AutoCloseable {
         private ControllerLogic.View toldGroup;
         private ControllerLogic.View toldController;
         private ControllerLogic.View toldMetadata;
+        private final ArtworkFeed artwork;
         private boolean open = true;
 
-        Session(SecureChannel channel, boolean controllerRole, boolean metadataRole) {
+        Session(SecureChannel channel, boolean controllerRole, boolean metadataRole, ArtworkFeed artwork) {
             this.channel = channel;
             this.controllerRole = controllerRole;
             this.metadataRole = metadataRole;
+            this.artwork = artwork;
         }
 
         /** The roles to activate: those of controller and metadata that the client listed. */
@@ -150,6 +160,9 @@ public final class ControllerHost implements AutoCloseable {
             }
             if (metadataRole) {
                 roles.add("metadata@v1");
+            }
+            if (artwork != null) {
+                roles.add("artwork@v1");
             }
             return roles;
         }
@@ -162,6 +175,16 @@ public final class ControllerHost implements AutoCloseable {
             toldGroup = view;
             toldController = view;
             toldMetadata = view;
+            if (artwork != null) {
+                artwork.imageUrl(view.metadata.artworkUrl());
+            }
+        }
+
+        /** A {@code client/state} of the controller: the artwork channels it wants (null: it declared none) and whether it is available. */
+        public void clientState(java.util.List<de.yaacc.sendspin.session.ControllerMessages.ArtworkChannel> channels, boolean available) {
+            if (artwork != null && channels != null) {
+                artwork.configure(channels, available);
+            }
         }
 
         /** A {@code client/command}: carried out off the connection's thread; a malformed one is ignored, not fatal. */
@@ -193,6 +216,9 @@ public final class ControllerHost implements AutoCloseable {
             }
             try {
                 ControllerLogic.View view = logic.view(attachment, clock.nowMicros());
+                if (artwork != null) {
+                    artwork.imageUrl(view.metadata.artworkUrl());
+                }
                 if (view.groupChangedSince(toldGroup)) {
                     channel.sendJson(SendspinMessages.groupUpdate(view.playing, view.groupId, view.groupName));
                     toldGroup = view;
@@ -215,6 +241,9 @@ public final class ControllerHost implements AutoCloseable {
 
         public synchronized void close() {
             open = false;
+            if (artwork != null) {
+                artwork.close();
+            }
             sessions.remove(this);
         }
     }

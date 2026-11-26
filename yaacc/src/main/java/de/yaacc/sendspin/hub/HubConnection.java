@@ -22,6 +22,7 @@ import de.yaacc.sendspin.secure.Identity;
 import de.yaacc.sendspin.secure.NoiseException;
 import de.yaacc.sendspin.secure.SendspinPsk;
 import de.yaacc.sendspin.session.CommandThread;
+import de.yaacc.sendspin.session.ControllerMessages;
 import de.yaacc.sendspin.session.Envelope;
 import de.yaacc.sendspin.session.ProtocolException;
 import de.yaacc.sendspin.session.SecureChannel;
@@ -653,10 +654,16 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
                     }
                     break;
                 }
-                case "client/state":
-                    handleState(legacy ? SendspinMessages.parseLegacyClientState(envelope.payload(), hello.playerCommands)
-                            : SendspinMessages.parseClientState(envelope.payload()));
+                case "client/state": {
+                    SendspinMessages.ClientState parsed = legacy ? SendspinMessages.parseLegacyClientState(envelope.payload(), hello.playerCommands)
+                            : SendspinMessages.parseClientState(envelope.payload());
+                    handleState(parsed);
+                    de.yaacc.sendspin.control.ControllerHost.Session controller = controllerSession;
+                    if (controller != null) {
+                        controller.clientState(ControllerMessages.parseStreamStartArtwork(envelope.payload()), parsed.available);
+                    }
                     break;
+                }
                 case "client/pair-init":
                     handlePairInit(SendspinMessages.parsePairingIndex(envelope.payload()));
                     break;

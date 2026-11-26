@@ -60,6 +60,7 @@ public class ControllerHostTest {
         volatile int volume = 40;
         volatile String title = "Song one";
         volatile long position = 5_000L;
+        volatile String art = "http://192.168.0.2/one.jpg";
 
         @Override public String id() { return "leader"; }
         @Override public String name() { return "Kitchen"; }
@@ -78,7 +79,7 @@ public class ControllerHostTest {
         @Override public String title() { return title; }
         @Override public String artist() { return "Artist"; }
         @Override public String album() { return "Album"; }
-        @Override public String artworkUrl() { return null; }
+        @Override public String artworkUrl() { return art; }
         @Override public int year() { return 0; }
         @Override public int track() { return 0; }
         @Override public void play() { log.add("play"); playing = true; }
@@ -110,9 +111,17 @@ public class ControllerHostTest {
 
     private final Group group = new Group();
     private final AtomicBoolean unpairedAllowed = new AtomicBoolean(true);
+    /** The fake encoder: an image of 100 kB (two messages) whose bytes tell which cover and which size it is. */
+    private final List<String> encoded = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private final ArtworkEncoder encoder = (url, format, width, height) -> {
+        encoded.add(url + " " + format + " " + width + "x" + height);
+        byte[] image = new byte[100_000];
+        java.util.Arrays.fill(image, (byte) url.length());
+        return image;
+    };
     private final ControllerHost host = new ControllerHost(
             new ControllerLogic(() -> java.util.Collections.<PlaybackBridge.Group>singletonList(group), "Phone", new SecureRandom()),
-            HubClock.SYSTEM, unpairedAllowed::get, 4);
+            HubClock.SYSTEM, unpairedAllowed::get, 4, encoder);
     private final Identity serverKeys = Identity.generate(new SecureRandom());
     private final Identity clientKeys = Identity.generate(new SecureRandom());
     private final List<AutoCloseable> toClose = new ArrayList<>();
@@ -217,5 +226,21 @@ public class ControllerHostTest {
         ControllerSession fifth = connect(new SendspinPolicy(new MapStore()));
         Thread.sleep(1500);
         assertFalse(fifth.phase() == ControllerSession.Phase.ACTIVE);
+    }
+
+    @Test(timeout = 60000)
+    public void theCoverOfWhatPlaysArrivesOverTheArtworkChannelAndFollowsTheItem() throws Exception {
+        ControllerSession c = connect(new SendspinPolicy(new MapStore()));
+        waitFor("the cover", () -> c.artwork() != null);
+        byte[] first = c.artwork();
+        assertEquals(100_000, first.length);
+        assertEquals((byte) "http://192.168.0.2/one.jpg".length(), first[0]);
+        assertTrue("the encoder was asked for the size the client declared: " + encoded, encoded.get(0).startsWith("http://192.168.0.2/one.jpg jpeg "));
+        group.art = "http://192.168.0.2/two-longer.jpg";
+        host.refreshAll();
+        waitFor("the next cover", () -> c.artwork() != null && c.artwork()[0] == (byte) "http://192.168.0.2/two-longer.jpg".length());
+        group.art = null; // an item without a cover clears the channel
+        host.refreshAll();
+        waitFor("cleared", () -> c.artwork() == null);
     }
 }

@@ -368,7 +368,7 @@ public final class SendspinHub implements SendspinReceiverSource {
         if (controllerHost == null) {
             controllerHost = new de.yaacc.sendspin.control.ControllerHost(
                     new de.yaacc.sendspin.control.ControllerLogic(new HubPlaybackBridge(appContext, this), SERVER_NAME, random), clock,
-                    () -> SendspinSettings.isPlayerUnpairedAllowed(preferences::getBoolean), MAX_CONTROLLERS);
+                    () -> SendspinSettings.isPlayerUnpairedAllowed(preferences::getBoolean), MAX_CONTROLLERS, new BitmapArtworkEncoder());
         }
         return controllerHost;
     }
@@ -754,23 +754,30 @@ public final class SendspinHub implements SendspinReceiverSource {
     }
 
     /**
-     * Sets the volume of the group like a Snapcast group: every player is moved by the same number of points the average moves,
+     * Sets the volume of the group as the protocol's controller role does (see {@link GroupVolume}): every player is moved by the same number of points the average moves, what a player at a boundary could not take is shared out,
      * limited to 0 to 100. A lone player gets the value itself.
      */
     public synchronized void setGroupVolume(String leaderId, int percent) {
         List<String> all = new ArrayList<>();
         all.add(leaderId);
         all.addAll(groups.membersOf(leaderId));
-        Integer average = all.size() == 1 ? null : groupVolumeOf(leaderId);
+        List<HubConnection> withVolume = new ArrayList<>();
+        List<Integer> current = new ArrayList<>();
         for (String id : all) {
             HubConnection c = connectionOfId(id);
-            if (c == null) {
-                continue;
+            SendspinMessages.ClientState s = c == null ? null : c.state();
+            if (s != null && s.player != null && s.player.volume != null) {
+                withVolume.add(c);
+                current.add(s.player.volume);
             }
-            SendspinMessages.ClientState s = c.state();
-            int current = s != null && s.player != null && s.player.volume != null ? s.player.volume : percent;
-            int target = average == null ? percent : Math.max(0, Math.min(100, current + (percent - average)));
-            c.setVolume(target);
+        }
+        int[] levels = new int[current.size()];
+        for (int i = 0; i < levels.length; i++) {
+            levels[i] = current.get(i);
+        }
+        int[] targets = GroupVolume.targets(levels, percent); // the delta rule of the protocol, with what a clamped player could not take shared out
+        for (int i = 0; i < targets.length; i++) {
+            withVolume.get(i).setVolume(targets[i]);
         }
     }
 

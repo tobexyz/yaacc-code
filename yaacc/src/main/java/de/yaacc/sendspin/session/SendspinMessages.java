@@ -226,6 +226,10 @@ public final class SendspinMessages {
         public boolean supportsMetadata() {
             return supportedRoles.contains("metadata@v1");
         }
+
+        public boolean supportsArtwork() {
+            return supportedRoles.contains("artwork@v1");
+        }
     }
 
     private static final int MAX_ROLES = 64;
