@@ -691,4 +691,6 @@
     <string name="sendspin_selfpair_qr_show">Show QR code</string>
     <string name="sendspin_selfpair_qr_hide">Hide QR code</string>
     <string name="sendspin_selfpair_qr_description">Pairing token of this phone as a QR code</string>
+    <string name="sendspin_pair_scan">Scan QR code</string>
+    <string name="sendspin_pair_scan_prompt">Point the camera at the QR code of the pairing token on the other phone</string>
 </resources>

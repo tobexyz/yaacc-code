@@ -21,9 +21,9 @@ messages of version 4 of the FCast protocol. It is licensed under the Apache Lic
 YAACC uses are written by hand against the published schema (`fcast.fbs` of <https://github.com/futo-org/fcast>, MIT licence); no code generated from it and no
 FCast code is part of the app. FlatBuffers is a project of Google; FCast is a trademark of FUTO; YAACC is not affiliated with either.
 
-## ZXing (library of the app, QR code of the Sendspin pairing token)
+## ZXing (libraries of the app, QR code of the Sendspin pairing token)
 
-The app uses `com.google.zxing:core` (version 3.5.3, <https://github.com/zxing/zxing>) to draw the QR code of a Sendspin pairing token. It is licensed under the
+The app uses `com.google.zxing:core` (version 3.5.3, <https://github.com/zxing/zxing>) to draw the QR code of a Sendspin pairing token and `com.journeyapps:zxing-android-embedded` (version 4.3.0, <https://github.com/journeyapps/zxing-android-embedded>) for the camera preview that scans one. It is licensed under the
 Apache License 2.0 (`licenses/Apache-2.0.txt`). ZXing is a project of its authors; YAACC is not affiliated with it.
 
 ## Snapcast (test rig; no Snapcast code in the app)

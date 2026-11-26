@@ -78,6 +78,7 @@ dependencies {
     // never as a JCA provider. 1.87 was published 2026-11-11 (7-day rule), SHA-1 3cf2bbc1280a743fd3d4d7d556883c13e5d28be5.
     implementation 'org.bouncycastle:bcprov-jdk18on:1.87'
     implementation 'com.google.zxing:core:3.5.3'
+    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
     implementation 'com.github.chrisbanes:PhotoView:2.3.0'
 
 }

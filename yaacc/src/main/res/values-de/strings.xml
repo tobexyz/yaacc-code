@@ -686,4 +686,6 @@
     <string name="sendspin_selfpair_qr_show">QR-Code anzeigen</string>
     <string name="sendspin_selfpair_qr_hide">QR-Code ausblenden</string>
     <string name="sendspin_selfpair_qr_description">Kopplungstoken dieses Telefons als QR-Code</string>
+    <string name="sendspin_pair_scan">QR-Code scannen</string>
+    <string name="sendspin_pair_scan_prompt">Richte die Kamera auf den QR-Code des Kopplungstokens auf dem anderen Telefon</string>
 </resources>

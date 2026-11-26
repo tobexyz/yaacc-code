@@ -690,4 +690,6 @@
     <string name="sendspin_selfpair_qr_show">Afficher le code QR</string>
     <string name="sendspin_selfpair_qr_hide">Masquer le code QR</string>
     <string name="sendspin_selfpair_qr_description">Jeton d\'appairage de ce téléphone sous forme de code QR</string>
+    <string name="sendspin_pair_scan">Scanner le code QR</string>
+    <string name="sendspin_pair_scan_prompt">Dirigez la caméra vers le code QR du jeton d\'appairage sur l\'autre téléphone</string>
 </resources>

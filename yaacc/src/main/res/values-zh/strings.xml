@@ -682,4 +682,6 @@
     <string name="sendspin_selfpair_qr_show">显示二维码</string>
     <string name="sendspin_selfpair_qr_hide">隐藏二维码</string>
     <string name="sendspin_selfpair_qr_description">此手机的配对令牌（二维码）</string>
+    <string name="sendspin_pair_scan">扫描二维码</string>
+    <string name="sendspin_pair_scan_prompt">将相机对准另一部手机上配对令牌的二维码</string>
 </resources>

@@ -266,6 +266,12 @@
             </intent-filter>
         </activity>
 
+
+        <!-- the QR scanner of the library is landscape only by default; the phone is held upright to scan a pairing token -->
+        <activity
+            android:name="com.journeyapps.barcodescanner.CaptureActivity"
+            android:screenOrientation="fullSensor"
+            tools:replace="android:screenOrientation" />
     </application>
 
 </manifest>

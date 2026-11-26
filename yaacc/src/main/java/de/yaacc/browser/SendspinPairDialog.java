@@ -27,6 +27,8 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
+import androidx.activity.ComponentActivity;
+import androidx.activity.result.ActivityResultLauncher;
 import androidx.appcompat.app.AlertDialog;
 
 import de.yaacc.R;
@@ -34,6 +36,11 @@ import de.yaacc.sendspin.SendspinHub;
 import de.yaacc.sendspin.SendspinPolicy;
 import de.yaacc.sendspin.hub.Endpoint;
 import de.yaacc.sendspin.secure.PairingToken;
+
+import com.journeyapps.barcodescanner.ScanContract;
+import com.journeyapps.barcodescanner.ScanOptions;
+
+import java.util.UUID;
 
 /**
  * The dialog of a Sendspin player's card that needs pairing (issue #325): the operator pastes the pairing token that the player
@@ -72,9 +79,12 @@ final class SendspinPairDialog {
                 .setView(root)
                 .setPositiveButton(R.string.sendspin_pair_button, null)
                 .setNegativeButton(android.R.string.cancel, null)
+                .setNeutralButton(R.string.sendspin_pair_scan, null)
                 .create();
         // the dialog stays open on a refused token, so that the person can correct it
-        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+        dialog.setOnShowListener(d -> {
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> scan(context, input, dialog));
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             SendspinPolicy.PairOutcome outcome = SendspinHub.getShared(context).pair(endpoint, input.getText().toString());
             switch (outcome) {
                 case STARTED:
@@ -98,8 +108,41 @@ final class SendspinPairDialog {
                     Toast.makeText(context, R.string.sendspin_pair_not_a_token, Toast.LENGTH_LONG).show();
                     break;
             }
-        }));
+            });
+        });
         dialog.show();
+    }
+
+    /**
+     * Scans the QR code of a pairing token with the camera (the camera permission is asked by the scanner when it opens) and enters
+     * the text as if it was pasted; the pairing then runs through the same check (the key of the token must be the id of the player of
+     * the card). The result comes back through the activity's registry, which is used on the tap, so that no field has to exist before
+     * the activity starts.
+     */
+    private static void scan(Context context, final EditText input, final AlertDialog dialog) {
+        if (!(context instanceof ComponentActivity)) {
+            return;
+        }
+        final ActivityResultLauncher<ScanOptions>[] launcher = newLauncherHolder();
+        launcher[0] = ((ComponentActivity) context).getActivityResultRegistry().register("sendspin-pair-scan-" + UUID.randomUUID(),
+                new ScanContract(), result -> {
+                    launcher[0].unregister();
+                    String text = result == null ? null : result.getContents();
+                    if (text != null && !text.isEmpty()) {
+                        input.setText(text);
+                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+                    }
+                });
+        launcher[0].launch(new ScanOptions()
+                .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                .setPrompt(context.getString(R.string.sendspin_pair_scan_prompt))
+                .setBeepEnabled(false)
+                .setOrientationLocked(false));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ActivityResultLauncher<ScanOptions>[] newLauncherHolder() {
+        return new ActivityResultLauncher[1];
     }
 
     /** The first characters of a client id: enough to tell two devices apart in a message, not a secret (the id is public). */

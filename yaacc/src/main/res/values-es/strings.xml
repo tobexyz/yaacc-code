@@ -690,4 +690,6 @@
     <string name="sendspin_selfpair_qr_show">Mostrar código QR</string>
     <string name="sendspin_selfpair_qr_hide">Ocultar código QR</string>
     <string name="sendspin_selfpair_qr_description">Token de emparejamiento de este teléfono como código QR</string>
+    <string name="sendspin_pair_scan">Escanear código QR</string>
+    <string name="sendspin_pair_scan_prompt">Apunta la cámara al código QR del token de emparejamiento en el otro teléfono</string>
 </resources>

@@ -686,4 +686,6 @@
     <string name="sendspin_selfpair_qr_show">QR-code tonen</string>
     <string name="sendspin_selfpair_qr_hide">QR-code verbergen</string>
     <string name="sendspin_selfpair_qr_description">Koppelingstoken van deze telefoon als QR-code</string>
+    <string name="sendspin_pair_scan">QR-code scannen</string>
+    <string name="sendspin_pair_scan_prompt">Richt de camera op de QR-code van het koppelingstoken op de andere telefoon</string>
 </resources>
