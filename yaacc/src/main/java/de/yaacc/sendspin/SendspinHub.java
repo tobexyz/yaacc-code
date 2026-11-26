@@ -557,6 +557,12 @@ public final class SendspinHub implements SendspinReceiverSource {
 
     // ------------------------------------------------------------------ pairing and approvals
 
+    /** The id the player at this endpoint presented, null while there is no connection (for the message of the pairing dialog). */
+    public synchronized String connectedClientId(Endpoint endpoint) {
+        HubConnection current = connections.get(endpoint);
+        return current == null ? null : current.clientId();
+    }
+
     /**
      * The operator pasted a pairing token for the player at this endpoint (the dialog of its row). On {@code STARTED} the connection
      * is made again so that the pairing runs now.

@@ -607,7 +607,7 @@
     <string name="sendspin_pair_hint">SP:0…</string>
     <string name="sendspin_pair_button">Emparejar</string>
     <string name="sendspin_pair_not_a_token">Eso no es un token de emparejamiento.</string>
-    <string name="sendspin_pair_wrong_player">Este token pertenece a otro reproductor.</string>
+    <string name="sendspin_pair_wrong_player" formatted="true">Este token pertenece a otro reproductor (token: %1$s, este reproductor: %2$s). Copia el token de la pantalla de este mismo reproductor.</string>
     <string name="sendspin_pair_no_room">Hay demasiados emparejamientos o tokens guardados. Quita uno en los ajustes de Sendspin.</string>
     <string name="sendspin_pair_not_known">Espera a que el reproductor esté conectado y vuelve a intentarlo.</string>
     <string name="sendspin_pair_started">Emparejando…</string>
@@ -685,4 +685,5 @@
     <string name="sendspin_self_switch_off">Desactivar el reproductor</string>
     <string name="sendspin_self_pairing">Token de emparejamiento</string>
     <string name="sendspin_self_pair_title">Token de emparejamiento de este teléfono</string>
+    <string name="sendspin_clientpair_id">Clave de este teléfono: %1$s</string>
 </resources>

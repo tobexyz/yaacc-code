@@ -603,7 +603,7 @@
     <string name="sendspin_pair_hint">SP:0…</string>
     <string name="sendspin_pair_button">Koppelen</string>
     <string name="sendspin_pair_not_a_token">Dat is geen koppeltoken.</string>
-    <string name="sendspin_pair_wrong_player">Dit token hoort bij een andere speler.</string>
+    <string name="sendspin_pair_wrong_player" formatted="true">Dit token hoort bij een andere speler (token: %1$s, deze speler: %2$s). Kopieer het token van het scherm van deze speler zelf.</string>
     <string name="sendspin_pair_no_room">Te veel koppelingen of tokens opgeslagen. Verwijder er een in de Sendspin-instellingen.</string>
     <string name="sendspin_pair_not_known">Wacht tot de speler verbonden is en probeer het opnieuw.</string>
     <string name="sendspin_pair_started">Koppelen…</string>
@@ -681,4 +681,5 @@
     <string name="sendspin_self_switch_off">Speler uitschakelen</string>
     <string name="sendspin_self_pairing">Koppelingstoken</string>
     <string name="sendspin_self_pair_title">Koppelingstoken van deze telefoon</string>
+    <string name="sendspin_clientpair_id">Sleutel van deze telefoon: %1$s</string>
 </resources>

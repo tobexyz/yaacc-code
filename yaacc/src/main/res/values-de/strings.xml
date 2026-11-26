@@ -603,7 +603,7 @@
     <string name="sendspin_pair_hint">SP:0…</string>
     <string name="sendspin_pair_button">Koppeln</string>
     <string name="sendspin_pair_not_a_token">Das ist kein Kopplungs-Token.</string>
-    <string name="sendspin_pair_wrong_player">Dieses Token gehört zu einem anderen Player.</string>
+    <string name="sendspin_pair_wrong_player" formatted="true">Dieses Token gehört zu einem anderen Player (Token: %1$s, dieser Player: %2$s). Kopiere das Token vom Bildschirm dieses Players selbst.</string>
     <string name="sendspin_pair_no_room">Zu viele Kopplungen oder Tokens gespeichert. Entferne eine in den Sendspin-Einstellungen.</string>
     <string name="sendspin_pair_not_known">Warte, bis der Player verbunden ist, und versuche es dann erneut.</string>
     <string name="sendspin_pair_started">Kopplung läuft …</string>
@@ -681,4 +681,5 @@
     <string name="sendspin_self_switch_off">Player ausschalten</string>
     <string name="sendspin_self_pairing">Kopplungstoken</string>
     <string name="sendspin_self_pair_title">Kopplungstoken dieses Telefons</string>
+    <string name="sendspin_clientpair_id">Schlüssel dieses Telefons: %1$s</string>
 </resources>

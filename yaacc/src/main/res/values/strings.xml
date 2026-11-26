@@ -608,7 +608,7 @@
     <string name="sendspin_pair_hint">SP:0…</string>
     <string name="sendspin_pair_button">Pair</string>
     <string name="sendspin_pair_not_a_token">That is not a pairing token.</string>
-    <string name="sendspin_pair_wrong_player">This token belongs to another player.</string>
+    <string name="sendspin_pair_wrong_player" formatted="true">This token belongs to another player (token: %1$s, this player: %2$s). Copy the token from the screen of this player itself.</string>
     <string name="sendspin_pair_no_room">Too many pairings or tokens are stored. Remove one in the Sendspin settings.</string>
     <string name="sendspin_pair_not_known">Wait until the player is connected, then try again.</string>
     <string name="sendspin_pair_started">Pairing…</string>
@@ -686,4 +686,5 @@
     <string name="sendspin_self_switch_off">Switch the player off</string>
     <string name="sendspin_self_pairing">Pairing token</string>
     <string name="sendspin_self_pair_title">Pairing token of this phone</string>
+    <string name="sendspin_clientpair_id">Key of this phone: %1$s</string>
 </resources>

@@ -607,7 +607,7 @@
     <string name="sendspin_pair_hint">SP:0…</string>
     <string name="sendspin_pair_button">Appairer</string>
     <string name="sendspin_pair_not_a_token">Ce n\'est pas un jeton d\'appairage.</string>
-    <string name="sendspin_pair_wrong_player">Ce jeton appartient à un autre lecteur.</string>
+    <string name="sendspin_pair_wrong_player" formatted="true">Ce jeton appartient à un autre lecteur (jeton : %1$s, ce lecteur : %2$s). Copiez le jeton depuis l\'écran de ce lecteur lui-même.</string>
     <string name="sendspin_pair_no_room">Trop d\'appairages ou de jetons enregistrés. Supprimez-en un dans les réglages Sendspin.</string>
     <string name="sendspin_pair_not_known">Attendez que le lecteur soit connecté, puis réessayez.</string>
     <string name="sendspin_pair_started">Appairage en cours…</string>
@@ -685,4 +685,5 @@
     <string name="sendspin_self_switch_off">Désactiver le lecteur</string>
     <string name="sendspin_self_pairing">Jeton d\'appairage</string>
     <string name="sendspin_self_pair_title">Jeton d\'appairage de ce téléphone</string>
+    <string name="sendspin_clientpair_id">Clé de ce téléphone : %1$s</string>
 </resources>

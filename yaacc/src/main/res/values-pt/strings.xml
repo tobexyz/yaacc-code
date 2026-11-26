@@ -607,7 +607,7 @@
     <string name="sendspin_pair_hint">SP:0…</string>
     <string name="sendspin_pair_button">Emparelhar</string>
     <string name="sendspin_pair_not_a_token">Isso não é um token de emparelhamento.</string>
-    <string name="sendspin_pair_wrong_player">Este token pertence a outro player.</string>
+    <string name="sendspin_pair_wrong_player" formatted="true">Este token pertence a outro player (token: %1$s, este player: %2$s). Copie o token do ecrã deste próprio player.</string>
     <string name="sendspin_pair_no_room">Há emparelhamentos ou tokens demais salvos. Remova um nas configurações do Sendspin.</string>
     <string name="sendspin_pair_not_known">Aguarde o player conectar e tente novamente.</string>
     <string name="sendspin_pair_started">Emparelhando…</string>
@@ -685,4 +685,5 @@
     <string name="sendspin_self_switch_off">Desativar o player</string>
     <string name="sendspin_self_pairing">Token de pareamento</string>
     <string name="sendspin_self_pair_title">Token de pareamento deste telefone</string>
+    <string name="sendspin_clientpair_id">Chave deste telefone: %1$s</string>
 </resources>

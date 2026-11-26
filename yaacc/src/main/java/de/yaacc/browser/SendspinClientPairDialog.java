@@ -62,6 +62,10 @@ final class SendspinClientPairDialog {
         message.setText(R.string.sendspin_clientpair_message);
         message.setTextAppearance(android.R.style.TextAppearance_Material_Body1);
         root.addView(message);
+        TextView idLine = new TextView(context);
+        idLine.setText(context.getString(R.string.sendspin_clientpair_id, SendspinPairDialog.shortId(hub.clientKeys().id())));
+        idLine.setTextAppearance(android.R.style.TextAppearance_Material_Caption);
+        root.addView(idLine);
         TextView shown = new TextView(context);
         shown.setText(token);
         shown.setTypeface(Typeface.MONOSPACE);

@@ -599,7 +599,7 @@
     <string name="sendspin_pair_hint">SP:0…</string>
     <string name="sendspin_pair_button">配对</string>
     <string name="sendspin_pair_not_a_token">这不是配对令牌。</string>
-    <string name="sendspin_pair_wrong_player">此令牌属于另一个播放器。</string>
+    <string name="sendspin_pair_wrong_player" formatted="true">此令牌属于另一个播放器（令牌：%1$s，此播放器：%2$s）。请从此播放器自身的屏幕复制令牌。</string>
     <string name="sendspin_pair_no_room">已保存的配对或令牌过多。请在 Sendspin 设置中移除一个。</string>
     <string name="sendspin_pair_not_known">请等播放器连接后再试。</string>
     <string name="sendspin_pair_started">正在配对…</string>
@@ -677,4 +677,5 @@
     <string name="sendspin_self_switch_off">关闭播放器</string>
     <string name="sendspin_self_pairing">配对令牌</string>
     <string name="sendspin_self_pair_title">此手机的配对令牌</string>
+    <string name="sendspin_clientpair_id">此手机的密钥：%1$s</string>
 </resources>

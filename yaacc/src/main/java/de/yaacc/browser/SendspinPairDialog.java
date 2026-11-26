@@ -33,6 +33,7 @@ import de.yaacc.R;
 import de.yaacc.sendspin.SendspinHub;
 import de.yaacc.sendspin.SendspinPolicy;
 import de.yaacc.sendspin.hub.Endpoint;
+import de.yaacc.sendspin.secure.PairingToken;
 
 /**
  * The dialog of a Sendspin player's card that needs pairing (issue #325): the operator pastes the pairing token that the player
@@ -81,7 +82,10 @@ final class SendspinPairDialog {
                     dialog.dismiss();
                     break;
                 case WRONG_PLAYER:
-                    Toast.makeText(context, R.string.sendspin_pair_wrong_player, Toast.LENGTH_LONG).show();
+                    PairingToken pasted = PairingToken.decode(input.getText().toString());
+                    Toast.makeText(context, context.getString(R.string.sendspin_pair_wrong_player,
+                            shortId(pasted == null ? null : pasted.clientId()),
+                            shortId(SendspinHub.getShared(context).connectedClientId(endpoint))), Toast.LENGTH_LONG).show();
                     break;
                 case NOT_KNOWN:
                     Toast.makeText(context, R.string.sendspin_pair_not_known, Toast.LENGTH_LONG).show();
@@ -96,5 +100,13 @@ final class SendspinPairDialog {
             }
         }));
         dialog.show();
+    }
+
+    /** The first characters of a client id: enough to tell two devices apart in a message, not a secret (the id is public). */
+    static String shortId(String id) {
+        if (id == null || id.isEmpty()) {
+            return "?";
+        }
+        return id.length() <= 8 ? id : id.substring(0, 8);
     }
 }
