@@ -603,7 +603,7 @@
     <string name="sendspin_state_ready_paired">prêt, appairé</string>
     <string name="sendspin_error_pairing_failed">L\'appairage avec ce lecteur Sendspin a échoué. Vérifiez le jeton et réessayez.</string>
     <string name="sendspin_pair_title">Appairer %1$s</string>
-    <string name="sendspin_pair_message">Collez le jeton d\'appairage affiché par le lecteur. Il commence par SP:</string>
+    <string name="sendspin_pair_message">Collez le jeton d\'appairage que ce lecteur affiche sur son propre écran : sur cet appareil, ouvrez la carte du téléphone (« ce téléphone »), touchez sa roue dentée et choisissez Jeton d\'appairage. Un jeton de ce téléphone ne fonctionne pas ici. Il commence par SP:</string>
     <string name="sendspin_pair_hint">SP:0…</string>
     <string name="sendspin_pair_button">Appairer</string>
     <string name="sendspin_pair_not_a_token">Ce n\'est pas un jeton d\'appairage.</string>
@@ -686,4 +686,5 @@
     <string name="sendspin_self_pairing">Jeton d\'appairage</string>
     <string name="sendspin_self_pair_title">Jeton d\'appairage de ce téléphone</string>
     <string name="sendspin_clientpair_id">Clé de ce téléphone : %1$s</string>
+    <string name="sendspin_selfpair_message">Saisissez ce jeton sur l\'autre appareil qui doit jouer sur ce téléphone : touchez-y la carte de ce téléphone et collez-le. (Pour Music Assistant ou un autre serveur : saisissez-le comme jeton d\'appairage de ce client.) Le jeton est un secret : quiconque le possède peut appairer un serveur avec cette application. Touchez ensuite Se reconnecter.</string>
 </resources>

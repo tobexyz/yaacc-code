@@ -59,7 +59,7 @@ final class SendspinClientPairDialog {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(pad, (int) (8 * density), pad, 0);
         TextView message = new TextView(context);
-        message.setText(R.string.sendspin_clientpair_message);
+        message.setText(R.string.sendspin_selfpair_message);
         message.setTextAppearance(android.R.style.TextAppearance_Material_Body1);
         root.addView(message);
         TextView idLine = new TextView(context);

@@ -599,7 +599,7 @@
     <string name="sendspin_state_ready_paired">bereit, gekoppelt</string>
     <string name="sendspin_error_pairing_failed">Die Kopplung mit diesem Sendspin-Player hat nicht funktioniert. Prüfe das Token und versuche es erneut.</string>
     <string name="sendspin_pair_title">%1$s koppeln</string>
-    <string name="sendspin_pair_message">Füge das Kopplungs-Token ein, das der Player anzeigt. Es beginnt mit SP:</string>
+    <string name="sendspin_pair_message">Füge das Kopplungs-Token ein, das dieser Player auf seinem eigenen Bildschirm anzeigt: Öffne auf diesem Gerät die Karte des Telefons („dieses Telefon“), tippe auf das Zahnrad und wähle Kopplungstoken. Ein Token von diesem Telefon funktioniert hier nicht. Es beginnt mit SP:</string>
     <string name="sendspin_pair_hint">SP:0…</string>
     <string name="sendspin_pair_button">Koppeln</string>
     <string name="sendspin_pair_not_a_token">Das ist kein Kopplungs-Token.</string>
@@ -682,4 +682,5 @@
     <string name="sendspin_self_pairing">Kopplungstoken</string>
     <string name="sendspin_self_pair_title">Kopplungstoken dieses Telefons</string>
     <string name="sendspin_clientpair_id">Schlüssel dieses Telefons: %1$s</string>
+    <string name="sendspin_selfpair_message">Trage dieses Token auf dem anderen Gerät ein, das auf diesem Telefon abspielen soll: Tippe dort auf die Karte dieses Telefons und füge es ein. (Bei Music Assistant oder einem anderen Server: als Kopplungstoken dieses Clients eintragen.) Das Token ist ein Geheimnis: Wer es kennt, kann einen Server mit dieser App koppeln. Tippe danach auf Erneut verbinden.</string>
 </resources>

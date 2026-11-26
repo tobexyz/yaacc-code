@@ -603,7 +603,7 @@
     <string name="sendspin_state_ready_paired">listo, emparejado</string>
     <string name="sendspin_error_pairing_failed">El emparejamiento con este reproductor Sendspin no funcionó. Comprueba el token e inténtalo de nuevo.</string>
     <string name="sendspin_pair_title">Emparejar %1$s</string>
-    <string name="sendspin_pair_message">Pega el token de emparejamiento que muestra el reproductor. Empieza por SP:</string>
+    <string name="sendspin_pair_message">Pega el token de emparejamiento que este reproductor muestra en su propia pantalla: en ese dispositivo, abre la tarjeta del teléfono («este teléfono»), toca su engranaje y elige Token de emparejamiento. Un token de este teléfono no funciona aquí. Empieza por SP:</string>
     <string name="sendspin_pair_hint">SP:0…</string>
     <string name="sendspin_pair_button">Emparejar</string>
     <string name="sendspin_pair_not_a_token">Eso no es un token de emparejamiento.</string>
@@ -686,4 +686,5 @@
     <string name="sendspin_self_pairing">Token de emparejamiento</string>
     <string name="sendspin_self_pair_title">Token de emparejamiento de este teléfono</string>
     <string name="sendspin_clientpair_id">Clave de este teléfono: %1$s</string>
+    <string name="sendspin_selfpair_message">Introduce este token en el otro dispositivo que debe reproducir en este teléfono: allí, toca la tarjeta de este teléfono y pégalo. (Para Music Assistant u otro servidor: introdúcelo como token de emparejamiento de este cliente.) El token es un secreto: quien lo tenga puede emparejar un servidor con esta app. Luego toca Volver a conectar.</string>
 </resources>

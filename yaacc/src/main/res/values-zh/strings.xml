@@ -595,7 +595,7 @@
     <string name="sendspin_state_ready_paired">就绪，已配对</string>
     <string name="sendspin_error_pairing_failed">与此 Sendspin 播放器配对失败。请检查令牌后重试。</string>
     <string name="sendspin_pair_title">配对 %1$s</string>
-    <string name="sendspin_pair_message">粘贴播放器显示的配对令牌，它以 SP: 开头。</string>
+    <string name="sendspin_pair_message">粘贴此播放器在其自己屏幕上显示的配对令牌：在那台设备上，打开手机的卡片（“此手机”），点按其齿轮并选择配对令牌。此手机的令牌在这里无效。它以 SP: 开头</string>
     <string name="sendspin_pair_hint">SP:0…</string>
     <string name="sendspin_pair_button">配对</string>
     <string name="sendspin_pair_not_a_token">这不是配对令牌。</string>
@@ -678,4 +678,5 @@
     <string name="sendspin_self_pairing">配对令牌</string>
     <string name="sendspin_self_pair_title">此手机的配对令牌</string>
     <string name="sendspin_clientpair_id">此手机的密钥：%1$s</string>
+    <string name="sendspin_selfpair_message">在另一台要在此手机上播放的设备上输入此令牌：在那里点按此手机的卡片并粘贴。（对于 Music Assistant 或其他服务器：将其作为此客户端的配对令牌输入。）令牌是机密：任何拥有它的人都可以将服务器与此应用配对。然后再次点按连接。</string>
 </resources>

@@ -604,7 +604,7 @@
     <string name="sendspin_state_ready_paired">ready, paired</string>
     <string name="sendspin_error_pairing_failed">Pairing with this Sendspin player did not work. Check the token and try again.</string>
     <string name="sendspin_pair_title">Pair %1$s</string>
-    <string name="sendspin_pair_message">Paste the pairing token that the player shows. It starts with SP:</string>
+    <string name="sendspin_pair_message">Paste the pairing token that this player shows on its own screen: on that device, open the card of the phone ("this phone"), tap its gear and choose Pairing token. A token from this phone does not work here. It starts with SP:</string>
     <string name="sendspin_pair_hint">SP:0…</string>
     <string name="sendspin_pair_button">Pair</string>
     <string name="sendspin_pair_not_a_token">That is not a pairing token.</string>
@@ -687,4 +687,5 @@
     <string name="sendspin_self_pairing">Pairing token</string>
     <string name="sendspin_self_pair_title">Pairing token of this phone</string>
     <string name="sendspin_clientpair_id">Key of this phone: %1$s</string>
+    <string name="sendspin_selfpair_message">Enter this token on the other device that should play on this phone: there, tap the card of this phone and paste it. (For Music Assistant or another server: enter it as the pairing token of this client.) The token is a secret: anyone who has it can pair a server with this app. Then tap Connect again.</string>
 </resources>
