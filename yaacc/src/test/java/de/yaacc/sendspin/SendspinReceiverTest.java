@@ -273,4 +273,13 @@ public class SendspinReceiverTest {
         assertFalse("another phone's controller has nothing to play on", SendspinHub.isListedInbound(controller));
         assertFalse("not known yet what it is", SendspinHub.isListedInbound(null));
     }
+
+    @Test
+    public void theSheetOffersTheTokenEntryForAConnectedPlayerThatIsNotPairedYet() {
+        SendspinRowText.State ready = SendspinRowText.State.READY;
+        assertTrue("a player that accepts unpaired servers may still be paired", SendspinRowText.offersTokenEntry(ready, true, false));
+        assertFalse("already paired", SendspinRowText.offersTokenEntry(ready, true, true));
+        assertFalse("not connected, the id of the player is not known", SendspinRowText.offersTokenEntry(ready, false, false));
+        assertTrue("the card asks for it", SendspinRowText.offersTokenEntry(SendspinRowText.State.PAIRING_REQUIRED, false, false));
+    }
 }

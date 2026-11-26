@@ -74,6 +74,15 @@ public final class SendspinRowText {
     }
 
     /**
+     * True if the sheet of a player's card offers the entry of a pairing token: when the card asks for it, and also when a player is
+     * connected that accepts unpaired servers and is not paired yet, because the operator may pair it anyway (a pairing survives
+     * a change of that player's settings, and an approval by playing does not prove who the player is).
+     */
+    public static boolean offersTokenEntry(State state, boolean connectedWithId, boolean paired) {
+        return offersPairing(state) || (connectedWithId && !paired);
+    }
+
+    /**
      * @param failure why the last pairing did not complete
      * @param paired  true if the connection is under the long-term PSK of a paired player
      */

@@ -91,7 +91,7 @@ final class SendspinPlayerSheet {
                 connection == null ? null : connection.endReason(),
                 connection == null ? HubConnection.PairingFailure.NONE : connection.pairingFailure(),
                 connection != null && connection.isPaired(), false, false);
-        if (SendspinRowText.offersPairing(state)) {
+        if (SendspinRowText.offersTokenEntry(state, connection != null && clientId != null, paired)) {
             root.addView(button(context, R.string.sendspin_player_enter_token, () -> {
                 dismiss(dialog);
                 SendspinPairDialog.show(context, device.getEndpoint(), announced);
