@@ -679,4 +679,7 @@
     <string name="sendspin_self_pair_title">此手机的配对令牌</string>
     <string name="sendspin_clientpair_id">此手机的密钥：%1$s</string>
     <string name="sendspin_selfpair_message">在另一台要在此手机上播放的设备上输入此令牌：在那里点按此手机的卡片并粘贴。（对于 Music Assistant 或其他服务器：将其作为此客户端的配对令牌输入。）令牌是机密：任何拥有它的人都可以将服务器与此应用配对。然后再次点按连接。</string>
+    <string name="sendspin_selfpair_qr_show">显示二维码</string>
+    <string name="sendspin_selfpair_qr_hide">隐藏二维码</string>
+    <string name="sendspin_selfpair_qr_description">此手机的配对令牌（二维码）</string>
 </resources>

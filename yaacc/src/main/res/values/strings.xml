@@ -688,4 +688,7 @@
     <string name="sendspin_self_pair_title">Pairing token of this phone</string>
     <string name="sendspin_clientpair_id">Key of this phone: %1$s</string>
     <string name="sendspin_selfpair_message">Enter this token on the other device that should play on this phone: there, tap the card of this phone and paste it. (For Music Assistant or another server: enter it as the pairing token of this client.) The token is a secret: anyone who has it can pair a server with this app. Then tap Connect again.</string>
+    <string name="sendspin_selfpair_qr_show">Show QR code</string>
+    <string name="sendspin_selfpair_qr_hide">Hide QR code</string>
+    <string name="sendspin_selfpair_qr_description">Pairing token of this phone as a QR code</string>
 </resources>

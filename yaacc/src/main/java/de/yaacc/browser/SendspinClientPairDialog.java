@@ -21,15 +21,22 @@ package de.yaacc.browser;
 import android.app.Activity;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Typeface;
+import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 
 import de.yaacc.R;
+import de.yaacc.sendspin.QrCodes;
 import de.yaacc.sendspin.SendspinHub;
 import de.yaacc.sendspin.SendspinReceiverDevice;
 import de.yaacc.sendspin.SendspinRowText;
@@ -72,19 +79,42 @@ final class SendspinClientPairDialog {
         shown.setTextIsSelectable(true);
         shown.setPadding(0, (int) (12 * density), 0, (int) (8 * density));
         root.addView(shown, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        // the QR code of the token for the other phone to scan; shown on a tap, because it is as secret as the text
+        final ImageView qr = new ImageView(context);
+        boolean[][] modules = QrCodes.modules(token);
+        int scale = Math.max(1, (int) (240 * density) / QrCodes.sizeOf(modules.length, 1));
+        int side = QrCodes.sizeOf(modules.length, scale);
+        qr.setImageBitmap(Bitmap.createBitmap(QrCodes.pixels(modules, scale), side, side, Bitmap.Config.ARGB_8888));
+        qr.setContentDescription(context.getString(R.string.sendspin_selfpair_qr_description));
+        qr.setVisibility(View.GONE);
+        LinearLayout.LayoutParams qrParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        qrParams.gravity = Gravity.CENTER_HORIZONTAL;
+        root.addView(qr, qrParams);
+        ScrollView scroll = new ScrollView(context);
+        scroll.addView(root);
         final AlertDialog dialog = new AlertDialog.Builder(context)
                 .setTitle(R.string.sendspin_self_pair_title)
-                .setView(root)
+                .setView(scroll)
                 .setPositiveButton(android.R.string.ok, null)
                 .setNeutralButton(R.string.sendspin_clientpair_copy, null)
+                .setNegativeButton(R.string.sendspin_selfpair_qr_show, null)
                 .create();
-        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
-            ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
-            if (clipboard != null) {
-                clipboard.setPrimaryClip(SensitiveClip.plainText("Sendspin pairing token", token));
-                Toast.makeText(context, R.string.sendspin_clientpair_copied, Toast.LENGTH_SHORT).show();
-            }
-        }));
+        // the text and the code are a secret: no screenshot, no preview in the list of recent apps
+        dialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        dialog.setOnShowListener(d -> {
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
+                ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+                if (clipboard != null) {
+                    clipboard.setPrimaryClip(SensitiveClip.plainText("Sendspin pairing token", token));
+                    Toast.makeText(context, R.string.sendspin_clientpair_copied, Toast.LENGTH_SHORT).show();
+                }
+            });
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(v -> {
+                boolean show = qr.getVisibility() != View.VISIBLE;
+                qr.setVisibility(show ? View.VISIBLE : View.GONE);
+                dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setText(show ? R.string.sendspin_selfpair_qr_hide : R.string.sendspin_selfpair_qr_show);
+            });
+        });
         dialog.show();
     }
 

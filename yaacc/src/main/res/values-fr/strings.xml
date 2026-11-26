@@ -687,4 +687,7 @@
     <string name="sendspin_self_pair_title">Jeton d\'appairage de ce téléphone</string>
     <string name="sendspin_clientpair_id">Clé de ce téléphone : %1$s</string>
     <string name="sendspin_selfpair_message">Saisissez ce jeton sur l\'autre appareil qui doit jouer sur ce téléphone : touchez-y la carte de ce téléphone et collez-le. (Pour Music Assistant ou un autre serveur : saisissez-le comme jeton d\'appairage de ce client.) Le jeton est un secret : quiconque le possède peut appairer un serveur avec cette application. Touchez ensuite Se reconnecter.</string>
+    <string name="sendspin_selfpair_qr_show">Afficher le code QR</string>
+    <string name="sendspin_selfpair_qr_hide">Masquer le code QR</string>
+    <string name="sendspin_selfpair_qr_description">Jeton d\'appairage de ce téléphone sous forme de code QR</string>
 </resources>

@@ -683,4 +683,7 @@
     <string name="sendspin_self_pair_title">Koppelingstoken van deze telefoon</string>
     <string name="sendspin_clientpair_id">Sleutel van deze telefoon: %1$s</string>
     <string name="sendspin_selfpair_message">Voer dit token in op het andere apparaat dat op deze telefoon moet afspelen: tik daar op de kaart van deze telefoon en plak het. (Voor Music Assistant of een andere server: voer het in als koppelingstoken van deze client.) Het token is een geheim: wie het kent, kan een server met deze app koppelen. Tik daarna op Opnieuw verbinden.</string>
+    <string name="sendspin_selfpair_qr_show">QR-code tonen</string>
+    <string name="sendspin_selfpair_qr_hide">QR-code verbergen</string>
+    <string name="sendspin_selfpair_qr_description">Koppelingstoken van deze telefoon als QR-code</string>
 </resources>

@@ -687,4 +687,7 @@
     <string name="sendspin_self_pair_title">Token de pareamento deste telefone</string>
     <string name="sendspin_clientpair_id">Chave deste telefone: %1$s</string>
     <string name="sendspin_selfpair_message">Insira este token no outro dispositivo que deve tocar neste telefone: lá, toque no cartão deste telefone e cole-o. (Para o Music Assistant ou outro servidor: insira-o como token de pareamento deste cliente.) O token é um segredo: quem o tiver pode parear um servidor com este app. Depois toque em Reconectar.</string>
+    <string name="sendspin_selfpair_qr_show">Mostrar código QR</string>
+    <string name="sendspin_selfpair_qr_hide">Ocultar código QR</string>
+    <string name="sendspin_selfpair_qr_description">Token de pareamento deste telefone como código QR</string>
 </resources>

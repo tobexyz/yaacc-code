@@ -105,3 +105,10 @@ Android reference pages: `KeyAgreement`/`KeyPairGenerator` algorithm `XDH` (X255
 
 ## 2026-11-24 - Owner's idea: choose the roles of the phone as a client (open)
 - The owner asked to record an option to change the roles of the YAACC device when it is a Sendspin client, so that it can act as a speaker, a cover display or a light. Recorded as P5 (`usecases.md`) and task 11.5; **not started**: it builds on the phone as a player (P1 to P4), and the visualizer role is outside the pinned notes (`requirements.md` lists it as a non-goal of the first version). The controller role of the phone (a card for another server) is already there and is not part of this choice.
+
+## 2026-11-26 - QR code for the pairing token (K12), decided by the owner
+- Library: ZXing (Apache-2.0, free software, no Google services; fits the F-Droid release). `com.google.zxing:core` draws and decodes the code; step 2 uses `com.journeyapps:zxing-android-embedded` for the camera preview.
+- Step 1 (no permission): the token screen of the phone's own card (gear, Pairing token) has a button that shows the token as a QR code; the code carries the token verbatim (no URI scheme, as the Sendspin specification says). The token screen blocks screenshots (`FLAG_SECURE`), because the code and the text are a secret.
+- Step 2: a Scan QR code button in the entry dialog of a player's token; the camera permission is requested only when it is tapped and the camera is declared `required=false`. The scanned text goes through the same check as a pasted one (the key must be the id of the player of the card).
+- Only the token of the phone as a player gets a QR code; the token that the app shows as a client of a server (Music Assistant) is typed into that server, which has no scanner.
+

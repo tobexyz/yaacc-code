@@ -687,4 +687,7 @@
     <string name="sendspin_self_pair_title">Token de emparejamiento de este teléfono</string>
     <string name="sendspin_clientpair_id">Clave de este teléfono: %1$s</string>
     <string name="sendspin_selfpair_message">Introduce este token en el otro dispositivo que debe reproducir en este teléfono: allí, toca la tarjeta de este teléfono y pégalo. (Para Music Assistant u otro servidor: introdúcelo como token de emparejamiento de este cliente.) El token es un secreto: quien lo tenga puede emparejar un servidor con esta app. Luego toca Volver a conectar.</string>
+    <string name="sendspin_selfpair_qr_show">Mostrar código QR</string>
+    <string name="sendspin_selfpair_qr_hide">Ocultar código QR</string>
+    <string name="sendspin_selfpair_qr_description">Token de emparejamiento de este teléfono como código QR</string>
 </resources>
