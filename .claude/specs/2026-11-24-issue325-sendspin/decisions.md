@@ -134,5 +134,5 @@ Android reference pages: `KeyAgreement`/`KeyPairGenerator` algorithm `XDH` (X255
 ## 2026-11-27 - No Opus; PCM and FLAC are the codecs of the first version (owner)
 - Opus is dropped, for the phone as a player and for the hub. The phone as a player takes PCM and FLAC (FLAC on request: *Prefer FLAC for the phone as a player*); the hub sends PCM. A player that offers only Opus cannot be used, as the docs say.
 - FLAC encoding on the hub was built on 2026-11-27 (task 11.3, first half): the hub follows the player's own priority among PCM and FLAC (16 bit, stereo); an own encoder in `de.yaacc.sendspin.hub.FlacEncoder` (no library), verified by a test decoder and by ffmpeg. The player's buffer is still counted with the PCM size (conservative).
-- The `source` role (the phone captures the microphone into a server) is dropped by the owner on 2026-11-27: not needed.
+- The `source` role is dropped by the owner on 2026-11-27: it only sends streaming content into a server, which YAACC already does by sending its content to the server. No microphone capture.
 
