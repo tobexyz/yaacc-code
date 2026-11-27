@@ -47,6 +47,7 @@ in order to play media from your device on any UPnP renderer in your network.
 * OpenHome: play on OpenHome devices (the device keeps and shows its playlist, which you can edit), and let OpenHome control points play on the app
 * Yamaha MusicCast devices: link them into a group, group volume, now playing and controls of their own sources, presets, device settings, a power button on the card (see the documentation)
 * Snapcast multi-room servers: every group is a receiver with group volume and mute, per-client volume, latency and name, the stream of the group and linking or unlinking clients; play music from the phone to a group, let the YAACC renderer play into a group, and use the phone as a Snapcast client (PCM and FLAC) (see [Snapcast](#snapcast))
+* Sendspin players and servers (experimental): play music from the phone to Sendspin players, link players into a group that plays in sync, use the phone as a Sendspin player (PCM and FLAC) and let other Sendspin controllers see and control what it plays; pairing by token or QR code (see the [documentation](https://tobexyz.github.io/yaacc-code/#sendspin))
 * FCast receivers: found by mDNS or added by address, device name, connection link or by opening the QR code of a receiver with the camera app; play music, video and pictures to them with play, pause, seek, volume (mute and speed while a player plays) and your queue (see [FCast](#fcast))
 * Allow download files to the device
 * Share a link or one audio, video or image file from another app and play it on the receivers you pick
