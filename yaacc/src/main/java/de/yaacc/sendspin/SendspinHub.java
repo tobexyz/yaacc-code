@@ -99,6 +99,7 @@ public final class SendspinHub implements SendspinReceiverSource {
     private final SnapcastDiscoveryGate serverGate;
     private final SendspinNames names;
     private final SendspinGroups groups = new SendspinGroups();
+    private final GroupIds groupIds = new GroupIds(random);
     private final SendspinServerAdvert advert;
     private final SnapcastDiscoveryGate inboundGate;
     private InboundServer inboundServer;
@@ -340,6 +341,7 @@ public final class SendspinHub implements SendspinReceiverSource {
             HubConnection made = new HubConnection(endpoint, identity(), approvals, (e, r) -> link, clock, random, SERVER_NAME,
                     this::connectionChanged, () -> SendspinSettings.isLegacyAllowed(preferences::getBoolean));
             connections.put(endpoint, made);
+            joinGroupRules(made, endpoint);
             made.setControllerHost(controllerHost());
             made.start();
         }
@@ -371,7 +373,7 @@ public final class SendspinHub implements SendspinReceiverSource {
     private synchronized de.yaacc.sendspin.control.ControllerHost controllerHost() {
         if (controllerHost == null) {
             controllerHost = new de.yaacc.sendspin.control.ControllerHost(
-                    new de.yaacc.sendspin.control.ControllerLogic(new HubPlaybackBridge(appContext, this), SERVER_NAME, random), clock,
+                    new de.yaacc.sendspin.control.ControllerLogic(new HubPlaybackBridge(appContext, this), SERVER_NAME, groupIds, random), clock,
                     () -> SendspinSettings.isPlayerUnpairedAllowed(preferences::getBoolean), MAX_CONTROLLERS, new BitmapArtworkEncoder());
         }
         return controllerHost;
@@ -533,8 +535,47 @@ public final class SendspinHub implements SendspinReceiverSource {
         HubConnection made = new HubConnection(endpoint, identity(), approvals, connector, clock, random, SERVER_NAME, this::connectionChanged,
                 () -> SendspinSettings.isLegacyAllowed(preferences::getBoolean));
         connections.put(endpoint, made);
+        joinGroupRules(made, endpoint);
         made.start();
         return made;
+    }
+
+    /**
+     * The protocol's rules for the group of a player (task 6.1): the player is told the id of the group it is in (its leader's, or its
+     * own while it is alone, the same id the controllers of this server see for that group), and a player that leaves its group, or
+     * becomes unavailable, is alone again and does not rejoin by itself.
+     */
+    private void joinGroupRules(HubConnection connection, Endpoint endpoint) {
+        final String receiverId = SendspinAddress.idOf(endpoint);
+        connection.setGroupSource(new HubConnection.GroupSource() {
+            @Override
+            public String groupId() {
+                String leader = groups.leaderOf(receiverId);
+                return groupIds.idOf(leader != null ? leader : receiverId);
+            }
+
+            @Override
+            public String groupName() {
+                return SERVER_NAME;
+            }
+        });
+        connection.setLeaveListener(c -> {
+            if (groups.leave(receiverId) != null) {
+                refreshGroups();
+                fire();
+            }
+        });
+    }
+
+    /** Tells every player the group it is in now, if that is not what it was told last. */
+    private void refreshGroups() {
+        List<HubConnection> all;
+        synchronized (this) {
+            all = new ArrayList<>(connections.values());
+        }
+        for (HubConnection c : all) {
+            c.refreshGroup();
+        }
     }
 
     /** A connection changed: if the player's name is now known and the list shows another, the lists are told. Connection thread. */
@@ -718,6 +759,7 @@ public final class SendspinHub implements SendspinReceiverSource {
         SendspinGroups.Result result = groups.link(leaderId, memberId);
         switch (result) {
             case LINKED:
+                refreshGroups();
                 if (!memberConnection.isPaired()) {
                     memberConnection.approve(); // linking a player is the operator's action that means to use it
                 }
@@ -737,11 +779,13 @@ public final class SendspinHub implements SendspinReceiverSource {
 
     public synchronized void unlink(String memberId) {
         groups.unlink(memberId);
+        refreshGroups();
         fire();
     }
 
     public synchronized void dissolve(String leaderId) {
         groups.dissolve(leaderId);
+        refreshGroups();
         fire();
     }
 

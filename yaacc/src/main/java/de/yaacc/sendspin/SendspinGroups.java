@@ -100,6 +100,28 @@ public final class SendspinGroups {
         }
     }
 
+    /**
+     * A player stops taking part in its group (the protocol's {@code client/leave}, or a client that becomes unavailable): it is alone
+     * again and the group goes on without it. A leader leaves by ending its group, because the group is played to the leader.
+     *
+     * @return the leader of the group it left (the "previous group"), or null if it was in none
+     */
+    public synchronized String leave(String id) {
+        if (id == null) {
+            return null;
+        }
+        String leader = leaderOfMember.get(id);
+        if (leader != null) {
+            unlink(id);
+            return leader;
+        }
+        if (isLeader(id)) {
+            dissolve(id);
+            return id;
+        }
+        return null;
+    }
+
     /** A player that is removed from the app leaves its group, or ends it if it leads one. */
     public synchronized void remove(String id) {
         unlink(id);

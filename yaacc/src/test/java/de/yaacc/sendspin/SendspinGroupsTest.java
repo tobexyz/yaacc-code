@@ -127,4 +127,36 @@ public class SendspinGroupsTest {
         assertEquals(java.util.Arrays.asList("a", "c", "e", "b", "d", "(not a player)"), grouped);
         assertEquals("no groups, no change", sorted, SendspinGroups.groupedOrder(sorted, s -> s.startsWith("(") ? null : s, id -> null));
     }
+
+    @Test
+    public void aMemberThatLeavesIsAloneAgainAndTheGroupGoesOn() {
+        groups.link("L", "a");
+        groups.link("L", "b");
+        assertEquals("the group it left", "L", groups.leave("a"));
+        assertNull(groups.leaderOf("a"));
+        assertEquals(Arrays.asList("b"), groups.membersOf("L"));
+    }
+
+    @Test
+    public void theLastMemberThatLeavesEndsTheGroup() {
+        groups.link("L", "a");
+        assertEquals("L", groups.leave("a"));
+        assertFalse(groups.isInGroup("L"));
+    }
+
+    @Test
+    public void aLeaderThatLeavesEndsItsGroupBecauseTheGroupIsPlayedToIt() {
+        groups.link("L", "a");
+        groups.link("L", "b");
+        assertEquals("L", groups.leave("L"));
+        assertFalse(groups.isInGroup("a"));
+        assertFalse(groups.isInGroup("b"));
+        assertFalse(groups.isInGroup("L"));
+    }
+
+    @Test
+    public void aPlayerInNoGroupHasNothingToLeave() {
+        assertNull(groups.leave("x"));
+        assertNull(groups.leave(null));
+    }
 }

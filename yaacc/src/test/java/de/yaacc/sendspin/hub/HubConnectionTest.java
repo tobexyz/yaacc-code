@@ -103,11 +103,22 @@ public class HubConnectionTest {
         assertEquals(expected, hub.phase());
     }
 
-    private Envelope nextJson() throws Exception {
+    /** The next JSON message of any type, group/update included. */
+    private Envelope nextJsonAny() throws Exception {
         while (true) {
             SecureChannel.Inbound inbound = peer.receive();
             if (inbound.isJson()) {
                 return inbound.envelope();
+            }
+        }
+    }
+
+    /** The next JSON message that is not a group/update (the group of the player is told after an activation and when it changes). */
+    private Envelope nextJson() throws Exception {
+        while (true) {
+            Envelope e = nextJsonAny();
+            if (!"group/update".equals(e.type())) {
+                return e;
             }
         }
     }
@@ -137,7 +148,7 @@ public class HubConnectionTest {
         JSONObject activate = nextJson().payload();
         assertEquals("playback", activate.getJSONArray("activities").getString(0));
         assertEquals("player@v1", activate.getJSONArray("active_roles").getString(0));
-        assertEquals("group/update", nextJson().type());
+        assertEquals("group/update", nextJsonAny().type());
         awaitPhase(HubConnection.Phase.READY);
         assertEquals(44100, hub.streamFormat().sampleRate);
         assertNotNull(hub.streamer());
@@ -168,7 +179,7 @@ public class HubConnectionTest {
         assertEquals("a first activation without it would tie with another server's idle connection and lose", "playback",
                 first.getJSONArray("activities").getString(0));
         assertEquals("player@v1", first.getJSONArray("active_roles").getString(0));
-        assertEquals("group/update", nextJson().type());
+        assertEquals("group/update", nextJsonAny().type());
         peer.sendJson(stateJson(true, "[\"volume\"]"));
         awaitPhase(HubConnection.Phase.READY);
     }
@@ -280,7 +291,7 @@ public class HubConnectionTest {
         awaitPhase(HubConnection.Phase.AVAILABLE);
         assertTrue(hub.startPlayback());
         nextJson(); // activate: playback
-        nextJson(); // group/update
+        nextJsonAny(); // group/update
         awaitPhase(HubConnection.Phase.READY);
     }
 
@@ -416,6 +427,99 @@ public class HubConnectionTest {
     public void flacCanBeTheOnlyFormatOfAPlayer() throws Exception {
         becomeReady(FLAC_ONLY);
         assertEquals(44100, hub.streamFormat().sampleRate);
+    }
+
+    private void becomeAvailable() throws Exception {
+        connect();
+        policy.approve(player.identity.id());
+        peer.sendJson(helloJson(true, PCM_FORMATS, "[\"player@v1\"]"));
+        nextJson(); // activate: the role, no activity
+        assertEquals("group/update", nextJsonAny().type());
+        peer.sendJson(stateJson(true, "[\"volume\",\"mute\"]"));
+        awaitPhase(HubConnection.Phase.AVAILABLE);
+    }
+
+    @Test
+    public void theActivationIsFollowedByAGroupUpdateWithAProperIdAndAStoppedGroup() throws Exception {
+        connect();
+        policy.approve(player.identity.id());
+        peer.sendJson(helloJson(true, PCM_FORMATS, "[\"player@v1\"]"));
+        assertEquals("server/activate", nextJsonAny().type());
+        JSONObject group = nextJsonAny().payload();
+        assertTrue(group.getString("group_id").matches("[A-Za-z0-9_-]{43}"));
+        assertEquals("stopped", group.getString("playback_state"));
+    }
+
+    @Test
+    public void startingAndStoppingPlaybackIsToldToThePlayerAsTheStateOfItsGroup() throws Exception {
+        becomeAvailable();
+        assertTrue(hub.startPlayback());
+        nextJson(); // activate: playback
+        JSONObject playing = nextJsonAny().payload();
+        assertEquals("playing", playing.getString("playback_state"));
+        hub.stopPlayback();
+        Envelope e = nextJsonAny();
+        while (!"group/update".equals(e.type())) {
+            e = nextJsonAny(); // the activation without playback
+        }
+        assertEquals("stopped", e.payload().getString("playback_state"));
+        assertEquals("the same group", playing.getString("group_id"), e.payload().getString("group_id"));
+    }
+
+    @Test
+    public void theIdOfAGroupFollowsItsSourceAndAnUpdateIsSentOnlyWhenSomethingChanged() throws Exception {
+        becomeAvailable();
+        java.util.concurrent.atomic.AtomicReference<String> id = new java.util.concurrent.atomic.AtomicReference<>("A".repeat(43));
+        hub.setGroupSource(new HubConnection.GroupSource() {
+            @Override
+            public String groupId() {
+                return id.get();
+            }
+
+            @Override
+            public String groupName() {
+                return "Group";
+            }
+        });
+        hub.refreshGroup();
+        JSONObject first = nextJsonAny().payload();
+        assertEquals("A".repeat(43), first.getString("group_id"));
+        assertEquals("Group", first.getString("group_name"));
+        hub.refreshGroup(); // nothing changed: nothing is sent
+        id.set("B".repeat(43));
+        hub.refreshGroup();
+        assertEquals("B".repeat(43), nextJsonAny().payload().getString("group_id"));
+    }
+
+    @Test
+    public void aClientThatLeavesIsReportedAndKeepsItsConnection() throws Exception {
+        becomeAvailable();
+        java.util.concurrent.atomic.AtomicInteger left = new java.util.concurrent.atomic.AtomicInteger();
+        hub.setLeaveListener(connection -> left.incrementAndGet());
+        peer.sendJson("{\"type\":\"client/leave\",\"payload\":{}}");
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (left.get() == 0 && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        assertEquals(1, left.get());
+        assertFalse(hub.phase() == HubConnection.Phase.ENDED);
+    }
+
+    @Test
+    public void aPlayerThatBecomesUnavailableLeavesItsGroupOnceAndComingBackRejoinsNothing() throws Exception {
+        becomeAvailable();
+        java.util.concurrent.atomic.AtomicInteger left = new java.util.concurrent.atomic.AtomicInteger();
+        hub.setLeaveListener(connection -> left.incrementAndGet());
+        peer.sendJson("{\"type\":\"client/state\",\"payload\":{\"available\":false}}");
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (left.get() == 0 && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        assertEquals(1, left.get());
+        peer.sendJson("{\"type\":\"client/state\",\"payload\":{\"available\":false}}"); // again: not a new transition
+        peer.sendJson(stateJson(true, "[\"volume\",\"mute\"]"));
+        Thread.sleep(300);
+        assertEquals("coming back asks for nothing", 1, left.get());
     }
 
     @Test

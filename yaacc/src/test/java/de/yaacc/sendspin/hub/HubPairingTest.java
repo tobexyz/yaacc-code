@@ -112,10 +112,11 @@ public class HubPairingTest {
         assertEquals(expected, hub.phase());
     }
 
+    /** The next JSON message that is not a group/update (the group of the player is told after an activation). */
     private Envelope nextJson() throws Exception {
         while (true) {
             SecureChannel.Inbound inbound = peer.receive();
-            if (inbound.isJson()) {
+            if (inbound.isJson() && !"group/update".equals(inbound.envelope().type())) {
                 return inbound.envelope();
             }
         }

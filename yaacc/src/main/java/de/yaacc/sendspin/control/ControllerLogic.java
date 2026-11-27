@@ -23,7 +23,6 @@ import de.yaacc.sendspin.session.ControllerServerMessages;
 
 import java.security.SecureRandom;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -125,24 +124,23 @@ public final class ControllerLogic {
     private final PlaybackBridge bridge;
     private final String serverName;
     private final SecureRandom random;
-    private final Map<String, String> ids = new HashMap<>();
+    private final de.yaacc.sendspin.GroupIds groupIds;
 
     public ControllerLogic(PlaybackBridge bridge, String serverName, SecureRandom random) {
+        this(bridge, serverName, new de.yaacc.sendspin.GroupIds(random), random);
+    }
+
+    /** @param groupIds the ids of the groups, shared with the players' connections: one group has one id for everyone */
+    public ControllerLogic(PlaybackBridge bridge, String serverName, de.yaacc.sendspin.GroupIds groupIds, SecureRandom random) {
         this.bridge = bridge;
         this.serverName = serverName;
         this.random = random;
+        this.groupIds = groupIds;
     }
 
     /** The protocol id of a group: 32 random bytes, base64url without padding (43 characters), kept while the app runs. */
-    public synchronized String groupIdOf(String key) {
-        String id = ids.get(key);
-        if (id == null) {
-            byte[] bytes = new byte[32];
-            random.nextBytes(bytes);
-            id = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-            ids.put(key, id);
-        }
-        return id;
+    public String groupIdOf(String key) {
+        return groupIds.idOf(key);
     }
 
     // ------------------------------------------------------------------ which group

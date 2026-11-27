@@ -113,7 +113,20 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
     private static final long IDLE_LIMIT_MILLIS = 45_000L;
     /** Added to what the player asked for: network and scheduling jitter on the way. */
     private static final long LEAD_MARGIN_MICROS = 250_000L;
-    private static final String GROUP_ID = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"; // a group of one; ids of real groups come with linking
+
+    /** Where the group of this player comes from: the hub knows the groups; a connection without a source is a group of its own. */
+    public interface GroupSource {
+        /** The protocol id of the group the player is in now (43 base64url characters, the same while the group exists). */
+        String groupId();
+
+        /** The friendly name of that group (at most 64 bytes). */
+        String groupName();
+    }
+
+    /** Told when the player stops taking part in its group: {@code client/leave}, or a change to {@code available: false}. */
+    public interface LeaveListener {
+        void left(HubConnection connection);
+    }
 
     private final Endpoint endpoint;
     private final Identity identity;
@@ -147,6 +160,15 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
     /** True for a client of the older, unencrypted wire: no activation messages, the roles are in the {@code server/hello}. */
     private volatile boolean legacy;
     private volatile StreamFormat format;
+    private volatile GroupSource groupSource;
+    private volatile LeaveListener leaveListener;
+    /** The id of the group of this connection alone, used while the hub gives no source. */
+    private final String ownGroupId = newGroupId();
+    /** What the player was last told about its group; guarded by {@code lock}. */
+    private String toldGroupId;
+    private String toldGroupName;
+    private boolean toldPlaying;
+    private Boolean lastAvailable;
     /** The encoder of the running stream when it is FLAC (written by the thread that sends audio and the stream messages), else null. */
     private volatile FlacEncoder flac;
     private PcmStreamer streamer;
@@ -362,7 +384,7 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
             if (!legacy) {
                 c.sendJson(SendspinMessages.serverActivate(Collections.singletonList("playback"), Collections.singletonList("player@v1")));
             }
-            c.sendJson(SendspinMessages.groupUpdate(false, GROUP_ID, serverName));
+            sendGroupUpdate(c, true);
         } catch (IOException e) {
             fail(EndReason.FAILED);
             return false;
@@ -401,6 +423,7 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
         try {
             if (!legacy) {
                 c.sendJson(SendspinMessages.serverActivate(Collections.<String>emptyList(), Collections.singletonList("player@v1")));
+                sendGroupUpdate(c, false); // a stopped group
             }
         } catch (IOException e) {
             return; // the connection is gone; the loop ends it
@@ -417,6 +440,72 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
      * Whether the hub can produce this format: PCM or FLAC with 16 bit and two channels at a rate the streamer takes (a rate it would
      * refuse, 11025 Hz, is skipped). FLAC only on the encrypted protocol: the older one carries PCM only. Opus is not produced.
      */
+    private static String newGroupId() {
+        byte[] bytes = new byte[32];
+        new SecureRandom().nextBytes(bytes);
+        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    /** The group of this player comes from the hub (its leader, or itself); call before the connection starts. */
+    public void setGroupSource(GroupSource source) {
+        this.groupSource = source;
+    }
+
+    public void setLeaveListener(LeaveListener listener) {
+        this.leaveListener = listener;
+    }
+
+    private String currentGroupId() {
+        GroupSource source = groupSource;
+        return source == null ? ownGroupId : source.groupId();
+    }
+
+    private String currentGroupName() {
+        GroupSource source = groupSource;
+        String name = source == null ? serverName : source.groupName();
+        return name == null ? serverName : name;
+    }
+
+    /** Sends {@code group/update} with what is true now and remembers it. Not for the legacy wire's idle activation. */
+    private void sendGroupUpdate(SecureChannel c, boolean playing) throws IOException {
+        String id = currentGroupId();
+        String name = currentGroupName();
+        synchronized (lock) {
+            toldGroupId = id;
+            toldGroupName = name;
+            toldPlaying = playing;
+        }
+        c.sendJson(SendspinMessages.groupUpdate(playing, id, name));
+    }
+
+    /**
+     * The group of this player or the state of its group may have changed (it was linked or unlinked, it left): tells the player if
+     * something differs from what it was told last. Any thread.
+     */
+    public void refreshGroup() {
+        if (legacy) {
+            return;
+        }
+        CommandThread.run(() -> {
+            SecureChannel c = channel;
+            boolean playing;
+            synchronized (lock) {
+                if (c == null || !rolesActive || phase == Phase.ENDED || toldGroupId == null) {
+                    return; // nothing has been told yet: the activation tells it
+                }
+                playing = playbackActive;
+                if (currentGroupId().equals(toldGroupId) && currentGroupName().equals(toldGroupName) && playing == toldPlaying) {
+                    return;
+                }
+            }
+            try {
+                sendGroupUpdate(c, playing);
+            } catch (IOException e) {
+                // the connection is gone; its loop ends it
+            }
+        });
+    }
+
     private static boolean producible(SendspinMessages.Format f, boolean legacy) {
         return f.bitDepth == 16 && f.channels == 2 && GroupFormat.usable(f.sampleRate)
                 && ("pcm".equals(f.codec) || (!legacy && "flac".equals(f.codec)));
@@ -699,6 +788,13 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
                     de.yaacc.sendspin.control.ControllerHost.Session controller = controllerSession;
                     if (controller != null) {
                         controller.command(envelope.payload());
+                    }
+                    break;
+                }
+                case "client/leave": {
+                    LeaveListener listener = leaveListener;
+                    if (listener != null) {
+                        listener.left(this); // alone in a group of its own, stopped; a stream goes on as it would for any client there
                     }
                     break;
                 }
@@ -1116,8 +1212,8 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
                     withPlayback ? Collections.singletonList("playback") : Collections.<String>emptyList(),
                     Collections.singletonList("player@v1")));
         }
-        if (withPlayback) {
-            channel.sendJson(SendspinMessages.groupUpdate(false, GROUP_ID, serverName));
+        if (withPlayback || !legacy) {
+            sendGroupUpdate(channel, withPlayback); // the specification: promptly after the first activation, whatever the activity
         }
         // the player's own state (the specification forbids role data before it) moves the phase on
         SendspinMessages.ClientState s = state;
@@ -1128,6 +1224,19 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
 
     private void handleState(SendspinMessages.ClientState s) {
         state = s;
+        boolean becameUnavailable;
+        synchronized (lock) {
+            becameUnavailable = !s.available && (lastAvailable == null || lastAvailable);
+            lastAvailable = s.available;
+        }
+        if (becameUnavailable) {
+            // the specification: the player is moved to a group of its own, stopped, and its streams end; it does not rejoin by itself
+            LeaveListener listener = leaveListener;
+            if (listener != null) {
+                listener.left(this);
+            }
+            stopPlayback();
+        }
         boolean becameReady;
         boolean playing;
         synchronized (lock) {
