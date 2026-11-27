@@ -191,4 +191,10 @@
     <string name="settings_sendspin_player_flac_summary">默认关闭。开启后，服务器在可能时会发送 FLAC（流更小，约为 PCM 的一半），由手机用自己的解码器解码；与 Snapcast 客户端相同的路径，尚未与 Sendspin 服务器实际验证过。PCM 仍作为第二选择提供。对服务器的下一次连接生效。</string>
     <string name="settings_sendspin_player_unpaired_title">允许未配对的设备使用此手机</string>
     <string name="settings_sendspin_player_unpaired_summary">默认关闭。其他设备可以对此手机做的所有事情共用这一个设置：在其上播放（当它是播放器时）以及控制它正在播放的内容。开启后，未配对的设备无需证明身份即可这样做：网络中任何找到手机的设备都可以连接（连接已加密，但未经身份验证）。关闭时，只有你已配对的设备可以：在已配对设备列表中使用“添加设备”（扫描二维码或输入另一部手机的令牌），或者对播放器，在此手机的卡片中输入其令牌。</string>
+    <string name="settings_sendspin_player_show_now_playing_title">显示此手机上正在播放的内容（元数据角色）</string>
+    <string name="settings_sendspin_player_show_now_playing_summary">默认关闭。开启后，服务器可向此手机发送标题、艺术家、专辑和进度，显示在显示屏幕上（从此手机卡片的齿轮打开）。</string>
+    <string name="settings_sendspin_player_show_cover_title">在此手机上显示封面（封面角色）</string>
+    <string name="settings_sendspin_player_show_cover_summary">默认关闭。开启后，服务器可向此手机发送专辑封面（JPEG，512×512 像素），在显示屏幕上全屏显示。手机只请求专辑图片。</string>
+    <string name="settings_sendspin_player_show_colors_title">在此手机上跟随服务器的颜色（颜色角色）</string>
+    <string name="settings_sendspin_player_show_colors_summary">默认关闭。开启后，服务器可发送由音乐（例如封面）得出的颜色；显示屏幕将其用作背景色和文字颜色。</string>
 </resources>

@@ -189,6 +189,24 @@
             android:title="@string/settings_sendspin_player_flac_title" />
         <CheckBoxPreference
             android:defaultValue="false"
+            android:dependency="@string/settings_sendspin_player"
+            android:key="@string/settings_sendspin_player_show_now_playing"
+            android:summary="@string/settings_sendspin_player_show_now_playing_summary"
+            android:title="@string/settings_sendspin_player_show_now_playing_title" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:dependency="@string/settings_sendspin_player"
+            android:key="@string/settings_sendspin_player_show_cover"
+            android:summary="@string/settings_sendspin_player_show_cover_summary"
+            android:title="@string/settings_sendspin_player_show_cover_title" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:dependency="@string/settings_sendspin_player"
+            android:key="@string/settings_sendspin_player_show_colors"
+            android:summary="@string/settings_sendspin_player_show_colors_summary"
+            android:title="@string/settings_sendspin_player_show_colors_title" />
+        <CheckBoxPreference
+            android:defaultValue="false"
             android:dependency="@string/settings_sendspin_enabled"
             android:key="@string/settings_sendspin_legacy"
             android:summary="@string/settings_sendspin_legacy_summary"

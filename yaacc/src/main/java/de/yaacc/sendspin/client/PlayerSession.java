@@ -158,6 +158,14 @@ public final class PlayerSession {
     private SendspinPsk.Category matched = SendspinPsk.Category.SENTINEL;
     private boolean playerActive;
     private boolean stateSent;
+    /** The display roles (task 11.5) this client offers besides the player, and the state of the ones that are active; null: none. */
+    private volatile DisplayRoles display;
+    private volatile List<String> offeredRoles = Collections.singletonList(ROLE);
+    private boolean displayStateSent;
+    private boolean artworkStateSent;
+    private boolean metadataActive;
+    private boolean artworkActive;
+    private boolean colorActive;
 
     /**
      * @param link           the connection (its WebSocket handshake is done)
@@ -247,6 +255,33 @@ public final class PlayerSession {
     public long serverToClientMicros(long serverMicros) {
         synchronized (lock) {
             return serverMicros - serverClock.offsetMicros();
+        }
+    }
+
+    /**
+     * Offers display roles besides the player (task 11.5): the metadata, artwork and color roles in {@code roles} (see
+     * {@link DisplayRoles#roles}). Before {@link #start()}; the roles are listed in {@code client/hello}.
+     */
+    public void setDisplayRoles(List<String> roles, DisplayRoles state) {
+        if (roles == null || roles.isEmpty() || state == null) {
+            return;
+        }
+        List<String> all = new ArrayList<>(roles.size() + 1);
+        all.add(ROLE);
+        all.addAll(roles);
+        this.offeredRoles = Collections.unmodifiableList(all);
+        this.display = state;
+    }
+
+    /** What the display roles show, or null if none are offered. */
+    public DisplayRoles display() {
+        return display;
+    }
+
+    /** The server's time now, microseconds (by the clock estimate; for what a display shows). */
+    public long serverNowMicros() {
+        synchronized (lock) {
+            return serverClock.serverTimeAt(clock.nowMicros());
         }
     }
 
@@ -432,6 +467,13 @@ public final class PlayerSession {
                         audio.chunk(chunk.timestampMicros, chunk.audio);
                     }
                 }
+                DisplayRoles shown = display;
+                if (shown != null && artworkActive && inbound.id() >= ArtworkStream.FIRST_TYPE
+                        && inbound.id() < ArtworkStream.FIRST_TYPE + ArtworkStream.MAX_CHANNELS) {
+                    if (shown.onArtworkMessage(inbound.id(), inbound.body(), serverNowMicros())) { // a malformed one ends the connection
+                        notifyChanged();
+                    }
+                }
                 continue; // other binary data belongs to roles this client does not have
             }
             Envelope envelope = inbound.envelope();
@@ -442,7 +484,7 @@ public final class PlayerSession {
                 serverName = ControllerMessages.parseServerHello(envelope.payload());
                 helloSeen = true;
                 c.sendJson(PlayerMessages.clientHello(name, PRODUCT_NAME, unpairedAccess, formats, bufferCapacity,
-                        Collections.singletonList(ROLE), codeOffer));
+                        offeredRoles, codeOffer));
                 setPhase(Phase.WAITING_FOR_ACTIVATION);
                 continue;
             }
@@ -452,6 +494,19 @@ public final class PlayerSession {
                     break;
                 case "stream/start":
                     handleStreamStart(envelope.payload());
+                    if (display != null && artworkActive) {
+                        java.util.List<ControllerMessages.ArtworkChannel> channels = ControllerMessages.parseStreamStartArtwork(envelope.payload());
+                        if (channels != null) {
+                            display.startArtwork(channels);
+                            notifyChanged();
+                        }
+                    }
+                    break;
+                case "server/state":
+                    if (display != null) {
+                        display.accept(ControllerMessages.parseServerState(envelope.payload()), serverNowMicros(), metadataActive, colorActive);
+                        notifyChanged();
+                    }
                     break;
                 case "stream/clear":
                     if (playerActive && streaming && PlayerMessages.clearsPlayer(envelope.payload())) {
@@ -461,6 +516,13 @@ public final class PlayerSession {
                 case "stream/end":
                     if (PlayerMessages.clearsPlayer(envelope.payload())) {
                         endStream();
+                    }
+                    if (display != null) {
+                        java.util.List<String> ended = ControllerMessages.parseStreamEndRoles(envelope.payload());
+                        if (ended == null || ended.contains("artwork")) {
+                            display.endArtwork();
+                            notifyChanged();
+                        }
                     }
                     break;
                 case "server/command":
@@ -534,7 +596,7 @@ public final class PlayerSession {
 
     private void handleActivate(SecureChannel c, ControllerMessages.Activate a) throws IOException {
         // an activation without active_roles leaves the roles as they are: all the roles this client offered (the reference server does this)
-        List<String> effective = a.activeRoles != null ? a.activeRoles : Collections.singletonList(ROLE);
+        List<String> effective = a.activeRoles != null ? a.activeRoles : offeredRoles;
         boolean canPair = (credentials != null && matched == SendspinPsk.Category.PAIRING && credentials.holdsPairingPsk()
                 && "pairing_psk".equals(a.pairingMethod)) || isCodeMethod(a.pairingMethod);
         ControllerMessages.Admission admission = ControllerMessages.admit(matched, unpairedAccess, a.activities, effective, canPair);
@@ -581,14 +643,34 @@ public final class PlayerSession {
             endStream(); // the server took the role away
         }
         playerActive = active;
-        if (active) {
+        DisplayRoles shown = display;
+        metadataActive = shown != null && effective.contains(DisplayRoles.METADATA);
+        artworkActive = shown != null && effective.contains(DisplayRoles.ARTWORK);
+        colorActive = shown != null && effective.contains(DisplayRoles.COLOR);
+        if (shown != null) {
+            shown.clear(metadataActive, artworkActive, colorActive); // what a role showed is gone with the role
+        }
+        boolean anyDisplay = metadataActive || artworkActive || colorActive;
+        if (active || anyDisplay) {
             if (!stateSent) {
                 stateSent = true;
                 bursts.reset();
             }
-            sendState(c, true);
+            if (active) {
+                sendState(c, true);
+            }
+            if (anyDisplay && (!displayStateSent || artworkActive != artworkStateSent)) {
+                // a role with a state object (artwork) that becomes active needs its object in a client/state before the server streams;
+                // roles without one are opened by the first client/state
+                c.sendJson(artworkActive ? ControllerMessages.clientStateWithArtwork(true, DisplayRoles.ARTWORK_FORMAT,
+                        DisplayRoles.ARTWORK_SIZE, DisplayRoles.ARTWORK_SIZE) : ControllerMessages.clientState(true));
+                displayStateSent = true;
+                artworkStateSent = artworkActive;
+            }
             setPhase(Phase.ACTIVE);
         } else {
+            displayStateSent = false;
+            artworkStateSent = false;
             setPhase(Phase.WAITING_FOR_SERVER);
         }
     }

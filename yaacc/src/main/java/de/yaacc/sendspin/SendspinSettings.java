@@ -169,6 +169,28 @@ public final class SendspinSettings {
         }
     }
 
+    /** Roles of this phone as a player beyond the speaker (task 11.5); all off by default. */
+    public static final String KEY_PLAYER_SHOW_NOW_PLAYING = "settings_sendspin_player_show_now_playing";
+    public static final String KEY_PLAYER_SHOW_COVER = "settings_sendspin_player_show_cover";
+    public static final String KEY_PLAYER_SHOW_COLORS = "settings_sendspin_player_show_colors";
+
+    /** @return the display roles the phone offers a server, from the three switches; empty if none is on */
+    public static java.util.List<String> playerDisplayRoles(BooleanSource source) {
+        boolean metadata = false;
+        boolean cover = false;
+        boolean colors = false;
+        if (source != null) {
+            try {
+                metadata = source.getBoolean(KEY_PLAYER_SHOW_NOW_PLAYING, false);
+                cover = source.getBoolean(KEY_PLAYER_SHOW_COVER, false);
+                colors = source.getBoolean(KEY_PLAYER_SHOW_COLORS, false);
+            } catch (RuntimeException damaged) {
+                return java.util.Collections.emptyList();
+            }
+        }
+        return de.yaacc.sendspin.client.DisplayRoles.roles(metadata, cover, colors);
+    }
+
     public static boolean isPlayerFlacPreferred(BooleanSource source) {
         try {
             return source != null && source.getBoolean(KEY_PLAYER_FLAC, false);

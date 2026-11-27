@@ -24,6 +24,7 @@ import de.yaacc.sendspin.SendspinClientPairings;
 import de.yaacc.sendspin.hub.Connector;
 import de.yaacc.sendspin.hub.HubClock;
 import de.yaacc.sendspin.session.PlayerMessages;
+import de.yaacc.sendspin.client.DisplayRoles;
 import de.yaacc.sendspin.client.PlayerSession;
 import de.yaacc.sendspin.secure.Identity;
 import de.yaacc.util.YaaccLogger;
@@ -118,6 +119,8 @@ public final class SendspinPlayerHost {
     private final List<Entry> entries = new ArrayList<>();
 
     private volatile ClientCodePairing codePairing;
+    /** The display roles to offer (task 11.5), read for every new connection; empty: the player alone. */
+    private volatile java.util.function.Supplier<List<String>> displayRoles = java.util.Collections::emptyList;
     private Entry owner;
     private Engine engine;
     private SendspinAudioEngine audio;
@@ -236,6 +239,10 @@ public final class SendspinPlayerHost {
         if (pairing != null) {
             entry.session.setCodePairing(pairing.offer(), pairing.window(), pairing);
         }
+        List<String> display = displayRoles.get();
+        if (display != null && !display.isEmpty()) {
+            entry.session.setDisplayRoles(display, new DisplayRoles());
+        }
         synchronized (lock) {
             if (closed || entries.size() >= MAX_SESSIONS) {
                 closeQuietly(link);
@@ -245,6 +252,37 @@ public final class SendspinPlayerHost {
         }
         entry.session.start();
         fire();
+    }
+
+    /** The display roles (metadata, artwork, color) offered to servers: read for every new connection (task 11.5). */
+    public void setDisplayRoles(java.util.function.Supplier<List<String>> roles) {
+        this.displayRoles = roles == null ? java.util.Collections::emptyList : roles;
+    }
+
+    /**
+     * What the display screen shows: the state of the connection that has something to show (the first one that has a title, an image or
+     * colours), or null if no connection has display roles active. Any thread.
+     */
+    public DisplaySnapshot displaySnapshot() {
+        List<PlayerSession> sessions = new ArrayList<>();
+        synchronized (lock) {
+            for (Entry e : entries) {
+                if (e.session != null && e.session.display() != null) {
+                    sessions.add(e.session);
+                }
+            }
+        }
+        DisplaySnapshot first = null;
+        for (PlayerSession s : sessions) {
+            DisplaySnapshot snapshot = DisplaySnapshot.of(s.display(), s.serverNowMicros(), s.serverName());
+            if (!snapshot.isEmpty()) {
+                return snapshot;
+            }
+            if (first == null) {
+                first = snapshot;
+            }
+        }
+        return first;
     }
 
     /** Pairing with a code (task 11.1): the connections that come after this call offer the methods of {@code pairing}. */

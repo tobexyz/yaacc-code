@@ -737,4 +737,8 @@
     <string name="sendspin_self_code_shown_qr">Ou deixe o servidor escanear este código QR:</string>
     <string name="sendspin_self_code_static">Código fixo: %1$s</string>
     <string name="sendspin_self_code_waiting">Nenhum servidor está pareando agora. Inicie o pareamento com código no servidor (no YAACC: o botão Parear com um código do cartão deste telefone); então o código aparece aqui.</string>
+    <string name="sendspin_display_title">Exibição</string>
+    <string name="sendspin_display_waiting">Aguardando o servidor enviar algo para exibir.</string>
+    <string name="sendspin_display_no_server">Nenhum servidor conectado. Inicie a reprodução a partir de um servidor que use este telefone como exibição.</string>
+    <string name="sendspin_self_display_open">Abrir a exibição</string>
 </resources>

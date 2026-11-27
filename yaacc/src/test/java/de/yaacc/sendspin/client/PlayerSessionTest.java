@@ -18,8 +18,10 @@
  */
 package de.yaacc.sendspin.client;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import de.yaacc.sendspin.hub.HubClock;
@@ -179,6 +181,118 @@ public class PlayerSessionTest {
             Thread.sleep(10);
         }
         assertTrue(audio.events.toString(), audio.events.size() >= count);
+    }
+
+    /** As {@link #connect(boolean)} with the display roles of task 11.5 offered. */
+    private de.yaacc.sendspin.client.DisplayRoles connectWithDisplay(boolean metadata, boolean artwork, boolean color) throws Exception {
+        link = new FakePlayer().open();
+        List<de.yaacc.sendspin.session.PlayerMessages.Offer> formats = Arrays.asList(new de.yaacc.sendspin.session.PlayerMessages.Offer("pcm", 48000, 2, 16));
+        session = new PlayerSession(link.hubLink(), clientIdentity, true, null, HubClock.SYSTEM, new SecureRandom(), "Phone", formats,
+                1_000_000L, 500, 800, audio, controls, null);
+        de.yaacc.sendspin.client.DisplayRoles state = new de.yaacc.sendspin.client.DisplayRoles();
+        session.setDisplayRoles(de.yaacc.sendspin.client.DisplayRoles.roles(metadata, artwork, color), state);
+        session.setBurstIntervalMillis(100);
+        Future<ServerHandshake.Result> s = link.onHub(
+                () -> ServerHandshake.perform(link.playerWs, serverIdentity, id -> ServerHandshake.PskChoice.sentinel(), new SecureRandom()));
+        session.start();
+        server = s.get(5, TimeUnit.SECONDS).channel;
+        server.sendJson(SendspinMessages.serverHello("Music Assistant"));
+        return state;
+    }
+
+    private void awaitTrue(java.util.function.BooleanSupplier condition, String what) throws Exception {
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (!condition.getAsBoolean() && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        assertTrue(what, condition.getAsBoolean());
+    }
+
+    @Test
+    public void theHelloListsTheDisplayRolesThatAreOfferedAndOnlyThose() throws Exception {
+        connectWithDisplay(true, false, true);
+        Envelope hello = next();
+        String roles = hello.payload().getJSONArray("supported_roles").toString();
+        assertTrue(roles, roles.contains("player@v1") && roles.contains("metadata@v1") && roles.contains("color@v1"));
+        assertFalse(roles, roles.contains("artwork@v1"));
+    }
+
+    @Test
+    public void noDisplayRolesMeansTheHelloOfThePlayerAlone() throws Exception {
+        connect(true);
+        assertEquals("[\"player@v1\"]", next().payload().getJSONArray("supported_roles").toString());
+    }
+
+    @Test
+    public void metadataAndColorOfAServerStateAreKeptAndAScheduledOneWaits() throws Exception {
+        de.yaacc.sendspin.client.DisplayRoles state = connectWithDisplay(true, false, true);
+        assertEquals("client/hello", next().type());
+        server.sendJson("{\"type\":\"server/activate\",\"payload\":{\"activities\":[],\"active_roles\":[\"metadata@v1\",\"color@v1\"]}}");
+        assertEquals("a display without the player role gets a plain state", "client/state", next().type());
+        server.sendJson("{\"type\":\"server/state\",\"payload\":{\"metadata\":{\"timestamp\":1,\"title\":\"Song\",\"artist\":\"Band\"},"
+                + "\"color\":{\"timestamp\":1,\"primary\":[9,8,7]}}}");
+        awaitTrue(() -> state.metadata(Long.MAX_VALUE / 8) != null, "the metadata arrives");
+        assertEquals("Song", state.metadata(Long.MAX_VALUE / 8).title);
+        assertArrayEquals(new int[]{9, 8, 7}, state.color(Long.MAX_VALUE / 8).primary);
+        // a scheduled colour (a time far ahead) is held, not shown yet
+        server.sendJson("{\"type\":\"server/state\",\"payload\":{\"color\":{\"timestamp\":9000000000000,\"primary\":[1,1,1]}}}");
+        Thread.sleep(200);
+        assertArrayEquals(new int[]{9, 8, 7}, state.color(1_000L).primary);
+        assertArrayEquals(new int[]{1, 1, 1}, state.color(9_000_000_000_001L).primary);
+    }
+
+    @Test
+    public void anInactiveRoleShowsNothingEvenIfTheServerSendsItsState() throws Exception {
+        de.yaacc.sendspin.client.DisplayRoles state = connectWithDisplay(true, false, true);
+        assertEquals("client/hello", next().type());
+        server.sendJson("{\"type\":\"server/activate\",\"payload\":{\"activities\":[],\"active_roles\":[\"metadata@v1\"]}}");
+        assertEquals("client/state", next().type());
+        server.sendJson("{\"type\":\"server/state\",\"payload\":{\"color\":{\"timestamp\":1,\"primary\":[9,8,7]},"
+                + "\"metadata\":{\"timestamp\":1,\"title\":\"T\"}}}");
+        awaitTrue(() -> state.metadata(Long.MAX_VALUE / 8) != null, "the metadata arrives");
+        assertNull("the colour role is not active", state.color(Long.MAX_VALUE / 8));
+    }
+
+    @Test
+    public void theArtworkRoleAsksForAChannelInTheStateAndTheImageArrives() throws Exception {
+        de.yaacc.sendspin.client.DisplayRoles state = connectWithDisplay(true, true, false);
+        assertEquals("client/hello", next().type());
+        server.sendJson("{\"type\":\"server/activate\",\"payload\":{\"activities\":[],\"active_roles\":[\"metadata@v1\",\"artwork@v1\"]}}");
+        Envelope st = next();
+        assertEquals("client/state", st.type());
+        org.json.JSONObject channel = st.payload().getJSONObject("artwork").getJSONArray("channels").getJSONObject(0);
+        assertEquals("album", channel.getString("source"));
+        assertEquals("jpeg", channel.getString("format"));
+        assertEquals(512, channel.getInt("width"));
+        server.sendJson(de.yaacc.sendspin.session.ArtworkWire.streamStart(5L, Arrays.asList(
+                de.yaacc.sendspin.session.ControllerMessages.ArtworkChannel.album("jpeg", 512, 512))));
+        byte[] image = {1, 2, 3, 4, 5};
+        server.sendMessage(8, de.yaacc.sendspin.session.ArtworkWire.announce(image.length, 1L));
+        server.sendMessage(8, de.yaacc.sendspin.session.ArtworkWire.part(image, 0, image.length));
+        awaitTrue(() -> state.artwork(Long.MAX_VALUE / 8) != null, "the image arrives");
+        assertArrayEquals(image, state.artwork(Long.MAX_VALUE / 8));
+        server.sendJson(de.yaacc.sendspin.session.ArtworkWire.streamEnd());
+        awaitTrue(() -> state.artwork(Long.MAX_VALUE / 8) == null, "the image goes when the artwork stream ends");
+    }
+
+    @Test
+    public void thePlayerAndTheDisplayRolesCanBeActiveTogether() throws Exception {
+        de.yaacc.sendspin.client.DisplayRoles state = connectWithDisplay(true, true, true);
+        assertEquals("client/hello", next().type());
+        server.sendJson("{\"type\":\"server/activate\",\"payload\":{\"activities\":[\"playback\"],"
+                + "\"active_roles\":[\"player@v1\",\"metadata@v1\",\"artwork@v1\",\"color@v1\"]}}");
+        Envelope playerState = next();
+        assertEquals(50, playerState.payload().getJSONObject("player").getInt("volume"));
+        Envelope displayState = next();
+        assertTrue("the artwork object follows in its own state", displayState.payload().has("artwork"));
+        awaitPhase(PlayerSession.Phase.ACTIVE);
+    }
+
+    @Test
+    public void theHelloOfThePlayerAndItsFormatsStayWhenDisplayRolesAreAdded() throws Exception {
+        connectWithDisplay(true, true, true);
+        Envelope hello = next();
+        assertEquals(1, hello.payload().getJSONObject("player@v1_support").getJSONArray("supported_formats").length());
     }
 
     @Test

@@ -18,6 +18,7 @@
  */
 package de.yaacc.sendspin.session;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -186,6 +187,31 @@ public class ControllerMessagesTest {
     }
 
     @Test
+    public void serverStateCarriesTheColorObject() throws Exception {
+        ControllerMessages.ServerState s = ControllerMessages.parseServerState(payload("{\"color\":{\"timestamp\":7000000,"
+                + "\"background_dark\":[10,20,30],\"primary\":[255,0,128],\"accent\":[1,2,3],\"on_dark\":[250,250,250]}}"));
+        assertNull(s.controller);
+        assertNull(s.metadata);
+        assertEquals(7000000L, s.color.timestamp);
+        assertArrayEquals(new int[]{10, 20, 30}, s.color.backgroundDark);
+        assertArrayEquals(new int[]{255, 0, 128}, s.color.primary);
+        assertArrayEquals(new int[]{1, 2, 3}, s.color.accent);
+        assertArrayEquals(new int[]{250, 250, 250}, s.color.onDark);
+        assertNull(s.color.backgroundLight);
+        assertNull(s.color.onLight);
+    }
+
+    @Test
+    public void aMalformedColorIsAProtocolError() {
+        rejects("", "not an object", () -> ControllerMessages.parseServerState(payload("{\"color\":5}")));
+        rejects("", "no timestamp", () -> ControllerMessages.parseServerState(payload("{\"color\":{\"primary\":[1,2,3]}}")));
+        rejects("", "two values", () -> ControllerMessages.parseServerState(payload("{\"color\":{\"timestamp\":1,\"primary\":[1,2]}}")));
+        rejects("", "over 255", () -> ControllerMessages.parseServerState(payload("{\"color\":{\"timestamp\":1,\"primary\":[1,2,256]}}")));
+        rejects("", "negative", () -> ControllerMessages.parseServerState(payload("{\"color\":{\"timestamp\":1,\"accent\":[1,-2,3]}}")));
+        rejects("", "a text", () -> ControllerMessages.parseServerState(payload("{\"color\":{\"timestamp\":1,\"accent\":[1,\"2\",3]}}")));
+    }
+
+    @Test
     public void serverStateCarriesTheControllerAndMetadataObjects() throws Exception {
         ControllerMessages.ServerState s = ControllerMessages.parseServerState(payload("{"
                 + "\"controller\":{\"supported_commands\":[\"play\",\"pause\",\"volume\",\"seek\",\"made_up\"],\"volume\":35,\"muted\":false,"
@@ -210,7 +236,7 @@ public class ControllerMessagesTest {
                 + "\"repeat\":\"off\",\"shuffle\":false}}")).metadata);
         assertNull("progress may be omitted", ControllerMessages.parseServerState(payload(
                 "{\"metadata\":{\"timestamp\":1,\"title\":\"x\"}}")).metadata.progress);
-        assertNull("unknown objects are ignored", ControllerMessages.parseServerState(payload("{\"color\":{\"x\":1}}")).controller);
+        assertNull("unknown objects are ignored", ControllerMessages.parseServerState(payload("{\"visualizer\":{\"x\":1}}")).controller);
     }
 
     @Test

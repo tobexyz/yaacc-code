@@ -738,4 +738,8 @@
     <string name="sendspin_self_code_shown_qr">Or let the server scan this QR code:</string>
     <string name="sendspin_self_code_static">Fixed code: %1$s</string>
     <string name="sendspin_self_code_waiting">No server is pairing right now. Start pairing with a code in the server (for YAACC: the Pair with a code button of this phone\'s card), then the code appears here.</string>
+    <string name="sendspin_display_title">Display</string>
+    <string name="sendspin_display_waiting">Waiting for the server to send something to show.</string>
+    <string name="sendspin_display_no_server">No server is connected. Start playing from a server that uses this phone as a display.</string>
+    <string name="sendspin_self_display_open">Open the display</string>
 </resources>

@@ -737,4 +737,8 @@
     <string name="sendspin_self_code_shown_qr">O deja que el servidor escanee este código QR:</string>
     <string name="sendspin_self_code_static">Código fijo: %1$s</string>
     <string name="sendspin_self_code_waiting">Ningún servidor se está emparejando ahora. Inicia el emparejamiento con código en el servidor (en YAACC: el botón Emparejar con un código de la tarjeta de este teléfono); entonces el código aparece aquí.</string>
+    <string name="sendspin_display_title">Pantalla</string>
+    <string name="sendspin_display_waiting">Esperando a que el servidor envíe algo que mostrar.</string>
+    <string name="sendspin_display_no_server">Ningún servidor conectado. Inicia la reproducción desde un servidor que use este teléfono como pantalla.</string>
+    <string name="sendspin_self_display_open">Abrir la pantalla</string>
 </resources>

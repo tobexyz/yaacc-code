@@ -260,4 +260,13 @@
     <string name="settings_sendspin_player_unpaired" translatable="false">settings_sendspin_player_unpaired</string>
     <string name="settings_sendspin_player_unpaired_title">Allow unpaired devices to use this phone</string>
     <string name="settings_sendspin_player_unpaired_summary">Off by default. One setting for everything other devices can do on this phone: play on it (when it is a player) and control what it plays. A device that is not paired may then do this without proving who it is: any device on your network that finds the phone can connect (the connection is encrypted, but not authenticated). With this off, only devices you paired may: use *Add device* in the list of paired devices (scan the QR code or enter the token of the other phone), or, for a player, enter its token in the card of this phone.</string>
+    <string name="settings_sendspin_player_show_now_playing" translatable="false">settings_sendspin_player_show_now_playing</string>
+    <string name="settings_sendspin_player_show_cover" translatable="false">settings_sendspin_player_show_cover</string>
+    <string name="settings_sendspin_player_show_colors" translatable="false">settings_sendspin_player_show_colors</string>
+    <string name="settings_sendspin_player_show_now_playing_title">Show what plays on this phone (metadata role)</string>
+    <string name="settings_sendspin_player_show_now_playing_summary">Off by default. A server may then send title, artist, album and progress to this phone, which show on the display screen (open it from the gear of this phone\'s card).</string>
+    <string name="settings_sendspin_player_show_cover_title">Show the cover on this phone (artwork role)</string>
+    <string name="settings_sendspin_player_show_cover_summary">Off by default. A server may then send the album cover (JPEG, 512 by 512 pixels) to this phone, shown full screen on the display screen. The phone asks only for the album image.</string>
+    <string name="settings_sendspin_player_show_colors_title">Follow the server\'s colours on this phone (color role)</string>
+    <string name="settings_sendspin_player_show_colors_summary">Off by default. A server may then send colours derived from the music (for example from the cover); the display screen uses them as its background and text colour.</string>
 </resources>

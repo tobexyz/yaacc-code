@@ -733,4 +733,8 @@
     <string name="sendspin_self_code_shown_qr">Of laat de server deze QR-code scannen:</string>
     <string name="sendspin_self_code_static">Vaste code: %1$s</string>
     <string name="sendspin_self_code_waiting">Er koppelt nu geen server. Start het koppelen met code in de server (bij YAACC: de knop Koppelen met een code op de kaart van deze telefoon), dan verschijnt de code hier.</string>
+    <string name="sendspin_display_title">Weergave</string>
+    <string name="sendspin_display_waiting">Wachten tot de server iets stuurt om te tonen.</string>
+    <string name="sendspin_display_no_server">Geen server verbonden. Start het afspelen vanaf een server die deze telefoon als weergave gebruikt.</string>
+    <string name="sendspin_self_display_open">Weergave openen</string>
 </resources>

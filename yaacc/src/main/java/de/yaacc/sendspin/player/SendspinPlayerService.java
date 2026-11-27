@@ -143,6 +143,7 @@ public final class SendspinPlayerService extends Service {
                 () -> SendspinSettings.isPlayerUnpairedAllowed(preferences::getBoolean),
                 () -> SendspinSettings.isPlayerFlacPreferred(preferences::getBoolean), phoneName(), (offsets, clock) -> openEngine(offsets, clock),
                 micro, new SecureRandom(), new PreferenceStore(preferences), this::refresh);
+        host.setDisplayRoles(() -> SendspinSettings.playerDisplayRoles(preferences::getBoolean));
         host.setCodePairing(new ClientCodePairing(staticPairingCode(preferences), System::currentTimeMillis));
         server = new InboundServer(PORT, PATH, SendspinPlayerService::acceptsAddress,
                 (link, remote) -> host.accept(link, remote.isLoopbackAddress()), MAX_CONNECTIONS, UPGRADE_TIMEOUT_MILLIS);

@@ -737,4 +737,8 @@
     <string name="sendspin_self_code_shown_qr">Ou laissez le serveur scanner ce code QR :</string>
     <string name="sendspin_self_code_static">Code fixe : %1$s</string>
     <string name="sendspin_self_code_waiting">Aucun serveur n\'est en cours d\'appairage. Démarrez l\'appairage par code dans le serveur (pour YAACC : le bouton Appairer avec un code de la carte de ce téléphone), le code apparaît alors ici.</string>
+    <string name="sendspin_display_title">Affichage</string>
+    <string name="sendspin_display_waiting">En attente de quelque chose à afficher de la part du serveur.</string>
+    <string name="sendspin_display_no_server">Aucun serveur connecté. Lancez la lecture depuis un serveur qui utilise ce téléphone comme affichage.</string>
+    <string name="sendspin_self_display_open">Ouvrir l\'affichage</string>
 </resources>

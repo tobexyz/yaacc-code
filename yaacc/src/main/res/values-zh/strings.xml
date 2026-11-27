@@ -729,4 +729,8 @@
     <string name="sendspin_self_code_shown_qr">或让服务器扫描此二维码：</string>
     <string name="sendspin_self_code_static">固定代码：%1$s</string>
     <string name="sendspin_self_code_waiting">目前没有服务器在配对。请在服务器中开始代码配对（YAACC：此手机卡片上的“使用代码配对”按钮），代码随后会显示在此。</string>
+    <string name="sendspin_display_title">显示</string>
+    <string name="sendspin_display_waiting">正在等待服务器发送要显示的内容。</string>
+    <string name="sendspin_display_no_server">没有已连接的服务器。请从将此手机用作显示的服务器开始播放。</string>
+    <string name="sendspin_self_display_open">打开显示</string>
 </resources>

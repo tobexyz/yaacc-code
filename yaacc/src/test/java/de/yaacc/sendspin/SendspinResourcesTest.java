@@ -93,7 +93,10 @@ public class SendspinResourcesTest {
                         || entry.getKey().equals("settings_sendspin_advertise")
                         || entry.getKey().equals("settings_sendspin_player")
                         || entry.getKey().equals("settings_sendspin_player_flac")
-                        || entry.getKey().equals("settings_sendspin_player_unpaired");
+                        || entry.getKey().equals("settings_sendspin_player_unpaired")
+                        || entry.getKey().equals("settings_sendspin_player_show_now_playing")
+                        || entry.getKey().equals("settings_sendspin_player_show_cover")
+                        || entry.getKey().equals("settings_sendspin_player_show_colors");
                 if (key && !locale.equals("values")) {
                     continue; // a preference key is not translated
                 }

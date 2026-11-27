@@ -90,6 +90,18 @@ final class SendspinSelfSheet {
             SendspinClientPairDialog.showToken(context);
         });
         root.addView(token);
+        if (!de.yaacc.sendspin.SendspinSettings.playerDisplayRoles(
+                PreferenceManager.getDefaultSharedPreferences(context)::getBoolean).isEmpty()) {
+            Button display = new Button(context);
+            display.setText(R.string.sendspin_self_display_open);
+            display.setOnClickListener(v -> {
+                if (dialog[0] != null) {
+                    dialog[0].dismiss();
+                }
+                context.startActivity(new android.content.Intent(context, SendspinDisplayActivity.class));
+            });
+            root.addView(display);
+        }
         final Handler main = new Handler(Looper.getMainLooper());
         if (host != null && host.codePairing() != null) {
             addCodePairing(context, root, host, main, density);

@@ -125,6 +125,11 @@
             android:exported="true"
             android:label="@string/title_activity_main" />
         <activity
+            android:name=".browser.SendspinDisplayActivity"
+            android:exported="false"
+            android:label="@string/sendspin_display_title"
+            android:theme="@style/AppTheme" />
+        <activity
             android:name=".browser.BrowserActivity"
             android:exported="false"
             android:label="@string/title_activity_main" />

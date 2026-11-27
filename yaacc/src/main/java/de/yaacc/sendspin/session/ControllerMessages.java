@@ -352,14 +352,41 @@ public final class ControllerMessages {
         }
     }
 
+    /**
+     * The {@code color} object of {@code server/state} (role {@code color@v1}): colours derived from the audio, each {@code [R, G, B]}
+     * with values 0 to 255 or null if the server sent none.
+     */
+    public static final class Color {
+        /** Server clock, microseconds: when these colours take effect. */
+        public final long timestamp;
+        public final int[] backgroundDark;
+        public final int[] backgroundLight;
+        public final int[] primary;
+        public final int[] accent;
+        public final int[] onDark;
+        public final int[] onLight;
+
+        Color(long timestamp, int[] backgroundDark, int[] backgroundLight, int[] primary, int[] accent, int[] onDark, int[] onLight) {
+            this.timestamp = timestamp;
+            this.backgroundDark = backgroundDark;
+            this.backgroundLight = backgroundLight;
+            this.primary = primary;
+            this.accent = accent;
+            this.onDark = onDark;
+            this.onLight = onLight;
+        }
+    }
+
     /** {@code server/state}: each object is null if the message has none (an omitted object leaves its state unchanged). */
     public static final class ServerState {
         public final ControllerState controller;
         public final Metadata metadata;
+        public final Color color;
 
-        ServerState(ControllerState controller, Metadata metadata) {
+        ServerState(ControllerState controller, Metadata metadata, Color color) {
             this.controller = controller;
             this.metadata = metadata;
+            this.color = color;
         }
     }
 
@@ -380,7 +407,40 @@ public final class ControllerMessages {
             }
             metadata = parseMetadata(o);
         }
-        return new ServerState(controller, metadata);
+        Color color = null;
+        if (p.has("color")) {
+            JSONObject o = p.optJSONObject("color");
+            if (o == null) {
+                throw new ProtocolException("color");
+            }
+            color = new Color(SendspinMessages.longInteger(o, "timestamp", 0, Long.MAX_VALUE / 4), rgb(o, "background_dark"),
+                    rgb(o, "background_light"), rgb(o, "primary"), rgb(o, "accent"), rgb(o, "on_dark"), rgb(o, "on_light"));
+        }
+        return new ServerState(controller, metadata, color);
+    }
+
+    /** A colour {@code [R, G, B]} of integers 0 to 255, or null if the key is absent. */
+    private static int[] rgb(JSONObject o, String key) throws ProtocolException {
+        if (!o.has(key)) {
+            return null;
+        }
+        JSONArray a = o.optJSONArray(key);
+        if (a == null || a.length() != 3) {
+            throw new ProtocolException(key);
+        }
+        int[] c = new int[3];
+        for (int i = 0; i < 3; i++) {
+            Object v = a.opt(i);
+            if (!(v instanceof Integer) && !(v instanceof Long)) {
+                throw new ProtocolException(key);
+            }
+            long n = ((Number) v).longValue();
+            if (n < 0 || n > 255) {
+                throw new ProtocolException(key);
+            }
+            c[i] = (int) n;
+        }
+        return c;
     }
 
     private static ControllerState parseController(JSONObject o) throws ProtocolException {

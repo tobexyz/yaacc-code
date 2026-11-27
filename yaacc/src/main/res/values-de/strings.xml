@@ -733,4 +733,8 @@
     <string name="sendspin_self_code_shown_qr">Oder lass den Server diesen QR-Code scannen:</string>
     <string name="sendspin_self_code_static">Fester Code: %1$s</string>
     <string name="sendspin_self_code_waiting">Gerade koppelt kein Server. Starte die Kopplung mit Code im Server (bei YAACC: die Schaltfläche „Mit Code koppeln“ auf der Karte dieses Telefons), dann erscheint der Code hier.</string>
+    <string name="sendspin_display_title">Anzeige</string>
+    <string name="sendspin_display_waiting">Warte darauf, dass der Server etwas zum Anzeigen sendet.</string>
+    <string name="sendspin_display_no_server">Kein Server verbunden. Starte die Wiedergabe von einem Server, der dieses Telefon als Anzeige nutzt.</string>
+    <string name="sendspin_self_display_open">Anzeige öffnen</string>
 </resources>
