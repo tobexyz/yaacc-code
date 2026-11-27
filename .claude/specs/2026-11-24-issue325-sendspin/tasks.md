@@ -163,6 +163,7 @@ Places a Sendspin receiver touches (task 1.3, read on 2026-11-24 by following FC
 - [x] 11.2 Controller, metadata and artwork roles (the phone as a controller of other servers, now playing in the player UI)
   - **Status 2026-11-27**: built (K1 to K8, K12, artwork; and the server side, K15)
 - [ ] 11.3 FLAC encoding on the hub, the `source` role (Opus dropped by the owner on 2026-11-27)
+  - **Status 2026-11-27**: FLAC encoding on the hub is built (`FlacEncoder`, `HubConnection`: codec by the player's priority, `stream/start` with `codec_header`; tests `FlacEncoderTest`, `HubConnectionTest`; ffmpeg decodes the output bit for bit). **Not tried with a real player or Music Assistant.** The `source` role is not started.
 - [x] 11.4 Client-initiated connection mode of the hub (advertise `_sendspin-server._tcp`, accept inbound sockets), opt-in and off by default, with the legacy unencrypted wire (decisions, 2026-11-24)
   - **Accept (all)**: tests first for pure parts, general then security review, documentation update.
 - [x] 11.6 **Linking (groups, S7)**: design and decisions in `groups.md`; built (timeline, model, hub, app player, link sheet, card, group volume); open: a measurement with two players in the rig and a listening test on real players.

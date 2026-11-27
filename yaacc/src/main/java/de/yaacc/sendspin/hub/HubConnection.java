@@ -147,6 +147,8 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
     /** True for a client of the older, unencrypted wire: no activation messages, the roles are in the {@code server/hello}. */
     private volatile boolean legacy;
     private volatile StreamFormat format;
+    /** The encoder of the running stream when it is FLAC (written by the thread that sends audio and the stream messages), else null. */
+    private volatile FlacEncoder flac;
     private PcmStreamer streamer;
     private Thread thread;
     /** The controller role of the server (K15): set before {@link #start()}; null: a client without a player role is not served. */
@@ -411,23 +413,48 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
 
     // ------------------------------------------------------------------ the stream and the commands
 
-    /** The first PCM entry with 16 bit and two channels in the player's own order, or null. */
-    private static SendspinMessages.Format choosePcm(SendspinMessages.ClientHello hello) {
+    /**
+     * Whether the hub can produce this format: PCM or FLAC with 16 bit and two channels at a rate the streamer takes (a rate it would
+     * refuse, 11025 Hz, is skipped). FLAC only on the encrypted protocol: the older one carries PCM only. Opus is not produced.
+     */
+    private static boolean producible(SendspinMessages.Format f, boolean legacy) {
+        return f.bitDepth == 16 && f.channels == 2 && GroupFormat.usable(f.sampleRate)
+                && ("pcm".equals(f.codec) || (!legacy && "flac".equals(f.codec)));
+    }
+
+    /**
+     * The first entry the hub can produce, in the player's own order (the specification: the highest priority the server can produce),
+     * or null.
+     */
+    private static SendspinMessages.Format chooseFormat(SendspinMessages.ClientHello hello, boolean legacy) {
         for (SendspinMessages.Format f : hello.playerFormats) {
-            if ("pcm".equals(f.codec) && f.bitDepth == 16 && f.channels == 2 && GroupFormat.usable(f.sampleRate)) {
-                return f; // a rate the streamer would refuse (11025 Hz) is skipped, the next entry is tried
+            if (producible(f, legacy)) {
+                return f;
             }
         }
         return null;
     }
 
-    /** The PCM rates (16 bit, stereo) the player lists, in its own order; empty before its hello. */
+    /** The codec of the entry the player lists first at this rate (the group chose the rate; the codec follows the player's priority). */
+    private String codecAt(int sampleRate) {
+        SendspinMessages.ClientHello h = hello;
+        if (h != null) {
+            for (SendspinMessages.Format f : h.playerFormats) {
+                if (f.sampleRate == sampleRate && producible(f, legacy)) {
+                    return f.codec;
+                }
+            }
+        }
+        return "pcm";
+    }
+
+    /** The rates (16 bit, stereo, PCM or FLAC) the player lists and the hub can produce, in the player's own order; empty before its hello. */
     public java.util.Set<Integer> supportedRates() {
         SendspinMessages.ClientHello h = hello;
         java.util.Set<Integer> rates = new java.util.LinkedHashSet<>();
         if (h != null && h.supportsPlayer()) {
             for (SendspinMessages.Format f : h.playerFormats) {
-                if ("pcm".equals(f.codec) && f.bitDepth == 16 && f.channels == 2 && GroupFormat.usable(f.sampleRate)) {
+                if (producible(f, legacy)) {
                     rates.add(f.sampleRate);
                 }
             }
@@ -507,7 +534,15 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
 
     @Override
     public void streamStart(long serverTransmittedMicros, int sampleRate) throws IOException {
-        channel.sendJson(SendspinMessages.streamStartPcm(serverTransmittedMicros, sampleRate, 2, 16));
+        if ("flac".equals(codecAt(sampleRate))) {
+            // a new encoder at every start: the frame numbers begin again with the stream, as its header does
+            flac = new FlacEncoder(sampleRate);
+            channel.sendJson(SendspinMessages.streamStartFlac(serverTransmittedMicros, sampleRate, 2, 16,
+                    FlacEncoder.streamHeader(sampleRate, sampleRate * PcmStreamer.CHUNK_MILLIS / 1000)));
+        } else {
+            flac = null;
+            channel.sendJson(SendspinMessages.streamStartPcm(serverTransmittedMicros, sampleRate, 2, 16));
+        }
     }
 
     @Override
@@ -522,6 +557,13 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
 
     @Override
     public void audio(long timestampMicros, long sendAheadMicros, byte[] pcm, int offset, int length) throws IOException {
+        FlacEncoder encoder = flac;
+        if (encoder != null) {
+            // one chunk is one complete FLAC frame (the codec framing of the specification)
+            byte[] frame = encoder.encode(pcm, offset, length);
+            channel.sendMessage(SendspinMessages.AUDIO_CHUNK_ID, SendspinMessages.audioChunk(timestampMicros, sendAheadMicros, frame, 0, frame.length));
+            return;
+        }
         channel.sendMessage(SendspinMessages.AUDIO_CHUNK_ID, legacy
                 ? SendspinMessages.audioChunkLegacy(timestampMicros, pcm, offset, length)
                 : SendspinMessages.audioChunk(timestampMicros, sendAheadMicros, pcm, offset, length));
@@ -709,7 +751,7 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
 
     private void handleHello(SendspinMessages.ClientHello h) throws IOException {
         hello = h;
-        SendspinMessages.Format usable = choosePcm(h);
+        SendspinMessages.Format usable = chooseFormat(h, legacy);
         if (usable != null && h.supportsPlayer()) {
             format = new StreamFormat(usable.sampleRate);
         }
@@ -728,7 +770,7 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
             decideController();
             return;
         }
-        if (!h.supportsPlayer() || choosePcm(h) == null) {
+        if (!h.supportsPlayer() || chooseFormat(h, legacy) == null) {
             activateNothing();
             setPhase(Phase.UNUSABLE);
             return;
@@ -813,7 +855,7 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
      */
     private void decideLegacy() throws IOException {
         SendspinMessages.ClientHello h = hello;
-        if (!h.supportsPlayer() || choosePcm(h) == null) {
+        if (!h.supportsPlayer() || chooseFormat(h, true) == null) {
             sendLegacyHello(Collections.<String>emptyList());
             setPhase(Phase.UNUSABLE);
             return;
@@ -1059,7 +1101,7 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
     private void activateIdle() throws IOException {
         boolean withPlayback;
         synchronized (lock) {
-            if (rolesActive || hello == null || choosePcm(hello) == null) {
+            if (rolesActive || hello == null || chooseFormat(hello, legacy) == null) {
                 return;
             }
             rolesActive = true;

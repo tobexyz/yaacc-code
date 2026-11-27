@@ -101,6 +101,16 @@ public final class SendspinMessages {
                 "player", json("codec", "pcm", "sample_rate", sampleRate, "channels", channels, "bit_depth", bitDepth)));
     }
 
+    /**
+     * {@code stream/start} for the player role in FLAC: {@code codecHeader} is the {@code fLaC} marker and the STREAMINFO block (the
+     * specification demands it as standard Base64 in {@code codec_header}).
+     */
+    public static String streamStartFlac(long serverTransmitted, int sampleRate, int channels, int bitDepth, byte[] codecHeader) {
+        return message("stream/start", json("server_transmitted", serverTransmitted,
+                "player", json("codec", "flac", "sample_rate", sampleRate, "channels", channels, "bit_depth", bitDepth,
+                        "codec_header", java.util.Base64.getEncoder().encodeToString(codecHeader))));
+    }
+
     /** {@code stream/clear} for the player role; {@code fromTimestamp} null clears everything buffered. */
     public static String streamClear(long serverTransmitted, Long fromTimestamp) {
         JSONObject payload = json("server_transmitted", serverTransmitted, "roles", new JSONArray(Collections.singletonList("player")));

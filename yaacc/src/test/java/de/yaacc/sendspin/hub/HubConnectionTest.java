@@ -62,9 +62,15 @@ public class HubConnectionTest {
         }
     }
 
-    private static final String PCM_FORMATS = "[{\"codec\":\"flac\",\"channels\":2,\"sample_rate\":44100,\"bit_depth\":16},"
+    private static final String PCM_FORMATS = "[{\"codec\":\"pcm\",\"channels\":2,\"sample_rate\":44100,\"bit_depth\":16},"
+            + "{\"codec\":\"flac\",\"channels\":2,\"sample_rate\":44100,\"bit_depth\":16}]";
+    /** FLAC is the player's first choice, PCM the second (the spec: the server takes the highest priority it can produce). */
+    private static final String FLAC_FIRST = "[{\"codec\":\"flac\",\"channels\":2,\"sample_rate\":44100,\"bit_depth\":16},"
             + "{\"codec\":\"pcm\",\"channels\":2,\"sample_rate\":44100,\"bit_depth\":16}]";
     private static final String FLAC_ONLY = "[{\"codec\":\"flac\",\"channels\":2,\"sample_rate\":44100,\"bit_depth\":16}]";
+    /** A format the hub can not produce: Opus (dropped by the owner) and FLAC with 24 bits. */
+    private static final String UNPRODUCIBLE = "[{\"codec\":\"opus\",\"channels\":2,\"sample_rate\":48000,\"bit_depth\":16},"
+            + "{\"codec\":\"flac\",\"channels\":2,\"sample_rate\":44100,\"bit_depth\":24}]";
 
     private static String helloJson(boolean unpaired, String formats, String roles) {
         return "{\"type\":\"client/hello\",\"payload\":{\"name\":\"Kitchen\",\"supported_roles\":" + roles
@@ -183,7 +189,7 @@ public class HubConnectionTest {
     @Test
     public void playbackCanNotStartForAPlayerThatCanNotBeUsed() throws Exception {
         connect();
-        peer.sendJson(helloJson(true, FLAC_ONLY, "[\"player@v1\"]"));
+        peer.sendJson(helloJson(true, UNPRODUCIBLE, "[\"player@v1\"]"));
         nextJson();
         awaitPhase(HubConnection.Phase.UNUSABLE);
         assertFalse(hub.startPlayback());
@@ -221,10 +227,10 @@ public class HubConnectionTest {
     }
 
     @Test
-    public void aPlayerWithoutPcmStereoSixteenBitIsUnusableAndNotActivated() throws Exception {
+    public void aPlayerWithoutAFormatTheHubCanProduceIsUnusableAndNotActivated() throws Exception {
         connect();
         policy.approve(player.identity.id());
-        peer.sendJson(helloJson(true, FLAC_ONLY, "[\"player@v1\"]"));
+        peer.sendJson(helloJson(true, UNPRODUCIBLE, "[\"player@v1\"]"));
         assertEquals(0, nextJson().payload().getJSONArray("activities").length());
         awaitPhase(HubConnection.Phase.UNUSABLE);
     }
@@ -262,9 +268,13 @@ public class HubConnectionTest {
     }
 
     private void becomeReady() throws Exception {
+        becomeReady(PCM_FORMATS);
+    }
+
+    private void becomeReady(String formats) throws Exception {
         connect();
         policy.approve(player.identity.id());
-        peer.sendJson(helloJson(true, PCM_FORMATS, "[\"player@v1\"]"));
+        peer.sendJson(helloJson(true, formats, "[\"player@v1\"]"));
         nextJson(); // activate: the role, no activity
         peer.sendJson(stateJson(true, "[\"volume\",\"mute\"]"));
         awaitPhase(HubConnection.Phase.AVAILABLE);
@@ -366,6 +376,46 @@ public class HubConnectionTest {
 
         streamer.end();
         assertEquals("stream/end", nextJson().type());
+    }
+
+    @Test
+    public void aPlayerThatListsFlacFirstGetsFlacWithItsHeaderAndFlacFrames() throws Exception {
+        becomeReady(FLAC_FIRST);
+        assertEquals(java.util.Collections.singleton(44100), hub.supportedRates());
+        PcmStreamer streamer = hub.streamer();
+        byte[] chunk = new byte[882 * 4];
+        for (int i = 0; i < 882; i++) {
+            short v = (short) (8000 * Math.sin(2 * Math.PI * 440 * i / 44100.0));
+            chunk[4 * i] = (byte) v;
+            chunk[4 * i + 1] = (byte) (v >> 8);
+            chunk[4 * i + 2] = (byte) v;
+            chunk[4 * i + 3] = (byte) (v >> 8);
+        }
+        assertTrue(streamer.write(chunk, 0, chunk.length));
+        Envelope start = nextJson();
+        assertEquals("stream/start", start.type());
+        JSONObject p = start.payload().getJSONObject("player");
+        assertEquals("flac", p.getString("codec"));
+        assertEquals(44100, p.getInt("sample_rate"));
+        assertEquals(2, p.getInt("channels"));
+        assertEquals(16, p.getInt("bit_depth"));
+        byte[] header = java.util.Base64.getDecoder().decode(p.getString("codec_header"));
+        assertEquals("the fLaC marker and the 34 bytes of STREAMINFO", 42, header.length);
+        assertEquals("fLaC", new String(header, 0, 4, "US-ASCII"));
+        SecureChannel.Inbound audio = peer.receive();
+        assertEquals(SendspinMessages.AUDIO_CHUNK_ID, audio.id());
+        byte[] body = audio.body();
+        assertEquals("a FLAC frame starts with the sync code", 0xFF, body[12] & 0xFF);
+        assertEquals(0xF8, body[13] & 0xFF);
+        assertTrue("smaller than the PCM it carries: " + (body.length - 12), body.length - 12 < chunk.length / 2);
+        streamer.end();
+        assertEquals("stream/end", nextJson().type());
+    }
+
+    @Test
+    public void flacCanBeTheOnlyFormatOfAPlayer() throws Exception {
+        becomeReady(FLAC_ONLY);
+        assertEquals(44100, hub.streamFormat().sampleRate);
     }
 
     @Test
