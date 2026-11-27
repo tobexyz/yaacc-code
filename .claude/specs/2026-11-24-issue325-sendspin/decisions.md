@@ -123,3 +123,7 @@ Android reference pages: `KeyAgreement`/`KeyPairGenerator` algorithm `XDH` (X255
 - Remote linking (MusicCast-like) is **not part of the protocol**, so it is only a future enhancement to be discussed (K16); nothing is decided.
 - Why a group is invisible on another phone: groups exist only in the app that plays (the hub); the protocol has no group object that a second app can read. K15 can show the group read-only.
 
+## 2026-11-27 - Stay as close to the standard as possible (owner)
+- The cards of a YAACC phone's player and server are joined by the `yaacc` TXT key only (K14); no join by Sendspin id, address or user choice for third-party devices. Other implementations ignore an unknown TXT key, so it breaks nothing.
+- Rule for later work: prefer what the protocol says; a YAACC-specific addition (the `yaacc` TXT key, the loopback connection of the app's own hub to its own player) is listed in the docs as such and kept as small as possible. Remote linking (K16) stays undecided for this reason.
+
