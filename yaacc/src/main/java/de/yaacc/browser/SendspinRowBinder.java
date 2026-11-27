@@ -449,8 +449,48 @@ final class SendspinRowBinder {
         SnapcastMuteToggle.syncState(context, views.mute);
     }
 
+    /** What the album art view of a recycled row shows from here: "key#version" while it is a cover of this binder. */
+    private final java.util.Map<android.widget.ImageView, String> artworkShown = new java.util.WeakHashMap<>();
+
+    /**
+     * The cover that a Sendspin server sent, as the soft background of the card (the same view and look as the cover of what a UPnP
+     * player plays). The image is decoded again only when its version changes; a row that is recycled for another card is cleared by
+     * the bind, so a stale entry here is harmless (it is checked against what the view really shows).
+     *
+     * @param key     which card and which source the cover is for
+     * @param version rises when the cover changes
+     */
+    private void showArtwork(ReceiverRowBinder.RowViews views, String key, byte[] bytes, long version) {
+        android.widget.ImageView view = views.albumArt;
+        if (view == null) {
+            return;
+        }
+        String have = artworkShown.get(view);
+        if (bytes == null) {
+            if (have != null && have.startsWith(key + "#")) {
+                view.setImageDrawable(null);
+                view.setVisibility(View.GONE);
+                artworkShown.remove(view);
+            }
+            return;
+        }
+        String want = key + "#" + version;
+        if (want.equals(have) && view.getDrawable() != null && view.getVisibility() == View.VISIBLE) {
+            return;
+        }
+        android.graphics.Bitmap image = SendspinServerSheet.decode(bytes);
+        if (image == null) {
+            return;
+        }
+        view.setImageBitmap(image);
+        view.setVisibility(View.VISIBLE);
+        artworkShown.put(view, want);
+    }
+
     private void showServer(ReceiverRowBinder.RowViews views, final SendspinReceiverDevice device) {
         ControllerSession session = sessionOf(device);
+        showArtwork(views, "server:" + device.getReceiverId(), session == null ? null : session.artwork(),
+                session == null ? 0L : session.artworkVersion());
         ControllerMessages.Group group = session == null ? null : session.group();
         SendspinRowText.State state = SendspinRowText.stateOfServer(session == null ? null : session.phase(),
                 session == null ? null : session.endReason(), group != null && group.playing);
@@ -513,6 +553,15 @@ final class SendspinRowBinder {
                 connection == null ? null : connection.endReason(),
                 connection == null ? HubConnection.PairingFailure.NONE : connection.pairingFailure(),
                 connection != null && connection.isPaired(), playing, paused);
+        if (player == null || player.getAlbumArt() == null) {
+            // the cover of what the phone behind this card plays itself (its server, merged into this card), if this app plays no cover here
+            SendspinHub merged = SendspinHub.getShared(context);
+            de.yaacc.sendspin.hub.Endpoint remote = merged.remoteControlOf(device.getEndpoint());
+            ControllerSession remoteSession = remote == null ? null : merged.controllers().session(remote);
+            boolean active = remoteSession != null && remoteSession.phase() == ControllerSession.Phase.ACTIVE;
+            showArtwork(views, "remote:" + device.getReceiverId(), active ? remoteSession.artwork() : null,
+                    active ? remoteSession.artworkVersion() : 0L);
+        }
         String title = player == null ? "" : player.getCurrentItemTitle();
         String announced = connection == null || connection.hello() == null ? null : connection.hello().name;
         String text = SendspinRowText.of(announced, SendspinAddress.format(device.getEndpoint()), state, title, words);

@@ -170,7 +170,7 @@ Places a Sendspin receiver touches (task 1.3, read on 2026-11-24 by following FC
 - [x] 11.8 **The controller role of the YAACC server (K15)**: spec in `controller-server.md` (decisions answered 2026-11-26: one policy for all roles, artwork in the first version, standard controller role for any controller); then then the server side of `client/command`, `server/state` (controller, metadata, artwork) mapped to the app's playback; tests against the client side (K1-K7) and the reference controller.
 - [ ] 11.9 **Remote linking, future enhancement (K16)**: to be discussed with the owner; not in the protocol.
 - [x] 11.10 **Groups are easier to read (K17)**: names of the members on the leader's card, "plays with" on the member's card (also this phone), members under their leader.
-- [ ] 11.11 **K11, thumbnail of the cover on the card** (owner 2026-11-27: next after the housekeeping)
+- [x] 11.11 **K11, cover on the card** (done 2026-11-27: the soft background view of the card, as the UPnP cover; also on the merged card of a YAACC phone; not tried on a phone; only the album channel)
 - [ ] 11.12 Discovery report with a *Copy report* button for Sendspin (what is browsed, what was seen), like the Snapcast one
 - [ ] 11.13 K10: general review, then the security review of the client side and of the new server surface (controller role, loopback connection, cover fetching); postponed by the owner
 - [ ] 11.14 Opus for the phone as a player (FLAC is built)

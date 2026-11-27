@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- Sendspin: the cover of what a Sendspin server plays is the soft background of its card (and of the merged card of a YAACC phone), not only in the server's sheet
 - Sendspin: one card per YAACC phone: the player and the server of the same phone are joined by an id in both announcements; the gear of the player's card has *Remote control of this phone*
 - Sendspin: the YAACC server offers the controller role: other Sendspin controllers (another YAACC phone, or any client of the protocol) see what plays (title, artist, album, progress, cover) and control it (play, pause, stop, next, previous, volume, mute, repeat, shuffle, seek, switch group); only paired devices, or all with *Allow unpaired devices to use this phone* (one setting for all roles); *Add a device by its pairing token* in the settings (text or QR code); group volume follows the protocol's rule
 - Sendspin: groups are easier to read: the leader's card names its members, a member (also the card of this phone) says whose group it plays in, and members are listed directly under their leader
