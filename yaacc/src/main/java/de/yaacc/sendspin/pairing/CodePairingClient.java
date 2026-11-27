@@ -54,6 +54,24 @@ public final class CodePairingClient {
             this.qrCode = qrCode;
             this.staticCode = staticCode;
         }
+
+        public boolean offersDigits() {
+            return digits;
+        }
+
+        public boolean offersQrCode() {
+            return qrCode;
+        }
+
+        /** The fixed 8 digit code of the static flow, or null if the client has none. */
+        public String staticCode() {
+            return staticCode;
+        }
+
+        /** Whether the client offers any code-based method. */
+        public boolean offersAny() {
+            return digits || qrCode || staticCode != null;
+        }
     }
 
     /** Where the code goes to the operator: the display (digits or a QR code). */

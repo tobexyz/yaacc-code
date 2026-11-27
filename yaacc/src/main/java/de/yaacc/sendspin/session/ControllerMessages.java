@@ -157,11 +157,14 @@ public final class ControllerMessages {
         /** Null if the message has none (the roles of the earlier activation persist). */
         public final List<String> activeRoles;
         public final String pairingMethod;
+        /** The emission format of a dynamic pairing code ({@code digits}, {@code qr_code}), or null. */
+        public final String pairingFormat;
 
-        Activate(Set<String> activities, List<String> activeRoles, String pairingMethod) {
+        Activate(Set<String> activities, List<String> activeRoles, String pairingMethod, String pairingFormat) {
             this.activities = Collections.unmodifiableSet(activities);
             this.activeRoles = activeRoles == null ? null : Collections.unmodifiableList(activeRoles);
             this.pairingMethod = pairingMethod;
+            this.pairingFormat = pairingFormat;
         }
     }
 
@@ -193,11 +196,13 @@ public final class ControllerMessages {
             }
         }
         String method = null;
+        String format = null;
         JSONObject pairing = p.optJSONObject("pairing");
         if (pairing != null) {
             method = SendspinMessages.text(pairing, "method", 32, false);
+            format = SendspinMessages.text(pairing, "format", 16, false);
         }
-        return new Activate(activities, roles, method);
+        return new Activate(activities, roles, method, format);
     }
 
     /** What the client does with an activation (spec, {@code server/activate}: the first rule that applies). */

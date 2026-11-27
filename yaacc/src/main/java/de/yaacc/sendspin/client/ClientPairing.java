@@ -80,6 +80,11 @@ final class ClientPairing {
         }
     }
 
+    /** A pairing activation of the server that a code-based flow answers: the next pairing index (the count is shared with the PSK flow). */
+    int nextActivation() {
+        return ++activations;
+    }
+
     /** A new handshake starts the count of the activations again. */
     void resetCount() {
         activations = 0;

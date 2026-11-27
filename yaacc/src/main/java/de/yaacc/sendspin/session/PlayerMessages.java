@@ -68,12 +68,36 @@ public final class PlayerMessages {
      */
     public static String clientHello(String name, String productName, boolean unpairedAccess, List<Offer> formats, long bufferCapacity,
                                      List<String> roles) {
+        return clientHello(name, productName, unpairedAccess, formats, bufferCapacity, roles, null);
+    }
+
+    /**
+     * As above; {@code codes} adds the code-based pairing methods the client offers (the formats of the dynamic flow, the static
+     * flow): the descriptors of {@code supported_pair_methods} (spec, "client/hello pair-method descriptor"). Null: the Pairing PSK only.
+     */
+    public static String clientHello(String name, String productName, boolean unpairedAccess, List<Offer> formats, long bufferCapacity,
+                                     List<String> roles, de.yaacc.sendspin.pairing.CodePairingClient.Offer codes) {
         JSONArray formatArray = new JSONArray();
         for (Offer f : formats) {
             formatArray.put(SendspinMessages.json("codec", f.codec, "channels", f.channels, "sample_rate", f.sampleRate, "bit_depth", f.bitDepth));
         }
+        JSONObject methods = SendspinMessages.json("pairing_psk", new JSONObject());
+        if (codes != null && (codes.offersDigits() || codes.offersQrCode())) {
+            JSONArray codeFormats = new JSONArray();
+            if (codes.offersDigits()) {
+                codeFormats.put("digits");
+            }
+            if (codes.offersQrCode()) {
+                codeFormats.put("qr_code");
+            }
+            SendspinMessages.put(methods, "dynamic_pairing_code", SendspinMessages.json("out_channels", new JSONArray(java.util.Collections.singletonList("display")),
+                    "formats", codeFormats));
+        }
+        if (codes != null && codes.staticCode() != null) {
+            SendspinMessages.put(methods, "static_pairing_code", SendspinMessages.json("locations", new JSONArray(java.util.Collections.singletonList("device"))));
+        }
         JSONObject payload = SendspinMessages.json("name", name, "supported_roles", new JSONArray(roles),
-                "supported_pair_methods", SendspinMessages.json("pairing_psk", new JSONObject()),
+                "supported_pair_methods", methods,
                 "unpaired_access", SendspinMessages.json("enabled", unpairedAccess));
         if (roles.contains("player@v1")) {
             SendspinMessages.put(payload, "player@v1_support", SendspinMessages.json("supported_formats", formatArray,

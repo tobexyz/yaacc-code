@@ -64,6 +64,8 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
         UNUSABLE,
         /** A pairing with the Pairing PSK is running (a few messages; then the connection goes on with the new long-term PSK). */
         PAIRING,
+        /** A code-based pairing is running: the operator is to enter the code (or the player holds back); see {@link #codePairing()}. */
+        CODE_PAIRING,
         /** A pairing did not complete; {@link #pairingFailure()} says why. The connection is idle. */
         PAIRING_FAILED,
         /** The player role is active and the player is available, but nothing plays: no {@code 'playback'} activity is declared. */
@@ -85,6 +87,8 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
         /** The player does not offer the Pairing PSK method (every compliant player does). */
         NOT_OFFERED,
         PLAYER_ABORTED,
+        /** The code was not the right one (a wrong entry), or the rounds ran out. */
+        CODE_REJECTED,
         /** The PSK the player delivered cannot be kept (the Sentinel, the pairing PSK itself) or there is no room. */
         CANNOT_STORE,
         TIMEOUT
@@ -147,6 +151,8 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
     private Thread thread;
     /** The controller role of the server (K15): set before {@link #start()}; null: a client without a player role is not served. */
     private volatile de.yaacc.sendspin.control.ControllerHost controllerHost;
+    /** The code-based pairing that is running (K, 11.1), or null. */
+    private volatile de.yaacc.sendspin.pairing.CodePairingServer codeServer;
     private de.yaacc.sendspin.control.ControllerHost.Session controllerSession;
     /** The loop's and the callers': the player role is activated (first activation sent). */
     private boolean rolesActive;
@@ -664,15 +670,31 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
                     }
                     break;
                 }
+                case "client/pair-pending":
+                case "client/pair-auth":
+                case "client/pair-retry":
+                case "client/pair-confirm":
+                    handleCodeMessage(envelope);
+                    break;
                 case "client/pair-init":
-                    handlePairInit(SendspinMessages.parsePairingIndex(envelope.payload()));
+                    if (codeServer != null) {
+                        handleCodeMessage(envelope);
+                    } else {
+                        handlePairInit(SendspinMessages.parsePairingIndex(envelope.payload()));
+                    }
                     break;
                 case "client/pair-finalize":
-                    handlePairFinalize(SendspinMessages.parseLongTermPsk(envelope.payload()));
+                    if (codeServer != null) {
+                        handleCodeMessage(envelope);
+                    } else {
+                        handlePairFinalize(SendspinMessages.parseLongTermPsk(envelope.payload()));
+                    }
                     break;
                 case "pair/abort":
                     SendspinMessages.parsePairAbortReason(envelope.payload());
-                    if (pairingStep != PairingStep.IDLE) {
+                    if (codeServer != null) {
+                        handleCodeMessage(envelope);
+                    } else if (pairingStep != PairingStep.IDLE) {
                         cancelPairing(PairingFailure.PLAYER_ABORTED);
                     }
                     break;
@@ -864,16 +886,155 @@ public final class HubConnection implements PcmStreamer.Output, PcmStreamer.Timi
             }
             pairingStep = PairingStep.IDLE;
             pairingActivations = 0;
-            channel.sendJson(SendspinMessages.serverPairFinalize());
-            ServerHandshake.PskChoice choice = policy.pskFor(id);
-            if (choice.category() != SendspinPsk.Category.LONG_TERM) {
-                throw new IOException("no long-term PSK after the pairing"); // a token pasted meanwhile must not start a second pairing here
-            }
-            ServerHandshake.rehandshake(channel, identity, id, handshake.suite, choice, random);
-            matched = choice.category();
-            decide();
+            acknowledgePairingAndRehandshake(id);
         } finally {
             java.util.Arrays.fill(psk, (byte) 0);
+        }
+    }
+
+    /** The record is stored: tells the player, switches both sides to the new long-term PSK inside the connection and decides again. */
+    private void acknowledgePairingAndRehandshake(String id) throws IOException {
+        channel.sendJson(SendspinMessages.serverPairFinalize());
+        ServerHandshake.PskChoice choice = policy.pskFor(id);
+        if (choice.category() != SendspinPsk.Category.LONG_TERM) {
+            throw new IOException("no long-term PSK after the pairing"); // a token pasted meanwhile must not start a second pairing here
+        }
+        ServerHandshake.rehandshake(channel, identity, id, handshake.suite, choice, random);
+        matched = choice.category();
+        decide();
+    }
+
+    // ------------------------------------------------------------------ code-based pairing (task 11.1)
+
+    /**
+     * The operator chose a code-based method for this player: the activation is sent and the attempt runs ({@link #codePairing()}).
+     * Only for a connection under the Sentinel PSK (the specification: the code-based flows start from an unpaired connection), a
+     * method the player offered, and one attempt at a time.
+     *
+     * @return false if the method is not possible now
+     */
+    public boolean startCodePairing(de.yaacc.sendspin.pairing.CodePairingServer.Method method) {
+        SendspinMessages.ClientHello h = hello;
+        if (h == null || channel == null || matched != SendspinPsk.Category.SENTINEL || codeServer != null || legacy) {
+            return false;
+        }
+        boolean offered = method == de.yaacc.sendspin.pairing.CodePairingServer.Method.STATIC ? h.staticCodeOffered
+                : h.codeFormats.contains(method == de.yaacc.sendspin.pairing.CodePairingServer.Method.DYNAMIC_QR ? "qr_code" : "digits");
+        Phase p = phase;
+        if (!offered || (p != Phase.PAIRING_REQUIRED && p != Phase.NEEDS_APPROVAL && p != Phase.RE_PAIR_NEEDED && p != Phase.PAIRING_FAILED)) {
+            return false;
+        }
+        final de.yaacc.sendspin.pairing.CodePairingServer server;
+        synchronized (lock) {
+            if (codeServer != null) {
+                return false;
+            }
+            pairingActivations++;
+            final SecureChannel c = channel;
+            server = new de.yaacc.sendspin.pairing.CodePairingServer(handshake.suite, c.transport().handshakeHash(), pairingActivations,
+                    method, random, c::sendJson);
+            codeServer = server;
+            pairingFailure = PairingFailure.NONE;
+        }
+        setPhase(Phase.CODE_PAIRING);
+        CommandThread.run(() -> {
+            try {
+                server.start();
+            } catch (IOException e) {
+                fail(EndReason.FAILED);
+            }
+        });
+        return true;
+    }
+
+    /** The code-based pairing that is running, for the operator's dialog (its state, the round, the player's sentence); else null. */
+    public de.yaacc.sendspin.pairing.CodePairingServer codePairing() {
+        return codeServer;
+    }
+
+    /**
+     * The operator's entry for the running attempt: the typed digits, or the scanned or pasted token of the QR format.
+     *
+     * @return false if it is not an acceptable entry (the attempt waits for another)
+     */
+    public boolean submitCode(final String text) {
+        final de.yaacc.sendspin.pairing.CodePairingServer server = codeServer;
+        if (server == null) {
+            return false;
+        }
+        de.yaacc.sendspin.pairing.CodePairingServer.Method m = server.method();
+        boolean wellFormed = m == de.yaacc.sendspin.pairing.CodePairingServer.Method.DYNAMIC_QR
+                ? de.yaacc.sendspin.secure.PairingCodes.decodeCodeToken(text) != null
+                : de.yaacc.sendspin.secure.PairingCodes.normalizeDigits(text, m == de.yaacc.sendspin.pairing.CodePairingServer.Method.STATIC
+                ? de.yaacc.sendspin.secure.PairingCodes.STATIC_DIGITS : de.yaacc.sendspin.secure.PairingCodes.DYNAMIC_DIGITS) != null;
+        if (!wellFormed) {
+            return false;
+        }
+        CommandThread.run(() -> {
+            try {
+                server.provideCode(text);
+            } catch (IOException e) {
+                fail(EndReason.FAILED);
+            }
+        });
+        return true;
+    }
+
+    /** The operator gives the attempt up. */
+    public void cancelCodePairing() {
+        final de.yaacc.sendspin.pairing.CodePairingServer server = codeServer;
+        if (server == null) {
+            return;
+        }
+        CommandThread.run(() -> {
+            try {
+                server.cancel();
+            } catch (IOException ignored) {
+                // the connection is gone
+            }
+            codeServer = null;
+            pairingFailure = PairingFailure.NONE;
+            setPhase(Phase.PAIRING_REQUIRED);
+        });
+    }
+
+    private void handleCodeMessage(Envelope envelope) throws IOException, ProtocolException {
+        de.yaacc.sendspin.pairing.CodePairingServer server = codeServer;
+        if (server == null) {
+            throw new ProtocolException(envelope.type() + " without a pairing");
+        }
+        server.onMessage(envelope.type(), envelope.payload());
+        switch (server.state()) {
+            case DONE: {
+                byte[] psk = server.takePsk();
+                String id = clientId;
+                try {
+                    if (psk == null || id == null || !policy.completePairing(id, psk)) {
+                        codeServer = null;
+                        pairingFailure = PairingFailure.CANNOT_STORE;
+                        activateNothing();
+                        setPhase(Phase.PAIRING_FAILED);
+                        return;
+                    }
+                } finally {
+                    if (psk != null) {
+                        java.util.Arrays.fill(psk, (byte) 0);
+                    }
+                }
+                codeServer = null;
+                pairingActivations = 0;
+                acknowledgePairingAndRehandshake(id);
+                return;
+            }
+            case FAILED:
+                codeServer = null;
+                pairingFailure = server.failure() == de.yaacc.sendspin.pairing.CodePairingServer.Failure.CODE_MISMATCH
+                        ? PairingFailure.CODE_REJECTED : PairingFailure.PLAYER_ABORTED;
+                activateNothing();
+                setPhase(Phase.PAIRING_FAILED);
+                return;
+            default:
+                notifyChanged();
         }
     }
 

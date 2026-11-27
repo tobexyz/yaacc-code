@@ -202,8 +202,20 @@ public final class SendspinMessages {
         /** The {@code supported_commands} of the player support object (the older wire puts them there), else empty. */
         public final List<String> playerCommands;
 
+        /** The emission formats of {@code dynamic_pairing_code} that this server knows ({@code digits}, {@code qr_code}); empty if the method is not offered. */
+        public final List<String> codeFormats;
+        /** Whether the client offers {@code static_pairing_code}. */
+        public final boolean staticCodeOffered;
+
+        /** Whether the client offers any code-based pairing method. */
+        public boolean offersCodePairing() {
+            return !codeFormats.isEmpty() || staticCodeOffered;
+        }
+
         ClientHello(String name, List<String> roles, List<Format> formats, long bufferCapacity, boolean unpaired, List<String> pairMethods,
-                    String productName, String clientId, List<String> playerCommands) {
+                    String productName, String clientId, List<String> playerCommands, List<String> codeFormats, boolean staticCodeOffered) {
+            this.codeFormats = Collections.unmodifiableList(codeFormats);
+            this.staticCodeOffered = staticCodeOffered;
             this.clientId = clientId;
             this.playerCommands = Collections.unmodifiableList(playerCommands);
             this.name = name;
@@ -319,9 +331,30 @@ public final class SendspinMessages {
                 }
             }
         }
+        List<String> codeFormats = new ArrayList<>();
+        boolean staticCode = false;
+        if (pair != null) {
+            JSONObject dynamic = pair.optJSONObject("dynamic_pairing_code");
+            if (dynamic != null) {
+                JSONArray offered = dynamic.optJSONArray("formats");
+                JSONArray channels = dynamic.optJSONArray("out_channels");
+                boolean channelKnown = false;
+                for (int i = 0; channels != null && i < channels.length() && i < 8; i++) {
+                    Object c = channels.opt(i);
+                    channelKnown |= "display".equals(c) || "speaker".equals(c);
+                }
+                for (int i = 0; channelKnown && offered != null && i < offered.length() && i < 8; i++) {
+                    Object f = offered.opt(i);
+                    if (("digits".equals(f) || "qr_code".equals(f)) && !codeFormats.contains(f)) {
+                        codeFormats.add((String) f);
+                    }
+                }
+            }
+            staticCode = pair.optJSONObject("static_pairing_code") != null;
+        }
         JSONObject device = p.optJSONObject("device_info");
         String product = device == null ? null : text(device, "product_name", 64, false);
-        return new ClientHello(name, roles, formats, bufferCapacity, unpaired, methods, product, clientId, playerCommands);
+        return new ClientHello(name, roles, formats, bufferCapacity, unpaired, methods, product, clientId, playerCommands, codeFormats, staticCode);
     }
 
     /** The player object of {@code client/state}. */
