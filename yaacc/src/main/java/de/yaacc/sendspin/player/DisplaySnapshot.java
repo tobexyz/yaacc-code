@@ -54,6 +54,11 @@ public final class DisplaySnapshot {
         this.serverName = serverName;
     }
 
+    /** True if there is text or a cover to show (and not only colours). */
+    public boolean showsContent() {
+        return title != null || artist != null || album != null || artwork != null;
+    }
+
     /** True if the server shows nothing on this display (no text, image or colour yet). */
     public boolean isEmpty() {
         return title == null && artist == null && album == null && artwork == null && color == null;

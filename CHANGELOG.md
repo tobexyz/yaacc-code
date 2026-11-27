@@ -4,6 +4,7 @@
 
 ### Added
 - Sendspin: this phone as a player can also be a display (three switches, off by default): metadata (title, artist, album, progress), artwork (the album cover) and color roles, shown full screen with *Open the display* in the gear of the phone's card
+- Sendspin: with only the colour role, the display screen is a light: the server's colour as it is, full screen, at full brightness
 - Sendspin: the app sends FLAC to a player that lists it before PCM (about half the bandwidth), with its own FLAC encoder
 - Sendspin: pairing with a code (CPace): a player that offers a dynamic code (digits or QR) or a fixed 8 digit code can be paired with *Pair with a code…* (the code is a password for the key exchange and is never sent); this phone as a player offers it too (*Open pairing window* in the gear of its card, code shown as digits and QR code)
 - Sendspin: a discovery report with a *Copy report* button in the lists of players and servers (switches, Wi-Fi, multicast lock, what was browsed and reported, devices known), as the FCast and Snapcast settings have

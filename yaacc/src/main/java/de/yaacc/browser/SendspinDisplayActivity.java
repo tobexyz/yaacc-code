@@ -35,6 +35,7 @@ import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 
 import de.yaacc.R;
+import de.yaacc.sendspin.player.DisplayLook;
 import de.yaacc.sendspin.player.DisplaySnapshot;
 import de.yaacc.sendspin.player.SendspinPlayerHost;
 import de.yaacc.sendspin.player.SendspinPlayerRuntime;
@@ -150,18 +151,20 @@ public class SendspinDisplayActivity extends AppCompatActivity {
             return;
         }
         hint.setVisibility(View.GONE);
-        int background = Color.BLACK;
-        int foreground = Color.WHITE;
-        if (s.color != null) {
-            // the server guarantees a contrast of at least 4.5:1 between its dark background colour and white text (and its on_dark colour)
-            if (s.color.backgroundDark != null) {
-                background = rgb(s.color.backgroundDark);
-            }
-            if (s.color.onDark != null) {
-                foreground = rgb(s.color.onDark);
-            }
+        DisplayLook look = DisplayLook.of(s.color, s.showsContent());
+        setFullBrightness(look.lightMode);
+        root.setBackgroundColor(look.background);
+        if (look.lightMode) {
+            // only colours arrive: the screen is the colour of the server as it is, nothing else on it
+            title.setText("");
+            artist.setText("");
+            album.setText("");
+            progress.setVisibility(View.INVISIBLE);
+            cover.setImageDrawable(null);
+            shownVersion = -1;
+            return;
         }
-        root.setBackgroundColor(background);
+        int foreground = look.foreground;
         for (TextView t : new TextView[]{title, artist, album, hint}) {
             t.setTextColor(foreground);
         }
@@ -180,8 +183,14 @@ public class SendspinDisplayActivity extends AppCompatActivity {
         }
     }
 
-    private static int rgb(int[] c) {
-        return Color.rgb(c[0], c[1], c[2]);
+    /** The window at full brightness while it is a light, so that the colour is shown as the server sent it; the phone's own setting otherwise. */
+    private void setFullBrightness(boolean full) {
+        WindowManager.LayoutParams params = getWindow().getAttributes();
+        float wanted = full ? WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL : WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
+        if (params.screenBrightness != wanted) {
+            params.screenBrightness = wanted;
+            getWindow().setAttributes(params);
+        }
     }
 
     /** Decodes the image of the server with a size cap; an image that is not one gives null (the cover stays empty). */
