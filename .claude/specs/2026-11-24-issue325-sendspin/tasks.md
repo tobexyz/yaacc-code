@@ -59,8 +59,8 @@ Places a Sendspin receiver touches (task 1.3, read on 2026-11-24 by following FC
   - **Constraints**: no own curve or cipher code; keys zeroed after use where the library allows; CONFIRM (library).
 - [x] 3.4 Identity, pairing token, pairing records (done: `PairingToken`, `SendspinPairings`, `SendspinPolicy`; "forget all" is the two lists with a remove button, not one button) | `de.yaacc.sendspin.secure`, tests `PairingTokenTest` (the spec's reference vector), `SendspinPairingsTest`, `SendspinKeysTest`
   - **Accept**: the token is decoded leniently and rejected strictly as specified; the server's record is `client_id` -> long-term PSK; approvals per `client_id` are discarded on a pairing; "forget all" wipes everything.
-- [ ] 3.5 Key storage wrapped by the Android Keystore (AES-GCM key; the Keystore has no X25519 on API 27) with a faked wrapping interface in JVM tests | `de.yaacc.sendspin.secure`
-  - **Status 2026-11-27**: not built: the identity key and the PSKs are in the app's private preferences (backup excluded), not wrapped by the Android Keystore
+- [x] ~~3.5 Key storage wrapped by the Android Keystore (AES-GCM key; the Keystore has no X25519 on API 27) with a faked wrapping interface in JVM tests~~ **dropped by the owner on 2026-11-27** | `de.yaacc.sendspin.secure`
+  - **Status 2026-11-27**: decided not to build: the identity key and the PSKs stay in the app's private preferences (backup excluded). The owner: the app is no banking or private-communication app; the encryption of the transport protects the privacy that the use case needs
   - **Accept**: identity keys and PSKs are never stored in the clear; backup excluded (`allowBackup` rules checked); nothing secret in logs; CONFIRM (key storage).
 
 ## Group 4: P1, play to one player, unpaired with approval (P)

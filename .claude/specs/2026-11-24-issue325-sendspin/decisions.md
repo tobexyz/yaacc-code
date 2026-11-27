@@ -127,3 +127,7 @@ Android reference pages: `KeyAgreement`/`KeyPairGenerator` algorithm `XDH` (X255
 - The cards of a YAACC phone's player and server are joined by the `yaacc` TXT key only (K14); no join by Sendspin id, address or user choice for third-party devices. Other implementations ignore an unknown TXT key, so it breaks nothing.
 - Rule for later work: prefer what the protocol says; a YAACC-specific addition (the `yaacc` TXT key, the loopback connection of the app's own hub to its own player) is listed in the docs as such and kept as small as possible. Remote linking (K16) stays undecided for this reason.
 
+## 2026-11-27 - No Keystore wrapping of the keys (owner)
+- The identity keys and the long-term PSKs stay in the app's private preferences (backup excluded, `allowBackup="false"`, data extraction rules). Task 3.5 is dropped.
+- Reason (owner): the app is not a banking app and not used for private communication; encrypting the transport is enough protection for the use case. The earlier recommendation (CONFIRM, key storage) is withdrawn. The security review (K10) still looks at the keys as part of the whole picture, but wrapping them is not a finding to fix unless it changes the owner's mind.
+
