@@ -111,6 +111,8 @@ public final class WsConnection implements Closeable {
     private static final int OP_PING = 0x9;
     private static final int OP_PONG = 0xA;
     private static final int MAX_CONTROL_PAYLOAD = 125;
+    /** A write that has not ended after this long is broken: the peer does not read and the socket is full. */
+    private static final long DEFAULT_WRITE_STALL_MILLIS = 10_000L;
 
     private final InputStream in;
     private final OutputStream out;
@@ -123,6 +125,9 @@ public final class WsConnection implements Closeable {
     private ByteArrayOutputStream fragments;
     private boolean closeSent;
     private volatile long lastPongNanos;
+    /** When the write in progress began ({@link System#nanoTime()}), 0 if none is. */
+    private volatile long writingSinceNanos;
+    private volatile long writeStallNanos = DEFAULT_WRITE_STALL_MILLIS * 1_000_000L;
 
     /**
      * @param client          true for the side that opened the connection (it masks what it sends)
@@ -389,9 +394,85 @@ public final class WsConnection implements Closeable {
             }
         }
         synchronized (writeLock) {
-            out.write(header.toByteArray());
-            out.write(body);
-            out.flush();
+            writingSinceNanos = System.nanoTime();
+            WriteWatchdog.watch(this);
+            try {
+                out.write(header.toByteArray());
+                out.write(body);
+                out.flush();
+            } finally {
+                writingSinceNanos = 0;
+                WriteWatchdog.unwatch(this);
+            }
+        }
+    }
+
+    /** For tests: how long a write may last before it is broken. */
+    void setWriteStallMillis(long millis) {
+        writeStallNanos = millis * 1_000_000L;
+    }
+
+    /** Closes the output (which closes the socket) so that a write that waits for ever fails. From a thread of its own: a close may wait. */
+    private void breakStalledWrite() {
+        Thread closer = new Thread(() -> {
+            try {
+                out.close();
+            } catch (IOException ignored) {
+                // it is closing anyway
+            }
+        }, "sendspin-write-closer");
+        closer.setDaemon(true);
+        closer.start();
+    }
+
+    /**
+     * Looks twice a second at the connections that are writing, and breaks a write that lasts too long. The thread runs only while a
+     * write is in progress and ends when none is.
+     */
+    private static final class WriteWatchdog implements Runnable {
+        private static final java.util.Set<WsConnection> WRITING = java.util.concurrent.ConcurrentHashMap.newKeySet();
+        private static Thread thread;
+
+        static void watch(WsConnection c) {
+            WRITING.add(c);
+            synchronized (WriteWatchdog.class) {
+                if (thread == null) {
+                    thread = new Thread(new WriteWatchdog(), "sendspin-write-watchdog");
+                    thread.setDaemon(true);
+                    thread.start();
+                }
+            }
+        }
+
+        static void unwatch(WsConnection c) {
+            WRITING.remove(c);
+        }
+
+        @Override
+        public void run() {
+            try {
+                while (true) {
+                    Thread.sleep(250);
+                    long now = System.nanoTime();
+                    for (WsConnection c : WRITING) {
+                        long since = c.writingSinceNanos;
+                        if (since != 0 && now - since > c.writeStallNanos) {
+                            WRITING.remove(c);
+                            c.breakStalledWrite();
+                        }
+                    }
+                    synchronized (WriteWatchdog.class) {
+                        if (WRITING.isEmpty()) {
+                            thread = null;
+                            return;
+                        }
+                    }
+                }
+            } catch (InterruptedException e) {
+                synchronized (WriteWatchdog.class) {
+                    thread = null;
+                }
+            }
         }
     }
 }

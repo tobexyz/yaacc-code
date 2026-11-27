@@ -132,6 +132,21 @@ public final class SendspinPlayerService extends Service {
         return SnapcastAddressFilter.isAcceptedForDiscovery(address) && !SendspinSelf.isThisDevice(address);
     }
 
+    /** What the listener does with a connection: the app's own hub (by the secret loopback path) needs no pairing, any other client does. */
+    private InboundServer.Listener playerListener() {
+        return new InboundServer.Listener() {
+            @Override
+            public void onConnection(de.yaacc.sendspin.hub.Connector.Link link, java.net.InetAddress remote) {
+                host.accept(link, false);
+            }
+
+            @Override
+            public void onConnection(de.yaacc.sendspin.hub.Connector.Link link, java.net.InetAddress remote, int remotePort, boolean local) {
+                host.accept(link, local);
+            }
+        };
+    }
+
     private synchronized void ensureRunning() {
         if (host != null) {
             return;
@@ -146,14 +161,16 @@ public final class SendspinPlayerService extends Service {
         host.setDisplayRoles(() -> SendspinSettings.playerDisplayRoles(preferences::getBoolean));
         host.setCodePairing(new ClientCodePairing(staticPairingCode(preferences), System::currentTimeMillis));
         server = new InboundServer(PORT, PATH, SendspinPlayerService::acceptsAddress,
-                (link, remote) -> host.accept(link, remote.isLoopbackAddress()), MAX_CONNECTIONS, UPGRADE_TIMEOUT_MILLIS);
+                playerListener(), MAX_CONNECTIONS, UPGRADE_TIMEOUT_MILLIS);
         int port;
+        server.setLocalPath(SendspinPlayerRuntime.localPath());
         try {
             server.start();
             port = server.port();
         } catch (IOException busy) {
             server = new InboundServer(0, PATH, SendspinPlayerService::acceptsAddress,
-                    (link, remote) -> host.accept(link, remote.isLoopbackAddress()), MAX_CONNECTIONS, UPGRADE_TIMEOUT_MILLIS);
+                    playerListener(), MAX_CONNECTIONS, UPGRADE_TIMEOUT_MILLIS);
+            server.setLocalPath(SendspinPlayerRuntime.localPath());
             try {
                 server.start();
                 port = server.port();

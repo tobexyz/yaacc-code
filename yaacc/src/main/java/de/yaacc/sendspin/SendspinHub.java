@@ -441,7 +441,7 @@ public final class SendspinHub implements SendspinReceiverSource {
     }
 
     static Endpoint selfEndpointOf(int playerPort, boolean playerEnabled) {
-        return playerPort <= 0 || !playerEnabled ? null : new Endpoint("127.0.0.1", playerPort, "/sendspin");
+        return playerPort <= 0 || !playerEnabled ? null : new Endpoint("127.0.0.1", playerPort, de.yaacc.sendspin.player.SendspinPlayerRuntime.localPath());
     }
 
     /** The connection of a receiver id; made (as a list refresh does, with its pause and the end reasons) if {@code create}, else only found. */

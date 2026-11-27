@@ -46,10 +46,16 @@ public class InboundServerTest {
     private static final class Arrival {
         final Connector.Link link;
         final InetAddress remote;
+        final boolean local;
 
         Arrival(Connector.Link link, InetAddress remote) {
+            this(link, remote, false);
+        }
+
+        Arrival(Connector.Link link, InetAddress remote, boolean local) {
             this.link = link;
             this.remote = remote;
+            this.local = local;
         }
     }
 
@@ -92,6 +98,48 @@ public class InboundServerTest {
         assertTrue(arrival.remote.isLoopbackAddress());
         client.sendText("hello");
         assertEquals("hello", new String(arrival.link.ws().receive().data(), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    public void theLocalPathIsServedOnlyOverLoopbackAndMarksTheLink() throws Exception {
+        server = new InboundServer(0, "/sendspin", address -> true, new InboundServer.Listener() {
+            @Override
+            public void onConnection(Connector.Link link, InetAddress remote) {
+                arrivals.add(new Arrival(link, remote));
+            }
+
+            @Override
+            public void onConnection(Connector.Link link, InetAddress remote, int remotePort, boolean local) {
+                arrivals.add(new Arrival(link, remote, local));
+            }
+        }, 4, 2000);
+        server.setLocalPath("/sendspin-local/0123456789abcdef");
+        server.start();
+        connect("/sendspin");
+        Arrival ordinary = arrivals.poll(5, TimeUnit.SECONDS);
+        assertNotNull(ordinary);
+        assertFalse("the ordinary path is no privilege, even over loopback", ordinary.local);
+        connect("/sendspin-local/0123456789abcdef");
+        Arrival own = arrivals.poll(5, TimeUnit.SECONDS);
+        assertNotNull(own);
+        assertTrue("the secret path marks the link as the app's own", own.local);
+        try {
+            connect("/sendspin-local/wrong");
+        } catch (IOException expected) {
+            // refused
+        }
+        assertNull("a path with a wrong secret is refused", arrivals.poll(500, TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    public void withoutALocalPathNothingIsLocal() throws Exception {
+        start(address -> true, 4, 2000);
+        try {
+            connect("/sendspin-local/anything");
+        } catch (IOException expected) {
+            // refused
+        }
+        assertNull(arrivals.poll(500, TimeUnit.MILLISECONDS));
     }
 
     @Test

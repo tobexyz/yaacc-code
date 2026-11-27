@@ -56,6 +56,14 @@ public final class InboundServer {
         default void onConnection(Connector.Link link, InetAddress remote, int remotePort) {
             onConnection(link, remote);
         }
+
+        /**
+         * As above; {@code local} is true when the client came over loopback by the secret local path ({@link #setLocalPath}): the app's
+         * own hub, as opposed to any other program on the phone that reaches the loopback address too.
+         */
+        default void onConnection(Connector.Link link, InetAddress remote, int remotePort, boolean local) {
+            onConnection(link, remote, remotePort);
+        }
     }
 
     private static final int MAX_MESSAGE_BYTES = 1 << 20;
@@ -70,6 +78,7 @@ public final class InboundServer {
     private final SecureRandom random = new SecureRandom();
     private final AtomicInteger held = new AtomicInteger();
 
+    private volatile String localPath;
     private volatile ServerSocket serverSocket;
     private ExecutorService upgrades;
     private Thread acceptor;
@@ -87,6 +96,15 @@ public final class InboundServer {
         this.listener = listener;
         this.maxConnections = maxConnections;
         this.timeoutMillis = timeoutMillis;
+    }
+
+    /**
+     * A second path, with a secret in it, that is served over the loopback address only; a link that came by it is delivered as local.
+     * Any program on the phone can reach the loopback address, so the address alone proves nothing: the secret exists only in this
+     * process. Null: there is no such path.
+     */
+    public void setLocalPath(String secretPath) {
+        this.localPath = secretPath;
     }
 
     /** Binds the port and starts accepting. @throws IOException if the port can not be bound */
@@ -178,8 +196,15 @@ public final class InboundServer {
             client.setTcpNoDelay(true);
             BufferedInputStream in = new BufferedInputStream(client.getInputStream());
             WsHandshake.Request request = WsHandshake.accept(in, client.getOutputStream(), true);
+            boolean local = false;
+            String secret = localPath;
             if (!path.equals(request.path())) {
-                throw new IOException("another path");
+                if (secret == null || !client.getInetAddress().isLoopbackAddress()
+                        || !java.security.MessageDigest.isEqual(secret.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                        request.path().getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
+                    throw new IOException("another path");
+                }
+                local = true;
             }
             final WsConnection ws = new WsConnection(in, client.getOutputStream(), false, MAX_MESSAGE_BYTES, random);
             Connector.Link link = new Connector.Link() {
@@ -196,7 +221,7 @@ public final class InboundServer {
                     client.close();
                 }
             };
-            listener.onConnection(link, client.getInetAddress(), client.getPort());
+            listener.onConnection(link, client.getInetAddress(), client.getPort(), local);
             delivered = true; // only a link that the listener took is its to close; after an exception the socket and the slot are freed below
         } catch (IOException | RuntimeException e) {
             YaaccLogger.d(getClass().getName(), "inbound upgrade failed: " + e.getClass().getSimpleName());

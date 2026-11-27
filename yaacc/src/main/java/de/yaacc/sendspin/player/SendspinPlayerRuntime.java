@@ -27,6 +27,27 @@ public final class SendspinPlayerRuntime {
     private SendspinPlayerRuntime() {
     }
 
+    /** The secret path of the loopback connection: made once per process, known only to the app's own hub and player. */
+    private static final String LOCAL_PATH = makeLocalPath();
+
+    private static String makeLocalPath() {
+        byte[] bytes = new byte[16];
+        new java.security.SecureRandom().nextBytes(bytes);
+        StringBuilder sb = new StringBuilder("/sendspin-local/");
+        for (byte b : bytes) {
+            sb.append(Character.forDigit((b >> 4) & 15, 16)).append(Character.forDigit(b & 15, 16));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * The path that only this process knows. The hub dials its own player by it over the loopback address, and the player takes such a
+     * connection without pairing; a connection over loopback by the ordinary path (any other program on the phone) gets no such trust.
+     */
+    public static String localPath() {
+        return LOCAL_PATH;
+    }
+
     static void set(SendspinPlayerHost running) {
         host = running;
     }
