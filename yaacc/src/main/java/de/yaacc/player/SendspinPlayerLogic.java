@@ -60,6 +60,7 @@ final class SendspinPlayerLogic {
                 return Wait.ACTIVATE;
             case PAIRING_REQUIRED:
             case RE_PAIR_NEEDED:
+            case CODE_PAIRING:
             case PAIRING_FAILED:
             case UNUSABLE:
             case ENDED:
@@ -73,6 +74,7 @@ final class SendspinPlayerLogic {
     static Problem problemOf(HubConnection.Phase phase, HubConnection.EndReason reason) {
         switch (phase) {
             case PAIRING_REQUIRED:
+            case CODE_PAIRING:
                 return Problem.PAIRING_REQUIRED;
             case RE_PAIR_NEEDED:
                 return Problem.RE_PAIR_NEEDED;

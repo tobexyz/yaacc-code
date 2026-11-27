@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- Sendspin: pairing with a code (CPace): a player that offers a dynamic code (digits or QR) or a fixed 8 digit code can be paired with *Pair with a code…* (the code is a password for the key exchange and is never sent); this phone as a player offers it too (*Open pairing window* in the gear of its card, code shown as digits and QR code)
 - Sendspin: a discovery report with a *Copy report* button in the lists of players and servers (switches, Wi-Fi, multicast lock, what was browsed and reported, devices known), as the FCast and Snapcast settings have
 - Sendspin: the cover of what a Sendspin server plays is the soft background of its card (and of the merged card of a YAACC phone), not only in the server's sheet
 - Sendspin: one card per YAACC phone: the player and the server of the same phone are joined by an id in both announcements; the gear of the player's card has *Remote control of this phone*

@@ -157,8 +157,9 @@ Places a Sendspin receiver touches (task 1.3, read on 2026-11-24 by following FC
   - **Status 2026-11-27**: in practice: the owner asks for the Phase 4 items one by one
 
 ## Group 11: Extras (Phase 4, each item needs its own owner go)
-- [ ] 11.1 Code-based pairing (dynamic and static codes) with CPace | `de.yaacc.sendspin.secure`
+- [x] 11.1 Code-based pairing (dynamic and static codes) with CPace | `de.yaacc.sendspin.secure`, `.pairing`, `.session`
   - **Accept**: the draft's test vectors pass; interoperates with the reference; **kill criterion**: no confidence in correctness -> do not ship (Pairing PSK only).
+  - **Status 2026-11-27**: built both ways: the server side (`HubConnection`, `CodePairingServer`, dialog `SendspinCodePairDialog`) and the player side (`PlayerSession`, `CodePairingClient`, `ClientCodePairing`, window and code in the self sheet). CPace passes the draft's vectors; the flows run end to end on the JVM (`CodePairingEndToEndTest`: digits, QR, static, wrong code, not offered). **Assumption:** the spec names the key-confirmation tags only as HMAC-SHA-512; the draft's suggested option is used. **Not tested against another implementation or on phones.** Not built: offering code pairing from `ControllerSession` (the phone as a client of other servers).
 - [x] 11.2 Controller, metadata and artwork roles (the phone as a controller of other servers, now playing in the player UI)
   - **Status 2026-11-27**: built (K1 to K8, K12, artwork; and the server side, K15)
 - [ ] 11.3 FLAC encoding on the hub, the `source` role (Opus dropped by the owner on 2026-11-27)

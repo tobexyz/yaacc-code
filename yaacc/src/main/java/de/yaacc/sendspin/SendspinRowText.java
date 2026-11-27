@@ -29,6 +29,8 @@ public final class SendspinRowText {
     /** What the card says about the connection. */
     public enum State {
         NOT_CONNECTED, CONNECTING, NEEDS_APPROVAL, PAIRING_REQUIRED, RE_PAIR_NEEDED, PAIRING, PAIRING_REJECTED, PAIRING_FAILED,
+        /** A pairing with a code is running (task 11.1): a tap opens the dialog that follows it. */
+        CODE_PAIRING,
         UNUSABLE, READY, READY_PAIRED, PLAYING, PAUSED,
         /** The card of a server: connected, the server lets this client control and show. */
         SERVER_CONNECTED,
@@ -105,6 +107,8 @@ public final class SendspinRowText {
                 return State.RE_PAIR_NEEDED;
             case PAIRING:
                 return State.PAIRING;
+            case CODE_PAIRING:
+                return State.CODE_PAIRING;
             case PAIRING_FAILED:
                 return failure == HubConnection.PairingFailure.TOKEN_REJECTED ? State.PAIRING_REJECTED : State.PAIRING_FAILED;
             case UNUSABLE:

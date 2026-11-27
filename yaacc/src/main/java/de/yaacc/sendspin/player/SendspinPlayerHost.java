@@ -117,6 +117,7 @@ public final class SendspinPlayerHost {
     private final Object lock = new Object();
     private final List<Entry> entries = new ArrayList<>();
 
+    private volatile ClientCodePairing codePairing;
     private Entry owner;
     private Engine engine;
     private SendspinAudioEngine audio;
@@ -231,6 +232,10 @@ public final class SendspinPlayerHost {
         entry.session = new PlayerSession(link, identity, local || unpairedAllowed.getAsBoolean(), credentials, clock, random, name, offers(preferFlac.getAsBoolean()),
                 BUFFER_CAPACITY, REQUIRED_LEAD_MS, MIN_BUFFER_MS, new Port(entry), controls, session -> onSessionChanged(entry),
                 (session, activities) -> arbitrate(entry, activities));
+        ClientCodePairing pairing = codePairing;
+        if (pairing != null) {
+            entry.session.setCodePairing(pairing.offer(), pairing.window(), pairing);
+        }
         synchronized (lock) {
             if (closed || entries.size() >= MAX_SESSIONS) {
                 closeQuietly(link);
@@ -239,6 +244,40 @@ public final class SendspinPlayerHost {
             entries.add(entry);
         }
         entry.session.start();
+        fire();
+    }
+
+    /** Pairing with a code (task 11.1): the connections that come after this call offer the methods of {@code pairing}. */
+    public void setCodePairing(ClientCodePairing pairing) {
+        this.codePairing = pairing;
+    }
+
+    /** @return the code pairing of this player, or null if it offers none */
+    public ClientCodePairing codePairing() {
+        return codePairing;
+    }
+
+    /**
+     * The operator's gesture on this phone: opens the pairing window (5 minutes) and lets the connections that wait for it start their
+     * attempt. A server that asks to pair with a code gets the window only through this call.
+     */
+    public void openPairingWindow() {
+        ClientCodePairing pairing = codePairing;
+        if (pairing == null) {
+            return;
+        }
+        pairing.window().open();
+        List<PlayerSession> sessions = new ArrayList<>();
+        synchronized (lock) {
+            for (Entry e : entries) {
+                if (e.session != null) {
+                    sessions.add(e.session);
+                }
+            }
+        }
+        for (PlayerSession s : sessions) {
+            s.onWindowOpened();
+        }
         fire();
     }
 

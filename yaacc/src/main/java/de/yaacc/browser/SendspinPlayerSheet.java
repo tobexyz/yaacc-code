@@ -98,6 +98,12 @@ final class SendspinPlayerSheet {
                 SendspinPairDialog.show(context, device.getEndpoint(), announced);
             }));
         }
+        if (hello != null && hello.offersCodePairing() && connection != null && !paired) {
+            root.addView(button(context, R.string.sendspin_codepair_button, () -> {
+                dismiss(dialog);
+                SendspinCodePairDialog.show(context, device.getEndpoint(), announced);
+            }));
+        }
         final Endpoint remote = hub.remoteControlOf(device.getEndpoint());
         if (remote != null) {
             root.addView(button(context, R.string.sendspin_player_remote_control, () -> {

@@ -23,6 +23,7 @@ import android.content.Context;
 import android.text.InputFilter;
 import android.text.InputType;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Toast;
@@ -67,6 +68,14 @@ final class SendspinPairDialog {
                 | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);
         input.setFilters(new InputFilter[]{new InputFilter.LengthFilter(MAX_INPUT)});
         root.addView(input, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        de.yaacc.sendspin.hub.HubConnection current = SendspinHub.getShared(context).connection(endpoint);
+        if (current != null && current.hello() != null && current.hello().offersCodePairing()) {
+            // the player also offers pairing with a code: a button below the field leads to the dialog that follows an attempt
+            Button viaCode = new Button(context);
+            viaCode.setText(R.string.sendspin_codepair_button);
+            viaCode.setOnClickListener(v -> SendspinCodePairDialog.show(context, endpoint, playerName));
+            root.addView(viaCode, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        }
         String name = playerName == null || playerName.isEmpty() ? endpoint.host() : playerName;
         final AlertDialog dialog = new AlertDialog.Builder(context)
                 .setTitle(context.getString(R.string.sendspin_pair_title, name))

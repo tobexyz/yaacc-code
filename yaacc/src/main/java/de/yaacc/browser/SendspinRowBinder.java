@@ -79,6 +79,8 @@ final class SendspinRowBinder {
                         return context.getString(R.string.sendspin_state_re_pair_needed);
                     case PAIRING:
                         return context.getString(R.string.sendspin_state_pairing);
+                    case CODE_PAIRING:
+                        return context.getString(R.string.sendspin_state_code_pairing);
                     case PAIRING_REJECTED:
                         return context.getString(R.string.sendspin_state_pairing_rejected);
                     case PAIRING_FAILED:
@@ -582,6 +584,8 @@ final class SendspinRowBinder {
             // a card that needs a pairing token opens the entry of it; a recycled row must not keep the tap of another card
             if (SendspinRowText.offersPairing(state)) {
                 views.yxcText.setOnClickListener(v -> SendspinPairDialog.show(context, device.getEndpoint(), announced));
+            } else if (state == SendspinRowText.State.CODE_PAIRING) {
+                views.yxcText.setOnClickListener(v -> SendspinCodePairDialog.show(context, device.getEndpoint(), announced));
             } else {
                 views.yxcText.setOnClickListener(null);
                 views.yxcText.setClickable(false);

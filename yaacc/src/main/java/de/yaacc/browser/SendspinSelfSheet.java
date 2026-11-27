@@ -22,7 +22,11 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
+import android.graphics.Bitmap;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -31,9 +35,11 @@ import androidx.appcompat.app.AlertDialog;
 import java.util.List;
 
 import de.yaacc.R;
+import de.yaacc.sendspin.QrCodes;
 import de.yaacc.sendspin.SendspinReceiverDevice;
 import de.yaacc.sendspin.SendspinRowText;
 import de.yaacc.sendspin.SendspinSettings;
+import de.yaacc.sendspin.player.ClientCodePairing;
 import de.yaacc.sendspin.player.SendspinPlayerHost;
 import de.yaacc.sendspin.player.SendspinPlayerRuntime;
 import de.yaacc.sendspin.player.SendspinPlayerService;
@@ -84,6 +90,10 @@ final class SendspinSelfSheet {
             SendspinClientPairDialog.showToken(context);
         });
         root.addView(token);
+        final Handler main = new Handler(Looper.getMainLooper());
+        if (host != null && host.codePairing() != null) {
+            addCodePairing(context, root, host, main, density);
+        }
         Button off = new Button(context);
         off.setText(R.string.sendspin_self_switch_off);
         off.setOnClickListener(v -> {
@@ -95,10 +105,83 @@ final class SendspinSelfSheet {
             }
         });
         root.addView(off);
+        android.widget.ScrollView scroll = new android.widget.ScrollView(context);
+        scroll.addView(root);
         dialog[0] = new AlertDialog.Builder(context)
                 .setTitle(device.getName())
-                .setView(root)
+                .setView(scroll)
                 .setPositiveButton(android.R.string.ok, null)
-                .show();
+                .create();
+        dialog[0].setOnDismissListener(d -> main.removeCallbacksAndMessages(null));
+        dialog[0].show();
+    }
+
+    /**
+     * Pairing with a code (task 11.1): the button that opens the pairing window on this phone, how long it stays open, the code of the
+     * attempt that runs (digits and QR code) and the fixed code. The sheet follows the state once a second while it is open.
+     */
+    private static void addCodePairing(final Context context, LinearLayout root, final SendspinPlayerHost host, final Handler main,
+                                       float density) {
+        final ClientCodePairing pairing = host.codePairing();
+        TextView title = new TextView(context);
+        title.setText(R.string.sendspin_self_code_title);
+        title.setTextAppearance(android.R.style.TextAppearance_Material_Medium);
+        title.setPadding(0, (int) (12 * density), 0, 0);
+        root.addView(title);
+        TextView explain = new TextView(context);
+        explain.setText(R.string.sendspin_self_code_explain);
+        root.addView(explain);
+        Button open = new Button(context);
+        open.setText(R.string.sendspin_self_code_open);
+        open.setOnClickListener(v -> host.openPairingWindow());
+        root.addView(open);
+        final TextView state = new TextView(context);
+        root.addView(state);
+        final TextView shown = new TextView(context);
+        shown.setTextAppearance(android.R.style.TextAppearance_Material_Large);
+        root.addView(shown);
+        final ImageView qr = new ImageView(context);
+        qr.setVisibility(android.view.View.GONE);
+        root.addView(qr);
+        final TextView fixed = new TextView(context);
+        String staticCode = pairing.offer().staticCode();
+        fixed.setText(staticCode == null ? "" : context.getString(R.string.sendspin_self_code_static,
+                staticCode.substring(0, 4) + "-" + staticCode.substring(4)));
+        root.addView(fixed);
+        final int side240 = (int) (240 * density);
+        final String[] drawn = new String[1];
+        Runnable refresh = new Runnable() {
+            @Override
+            public void run() {
+                boolean isOpen = pairing.window().isOpen();
+                long left = pairing.window().remainingMillis();
+                state.setText(isOpen ? context.getString(R.string.sendspin_self_code_open_status,
+                        String.format(java.util.Locale.ROOT, "%d:%02d", left / 60000, (left / 1000) % 60))
+                        : context.getString(R.string.sendspin_self_code_closed_status));
+                ClientCodePairing.Shown code = pairing.shown();
+                if (code == null) {
+                    shown.setText(isOpen ? context.getString(R.string.sendspin_self_code_waiting) : "");
+                    qr.setVisibility(android.view.View.GONE);
+                    drawn[0] = null;
+                } else {
+                    shown.setText(code.digits == null ? context.getString(R.string.sendspin_self_code_shown_qr)
+                            : context.getString(R.string.sendspin_self_code_shown, code.digits));
+                    if (code.qrToken != null) {
+                        if (!code.qrToken.equals(drawn[0])) {
+                            boolean[][] modules = QrCodes.modules(code.qrToken);
+                            int scale = Math.max(1, side240 / QrCodes.sizeOf(modules.length, 1));
+                            int side = QrCodes.sizeOf(modules.length, scale);
+                            qr.setImageBitmap(Bitmap.createBitmap(QrCodes.pixels(modules, scale), side, side, Bitmap.Config.ARGB_8888));
+                            drawn[0] = code.qrToken;
+                        }
+                        qr.setVisibility(android.view.View.VISIBLE);
+                    } else {
+                        qr.setVisibility(android.view.View.GONE);
+                    }
+                }
+                main.postDelayed(this, 1000L);
+            }
+        };
+        main.post(refresh);
     }
 }
