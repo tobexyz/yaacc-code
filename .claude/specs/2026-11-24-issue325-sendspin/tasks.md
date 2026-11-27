@@ -174,6 +174,6 @@ Places a Sendspin receiver touches (task 1.3, read on 2026-11-24 by following FC
 - [x] 11.12 Discovery report with a *Copy report* button for Sendspin (done 2026-11-27: `SendspinDiscoveryLog`, `SendspinDiscoveryReport`, events recorded in `SendspinNsd`, the report and the button in the lists of players and servers; tests `SendspinDiscoveryReportTest`; not tried on a phone)
 - [ ] 11.13 K10: general review, then the security review of the client side and of the new server surface (controller role, loopback connection, cover fetching); postponed by the owner
 - [x] ~~11.14 Opus for the phone as a player~~ **dropped by the owner on 2026-11-27**: PCM and FLAC are enough for a first version
-- [ ] 11.15 Merge the duplicated pairing and clock code of `ControllerSession` and `PlayerSession`
+- [x] 11.15 Merge the duplicated pairing and clock code of `ControllerSession` and `PlayerSession` (done 2026-11-27: `ClientPairing` and `ClockBursts`, no change of behaviour; the existing session tests are the safety net)
 - [ ] 11.16 Real device checks that nothing here replaces: the sound path and FLAC decoding, sync between players, the phone as a group member, K14 and K15 on two phones, K15 against another controller, Music Assistant as a server to the phone's player
 

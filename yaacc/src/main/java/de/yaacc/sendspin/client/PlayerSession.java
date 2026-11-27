@@ -116,8 +116,6 @@ public final class PlayerSession {
     static final List<String> COMMANDS = Collections.unmodifiableList(new ArrayList<>(java.util.Arrays.asList("volume", "mute", "set_output_delay")));
     private static final String ROLE = "player@v1";
     private static final long IDLE_LIMIT_MILLIS = 60_000L;
-    private static final int BURST_SIZE = 8;
-    private static final long BURST_TIMEOUT_MICROS = 2_000_000L;
     private static final String PRODUCT_NAME = "YAACC";
 
     private final Connector.Link link;
@@ -136,6 +134,8 @@ public final class PlayerSession {
     private final Listener listener;
     private final Arbiter arbiter;
     private final ServerClock serverClock = new ServerClock();
+    private final ClientPairing pairing;
+    private final ClockBursts bursts;
     private final Object lock = new Object();
 
     private volatile Phase phase = Phase.HANDSHAKING;
@@ -148,18 +148,11 @@ public final class PlayerSession {
     private volatile long provisionalLimitMillis = 30_000L;
     private final long startedNanos = System.nanoTime();
     private volatile SecureChannel channel;
-    private volatile long burstIntervalMillis = 3000L;
     private Thread thread;
 
     private SendspinPsk.Category matched = SendspinPsk.Category.SENTINEL;
     private boolean playerActive;
     private boolean stateSent;
-    private int pairingActivations;
-    private byte[] pendingLongTerm;
-    private int burstSent;
-    private long burstT1;
-    private long burstSentAt;
-    private long nextBurstAt;
 
     /**
      * @param link           the connection (its WebSocket handshake is done)
@@ -184,6 +177,27 @@ public final class PlayerSession {
         this.identity = identity;
         this.unpairedAccess = unpairedAccess;
         this.credentials = credentials;
+        this.pairing = new ClientPairing(credentials, random);
+        this.bursts = new ClockBursts(clock, new ClockBursts.Sink() {
+            @Override
+            public void add(long t1, long t2, long t3, long t4) {
+                synchronized (lock) {
+                    serverClock.add(t1, t2, t3, t4);
+                }
+            }
+
+            @Override
+            public void endBurst() {
+                synchronized (lock) {
+                    serverClock.endBurst();
+                }
+            }
+
+            @Override
+            public void changed() {
+                notifyChanged();
+            }
+        });
         this.clock = clock;
         this.random = random;
         this.name = name;
@@ -245,7 +259,7 @@ public final class PlayerSession {
     }
 
     void setBurstIntervalMillis(long millis) {
-        burstIntervalMillis = millis;
+        bursts.setIntervalMillis(millis);
     }
 
     /** For tests: how long a connection may wait for its first activation (the specification says 30 seconds). */
@@ -255,7 +269,7 @@ public final class PlayerSession {
 
     /** True while a pairing of a server with this app is under way on this connection (it is not displaced then). */
     public boolean isPairing() {
-        return pendingLongTerm != null;
+        return pairing.isPending();
     }
 
     // ------------------------------------------------------------------ lifecycle
@@ -364,7 +378,7 @@ public final class PlayerSession {
                 inbound = c.receive();
                 lastRx = System.nanoTime();
             } catch (SocketTimeoutException idle) {
-                serveBursts(c);
+                bursts.serve(c, stateSent);
                 checkProvisional();
                 if ((System.nanoTime() - lastRx) / 1_000_000L > IDLE_LIMIT_MILLIS) {
                     throw new IOException("no traffic");
@@ -372,7 +386,7 @@ public final class PlayerSession {
                 continue;
             }
             checkProvisional();
-            serveBursts(c); // not only when the line is idle: the audio of a stream keeps it busy
+            bursts.serve(c, stateSent); // not only when the line is idle: the audio of a stream keeps it busy
             if (!inbound.isJson()) {
                 if (inbound.id() == 4 && streaming && playerActive) {
                     PlayerMessages.AudioChunk chunk = PlayerMessages.parseAudioChunk(inbound.body());
@@ -416,14 +430,14 @@ public final class PlayerSession {
                     break;
                 case "server/time": {
                     long[] t = ControllerMessages.parseServerTime(envelope.payload());
-                    handleServerTime(c, t);
+                    bursts.handleServerTime(c, t);
                     break;
                 }
                 case "server/pair-finalize":
-                    finishPairing(c);
+                    pairing.finish(c, serverId);
                     break;
                 case "pair/abort":
-                    clearPending();
+                    pairing.clear();
                     break;
                 case "server/unpair":
                     if (matched == SendspinPsk.Category.LONG_TERM) { // an unpaired session ignores it (spec)
@@ -445,7 +459,7 @@ public final class PlayerSession {
                         throw new ProtocolException("bad noise data");
                     }
                     matched = ClientHandshake.rehandshake(c, identity, serverId, NoiseSuite.CHACHA_POLY, credentials, message1, random);
-                    pairingActivations = 0;
+                    pairing.resetCount();
                     break;
                 }
                 default:
@@ -490,7 +504,7 @@ public final class PlayerSession {
         }
         activated = true;
         if (a.activities.contains("pairing")) {
-            startPairing(c);
+            pairing.start(c);
             return;
         }
         boolean active = effective.contains(ROLE);
@@ -501,7 +515,7 @@ public final class PlayerSession {
         if (active) {
             if (!stateSent) {
                 stateSent = true;
-                nextBurstAt = 0;
+                bursts.reset();
             }
             sendState(c, true);
             setPhase(Phase.ACTIVE);
@@ -585,84 +599,7 @@ public final class PlayerSession {
 
     // ------------------------------------------------------------------ the pairing as a client (as of the controller)
 
-    private void startPairing(SecureChannel c) throws IOException {
-        pairingActivations++;
-        clearPending();
-        byte[] longTerm = new byte[32];
-        do {
-            random.nextBytes(longTerm);
-        } while (SendspinPsk.isSentinel(longTerm));
-        pendingLongTerm = longTerm;
-        c.sendJson(ControllerMessages.clientPairInit(pairingActivations));
-        c.sendJson(ControllerMessages.clientPairFinalize(Base64Url.encode(longTerm)));
-    }
-
-    private void finishPairing(SecureChannel c) throws IOException {
-        byte[] longTerm = pendingLongTerm;
-        pendingLongTerm = null;
-        if (longTerm == null || credentials == null || serverId == null) {
-            return;
-        }
-        boolean kept = credentials.completePairing(serverId, longTerm);
-        java.util.Arrays.fill(longTerm, (byte) 0);
-        if (!kept) {
-            c.sendJson(ControllerMessages.pairAbort("failed"));
-        }
-    }
-
-    private void clearPending() {
-        if (pendingLongTerm != null) {
-            java.util.Arrays.fill(pendingLongTerm, (byte) 0);
-            pendingLongTerm = null;
-        }
-    }
-
     // ------------------------------------------------------------------ the clock bursts
-
-    private void serveBursts(SecureChannel c) throws IOException {
-        if (!stateSent) {
-            return;
-        }
-        long now = clock.nowMicros();
-        if (burstSent > 0 && now - burstSentAt > BURST_TIMEOUT_MICROS) {
-            finishBurst(now);
-            return;
-        }
-        if (burstSent == 0 && now >= nextBurstAt) {
-            sendTime(c, now);
-        }
-    }
-
-    private void sendTime(SecureChannel c, long now) throws IOException {
-        burstT1 = now;
-        burstSentAt = now;
-        burstSent++;
-        c.sendJson(ControllerMessages.clientTime(now));
-    }
-
-    private void handleServerTime(SecureChannel c, long[] t) throws IOException {
-        long t4 = clock.nowMicros();
-        if (burstSent == 0 || t[0] != burstT1) {
-            return;
-        }
-        synchronized (lock) {
-            serverClock.add(t[0], t[1], t[2], t4);
-        }
-        if (burstSent >= BURST_SIZE) {
-            finishBurst(t4);
-        } else {
-            sendTime(c, t4);
-        }
-    }
-
-    private void finishBurst(long now) {
-        synchronized (lock) {
-            serverClock.endBurst();
-        }
-        burstSent = 0;
-        nextBurstAt = now + burstIntervalMillis * 1000L;
-        notifyChanged();
-    }
 
     // ------------------------------------------------------------------ state
 

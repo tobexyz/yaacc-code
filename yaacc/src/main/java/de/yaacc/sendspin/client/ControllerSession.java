@@ -74,8 +74,6 @@ public final class ControllerSession {
     }
 
     private static final long IDLE_LIMIT_MILLIS = 60_000L;
-    private static final int BURST_SIZE = 8;
-    private static final long BURST_TIMEOUT_MICROS = 2_000_000L;
     private static final String PRODUCT_NAME = "YAACC";
     /** The one artwork channel this client asks for: the album image, JPEG, a square the server scales to fit and pads with black. */
     static final String ARTWORK_FORMAT = "jpeg";
@@ -100,24 +98,19 @@ public final class ControllerSession {
     private volatile ControllerMessages.ControllerState controller;
     private final TrackPosition.Tracker tracker = new TrackPosition.Tracker();
     private final ServerClock serverClock = new ServerClock();
+    private final ClientPairing pairing;
+    private final ClockBursts bursts;
     private final ArtworkStream artwork = new ArtworkStream();
     private volatile SecureChannel channel;
     private volatile Connector.Link link;
     private volatile boolean closing;
-    private volatile long burstIntervalMillis = 3000L;
     private Thread thread;
 
     // the loop thread's
     private SendspinPsk.Category matched = SendspinPsk.Category.SENTINEL;
     private List<String> roles = Collections.emptyList();
-    private int pairingActivations;
-    private byte[] pendingLongTerm;
     private boolean stateSent;
     private boolean artworkStateSent;
-    private int burstSent;
-    private long burstT1;
-    private long burstSentAt;
-    private long nextBurstAt;
 
     public ControllerSession(Endpoint endpoint, Identity identity, boolean unpairedAccess, Connector connector, HubClock clock,
                              SecureRandom random, String clientName, Listener listener) {
@@ -128,6 +121,27 @@ public final class ControllerSession {
     public ControllerSession(Endpoint endpoint, Identity identity, boolean unpairedAccess, Connector connector, HubClock clock,
                              SecureRandom random, String clientName, Listener listener, ClientCredentials credentials) {
         this.credentials = credentials;
+        this.pairing = new ClientPairing(credentials, random);
+        this.bursts = new ClockBursts(clock, new ClockBursts.Sink() {
+            @Override
+            public void add(long t1, long t2, long t3, long t4) {
+                synchronized (lock) {
+                    serverClock.add(t1, t2, t3, t4);
+                }
+            }
+
+            @Override
+            public void endBurst() {
+                synchronized (lock) {
+                    serverClock.endBurst();
+                }
+            }
+
+            @Override
+            public void changed() {
+                notifyChanged();
+            }
+        });
         this.endpoint = endpoint;
         this.identity = identity;
         this.unpairedAccess = unpairedAccess;
@@ -219,7 +233,7 @@ public final class ControllerSession {
 
     /** The interval between two bursts of {@code client/time}; the specification allows at most 10 seconds. Tests make it short. */
     void setBurstIntervalMillis(long millis) {
-        burstIntervalMillis = millis;
+        bursts.setIntervalMillis(millis);
     }
 
     // ------------------------------------------------------------------ lifecycle
@@ -395,13 +409,13 @@ public final class ControllerSession {
                 inbound = c.receive();
                 lastRx = System.nanoTime();
             } catch (SocketTimeoutException idle) {
-                serveBursts(c);
+                bursts.serve(c, stateSent);
                 if ((System.nanoTime() - lastRx) / 1_000_000L > IDLE_LIMIT_MILLIS) {
                     throw new IOException("no traffic");
                 }
                 continue;
             }
-            serveBursts(c);
+            bursts.serve(c, stateSent);
             if (!inbound.isJson()) {
                 int id = inbound.id();
                 if (id >= ArtworkStream.FIRST_TYPE && id < ArtworkStream.FIRST_TYPE + ArtworkStream.MAX_CHANNELS) {
@@ -461,13 +475,13 @@ public final class ControllerSession {
                     break;
                 }
                 case "server/time":
-                    handleServerTime(c, ControllerMessages.parseServerTime(envelope.payload()));
+                    bursts.handleServerTime(c, ControllerMessages.parseServerTime(envelope.payload()));
                     break;
                 case "server/pair-finalize":
-                    finishPairing(c);
+                    pairing.finish(c, serverId);
                     break;
                 case "pair/abort":
-                    clearPending(); // the server gave the attempt up
+                    pairing.clear(); // the server gave the attempt up
                     break;
                 case "server/unpair":
                     if (matched == SendspinPsk.Category.LONG_TERM) { // an unpaired session ignores it (spec)
@@ -490,46 +504,12 @@ public final class ControllerSession {
                         throw new ProtocolException("bad noise data");
                     }
                     matched = ClientHandshake.rehandshake(c, identity, serverId, NoiseSuite.CHACHA_POLY, credentials, message1, random);
-                    pairingActivations = 0; // a new handshake starts the count again
+                    pairing.resetCount(); // a new handshake starts the count again
                     break;
                 }
                 default:
                     break; // unknown types are ignored
             }
-        }
-    }
-
-    /** The Pairing PSK flow, client side: {@code client/pair-init}, then {@code client/pair-finalize} with a long-term PSK of our own. */
-    private void startPairing(SecureChannel c) throws IOException {
-        pairingActivations++;
-        clearPending();
-        byte[] longTerm = new byte[32];
-        do {
-            random.nextBytes(longTerm);
-        } while (SendspinPsk.isSentinel(longTerm));
-        pendingLongTerm = longTerm;
-        c.sendJson(ControllerMessages.clientPairInit(pairingActivations));
-        c.sendJson(ControllerMessages.clientPairFinalize(Base64Url.encode(longTerm)));
-    }
-
-    /** {@code server/pair-finalize}: the server stored the long-term PSK; so does this client (the re-handshake follows). */
-    private void finishPairing(SecureChannel c) throws IOException {
-        byte[] longTerm = pendingLongTerm;
-        pendingLongTerm = null;
-        if (longTerm == null || credentials == null || serverId == null) {
-            return; // not a pairing of ours: ignored
-        }
-        boolean kept = credentials.completePairing(serverId, longTerm);
-        java.util.Arrays.fill(longTerm, (byte) 0);
-        if (!kept) {
-            c.sendJson(ControllerMessages.pairAbort("failed"));
-        }
-    }
-
-    private void clearPending() {
-        if (pendingLongTerm != null) {
-            java.util.Arrays.fill(pendingLongTerm, (byte) 0);
-            pendingLongTerm = null;
         }
     }
 
@@ -558,7 +538,7 @@ public final class ControllerSession {
                 break;
         }
         if (a.activities.contains("pairing")) {
-            startPairing(c);
+            pairing.start(c);
             return; // a pairing activation carries no roles: the roles come with the activation after the re-handshake
         }
         roles = new ArrayList<>(effective);
@@ -584,7 +564,7 @@ public final class ControllerSession {
             c.sendJson(wantsArtwork ? ControllerMessages.clientStateWithArtwork(true, ARTWORK_FORMAT, ARTWORK_SIZE, ARTWORK_SIZE)
                     : ControllerMessages.clientState(true));
             if (!stateSent) {
-                nextBurstAt = 0;
+                bursts.reset();
             }
             stateSent = true;
             artworkStateSent = wantsArtwork;
@@ -605,52 +585,6 @@ public final class ControllerSession {
     }
 
     // ------------------------------------------------------------------ the clock bursts
-
-    /** Starts a burst when it is time and the roles are active; ends one that got no answer. */
-    private void serveBursts(SecureChannel c) throws IOException {
-        if (!stateSent) {
-            return;
-        }
-        long now = clock.nowMicros();
-        if (burstSent > 0 && now - burstSentAt > BURST_TIMEOUT_MICROS) {
-            finishBurst(now); // no answer in time: the burst ends with what it has
-            return;
-        }
-        if (burstSent == 0 && now >= nextBurstAt) {
-            sendTime(c, now);
-        }
-    }
-
-    private void sendTime(SecureChannel c, long now) throws IOException {
-        burstT1 = now;
-        burstSentAt = now;
-        burstSent++;
-        c.sendJson(ControllerMessages.clientTime(now));
-    }
-
-    private void handleServerTime(SecureChannel c, long[] t) throws IOException {
-        long t4 = clock.nowMicros();
-        if (burstSent == 0 || t[0] != burstT1) {
-            return; // not the answer to the message in flight
-        }
-        synchronized (lock) {
-            serverClock.add(t[0], t[1], t[2], t4);
-        }
-        if (burstSent >= BURST_SIZE) {
-            finishBurst(t4);
-        } else {
-            sendTime(c, t4);
-        }
-    }
-
-    private void finishBurst(long now) {
-        synchronized (lock) {
-            serverClock.endBurst();
-        }
-        burstSent = 0;
-        nextBurstAt = now + burstIntervalMillis * 1000L;
-        notifyChanged();
-    }
 
     // ------------------------------------------------------------------ state
 
