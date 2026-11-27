@@ -129,6 +129,11 @@ public final class PairingToken {
         return new PairingToken(Arrays.copyOfRange(payload, 0, KEY_LENGTH), Arrays.copyOfRange(payload, KEY_LENGTH, PAYLOAD_LENGTH));
     }
 
+    /** The body of any version as bytes (the version 1 token of a code uses it); null for a character outside the alphabet. */
+    static byte[] decodeBodyForTests(String body) {
+        return decodeBody(body);
+    }
+
     private static byte[] decodeBody(String body) {
         int total = body.length() * 5 / 8;
         byte[] out = new byte[total];
