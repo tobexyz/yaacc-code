@@ -49,6 +49,16 @@ final class SendspinPlayersDialog {
     private final boolean servers;
     private final EditText input;
     private final LinearLayout list;
+    private TextView report;
+    private String reportText = "";
+    private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable reportLoop = new Runnable() {
+        @Override
+        public void run() {
+            showReport();
+            main.postDelayed(this, 2000L);
+        }
+    };
 
     private SendspinPlayersDialog(Context context, boolean servers) {
         this.context = context;
@@ -80,13 +90,55 @@ final class SendspinPlayersDialog {
             addDeviceSection(root, density);
         }
         refresh();
+        addReport(root, density);
         android.widget.ScrollView scroll = new android.widget.ScrollView(context);
         scroll.addView(root);
-        new AlertDialog.Builder(context)
+        AlertDialog dialog = new AlertDialog.Builder(context)
                 .setTitle(servers ? R.string.settings_sendspin_servers_title : R.string.settings_sendspin_players_title)
                 .setView(scroll)
                 .setPositiveButton(android.R.string.ok, null)
-                .show();
+                .create();
+        dialog.setOnDismissListener(d -> main.removeCallbacks(reportLoop));
+        dialog.show();
+        reportLoop.run();
+    }
+
+    /** The discovery report (what was browsed, what the system said) and a button that copies it: the text names the devices found. */
+    private void addReport(LinearLayout root, float density) {
+        TextView title = new TextView(context);
+        title.setText(R.string.sendspin_discovery_title);
+        title.setTextAppearance(android.R.style.TextAppearance_Material_Subhead);
+        title.setPadding(0, (int) (20 * density), 0, (int) (4 * density));
+        root.addView(title);
+        report = new TextView(context);
+        report.setTypeface(android.graphics.Typeface.MONOSPACE);
+        report.setTextSize(10);
+        report.setTextIsSelectable(true);
+        root.addView(report);
+        Button copy = new Button(context);
+        copy.setText(R.string.sendspin_discovery_copy);
+        copy.setOnClickListener(v -> {
+            android.content.ClipboardManager clipboard = (android.content.ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard != null && !reportText.isEmpty()) {
+                clipboard.setPrimaryClip(SensitiveClip.plainText("sendspin discovery", reportText));
+                toast(R.string.sendspin_discovery_copied);
+            }
+        });
+        root.addView(copy, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        TextView note = new TextView(context);
+        note.setText(R.string.sendspin_discovery_note);
+        note.setTextSize(12);
+        root.addView(note);
+    }
+
+    private void showReport() {
+        if (report == null) {
+            return;
+        }
+        reportText = hub.discoveryReport();
+        if (!report.hasSelection() && !reportText.contentEquals(report.getText())) { // a selection in progress is not dropped by a refresh
+            report.setText(reportText); // plain text, cleaned by the report: nothing of the network is a link or markup
+        }
     }
 
     /** The entry of a device's pairing token before it connects: by text or by scanning the QR code on the other phone. */

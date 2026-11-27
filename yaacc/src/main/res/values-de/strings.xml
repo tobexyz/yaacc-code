@@ -695,4 +695,8 @@
     <string name="sendspin_devices_added">Das Gerät darf dieses Telefon nutzen, sobald es sich verbindet.</string>
     <string name="sendspin_player_remote_control">Fernsteuerung dieses Telefons</string>
     <string name="sendspin_player_remote_not_ready">Die Fernsteuerung ist noch nicht verbunden. Das andere Telefon muss dieses zulassen (Kopplung oder Nicht gekoppelten Geräten die Nutzung dieses Telefons erlauben), und dort muss Anderen Geräten erlauben, dieses Telefon zu finden an sein. Versuche es gleich noch einmal.</string>
+    <string name="sendspin_discovery_title">Suchbericht</string>
+    <string name="sendspin_discovery_copy">Bericht kopieren</string>
+    <string name="sendspin_discovery_copied">Bericht kopiert.</string>
+    <string name="sendspin_discovery_note">Der Bericht nennt die gefundenen Player und Server, ihre Adressen und das Telefonmodell. Teile ihn nur mit Personen, denen du vertraust. Eine Suche läuft, solange die Empfängerseite offen und der Suchschalter an ist.</string>
 </resources>

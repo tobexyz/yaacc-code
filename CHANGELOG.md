@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- Sendspin: a discovery report with a *Copy report* button in the lists of players and servers (switches, Wi-Fi, multicast lock, what was browsed and reported, devices known), as the FCast and Snapcast settings have
 - Sendspin: the cover of what a Sendspin server plays is the soft background of its card (and of the merged card of a YAACC phone), not only in the server's sheet
 - Sendspin: one card per YAACC phone: the player and the server of the same phone are joined by an id in both announcements; the gear of the player's card has *Remote control of this phone*
 - Sendspin: the YAACC server offers the controller role: other Sendspin controllers (another YAACC phone, or any client of the protocol) see what plays (title, artist, album, progress, cover) and control it (play, pause, stop, next, previous, volume, mute, repeat, shuffle, seek, switch group); only paired devices, or all with *Allow unpaired devices to use this phone* (one setting for all roles); *Add a device by its pairing token* in the settings (text or QR code); group volume follows the protocol's rule

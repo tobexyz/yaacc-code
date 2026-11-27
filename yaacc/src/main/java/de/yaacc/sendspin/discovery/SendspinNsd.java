@@ -59,6 +59,9 @@ public final class SendspinNsd {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable pump = this::pump;
 
+    private final SendspinDiscoveryLog log = new SendspinDiscoveryLog();
+    private SendspinDiscoveryReport.LockState lockState = SendspinDiscoveryReport.LockState.NOT_HELD;
+
     private NsdManager nsdManager;
     private WifiManager.MulticastLock multicastLock;
     private SnapcastBrowseHandle handle;
@@ -82,6 +85,15 @@ public final class SendspinNsd {
         return started;
     }
 
+    /** What the platform said while browsing, for the discovery report. */
+    public SendspinDiscoveryLog log() {
+        return log;
+    }
+
+    public synchronized SendspinDiscoveryReport.LockState lockState() {
+        return lockState;
+    }
+
     /** Starts browsing. Does nothing when it runs already. */
     public synchronized void start() {
         if (started) {
@@ -89,6 +101,8 @@ public final class SendspinNsd {
         }
         directory.discoveryRestarted();
         retry.clear();
+        log.scanStarted();
+        log.record(log.scanId(), SendspinDiscoveryLog.Kind.BROWSE_REQUESTED, "", 0, serviceType);
         nsdManager = (NsdManager) context.getSystemService(Context.NSD_SERVICE);
         if (nsdManager == null) {
             return;
@@ -102,6 +116,7 @@ public final class SendspinNsd {
         } catch (RuntimeException e) {
             // the platform refused (no network service, a permission): the players added by address still work
             YaaccLogger.w(SendspinNsd.class.getName(), "Sendspin discovery could not be started: " + e.getClass().getSimpleName());
+            log.record(myGeneration, SendspinDiscoveryLog.Kind.BROWSE_START_FAILED, "", 0, e.getClass().getSimpleName());
             handle.onStartFailed();
             releaseMulticastLock();
             return;
@@ -114,6 +129,7 @@ public final class SendspinNsd {
             @Override
             public void onStartDiscoveryFailed(String serviceType, int errorCode) {
                 browse.onStartFailed();
+                log.record(log.scanId(), SendspinDiscoveryLog.Kind.BROWSE_START_FAILED, "", errorCode, "");
                 YaaccLogger.w(SendspinNsd.class.getName(), "Sendspin discovery did not start, code " + errorCode);
                 browseFailed(myGeneration);
             }
@@ -125,6 +141,7 @@ public final class SendspinNsd {
 
             @Override
             public void onDiscoveryStarted(String serviceType) {
+                log.record(log.scanId(), SendspinDiscoveryLog.Kind.BROWSE_STARTED, "", 0, "");
                 if (browse.onStarted()) {
                     stopBrowse(this); // a stop that came before the platform confirmed the start
                 }
@@ -132,7 +149,7 @@ public final class SendspinNsd {
 
             @Override
             public void onDiscoveryStopped(String serviceType) {
-                // nothing to do
+                log.record(log.scanId(), SendspinDiscoveryLog.Kind.BROWSE_STOPPED, "", 0, "");
             }
 
             @Override
@@ -140,6 +157,7 @@ public final class SendspinNsd {
                 if (info == null || !isCurrent(myGeneration) || !SendspinServiceType.matches(info.getServiceType(), serviceType)) {
                     return;
                 }
+                log.record(log.scanId(), SendspinDiscoveryLog.Kind.FOUND, info.getServiceName(), 0, "");
                 if (queue.offer(serviceId(info), info)) {
                     pump();
                 }
@@ -148,6 +166,7 @@ public final class SendspinNsd {
             @Override
             public void onServiceLost(NsdServiceInfo info) {
                 if (info != null && isCurrent(myGeneration)) {
+                    log.record(log.scanId(), SendspinDiscoveryLog.Kind.LOST, info.getServiceName(), 0, "");
                     retry.lost(serviceId(info));
                     directory.serviceLost(serviceId(info));
                 }
@@ -222,6 +241,7 @@ public final class SendspinNsd {
             manager.resolveService(asked, new NsdManager.ResolveListener() {
                 @Override
                 public void onResolveFailed(NsdServiceInfo info, int errorCode) {
+                    log.record(log.scanId(), SendspinDiscoveryLog.Kind.RESOLVE_FAILED, queued.getName(), errorCode, "");
                     queue.done(queued);
                     if (retry.shouldRetry(queued.getName(), errorCode)) {
                         handler.postDelayed(() -> {
@@ -240,12 +260,15 @@ public final class SendspinNsd {
                     if (info != null && isCurrent(myGeneration)) {
                         InetAddress host = info.getHost(); // a number: no lookup
                         if (SendspinSelf.isThisDevice(host)) {
+                            log.record(log.scanId(), SendspinDiscoveryLog.Kind.RESOLVED_OWN, info.getServiceName(), 0, "");
                             YaaccLogger.d(SendspinNsd.class.getName(), "Sendspin service is this phone's own announcement: not listed");
                             pump();
                             return;
                         }
                         SendspinServiceTxt txt = SendspinServiceTxt.parse(info.getAttributes());
                         boolean listed = directory.serviceFound(queued.getName(), info.getServiceName(), host, info.getPort(), txt);
+                        log.record(log.scanId(), listed ? SendspinDiscoveryLog.Kind.RESOLVED : SendspinDiscoveryLog.Kind.RESOLVED_REFUSED,
+                                info.getServiceName(), 0, host == null ? "" : host.getHostAddress() + ":" + info.getPort());
                         YaaccLogger.d(SendspinNsd.class.getName(), "Sendspin service " + (listed ? "listed" : "refused"));
                     }
                     pump();
@@ -270,9 +293,13 @@ public final class SendspinNsd {
                 multicastLock = wifi.createMulticastLock(SendspinServiceType.SERVER_TYPE.equals(serviceType) ? "yaacc-sendspin-server" : "yaacc-sendspin");
                 multicastLock.setReferenceCounted(false);
                 multicastLock.acquire();
+                lockState = SendspinDiscoveryReport.LockState.HELD;
+            } else {
+                lockState = SendspinDiscoveryReport.LockState.UNAVAILABLE;
             }
         } catch (RuntimeException e) {
             multicastLock = null; // without the lock the discovery may still work
+            lockState = SendspinDiscoveryReport.LockState.FAILED;
         }
     }
 
@@ -285,5 +312,6 @@ public final class SendspinNsd {
             // already released
         }
         multicastLock = null;
+        lockState = SendspinDiscoveryReport.LockState.NOT_HELD;
     }
 }

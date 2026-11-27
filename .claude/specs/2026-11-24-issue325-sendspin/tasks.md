@@ -71,7 +71,7 @@ Places a Sendspin receiver touches (task 1.3, read on 2026-11-24 by following FC
   - **Accept**: each goodbye reason causes its specified behavior; unapproved players stay at empty `activities`; the server declares `'playback'` only while it streams; limits for connections and memory.
   - **Verify**: `HubConnectionTest`; opt-in rig test.
 - [x] 4.3 Discovery and directory: `NsdManager` `_sendspin._tcp` plus manual `host:port`, one entry per `client_id`, a synthetic `SendspinReceiverDevice` (id `sendspin:<client_id>`), scanning only while a receiver page is open | `de.yaacc.sendspin.hub`, `de.yaacc.sendspin.discovery`
-  - **Status 2026-11-27**: built (`SendspinDirectory`, `SendspinNsd`, manual players, tests `SendspinDiscoveryTest`); **not built: the discovery report with a *Copy report* button** that the Snapcast discovery has (see 11.12)
+  - **Status 2026-11-27**: built (`SendspinDirectory`, `SendspinNsd`, manual players, tests `SendspinDiscoveryTest`); the discovery report with a *Copy report* button was added later (11.12)
   - **Accept**: lost services are dropped after the live-update grace; manual entries survive restarts; the discovery report like the other protocols' (what is browsed, what was seen), with a *Copy report* button.
   - **Verify**: `SendspinDirectoryTest`.
 - [x] 4.4 `SendspinPlayer` (queue, play, pause, stop, next, previous, seek, volume, mute) and the `PlayerService.createPlayer` wiring | `de.yaacc.player`, tests with a fake hub
@@ -171,7 +171,7 @@ Places a Sendspin receiver touches (task 1.3, read on 2026-11-24 by following FC
 - [ ] 11.9 **Remote linking, future enhancement (K16)**: to be discussed with the owner; not in the protocol.
 - [x] 11.10 **Groups are easier to read (K17)**: names of the members on the leader's card, "plays with" on the member's card (also this phone), members under their leader.
 - [x] 11.11 **K11, cover on the card** (done 2026-11-27: the soft background view of the card, as the UPnP cover; also on the merged card of a YAACC phone; not tried on a phone; only the album channel)
-- [ ] 11.12 Discovery report with a *Copy report* button for Sendspin (what is browsed, what was seen), like the Snapcast one
+- [x] 11.12 Discovery report with a *Copy report* button for Sendspin (done 2026-11-27: `SendspinDiscoveryLog`, `SendspinDiscoveryReport`, events recorded in `SendspinNsd`, the report and the button in the lists of players and servers; tests `SendspinDiscoveryReportTest`; not tried on a phone)
 - [ ] 11.13 K10: general review, then the security review of the client side and of the new server surface (controller role, loopback connection, cover fetching); postponed by the owner
 - [x] ~~11.14 Opus for the phone as a player~~ **dropped by the owner on 2026-11-27**: PCM and FLAC are enough for a first version
 - [ ] 11.15 Merge the duplicated pairing and clock code of `ControllerSession` and `PlayerSession`

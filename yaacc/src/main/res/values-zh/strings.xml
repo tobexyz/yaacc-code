@@ -691,4 +691,8 @@
     <string name="sendspin_devices_added">设备连接后即可使用此手机。</string>
     <string name="sendspin_player_remote_control">远程控制此手机</string>
     <string name="sendspin_player_remote_not_ready">远程控制尚未连接。对方手机需要允许此手机（配对，或“允许未配对的设备使用此手机”），并且那里需要开启“允许其他设备发现此手机”。请稍后再试。</string>
+    <string name="sendspin_discovery_title">搜索报告</string>
+    <string name="sendspin_discovery_copy">复制报告</string>
+    <string name="sendspin_discovery_copied">报告已复制。</string>
+    <string name="sendspin_discovery_note">报告会列出找到的播放器和服务器、它们的地址以及手机型号。请仅与你信任的人分享。接收器页面打开且搜索开关开启时才会进行搜索。</string>
 </resources>

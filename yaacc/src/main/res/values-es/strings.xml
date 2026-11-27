@@ -699,4 +699,8 @@
     <string name="sendspin_devices_added">El dispositivo podrá usar este teléfono cuando se conecte.</string>
     <string name="sendspin_player_remote_control">Control remoto de este teléfono</string>
     <string name="sendspin_player_remote_not_ready">El control remoto aún no está conectado. El otro teléfono tiene que admitir a este (emparejamiento o Permitir que dispositivos sin emparejar usen este teléfono) y allí debe estar activado Dejar que otros dispositivos encuentren este teléfono. Inténtalo de nuevo en un momento.</string>
+    <string name="sendspin_discovery_title">Informe de búsqueda</string>
+    <string name="sendspin_discovery_copy">Copiar informe</string>
+    <string name="sendspin_discovery_copied">Informe copiado.</string>
+    <string name="sendspin_discovery_note">El informe nombra los reproductores y servidores encontrados, sus direcciones y el modelo del teléfono. Compártelo solo con personas de confianza. Una búsqueda se ejecuta mientras la página de receptores está abierta y el interruptor de búsqueda está activado.</string>
 </resources>

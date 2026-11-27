@@ -26,6 +26,7 @@ import androidx.preference.PreferenceManager;
 import de.yaacc.multiroom.SnapcastDiscoveryGate;
 import de.yaacc.multiroom.control.MonotonicClock;
 import de.yaacc.sendspin.discovery.SendspinDirectory;
+import de.yaacc.sendspin.discovery.SendspinDiscoveryReport;
 import de.yaacc.sendspin.discovery.YaaccPeers;
 import de.yaacc.sendspin.discovery.SendspinNsd;
 import de.yaacc.sendspin.discovery.SendspinSelf;
@@ -609,6 +610,25 @@ public final class SendspinHub implements SendspinReceiverSource {
     }
 
     // ------------------------------------------------------------------ pairing and approvals
+
+    /** The report of the discovery for the user to copy: what was browsed, what the system said, the players and servers known. */
+    public String discoveryReport() {
+        Boolean connected;
+        try {
+            android.net.ConnectivityManager manager = (android.net.ConnectivityManager) appContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+            android.net.Network network = manager == null ? null : manager.getActiveNetwork();
+            android.net.NetworkCapabilities capabilities = network == null || manager == null ? null : manager.getNetworkCapabilities(network);
+            connected = manager == null ? null : capabilities != null && capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI);
+        } catch (RuntimeException unreadable) {
+            connected = null;
+        }
+        SendspinDiscoveryReport.LockState lock = nsd.lockState() != SendspinDiscoveryReport.LockState.NOT_HELD ? nsd.lockState() : serverNsd.lockState();
+        SendspinDiscoveryReport.Facts facts = new SendspinDiscoveryReport.Facts(
+                android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL + ", Android " + android.os.Build.VERSION.RELEASE,
+                SendspinSettings.isDiscoveryEnabled(preferences::getBoolean), SendspinSettings.isServerDiscoveryEnabled(preferences::getBoolean),
+                nsd.isStarted(), connected, lock, serverNsd.isStarted());
+        return SendspinDiscoveryReport.build(facts, directory.snapshot(), serverDirectory.snapshot(), nsd.log().snapshot(), serverNsd.log().snapshot());
+    }
 
     /** Enters the pairing token of a device that has not connected yet (K15: one pairing for every role of a device). */
     public SendspinPolicy.PairOutcome addDeviceToken(String tokenText) {

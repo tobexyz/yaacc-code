@@ -699,4 +699,8 @@
     <string name="sendspin_devices_added">L\'appareil pourra utiliser ce téléphone dès qu\'il se connecte.</string>
     <string name="sendspin_player_remote_control">Télécommande de ce téléphone</string>
     <string name="sendspin_player_remote_not_ready">La télécommande n\'est pas encore connectée. L\'autre téléphone doit autoriser celui-ci (appairage ou Autoriser les appareils non appairés à utiliser ce téléphone) et Laisser les autres appareils trouver ce téléphone doit y être activé. Réessayez dans un instant.</string>
+    <string name="sendspin_discovery_title">Rapport de recherche</string>
+    <string name="sendspin_discovery_copy">Copier le rapport</string>
+    <string name="sendspin_discovery_copied">Rapport copié.</string>
+    <string name="sendspin_discovery_note">Le rapport nomme les lecteurs et serveurs trouvés, leurs adresses et le modèle du téléphone. Ne le partagez qu\'avec des personnes de confiance. Une recherche s\'exécute tant que la page des récepteurs est ouverte et que l\'interrupteur de recherche est activé.</string>
 </resources>
