@@ -136,10 +136,7 @@ public final class PlayerSession {
     private final ServerClock serverClock = new ServerClock();
     private final ClientPairing pairing;
     /** The code-based pairing this client offers (null: the Pairing PSK only), its window and where the code is shown. */
-    private volatile de.yaacc.sendspin.pairing.CodePairingClient.Offer codeOffer;
-    private de.yaacc.sendspin.pairing.PairingWindow codeWindow;
-    private de.yaacc.sendspin.pairing.CodePairingClient.Emitter codeEmitter;
-    private volatile de.yaacc.sendspin.pairing.CodePairingClient codeClient;
+    private final CodePairingSlot code = new CodePairingSlot();
     private final ClockBursts bursts;
     private final Object lock = new Object();
 
@@ -313,36 +310,21 @@ public final class PlayerSession {
      */
     public void setCodePairing(de.yaacc.sendspin.pairing.CodePairingClient.Offer offer, de.yaacc.sendspin.pairing.PairingWindow window,
                                de.yaacc.sendspin.pairing.CodePairingClient.Emitter emitter) {
-        this.codeOffer = offer;
-        this.codeWindow = window;
-        this.codeEmitter = emitter;
+        code.configure(offer, window, emitter);
     }
 
     /** The operator's gesture opened the pairing window: an attempt that waited for it starts now. */
     public void onWindowOpened() {
-        de.yaacc.sendspin.pairing.CodePairingClient client = codeClient;
-        if (client != null) {
-            try {
-                client.windowOpened();
-            } catch (IOException e) {
-                // the connection is gone; the loop ends it
-            }
-        }
+        code.onWindowOpened();
     }
 
     /** True while a pairing of a server with this app is under way on this connection (it is not displaced then). */
     public boolean isPairing() {
-        de.yaacc.sendspin.pairing.CodePairingClient client = codeClient;
-        boolean code = client != null && client.state() != de.yaacc.sendspin.pairing.CodePairingClient.State.DONE
-                && client.state() != de.yaacc.sendspin.pairing.CodePairingClient.State.FAILED
-                && client.state() != de.yaacc.sendspin.pairing.CodePairingClient.State.IDLE;
-        return pairing.isPending() || code;
+        return pairing.isPending() || code.isRunning();
     }
 
     private boolean isCodeMethod(String method) {
-        de.yaacc.sendspin.pairing.CodePairingClient.Offer offer = codeOffer;
-        return offer != null && matched == SendspinPsk.Category.SENTINEL
-                && ("dynamic_pairing_code".equals(method) || "static_pairing_code".equals(method));
+        return code.offers(method, matched);
     }
 
     // ------------------------------------------------------------------ lifecycle
@@ -484,7 +466,7 @@ public final class PlayerSession {
                 serverName = ControllerMessages.parseServerHello(envelope.payload());
                 helloSeen = true;
                 c.sendJson(PlayerMessages.clientHello(name, PRODUCT_NAME, unpairedAccess, formats, bufferCapacity,
-                        offeredRoles, codeOffer));
+                        offeredRoles, code.offer()));
                 setPhase(Phase.WAITING_FOR_ACTIVATION);
                 continue;
             }
@@ -536,31 +518,23 @@ public final class PlayerSession {
                 case "server/pair-init":
                 case "server/pair-auth":
                 case "server/pair-confirm":
-                    if (codeClient == null) {
-                        throw new ProtocolException(envelope.type() + " without a code-based pairing");
-                    }
-                    codeClient.onMessage(envelope.type(), envelope.payload());
+                    code.onMessage(envelope.type(), envelope.payload());
                     break;
                 case "server/pair-finalize":
-                    if (codeClient != null) {
-                        codeClient.onMessage(envelope.type(), envelope.payload());
-                        byte[] longTerm = codeClient.takePsk();
+                    if (code.has()) {
+                        byte[] longTerm = code.finish(envelope.payload());
                         if (longTerm != null && credentials != null && serverId != null) {
                             credentials.completePairing(serverId, longTerm);
                         }
                         if (longTerm != null) {
                             java.util.Arrays.fill(longTerm, (byte) 0);
                         }
-                        codeClient = null;
                     } else {
                         pairing.finish(c, serverId);
                     }
                     break;
                 case "pair/abort":
-                    if (codeClient != null) {
-                        codeClient.onMessage(envelope.type(), envelope.payload());
-                        codeClient = null;
-                    }
+                    code.abort(envelope.payload());
                     pairing.clear();
                     break;
                 case "server/unpair":
@@ -629,10 +603,7 @@ public final class PlayerSession {
         activated = true;
         if (a.activities.contains("pairing")) {
             if (isCodeMethod(a.pairingMethod)) {
-                de.yaacc.sendspin.pairing.CodePairingClient client = new de.yaacc.sendspin.pairing.CodePairingClient(c.transport().suite(),
-                        c.transport().handshakeHash(), random, c::sendJson, codeOffer, codeWindow, codeEmitter);
-                codeClient = client;
-                client.onActivate(pairing.nextActivation(), a.pairingMethod, a.pairingFormat);
+                code.start(c, random, pairing.nextActivation(), a.pairingMethod, a.pairingFormat);
             } else {
                 pairing.start(c);
             }

@@ -104,6 +104,7 @@ public final class SendspinHub implements SendspinReceiverSource {
     private InboundServer inboundServer;
     private final SharedPreferences.OnSharedPreferenceChangeListener settingListener;
     private final List<SendspinDirectory.Listener> listeners = new CopyOnWriteArrayList<>();
+    private de.yaacc.sendspin.player.ClientCodePairing codePairing;
     private final Map<Endpoint, HubConnection> connections = new HashMap<>();
     private final Map<Endpoint, Long> lastAttempt = new HashMap<>();
     private final Map<Endpoint, Integer> rates = new HashMap<>();
@@ -142,6 +143,7 @@ public final class SendspinHub implements SendspinReceiverSource {
         this.controllers = new SendspinControllers(store, this::clientIdentity,
                 () -> SendspinSettings.isUnpairedServersAllowed(preferences::getBoolean), serverDirectory::snapshot, connector, clock, random,
                 this::controllerChanged);
+        this.controllers.setCodePairing(this::clientCodePairing);
         this.nsd = new SendspinNsd(app, directory);
         directory.addListener(this::fire);
         this.advert = new SendspinServerAdvert(app);
@@ -854,6 +856,32 @@ public final class SendspinHub implements SendspinReceiverSource {
     }
 
     /** The key pair of this app as a Sendspin client (the controller and the player use the same). */
+    /**
+     * The code-based pairing this phone offers as a client, to the servers it connects to and to the servers that connect to its player
+     * (task 11.1): one pairing window and one fixed code for both. The fixed code is drawn once per installation and kept.
+     */
+    public synchronized de.yaacc.sendspin.player.ClientCodePairing clientCodePairing() {
+        if (codePairing == null) {
+            String stored = preferences.getString("sendspin_player_static_code", null);
+            if (!de.yaacc.sendspin.player.ClientCodePairing.isStaticCode(stored)) {
+                stored = de.yaacc.sendspin.player.ClientCodePairing.newStaticCode(random);
+                preferences.edit().putString("sendspin_player_static_code", stored).apply();
+            }
+            codePairing = new de.yaacc.sendspin.player.ClientCodePairing(stored, System::currentTimeMillis);
+        }
+        return codePairing;
+    }
+
+    /** The operator's gesture on this phone: opens the pairing window (5 minutes) for every connection, as a client and as a player. */
+    public void openPairingWindow() {
+        clientCodePairing().window().open();
+        controllers.windowOpened();
+        de.yaacc.sendspin.player.SendspinPlayerHost host = de.yaacc.sendspin.player.SendspinPlayerRuntime.host();
+        if (host != null) {
+            host.openPairingWindow();
+        }
+    }
+
     public Identity clientKeys() {
         return clientIdentity();
     }

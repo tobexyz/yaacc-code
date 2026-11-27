@@ -200,4 +200,28 @@ public final class CodePairingMessages {
     public static byte[] parseWrappedPsk(JSONObject p) throws ProtocolException {
         return exact(p, "wrapped_psk", 48);
     }
+
+    /**
+     * The {@code supported_pair_methods} of a {@code client/hello}: the Pairing PSK, which every client offers, and the code-based methods
+     * of {@code codes} (the formats of the dynamic flow, the static flow); null: the Pairing PSK only.
+     */
+    public static JSONObject pairMethods(de.yaacc.sendspin.pairing.CodePairingClient.Offer codes) {
+        JSONObject methods = SendspinMessages.json("pairing_psk", new JSONObject());
+        if (codes != null && (codes.offersDigits() || codes.offersQrCode())) {
+            JSONArray codeFormats = new JSONArray();
+            if (codes.offersDigits()) {
+                codeFormats.put("digits");
+            }
+            if (codes.offersQrCode()) {
+                codeFormats.put("qr_code");
+            }
+            SendspinMessages.put(methods, "dynamic_pairing_code", SendspinMessages.json("out_channels",
+                    new JSONArray(Collections.singletonList("display")), "formats", codeFormats));
+        }
+        if (codes != null && codes.staticCode() != null) {
+            SendspinMessages.put(methods, "static_pairing_code", SendspinMessages.json("locations",
+                    new JSONArray(Collections.singletonList("device"))));
+        }
+        return methods;
+    }
 }

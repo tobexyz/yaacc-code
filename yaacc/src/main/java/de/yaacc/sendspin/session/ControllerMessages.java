@@ -67,8 +67,14 @@ public final class ControllerMessages {
      * @param unpairedAccess  whether this client admits a server it is not paired with (spec: unpaired access)
      */
     public static String clientHello(String name, String productName, String softwareVersion, boolean unpairedAccess) {
+        return clientHello(name, productName, softwareVersion, unpairedAccess, null);
+    }
+
+    /** As above; {@code codes} adds the code-based pairing methods the client offers (null: the Pairing PSK only). */
+    public static String clientHello(String name, String productName, String softwareVersion, boolean unpairedAccess,
+                                     de.yaacc.sendspin.pairing.CodePairingClient.Offer codes) {
         JSONObject payload = SendspinMessages.json("name", name, "supported_roles", new JSONArray(ROLES),
-                "supported_pair_methods", SendspinMessages.json("pairing_psk", new JSONObject()),
+                "supported_pair_methods", CodePairingMessages.pairMethods(codes),
                 "unpaired_access", SendspinMessages.json("enabled", unpairedAccess));
         if (productName != null || softwareVersion != null) {
             JSONObject info = new JSONObject();

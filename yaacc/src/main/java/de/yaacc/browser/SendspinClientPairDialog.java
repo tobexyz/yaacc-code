@@ -168,6 +168,8 @@ final class SendspinClientPairDialog {
             });
             root.addView(forget);
         }
+        final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+        SendspinCodeSection.add(context, root, main, density);
         String name = session == null ? "" : SendspinRowText.clean(session.serverName());
         final AlertDialog.Builder builder = new AlertDialog.Builder(context)
                 .setTitle(context.getString(R.string.sendspin_clientpair_title, name.isEmpty() ? device.getName() : name))
@@ -177,6 +179,7 @@ final class SendspinClientPairDialog {
                 .setNegativeButton(android.R.string.cancel, null);
         final AlertDialog dialog = builder.create();
         holder[0] = dialog;
+        dialog.setOnDismissListener(d -> main.removeCallbacksAndMessages(null));
         dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
             ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
             if (clipboard != null) {

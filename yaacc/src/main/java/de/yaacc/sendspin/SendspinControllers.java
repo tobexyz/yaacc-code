@@ -57,6 +57,19 @@ public final class SendspinControllers {
     private final SendspinClientPairings credentials;
     private final Map<Endpoint, ControllerSession> sessions = new HashMap<>();
     private final Map<Endpoint, Long> lastAttempt = new HashMap<>();
+    private volatile Supplier<de.yaacc.sendspin.player.ClientCodePairing> codes;
+
+    /** The code-based pairing this app offers as a client (task 11.1): given to every session that is made after this call. */
+    public void setCodePairing(Supplier<de.yaacc.sendspin.player.ClientCodePairing> codes) {
+        this.codes = codes;
+    }
+
+    /** The operator opened the pairing window: the attempts that wait for it start. */
+    public synchronized void windowOpened() {
+        for (ControllerSession session : new java.util.ArrayList<>(sessions.values())) {
+            session.onWindowOpened();
+        }
+    }
 
     public SendspinControllers(StringSetStore store, Supplier<Identity> identity, BooleanSupplier unpairedAllowed,
                                Supplier<List<SendspinDirectory.Entry>> found, Connector connector, HubClock clock, SecureRandom random,
@@ -125,6 +138,11 @@ public final class SendspinControllers {
         lastAttempt.put(endpoint, now);
         ControllerSession made = new ControllerSession(endpoint, identity.get(), unpairedAllowed.getAsBoolean(), connector, clock, random,
                 CLIENT_NAME, changed::accept, credentials);
+        Supplier<de.yaacc.sendspin.player.ClientCodePairing> offered = codes;
+        de.yaacc.sendspin.player.ClientCodePairing pairing = offered == null ? null : offered.get();
+        if (pairing != null) {
+            made.setCodePairing(pairing.offer(), pairing.window(), pairing);
+        }
         sessions.put(endpoint, made);
         made.start();
         return made;

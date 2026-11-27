@@ -81,21 +81,7 @@ public final class PlayerMessages {
         for (Offer f : formats) {
             formatArray.put(SendspinMessages.json("codec", f.codec, "channels", f.channels, "sample_rate", f.sampleRate, "bit_depth", f.bitDepth));
         }
-        JSONObject methods = SendspinMessages.json("pairing_psk", new JSONObject());
-        if (codes != null && (codes.offersDigits() || codes.offersQrCode())) {
-            JSONArray codeFormats = new JSONArray();
-            if (codes.offersDigits()) {
-                codeFormats.put("digits");
-            }
-            if (codes.offersQrCode()) {
-                codeFormats.put("qr_code");
-            }
-            SendspinMessages.put(methods, "dynamic_pairing_code", SendspinMessages.json("out_channels", new JSONArray(java.util.Collections.singletonList("display")),
-                    "formats", codeFormats));
-        }
-        if (codes != null && codes.staticCode() != null) {
-            SendspinMessages.put(methods, "static_pairing_code", SendspinMessages.json("locations", new JSONArray(java.util.Collections.singletonList("device"))));
-        }
+        JSONObject methods = CodePairingMessages.pairMethods(codes);
         JSONObject payload = SendspinMessages.json("name", name, "supported_roles", new JSONArray(roles),
                 "supported_pair_methods", methods,
                 "unpaired_access", SendspinMessages.json("enabled", unpairedAccess));

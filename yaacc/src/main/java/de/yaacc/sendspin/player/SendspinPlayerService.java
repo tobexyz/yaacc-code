@@ -159,7 +159,7 @@ public final class SendspinPlayerService extends Service {
                 () -> SendspinSettings.isPlayerFlacPreferred(preferences::getBoolean), phoneName(), (offsets, clock) -> openEngine(offsets, clock),
                 micro, new SecureRandom(), new PreferenceStore(preferences), this::refresh);
         host.setDisplayRoles(() -> SendspinSettings.playerDisplayRoles(preferences::getBoolean));
-        host.setCodePairing(new ClientCodePairing(staticPairingCode(preferences), System::currentTimeMillis));
+        host.setCodePairing(hub.clientCodePairing());
         server = new InboundServer(PORT, PATH, SendspinPlayerService::acceptsAddress,
                 playerListener(), MAX_CONNECTIONS, UPGRADE_TIMEOUT_MILLIS);
         int port;
@@ -185,16 +185,6 @@ public final class SendspinPlayerService extends Service {
         advert = new SendspinServerAdvert(this);
         advert.register(SendspinServiceType.TYPE, hub.clientKeys().id(), phoneName(), PATH, port, hub.clientKeys().id());
         refresh();
-    }
-
-    /** The fixed code of the static flow: drawn once per installation and kept, so that a note made of it stays right. */
-    private static String staticPairingCode(SharedPreferences preferences) {
-        String code = preferences.getString("sendspin_player_static_code", null);
-        if (!ClientCodePairing.isStaticCode(code)) {
-            code = ClientCodePairing.newStaticCode(new SecureRandom());
-            preferences.edit().putString("sendspin_player_static_code", code).apply();
-        }
-        return code;
     }
 
     private static final class PreferenceStore implements SendspinPlayerHost.Store {

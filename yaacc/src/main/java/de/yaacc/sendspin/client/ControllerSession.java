@@ -101,6 +101,7 @@ public final class ControllerSession {
     private final ClientPairing pairing;
     private final ClockBursts bursts;
     private final ArtworkStream artwork = new ArtworkStream();
+    private final CodePairingSlot code = new CodePairingSlot();
     private volatile SecureChannel channel;
     private volatile Connector.Link link;
     private volatile boolean closing;
@@ -182,6 +183,20 @@ public final class ControllerSession {
     /** What the group can do and its volume, or null before the first state of the controller role. */
     public ControllerMessages.ControllerState controller() {
         return controller;
+    }
+
+    /**
+     * Offers the code-based pairing methods (call before {@link #start()}): the hello lists them, and a server that activates one pairs
+     * with the code. The window is the gesture gate; the emitter shows the code of a dynamic attempt.
+     */
+    public void setCodePairing(de.yaacc.sendspin.pairing.CodePairingClient.Offer offer, de.yaacc.sendspin.pairing.PairingWindow window,
+                               de.yaacc.sendspin.pairing.CodePairingClient.Emitter emitter) {
+        code.configure(offer, window, emitter);
+    }
+
+    /** The operator's gesture opened the pairing window: an attempt that waited for it starts now. */
+    public void onWindowOpened() {
+        code.onWindowOpened();
     }
 
     /** The metadata to show now (a scheduled update whose time has come is applied), or null. */
@@ -439,7 +454,7 @@ public final class ControllerSession {
                 }
                 serverName = ControllerMessages.parseServerHello(envelope.payload());
                 helloSeen = true;
-                c.sendJson(ControllerMessages.clientHello(clientName, PRODUCT_NAME, null, unpairedAccess));
+                c.sendJson(ControllerMessages.clientHello(clientName, PRODUCT_NAME, null, unpairedAccess, code.offer()));
                 setPhase(Phase.WAITING_FOR_ACTIVATION);
                 continue;
             }
@@ -477,10 +492,26 @@ public final class ControllerSession {
                 case "server/time":
                     bursts.handleServerTime(c, ControllerMessages.parseServerTime(envelope.payload()));
                     break;
+                case "server/pair-init":
+                case "server/pair-auth":
+                case "server/pair-confirm":
+                    code.onMessage(envelope.type(), envelope.payload());
+                    break;
                 case "server/pair-finalize":
-                    pairing.finish(c, serverId);
+                    if (code.has()) {
+                        byte[] longTerm = code.finish(envelope.payload());
+                        if (longTerm != null && credentials != null && serverId != null) {
+                            credentials.completePairing(serverId, longTerm);
+                        }
+                        if (longTerm != null) {
+                            java.util.Arrays.fill(longTerm, (byte) 0);
+                        }
+                    } else {
+                        pairing.finish(c, serverId);
+                    }
                     break;
                 case "pair/abort":
+                    code.abort(envelope.payload());
                     pairing.clear(); // the server gave the attempt up
                     break;
                 case "server/unpair":
@@ -516,8 +547,8 @@ public final class ControllerSession {
     private void handleActivate(SecureChannel c, ControllerMessages.Activate a) throws IOException {
         List<String> effective = a.activeRoles != null ? a.activeRoles : roles;
         // the Pairing PSK flow is the one method this client offers, and only while it holds a Pairing PSK (the user asked for a token)
-        boolean canPair = credentials != null && matched == SendspinPsk.Category.PAIRING && credentials.holdsPairingPsk()
-                && "pairing_psk".equals(a.pairingMethod);
+        boolean canPair = (credentials != null && matched == SendspinPsk.Category.PAIRING && credentials.holdsPairingPsk()
+                && "pairing_psk".equals(a.pairingMethod)) || code.offers(a.pairingMethod, matched);
         ControllerMessages.Admission admission = ControllerMessages.admit(matched, unpairedAccess, a.activities, effective, canPair);
         switch (admission) {
             case PAIRING_REQUIRED:
@@ -538,7 +569,11 @@ public final class ControllerSession {
                 break;
         }
         if (a.activities.contains("pairing")) {
-            pairing.start(c);
+            if (code.offers(a.pairingMethod, matched)) {
+                code.start(c, random, pairing.nextActivation(), a.pairingMethod, a.pairingFormat);
+            } else {
+                pairing.start(c);
+            }
             return; // a pairing activation carries no roles: the roles come with the activation after the re-handshake
         }
         roles = new ArrayList<>(effective);

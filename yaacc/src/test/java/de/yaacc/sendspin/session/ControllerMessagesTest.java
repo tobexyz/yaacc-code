@@ -63,6 +63,22 @@ public class ControllerMessagesTest {
     }
 
     @Test
+    public void theControllerHelloOffersTheCodeMethodsWhenTheClientHasThem() throws Exception {
+        de.yaacc.sendspin.pairing.CodePairingClient.Offer offer = new de.yaacc.sendspin.pairing.CodePairingClient.Offer(true, true, "12345678");
+        JSONObject methods = Envelope.parse(ControllerMessages.clientHello("YAACC", "Pixel", "1.2", true, offer).getBytes("UTF-8"))
+                .payload().getJSONObject("supported_pair_methods");
+        assertTrue(methods.has("pairing_psk"));
+        assertEquals("digits", methods.getJSONObject("dynamic_pairing_code").getJSONArray("formats").getString(0));
+        assertEquals("qr_code", methods.getJSONObject("dynamic_pairing_code").getJSONArray("formats").getString(1));
+        assertEquals("display", methods.getJSONObject("dynamic_pairing_code").getJSONArray("out_channels").getString(0));
+        assertTrue(methods.has("static_pairing_code"));
+        JSONObject none = Envelope.parse(ControllerMessages.clientHello("YAACC", "Pixel", "1.2", true, null).getBytes("UTF-8"))
+                .payload().getJSONObject("supported_pair_methods");
+        assertFalse(none.has("dynamic_pairing_code"));
+        assertFalse(none.has("static_pairing_code"));
+    }
+
+    @Test
     public void theControllerHelloListsTheControllerAndMetadataRolesAndNoPlayer() throws Exception {
         Envelope e = Envelope.parse(ControllerMessages.clientHello("YAACC", "Pixel", "1.2", true).getBytes("UTF-8"));
         assertEquals("client/hello", e.type());
