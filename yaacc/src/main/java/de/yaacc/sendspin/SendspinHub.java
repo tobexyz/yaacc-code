@@ -26,6 +26,7 @@ import androidx.preference.PreferenceManager;
 import de.yaacc.multiroom.SnapcastDiscoveryGate;
 import de.yaacc.multiroom.control.MonotonicClock;
 import de.yaacc.sendspin.discovery.SendspinDirectory;
+import de.yaacc.sendspin.discovery.YaaccPeers;
 import de.yaacc.sendspin.discovery.SendspinNsd;
 import de.yaacc.sendspin.discovery.SendspinSelf;
 import de.yaacc.sendspin.discovery.SendspinServerAdvert;
@@ -292,7 +293,7 @@ public final class SendspinHub implements SendspinReceiverSource {
         synchronized (this) {
             inboundServer = server;
         }
-        advert.register(identity().id(), "YAACC", "/sendspin", server.port());
+        advert.register(identity().id(), "YAACC", "/sendspin", server.port(), clientIdentity().id()); // the id joins it with the announcement of the phone's player
     }
 
     /** Who may connect to the listener: the local network, and never this phone itself (its own search finds its announcement). */
@@ -934,8 +935,12 @@ public final class SendspinHub implements SendspinReceiverSource {
         if (!isControllerEnabled()) {
             controllers.closeAll();
         } else {
+            List<SendspinDirectory.Entry> shownPlayers = shownPlayerEntries();
             for (Endpoint endpoint : controllers.listed()) {
-                controllers.acquire(endpoint, false);
+                controllers.acquire(endpoint, false); // the session stays warm also when its card is merged into the player's
+                if (isMergedServer(endpoint, shownPlayers)) {
+                    continue; // one card per YAACC phone: its server is inside the card of its player (K14)
+                }
                 SendspinReceiverDevice device = serverDeviceFor(endpoint);
                 if (device != null) {
                     result.add(device);
@@ -959,6 +964,47 @@ public final class SendspinHub implements SendspinReceiverSource {
             }
         });
         return result;
+    }
+
+    /** The announced players that are listed as a card now. */
+    private List<SendspinDirectory.Entry> shownPlayerEntries() {
+        Set<String> shown = new HashSet<>();
+        for (Listed player : listed()) {
+            shown.add(keyOf(player.endpoint));
+        }
+        List<SendspinDirectory.Entry> result = new ArrayList<>();
+        for (SendspinDirectory.Entry entry : directory.snapshot()) {
+            if (shown.contains(keyOf(entry.endpoint()))) {
+                result.add(entry);
+            }
+        }
+        return result;
+    }
+
+    private boolean isMergedServer(Endpoint server, List<SendspinDirectory.Entry> shownPlayers) {
+        for (SendspinDirectory.Entry entry : serverDirectory.snapshot()) {
+            if (entry.endpoint().equals(server)) {
+                return YaaccPeers.isMergedServer(entry, shownPlayers);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The server of the same YAACC phone as this player, if both announced it and this phone controls servers: the card of the player
+     * then has a remote control for what that phone plays (K14). Null otherwise.
+     */
+    public synchronized Endpoint remoteControlOf(Endpoint player) {
+        if (!isControllerEnabled()) {
+            return null;
+        }
+        for (SendspinDirectory.Entry entry : directory.snapshot()) {
+            if (keyOf(entry.endpoint()).equals(keyOf(player))) {
+                Endpoint server = YaaccPeers.serverOf(entry, serverDirectory.snapshot());
+                return server != null && controllers.listed().contains(server) ? server : null;
+            }
+        }
+        return null;
     }
 
     /** The card of this phone as a player: one object while its name stays the same (the lists redraw a row when the object changes). */

@@ -51,11 +51,20 @@ public final class SendspinServerAdvert {
      * @param path         the {@code path} of the TXT record, the one the listener serves
      */
     public synchronized void register(String instanceName, String displayName, String path, int port) {
-        register(SendspinServiceType.SERVER_TYPE, instanceName, displayName, path, port);
+        register(SendspinServiceType.SERVER_TYPE, instanceName, displayName, path, port, null);
+    }
+
+    /** As above, with the {@code yaacc} id that joins the announcements of this phone's player and server (null: none). */
+    public synchronized void register(String instanceName, String displayName, String path, int port, String yaacc) {
+        register(SendspinServiceType.SERVER_TYPE, instanceName, displayName, path, port, yaacc);
     }
 
     /** As above, for another service type: {@link SendspinServiceType#TYPE} announces a player (the phone as a player). */
     public synchronized void register(String serviceType, String instanceName, String displayName, String path, int port) {
+        register(serviceType, instanceName, displayName, path, port, null);
+    }
+
+    public synchronized void register(String serviceType, String instanceName, String displayName, String path, int port, String yaacc) {
         if (listener != null) {
             return;
         }
@@ -70,6 +79,9 @@ public final class SendspinServerAdvert {
         info.setPort(port);
         info.setAttribute("path", path);
         info.setAttribute("name", displayName);
+        if (yaacc != null) {
+            info.setAttribute("yaacc", yaacc);
+        }
         listener = new NsdManager.RegistrationListener() {
             @Override
             public void onRegistrationFailed(NsdServiceInfo serviceInfo, int errorCode) {

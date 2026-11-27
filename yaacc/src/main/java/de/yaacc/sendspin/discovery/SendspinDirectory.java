@@ -53,10 +53,21 @@ public final class SendspinDirectory {
     public static final class Entry {
         private final Endpoint endpoint;
         private final String name;
+        private final String yaacc;
 
         public Entry(Endpoint endpoint, String name) {
+            this(endpoint, name, null);
+        }
+
+        public Entry(Endpoint endpoint, String name, String yaacc) {
             this.endpoint = endpoint;
             this.name = name;
+            this.yaacc = yaacc;
+        }
+
+        /** The id a YAACC phone puts in the announcements of its player and its server, or null (see {@link SendspinServiceTxt#yaacc()}). */
+        public String yaacc() {
+            return yaacc;
         }
 
         public Endpoint endpoint() {
@@ -77,11 +88,13 @@ public final class SendspinDirectory {
     private static final class Node {
         final Endpoint endpoint;
         final String name;
+        final String yaacc;
         long lostAt; // 0 while the service is present
 
-        Node(Endpoint endpoint, String name) {
+        Node(Endpoint endpoint, String name, String yaacc) {
             this.endpoint = endpoint;
             this.name = name;
+            this.yaacc = yaacc;
         }
     }
 
@@ -140,8 +153,9 @@ public final class SendspinDirectory {
                 changed = dropped;
             } else {
                 // a service that comes back inside its grace period shows nothing new
-                changed = dropped || old == null || !old.endpoint.equals(endpoint) || !old.name.equals(name);
-                nodes.put(serviceId, new Node(endpoint, name));
+                changed = dropped || old == null || !old.endpoint.equals(endpoint) || !old.name.equals(name)
+                        || !java.util.Objects.equals(old.yaacc, txt.yaacc());
+                nodes.put(serviceId, new Node(endpoint, name, txt.yaacc()));
             }
         }
         if (changed) {
@@ -198,7 +212,7 @@ public final class SendspinDirectory {
                 String key = node.endpoint.host() + ":" + node.endpoint.port();
                 Entry existing = byEndpoint.get(key);
                 if (existing == null || existing.name().isEmpty()) {
-                    byEndpoint.put(key, new Entry(node.endpoint, node.name));
+                    byEndpoint.put(key, new Entry(node.endpoint, node.name, node.yaacc));
                 }
             }
             result.addAll(byEndpoint.values());

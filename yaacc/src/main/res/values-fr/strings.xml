@@ -697,4 +697,6 @@
     <string name="sendspin_devices_add_message">Saisissez le jeton d\'appairage que l\'autre téléphone affiche (sa carte de ce téléphone, roue dentée, Jeton d\'appairage) ou scannez son code QR. L\'appareil pourra alors utiliser ce téléphone, comme lecteur et comme commande, même si les appareils non appairés ne sont pas autorisés.</string>
     <string name="sendspin_devices_add">Ajouter l\'appareil</string>
     <string name="sendspin_devices_added">L\'appareil pourra utiliser ce téléphone dès qu\'il se connecte.</string>
+    <string name="sendspin_player_remote_control">Télécommande de ce téléphone</string>
+    <string name="sendspin_player_remote_not_ready">La télécommande n\'est pas encore connectée. L\'autre téléphone doit autoriser celui-ci (appairage ou Autoriser les appareils non appairés à utiliser ce téléphone) et Laisser les autres appareils trouver ce téléphone doit y être activé. Réessayez dans un instant.</string>
 </resources>

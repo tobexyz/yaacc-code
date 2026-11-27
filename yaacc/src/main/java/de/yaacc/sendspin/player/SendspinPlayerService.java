@@ -164,7 +164,7 @@ public final class SendspinPlayerService extends Service {
         SendspinPlayerRuntime.set(host);
         SendspinPlayerRuntime.setPort(port);
         advert = new SendspinServerAdvert(this);
-        advert.register(SendspinServiceType.TYPE, hub.clientKeys().id(), phoneName(), PATH, port);
+        advert.register(SendspinServiceType.TYPE, hub.clientKeys().id(), phoneName(), PATH, port, hub.clientKeys().id());
         refresh();
     }
 

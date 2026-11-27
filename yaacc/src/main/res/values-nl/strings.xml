@@ -693,4 +693,6 @@
     <string name="sendspin_devices_add_message">Voer het koppelingstoken in dat de andere telefoon toont (zijn kaart van deze telefoon, tandwiel, Koppelingstoken) of scan zijn QR-code. Het apparaat mag deze telefoon dan gebruiken, als speler en als bediening, ook als niet-gekoppelde apparaten niet zijn toegestaan.</string>
     <string name="sendspin_devices_add">Apparaat toevoegen</string>
     <string name="sendspin_devices_added">Het apparaat mag deze telefoon gebruiken zodra het verbindt.</string>
+    <string name="sendspin_player_remote_control">Afstandsbediening van deze telefoon</string>
+    <string name="sendspin_player_remote_not_ready">De afstandsbediening is nog niet verbonden. De andere telefoon moet deze toelaten (koppeling of Niet-gekoppelde apparaten toestaan deze telefoon te gebruiken) en daar moet Andere apparaten deze telefoon laten vinden aan staan. Probeer het zo opnieuw.</string>
 </resources>

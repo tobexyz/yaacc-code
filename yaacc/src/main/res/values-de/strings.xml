@@ -693,4 +693,6 @@
     <string name="sendspin_devices_add_message">Gib das Kopplungstoken ein, das das andere Telefon anzeigt (dessen Karte dieses Telefons, Zahnrad, Kopplungstoken), oder scanne seinen QR-Code. Das Gerät darf dieses Telefon dann nutzen, als Player und als Steuerung, auch wenn nicht gekoppelte Geräte nicht erlaubt sind.</string>
     <string name="sendspin_devices_add">Gerät hinzufügen</string>
     <string name="sendspin_devices_added">Das Gerät darf dieses Telefon nutzen, sobald es sich verbindet.</string>
+    <string name="sendspin_player_remote_control">Fernsteuerung dieses Telefons</string>
+    <string name="sendspin_player_remote_not_ready">Die Fernsteuerung ist noch nicht verbunden. Das andere Telefon muss dieses zulassen (Kopplung oder Nicht gekoppelten Geräten die Nutzung dieses Telefons erlauben), und dort muss Anderen Geräten erlauben, dieses Telefon zu finden an sein. Versuche es gleich noch einmal.</string>
 </resources>

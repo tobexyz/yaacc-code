@@ -35,6 +35,7 @@ import de.yaacc.sendspin.SendspinAddress;
 import de.yaacc.sendspin.SendspinHub;
 import de.yaacc.sendspin.SendspinReceiverDevice;
 import de.yaacc.sendspin.SendspinRowText;
+import de.yaacc.sendspin.hub.Endpoint;
 import de.yaacc.sendspin.hub.HubConnection;
 import de.yaacc.sendspin.session.SendspinMessages;
 
@@ -97,6 +98,13 @@ final class SendspinPlayerSheet {
                 SendspinPairDialog.show(context, device.getEndpoint(), announced);
             }));
         }
+        final Endpoint remote = hub.remoteControlOf(device.getEndpoint());
+        if (remote != null) {
+            root.addView(button(context, R.string.sendspin_player_remote_control, () -> {
+                dismiss(dialog);
+                openRemoteControl(context, hub, remote);
+            }));
+        }
         if (paired) {
             root.addView(button(context, R.string.sendspin_player_forget_pairing, () -> {
                 dismiss(dialog);
@@ -147,5 +155,27 @@ final class SendspinPlayerSheet {
         button.setOnClickListener(v -> action.run());
         button.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         return button;
+    }
+
+    /**
+     * The sheet of the server of the same YAACC phone (what it plays, with its transport buttons). If the other phone has not let this
+     * one in yet, the token of this app is offered (the other phone adds it under *Add a device by its pairing token*, or allows
+     * unpaired devices); if the connection is not up yet, a short message says so.
+     */
+    private static void openRemoteControl(Context context, SendspinHub hub, Endpoint remote) {
+        SendspinReceiverDevice server = hub.findReceiver(SendspinAddress.serverIdOf(remote));
+        de.yaacc.sendspin.client.ControllerSession session = hub.controllers().session(remote);
+        if (server == null) {
+            return;
+        }
+        SendspinRowText.State state = SendspinRowText.stateOfServer(session == null ? null : session.phase(),
+                session == null ? null : session.endReason(), false);
+        if (session != null && session.phase() == de.yaacc.sendspin.client.ControllerSession.Phase.ACTIVE) {
+            SendspinServerSheet.show(context, server);
+        } else if (state == SendspinRowText.State.SERVER_NEEDS_PAIRING) {
+            SendspinClientPairDialog.show(context, server);
+        } else {
+            android.widget.Toast.makeText(context, R.string.sendspin_player_remote_not_ready, android.widget.Toast.LENGTH_LONG).show();
+        }
     }
 }

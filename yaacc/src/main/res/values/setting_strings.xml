@@ -249,7 +249,7 @@
     <string name="settings_sendspin_legacy_title">Allow players without encryption (less secure)</string>
     <string name="settings_sendspin_legacy_summary">Off by default. Some older players, for example the Kodi add-on, speak an older version of the protocol without encryption, which the current specification does not define. When on, YAACC accepts them. Nothing they send or receive is protected: anyone on your network can read it and can pose as the player or as your phone, and the connection proves nothing about who the other side is. A player you have not approved still gets no audio. Use it only on a network you trust.</string>
     <string name="settings_sendspin_advertise" translatable="false">settings_sendspin_advertise</string>
-    <string name="settings_sendspin_advertise_title">Let players find this phone (listen on the network)</string>
+    <string name="settings_sendspin_advertise_title">Let other devices find this phone (listen on the network)</string>
     <string name="settings_sendspin_advertise_summary">Off by default. When on, and while a page with the receivers is open, this phone announces itself on the local network as a Sendspin server (mDNS, port 8927) and accepts connections from players that look for a server, for example the Kodi add-on. A player that is connected stays connected until its connection ends. Only addresses of the local network are accepted, at most 8 players at once, and a player you have not approved gets no audio. Nothing listens and nothing is announced while this is off.</string>
     <string name="settings_sendspin_player" translatable="false">settings_sendspin_player</string>
     <string name="settings_sendspin_player_title">Let servers play on this phone</string>

@@ -689,4 +689,6 @@
     <string name="sendspin_devices_add_message">输入另一部手机显示的配对令牌（其“此手机”卡片、齿轮、配对令牌），或扫描它的二维码。之后该设备即使在不允许未配对设备时也可以使用此手机，无论作为播放器还是控制器。</string>
     <string name="sendspin_devices_add">添加设备</string>
     <string name="sendspin_devices_added">设备连接后即可使用此手机。</string>
+    <string name="sendspin_player_remote_control">远程控制此手机</string>
+    <string name="sendspin_player_remote_not_ready">远程控制尚未连接。对方手机需要允许此手机（配对，或“允许未配对的设备使用此手机”），并且那里需要开启“允许其他设备发现此手机”。请稍后再试。</string>
 </resources>

@@ -40,10 +40,21 @@ public final class SendspinServiceTxt {
 
     private final String path;
     private final String name;
+    private final String yaacc;
 
-    private SendspinServiceTxt(String path, String name) {
+    private SendspinServiceTxt(String path, String name, String yaacc) {
         this.path = path;
         this.name = name;
+        this.yaacc = yaacc;
+    }
+
+    /**
+     * The {@code yaacc} id of the phone that announced this (the key id of its player), or null: a YAACC phone puts the same id in the
+     * records of its player and of its server, which is how the two are shown as one card. Not authenticated: only used to join two
+     * announcements, never to trust anything.
+     */
+    public String yaacc() {
+        return yaacc;
     }
 
     public String path() {
@@ -62,6 +73,7 @@ public final class SendspinServiceTxt {
     public static SendspinServiceTxt parse(Map<String, byte[]> attributes) {
         String path = Endpoint.DEFAULT_PATH;
         String name = "";
+        String yaacc = null;
         if (attributes != null) {
             byte[] rawPath = find(attributes, "path");
             if (rawPath != null) {
@@ -76,8 +88,13 @@ public final class SendspinServiceTxt {
                 String text = decode(rawName);
                 name = text == null ? "" : SendspinRowText.clean(text);
             }
+            byte[] rawId = find(attributes, "yaacc");
+            if (rawId != null) {
+                String text = decode(rawId);
+                yaacc = text != null && text.matches("[A-Za-z0-9_-]{1,64}") ? text : null;
+            }
         }
-        return new SendspinServiceTxt(path, name);
+        return new SendspinServiceTxt(path, name, yaacc);
     }
 
     private static byte[] find(Map<String, byte[]> attributes, String key) {

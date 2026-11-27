@@ -698,4 +698,6 @@
     <string name="sendspin_devices_add_message">Enter the pairing token that the other phone shows (its card of this phone, gear, Pairing token), or scan its QR code. The device may then use this phone, as a player and as a controller, even when unpaired devices are not allowed.</string>
     <string name="sendspin_devices_add">Add device</string>
     <string name="sendspin_devices_added">The device may use this phone once it connects.</string>
+    <string name="sendspin_player_remote_control">Remote control of this phone</string>
+    <string name="sendspin_player_remote_not_ready">The remote control is not connected yet. The other phone has to let this one in (pairing, or Allow unpaired devices to use this phone), and Let other devices find this phone has to be on there. Try again in a moment.</string>
 </resources>

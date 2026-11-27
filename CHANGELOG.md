@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- Sendspin: one card per YAACC phone: the player and the server of the same phone are joined by an id in both announcements; the gear of the player's card has *Remote control of this phone*
 - Sendspin: the YAACC server offers the controller role: other Sendspin controllers (another YAACC phone, or any client of the protocol) see what plays (title, artist, album, progress, cover) and control it (play, pause, stop, next, previous, volume, mute, repeat, shuffle, seek, switch group); only paired devices, or all with *Allow unpaired devices to use this phone* (one setting for all roles); *Add a device by its pairing token* in the settings (text or QR code); group volume follows the protocol's rule
 - Sendspin: groups are easier to read: the leader's card names its members, a member (also the card of this phone) says whose group it plays in, and members are listed directly under their leader
 - Sendspin: the phone itself can be a member of a group: the link sheet of another player lists the card of this phone, so that the music plays on both in sync (the app's own hub dials its own player over the loopback address, no pairing needed for it)
