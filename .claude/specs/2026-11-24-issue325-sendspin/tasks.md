@@ -161,7 +161,7 @@ Places a Sendspin receiver touches (task 1.3, read on 2026-11-24 by following FC
   - **Accept**: the draft's test vectors pass; interoperates with the reference; **kill criterion**: no confidence in correctness -> do not ship (Pairing PSK only).
 - [x] 11.2 Controller, metadata and artwork roles (the phone as a controller of other servers, now playing in the player UI)
   - **Status 2026-11-27**: built (K1 to K8, K12, artwork; and the server side, K15)
-- [ ] 11.3 FLAC encoding on the hub, Opus, the `source` role
+- [ ] 11.3 FLAC encoding on the hub, the `source` role (Opus dropped by the owner on 2026-11-27)
 - [x] 11.4 Client-initiated connection mode of the hub (advertise `_sendspin-server._tcp`, accept inbound sockets), opt-in and off by default, with the legacy unencrypted wire (decisions, 2026-11-24)
   - **Accept (all)**: tests first for pure parts, general then security review, documentation update.
 - [x] 11.6 **Linking (groups, S7)**: design and decisions in `groups.md`; built (timeline, model, hub, app player, link sheet, card, group volume); open: a measurement with two players in the rig and a listening test on real players.
@@ -173,7 +173,7 @@ Places a Sendspin receiver touches (task 1.3, read on 2026-11-24 by following FC
 - [x] 11.11 **K11, cover on the card** (done 2026-11-27: the soft background view of the card, as the UPnP cover; also on the merged card of a YAACC phone; not tried on a phone; only the album channel)
 - [ ] 11.12 Discovery report with a *Copy report* button for Sendspin (what is browsed, what was seen), like the Snapcast one
 - [ ] 11.13 K10: general review, then the security review of the client side and of the new server surface (controller role, loopback connection, cover fetching); postponed by the owner
-- [ ] 11.14 Opus for the phone as a player (FLAC is built)
+- [x] ~~11.14 Opus for the phone as a player~~ **dropped by the owner on 2026-11-27**: PCM and FLAC are enough for a first version
 - [ ] 11.15 Merge the duplicated pairing and clock code of `ControllerSession` and `PlayerSession`
 - [ ] 11.16 Real device checks that nothing here replaces: the sound path and FLAC decoding, sync between players, the phone as a group member, K14 and K15 on two phones, K15 against another controller, Music Assistant as a server to the phone's player
 
