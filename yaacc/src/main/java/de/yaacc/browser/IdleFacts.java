@@ -43,7 +43,15 @@ final class IdleFacts {
      */
     static AutoCloseRule.Facts of(boolean master, boolean receiverTicked, boolean proxyTicked, boolean playersActive,
                                   boolean snapcastClientActive, boolean snapcastFeedActive, boolean autostartTicked) {
+        return of(master, receiverTicked, proxyTicked, playersActive, snapcastClientActive, snapcastFeedActive, autostartTicked, false);
+    }
+
+    /** As above; {@code snapcastServerOn} is the switch of the built-in Snapcast server (issue #330). */
+    static AutoCloseRule.Facts of(boolean master, boolean receiverTicked, boolean proxyTicked, boolean playersActive,
+                                  boolean snapcastClientActive, boolean snapcastFeedActive, boolean autostartTicked,
+                                  boolean snapcastServerOn) {
         return new AutoCloseRule.Facts()
+                .snapcastServerEnabled(snapcastServerOn)
                 .playersActive(playersActive)
                 .serverEnabled(master)
                 .rendererEnabled(master && receiverTicked)

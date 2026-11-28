@@ -63,6 +63,13 @@ public class AutoCloseRuleTest {
     }
 
     @Test
+    public void aSwitchedOnSnapcastServerKeepsTheAppOpen() {
+        AutoCloseRule.Facts facts = new AutoCloseRule.Facts().snapcastServerEnabled(true);
+        assertFalse(AutoCloseRule.mayCloseNow(facts));
+        assertEquals(AutoCloseRule.Keep.SNAPCAST_SERVER, AutoCloseRule.reasonToStay(facts));
+    }
+
+    @Test
     public void everySingleFactBlocksOnItsOwn() {
         for (AutoCloseRule.Keep keep : AutoCloseRule.Keep.values()) {
             if (keep == AutoCloseRule.Keep.NONE) {
@@ -76,6 +83,7 @@ public class AutoCloseRuleTest {
                 case PROXY: facts.proxyEnabled(true); break;
                 case SNAPCAST_CLIENT: facts.snapcastClientSessionActive(true); break;
                 case SNAPCAST_FEED: facts.snapcastFeedActive(true); break;
+                case SNAPCAST_SERVER: facts.snapcastServerEnabled(true); break;
                 case AUTOSTART: facts.autostartEnabled(true); break;
                 default: throw new AssertionError(keep);
             }

@@ -103,4 +103,12 @@ public class IdleFactsTest {
         assertEquals(AutoCloseRule.Keep.NONE,
                 AutoCloseRule.reasonToStay(IdleFacts.of(false, false, false, false, false, false, false)));
     }
+
+    @Test
+    public void theSnapcastServerSwitchKeepsTheAppOpenOnItsOwn() {
+        assertEquals(AutoCloseRule.Keep.SNAPCAST_SERVER,
+                AutoCloseRule.reasonToStay(IdleFacts.of(false, false, false, false, false, false, false, true)));
+        assertEquals("the old form has no server", AutoCloseRule.Keep.NONE,
+                AutoCloseRule.reasonToStay(IdleFacts.of(false, false, false, false, false, false, false)));
+    }
 }

@@ -99,7 +99,8 @@ public final class BackgroundIdleTimer {
                 playersActive,
                 SnapcastClientRuntime.isActive(),
                 feedActive,
-                preferences.getBoolean(appContext.getString(R.string.settings_local_server_autostart_chkbx), false));
+                preferences.getBoolean(appContext.getString(R.string.settings_local_server_autostart_chkbx), false),
+                de.yaacc.multiroom.server.SnapcastServerSettings.isEnabled(preferences::getBoolean));
         AutoCloseRule.Keep keep = AutoCloseRule.reasonToStay(facts);
         if (keep == AutoCloseRule.Keep.NONE) {
             YaaccLogger.d(BackgroundIdleTimer.class.getName(), "Idle in background, exiting");
