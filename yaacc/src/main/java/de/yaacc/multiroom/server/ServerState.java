@@ -55,7 +55,7 @@ public final class ServerState {
     public static final class StateException extends RuntimeException {
         private final int code;
 
-        StateException(int code, String data) {
+        public StateException(int code, String data) {
             super(data);
             this.code = code;
         }
@@ -670,7 +670,7 @@ public final class ServerState {
         java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
         for (int i = 0; i < text.length(); i++) {
             char ch = text.charAt(i);
-            if (ch == '%' && i + 2 < text.length() + 0 && i + 2 <= text.length() - 1 + 0) {
+            if (ch == '%' && i + 2 < text.length()) {
                 try {
                     bytes.write(Integer.parseInt(text.substring(i + 1, i + 3), 16));
                     i += 2;
