@@ -38,7 +38,8 @@ The app's own Snapcast UI and its feed (Phase A) talk to a server through `Snapc
 
 ## Timeline and chunks (R5)
 
-- The `Chunker` makes a timeline per stream: the first chunk is stamped `serverNow + bufferMs`; each further chunk adds its duration; if the feeder was silent so long that the next chunk would be late, the timeline starts again from `serverNow + bufferMs` (a gap, as a real snapserver has after an idle source).
+- **Stamps (corrected on 2026-11-28 from the notes of #319, `docs/tech.md`, "Binary protocol"):** a chunk is stamped with the server time at which its audio was **produced** (the stream clock: the time of the first read after the producer connected, plus the duration of everything read since), **not** with the time at which it is to be heard; the client plays it at `stamp + bufferMs - latency - its own output latency`. The server therefore needs no "send ahead": it paces its reads in real time like snapserver (it waits for the deadline of each chunk, so TCP back pressure slows a producer that is ahead) and stamps with the stream clock. If a read is late (its end is after the deadline of the next chunk) the stream clock is restarted from the server time (a gap, logged as a resync).
+- The `Chunker` makes the timeline per stream from that rule: the stream clock starts at the first read; each chunk adds its duration (kept in nanoseconds, never rounded down); after a gap the clock restarts.
 - The feed of the app (Phase A) already paces PCM in real time; an external feeder is in real time by nature; a feeder that is faster than real time would fill the queues: the chunker then waits (back pressure on the feeder socket) when the data is more than `bufferMs` ahead.
 - `ServerSettings` carries `bufferMs`, the client's `latency`, `volume`, `muted` (verify field names and units).
 - The `Time` exchange: the client sends `Time`; the server answers with the fields the snapserver sets (verify), so that the client can compute its offset; the answer is sent at once on the reader thread.
@@ -72,7 +73,6 @@ Settings: `settings_snapcast_server` (switch, off), the buffer in ms (default 10
 
 ## Open points
 
-- (verify) the exact `Time` answer, `ServerSettings` fields and the CodecHeader of PCM, from the snapserver source (task 1.1).
-- (verify) which fields of `Server.GetStatus` a stock `snapclient` needs: it does not use the control port, so none; the app's own model parser needs the shape of #319.
+- The `Time` answer, the `ServerSettings` fields, the shapes of the JSON-RPC answers and the stream behaviour are read already: `docs/tech.md`, "Snapcast (issue #319): behavior notes" (task 1.1 is closed by it). What stays to be seen with a real `snapclient` (the rig) is listed under "Checks only the owner can do".
 - The in-process seams (see "Own feed", task 1.2).
 - Where the phone's own client (Phase B) plays when the server is on the same phone: it joins over the in-process path or over the local address; to decide in task 4.
