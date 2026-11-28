@@ -52,6 +52,8 @@ public final class SnapcastServer implements StreamClientSession.Host, StreamPip
     private final Consumer<List<JSONObject>> notifier;
     private final Map<String, StreamClientSession> sessions = new LinkedHashMap<>();
     private final Map<String, StreamPipeline> pipelines = new LinkedHashMap<>();
+    private final Map<String, java.io.Closeable> sources = new LinkedHashMap<>();
+    private volatile SourceFactory sourceFactory;
     private final Object lock = new Object();
 
     private volatile ServerSocket serverSocket;
@@ -68,6 +70,15 @@ public final class SnapcastServer implements StreamClientSession.Host, StreamPip
         this.accept = accept;
         this.maxClients = maxClients;
         this.notifier = notifier;
+    }
+
+    /** Opens the source of a stream (a tcp listener in the app; tests give their own). */
+    public interface SourceFactory {
+        java.io.Closeable open(StreamPipeline pipeline, StreamSpec spec) throws IOException;
+    }
+
+    public void setSourceFactory(SourceFactory factory) {
+        this.sourceFactory = factory;
     }
 
     public ServerState state() {
@@ -150,6 +161,52 @@ public final class SnapcastServer implements StreamClientSession.Host, StreamPip
         applyChange();
         notifier.accept(notifications);
         return pipeline;
+    }
+
+    /**
+     * A stream from the control port ({@code Stream.AddStream}): its source is opened (a taken port fails at once), the stream is added.
+     *
+     * @return the notifications of the change, for the caller to send
+     */
+    public List<JSONObject> addTcpStream(StreamSpec spec) {
+        if (spec.codec().equals("flac")) {
+            throw new ServerState.StateException(-32602, "codec flac is not available yet");
+        }
+        List<JSONObject> notifications = state.addStream(spec.name(), spec.raw());
+        StreamPipeline pipeline = new StreamPipeline(spec.name(), spec.sampleRate(), spec.channels() * spec.bitsPerSample() / 8,
+                new ChunkEncoder.Pcm(spec.sampleRate(), spec.channels(), spec.bitsPerSample()), this);
+        try {
+            SourceFactory factory = sourceFactory;
+            java.io.Closeable source = factory != null ? factory.open(pipeline, spec) : defaultSource(pipeline, spec);
+            synchronized (lock) {
+                pipelines.put(spec.name(), pipeline);
+                sources.put(spec.name(), source);
+            }
+        } catch (IOException e) {
+            state.removeStream(spec.name());
+            throw new ServerState.StateException(-32603, "the stream source could not be opened");
+        }
+        applyChange();
+        return notifications;
+    }
+
+    private java.io.Closeable defaultSource(StreamPipeline pipeline, StreamSpec spec) throws IOException {
+        TcpStreamSource source = new TcpStreamSource(pipeline, spec.port(), accept, clock);
+        source.start();
+        return source;
+    }
+
+    /** {@code Stream.RemoveStream}: the source is closed and the stream goes; returns the notifications for the caller to send. */
+    public List<JSONObject> removeStreamNotifying(String id) {
+        List<JSONObject> notifications = state.removeStream(id);
+        java.io.Closeable source;
+        synchronized (lock) {
+            pipelines.remove(id);
+            source = sources.remove(id);
+        }
+        closeQuietly(source);
+        applyChange();
+        return notifications;
     }
 
     public void removeStream(String id) {
@@ -280,9 +337,20 @@ public final class SnapcastServer implements StreamClientSession.Host, StreamPip
         for (StreamClientSession session : all) {
             session.close();
         }
+        List<java.io.Closeable> open;
+        synchronized (lock) {
+            open = new ArrayList<>(sources.values());
+            sources.clear();
+        }
+        for (java.io.Closeable source : open) {
+            closeQuietly(source);
+        }
     }
 
     private static void closeQuietly(java.io.Closeable c) {
+        if (c == null) {
+            return;
+        }
         try {
             c.close();
         } catch (IOException ignored) {

@@ -502,6 +502,20 @@ public final class ServerState {
 
     // ------------------------------------------------------------------ status
 
+    /** The result of {@code Client.GetStatus}: {@code {"client": {...}}}. */
+    public synchronized JSONObject clientStatus(String id) {
+        JSONObject result = new JSONObject();
+        put(result, "client", clientJson(client(id)));
+        return result;
+    }
+
+    /** The result of {@code Group.GetStatus}: {@code {"group": {...}}}. */
+    public synchronized JSONObject groupStatus(String id) {
+        JSONObject result = new JSONObject();
+        put(result, "group", groupJson(group(id)));
+        return result;
+    }
+
     /** The result of {@code Server.GetStatus}: {@code {"server": {...}}}. */
     public synchronized JSONObject status() {
         JSONObject server = new JSONObject();
