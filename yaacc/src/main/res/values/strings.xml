@@ -466,4 +466,7 @@
     <string name="power_error_unreachable">The device does not answer. Its power was not changed.</string>
     <string name="power_error_unknown_state">The device does not say whether it is on. Its power was not changed.</string>
     <string name="power_error_refused">The device did not accept the power change.</string>
+    <string name="snapcast_server_notification_title">Snapcast server</string>
+    <string name="snapcast_server_notification_text">Clients connected: %1$d</string>
+    <string name="snapcast_server_stop">Stop</string>
 </resources>

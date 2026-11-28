@@ -465,4 +465,7 @@
     <string name="power_error_unreachable">El dispositivo no responde. No se cambió su encendido.</string>
     <string name="power_error_unknown_state">El dispositivo no indica si está encendido. No se cambió su encendido.</string>
     <string name="power_error_refused">El dispositivo no aceptó el cambio de encendido.</string>
+    <string name="snapcast_server_notification_title">Servidor Snapcast</string>
+    <string name="snapcast_server_notification_text">Clientes conectados: %1$d</string>
+    <string name="snapcast_server_stop">Detener</string>
 </resources>

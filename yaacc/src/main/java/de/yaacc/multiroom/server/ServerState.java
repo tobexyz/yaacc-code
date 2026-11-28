@@ -418,6 +418,27 @@ public final class ServerState {
         return out;
     }
 
+    /** How many clients are connected now. */
+    public synchronized int connectedClientCount() {
+        int n = 0;
+        for (ClientEntry c : clients.values()) {
+            if (c.connected) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /** True while a stream that is playing has a connected client: the only time the server needs the CPU and the Wi-Fi awake. */
+    public synchronized boolean hasPlayingStreamWithClients() {
+        for (StreamEntry s : streams.values()) {
+            if ("playing".equals(s.status) && !connectedClientsOfStream(s.id).isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // ------------------------------------------------------------------ groups
 
     public synchronized List<JSONObject> setGroupMute(String groupId, boolean muted) {

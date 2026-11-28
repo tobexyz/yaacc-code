@@ -457,4 +457,7 @@
     <string name="power_error_unreachable">设备没有响应。电源状态未更改。</string>
     <string name="power_error_unknown_state">设备没有说明是否已开机。电源状态未更改。</string>
     <string name="power_error_refused">设备没有接受电源更改。</string>
+    <string name="snapcast_server_notification_title">Snapcast 服务器</string>
+    <string name="snapcast_server_notification_text">已连接的客户端：%1$d</string>
+    <string name="snapcast_server_stop">停止</string>
 </resources>

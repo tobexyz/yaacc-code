@@ -461,4 +461,7 @@
     <string name="power_error_unreachable">Het apparaat antwoordt niet. De stroom is niet gewijzigd.</string>
     <string name="power_error_unknown_state">Het apparaat meldt niet of het aan staat. De stroom is niet gewijzigd.</string>
     <string name="power_error_refused">Het apparaat heeft de wijziging van de stroom niet geaccepteerd.</string>
+    <string name="snapcast_server_notification_title">Snapcast-server</string>
+    <string name="snapcast_server_notification_text">Verbonden clients: %1$d</string>
+    <string name="snapcast_server_stop">Stoppen</string>
 </resources>

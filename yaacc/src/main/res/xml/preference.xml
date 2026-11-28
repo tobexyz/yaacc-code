@@ -134,6 +134,11 @@
             android:key="@string/settings_snapcast_discovery"
             android:summary="@string/settings_snapcast_discovery_summary"
             android:title="@string/settings_snapcast_discovery_title" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="@string/settings_snapcast_server"
+            android:summary="@string/settings_snapcast_server_summary"
+            android:title="@string/settings_snapcast_server_title" />
         <Preference
             android:key="@string/settings_snapcast_servers"
             android:summary="@string/settings_snapcast_servers_summary"

@@ -200,4 +200,8 @@
     <string name="settings_renderer_output_group_damaged">The stored group is damaged; the receiver plays on this device. Tap to choose the group again.</string>
     <string name="settings_renderer_output" translatable="false">settings_renderer_output</string>
     <string name="settings_renderer_output_group" translatable="false">settings_renderer_output_group</string>
+    <string name="settings_sendspin_player_unpaired" translatable="false">settings_sendspin_player_unpaired</string>
+    <string name="settings_snapcast_server" translatable="false">settings_snapcast_server</string>
+    <string name="settings_snapcast_server_title">Snapcast server (this phone)</string>
+    <string name="settings_snapcast_server_summary">Off by default. Makes this phone a Snapcast server on the local network: Snapcast clients (snapclient, other phones) can join it, and the Snapcast pages of the app list it like any server. Anyone on your network can then join, change groups and volume and send audio to it: there is no password and nothing is encrypted. Needs Wi-Fi. The phone is kept awake only while something plays. Ports 1704 and 1705, and 4953 to 4962 for sources.</string>
 </resources>

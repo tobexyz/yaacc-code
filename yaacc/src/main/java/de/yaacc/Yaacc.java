@@ -176,6 +176,10 @@ public class Yaacc extends Application {
         // setting enables the boot receiver). Held back right after an exit; a start the system refuses is tried once more when a
         // screen starts (userStarted). Never throws.
         SnapcastClientPowers.restore(this, SnapcastClientRestore.Point.PROCESS_START, startDeferredAfterExit);
+        // the built-in Snapcast server comes back when it was switched on (off by default); not right after an exit
+        if (!startDeferredAfterExit) {
+            de.yaacc.multiroom.server.SnapcastServerService.sync(this);
+        }
         // A process without a screen (boot, restart by the system) closes itself after the idle time like one whose last screen
         // went away; the first screen cancels it. The autostart setting and the running services are read when it fires.
         BackgroundIdleTimer.processStarted(this);
@@ -197,6 +201,7 @@ public class Yaacc extends Application {
         }
         // the held-back start of the Snapcast client, or the one more try after a start that the system refused in the background
         SnapcastClientPowers.restore(this, SnapcastClientRestore.Point.SCREEN_START, false);
+        de.yaacc.multiroom.server.SnapcastServerService.sync(this);
     }
 
     /**

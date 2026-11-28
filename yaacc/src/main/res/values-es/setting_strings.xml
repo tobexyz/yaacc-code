@@ -146,4 +146,6 @@
     <string name="settings_renderer_output_group_server">Grupo en el servidor %1$s. Toque para cambiar.</string>
     <string name="settings_renderer_output_group_named">%1$s en el servidor %2$s. Toque para cambiar.</string>
     <string name="settings_renderer_output_group_damaged">El grupo guardado está dañado; el receptor reproduce en este dispositivo. Toque para elegir el grupo de nuevo.</string>
+    <string name="settings_snapcast_server_title">Servidor Snapcast (este teléfono)</string>
+    <string name="settings_snapcast_server_summary">Desactivado por defecto. Convierte este teléfono en un servidor Snapcast de la red local: los clientes Snapcast (snapclient, otros teléfonos) pueden unirse y las páginas Snapcast de la app lo muestran como cualquier servidor. Cualquiera en tu red podrá entonces unirse, cambiar grupos y volumen y enviarle audio: no hay contraseña y nada está cifrado. Necesita Wi-Fi. El teléfono solo se mantiene despierto mientras algo suena. Puertos 1704 y 1705, y 4953 a 4962 para fuentes.</string>
 </resources>

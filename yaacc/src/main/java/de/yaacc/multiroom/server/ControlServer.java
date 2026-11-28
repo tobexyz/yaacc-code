@@ -45,6 +45,7 @@ public final class ControlServer implements ControlSession.Hub, AutoCloseable {
     private final Object lock = new Object();
 
     private volatile ServerSocket serverSocket;
+    private volatile Runnable onChange;
     private int sockets;
 
     public ControlServer(SnapcastServer server, Predicate<InetAddress> accept, int maxConnections) {
@@ -53,6 +54,11 @@ public final class ControlServer implements ControlSession.Hub, AutoCloseable {
         this.accept = accept;
         this.maxConnections = maxConnections;
         server.setNotifier(list -> broadcast(list, null));
+    }
+
+    /** Called whenever notifications of a change go out: the state changed (the service persists it). */
+    public void setOnChange(Runnable onChange) {
+        this.onChange = onChange;
     }
 
     public synchronized void start(int port) throws IOException {
@@ -145,6 +151,10 @@ public final class ControlServer implements ControlSession.Hub, AutoCloseable {
     public void broadcast(List<JSONObject> notifications, ControlSession origin) {
         if (notifications.isEmpty()) {
             return;
+        }
+        Runnable changed = onChange;
+        if (changed != null) {
+            changed.run();
         }
         List<ControlSession> all;
         synchronized (lock) {

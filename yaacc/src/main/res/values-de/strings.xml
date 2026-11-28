@@ -461,4 +461,7 @@
     <string name="power_error_unreachable">Das Gerät antwortet nicht. Sein Ein/Aus-Zustand wurde nicht geändert.</string>
     <string name="power_error_unknown_state">Das Gerät meldet nicht, ob es an ist. Sein Ein/Aus-Zustand wurde nicht geändert.</string>
     <string name="power_error_refused">Das Gerät hat die Änderung des Ein/Aus-Zustands nicht angenommen.</string>
+    <string name="snapcast_server_notification_title">Snapcast-Server</string>
+    <string name="snapcast_server_notification_text">Verbundene Clients: %1$d</string>
+    <string name="snapcast_server_stop">Stoppen</string>
 </resources>

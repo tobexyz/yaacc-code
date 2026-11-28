@@ -146,4 +146,6 @@
     <string name="settings_renderer_output_group_server">Groep op server %1$s. Tik om te wijzigen.</string>
     <string name="settings_renderer_output_group_named">%1$s op server %2$s. Tik om te wijzigen.</string>
     <string name="settings_renderer_output_group_damaged">De opgeslagen groep is beschadigd; de ontvanger speelt op dit apparaat. Tik om de groep opnieuw te kiezen.</string>
+    <string name="settings_snapcast_server_title">Snapcast-server (deze telefoon)</string>
+    <string name="settings_snapcast_server_summary">Standaard uit. Maakt van deze telefoon een Snapcast-server op het lokale netwerk: Snapcast-clients (snapclient, andere telefoons) kunnen verbinden en de Snapcast-pagina\'s van de app tonen hem zoals elke server. Iedereen op je netwerk kan dan meedoen, groepen en volume wijzigen en audio sturen: er is geen wachtwoord en niets is versleuteld. Heeft wifi nodig. De telefoon blijft alleen wakker terwijl er iets speelt. Poorten 1704 en 1705, en 4953 tot 4962 voor bronnen.</string>
 </resources>

@@ -121,6 +121,11 @@
             </intent-filter>
         </service>
         <service
+            android:name=".multiroom.server.SnapcastServerService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+        <service
             android:name=".multiroom.client.SnapcastClientService"
             android:enabled="true"
             android:exported="false"

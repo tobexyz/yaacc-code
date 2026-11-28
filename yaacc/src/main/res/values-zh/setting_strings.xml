@@ -146,4 +146,6 @@
     <string name="settings_renderer_output_group_server">服务器 %1$s 上的组。点按以更改。</string>
     <string name="settings_renderer_output_group_named">服务器 %2$s 上的 %1$s。点按以更改。</string>
     <string name="settings_renderer_output_group_damaged">已保存的组已损坏；接收器在此设备上播放。点按以重新选择组。</string>
+    <string name="settings_snapcast_server_title">Snapcast 服务器（此手机）</string>
+    <string name="settings_snapcast_server_summary">默认关闭。让此手机成为本地网络中的 Snapcast 服务器：Snapcast 客户端（snapclient、其他手机）可以加入，应用的 Snapcast 页面会像其他服务器一样列出它。网络中的任何人都可以加入、更改分组和音量并向它发送音频：没有密码，也没有加密。需要 Wi-Fi。仅在有内容播放时手机才保持唤醒。端口 1704 和 1705，音源使用 4953 至 4962。</string>
 </resources>

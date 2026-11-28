@@ -107,6 +107,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         }
 
         setUpSnapcastClientSpike();
+        setUpSnapcastServer();
         setUpRendererOutput();
         scrollToRequestedSection();
 
@@ -234,6 +235,20 @@ public class SettingsFragment extends PreferenceFragmentCompat {
      * only while the option is on, and switching the option off ends a running session. The checkbox goes through the one power API
      * of the client (the same state as the switch on the first page and the test screen).
      */
+    private void setUpSnapcastServer() {
+        androidx.preference.CheckBoxPreference server = findPreference(getString(R.string.settings_snapcast_server));
+        if (server == null) {
+            return;
+        }
+        server.setOnPreferenceChangeListener((preference, newValue) -> {
+            // the value is stored by the preference after this returns: the service reads it, so it is written first
+            androidx.preference.PreferenceManager.getDefaultSharedPreferences(requireContext()).edit()
+                    .putBoolean(de.yaacc.multiroom.server.SnapcastServerSettings.KEY_ENABLED, Boolean.TRUE.equals(newValue)).apply();
+            de.yaacc.multiroom.server.SnapcastServerService.sync(requireContext());
+            return true;
+        });
+    }
+
     private void setUpSnapcastClientSpike() {
         androidx.preference.CheckBoxPreference spike = findPreference(getString(R.string.settings_snapcast_client_spike));
         androidx.preference.CheckBoxPreference switchedOn = findPreference(getString(R.string.settings_snapcast_client_switched_on));

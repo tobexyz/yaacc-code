@@ -289,6 +289,20 @@ public class ServerStateTest {
     }
 
     @Test
+    public void theServerIsBusyOnlyWhileAStreamPlaysForAConnectedClient() throws Exception {
+        assertFalse(state.hasPlayingStreamWithClients());
+        state.addStream("a", "tcp://0.0.0.0:4953?name=a");
+        state.clientConnected(hello("c1"), "10.0.0.1");
+        assertFalse("a stream that is idle is no work", state.hasPlayingStreamWithClients());
+        state.setStreamStatus("a", "playing");
+        assertTrue(state.hasPlayingStreamWithClients());
+        assertEquals(1, state.connectedClientCount());
+        state.clientDisconnected("c1");
+        assertFalse("nobody to play for", state.hasPlayingStreamWithClients());
+        assertEquals(0, state.connectedClientCount());
+    }
+
+    @Test
     public void aSecondInstanceOfAClientHasItsOwnId() throws Exception {
         HelloMessage first = hello("mac");
         state.clientConnected(first, "10.0.0.1");

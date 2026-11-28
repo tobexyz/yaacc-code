@@ -465,4 +465,7 @@
     <string name="power_error_unreachable">L\'appareil ne répond pas. Son alimentation n\'a pas été modifiée.</string>
     <string name="power_error_unknown_state">L\'appareil n\'indique pas s\'il est allumé. Son alimentation n\'a pas été modifiée.</string>
     <string name="power_error_refused">L\'appareil n\'a pas accepté le changement d\'alimentation.</string>
+    <string name="snapcast_server_notification_title">Serveur Snapcast</string>
+    <string name="snapcast_server_notification_text">Clients connectés : %1$d</string>
+    <string name="snapcast_server_stop">Arrêter</string>
 </resources>
