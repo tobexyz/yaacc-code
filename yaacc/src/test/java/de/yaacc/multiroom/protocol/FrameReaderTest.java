@@ -193,6 +193,33 @@ public class FrameReaderTest {
     }
 
     @Test
+    public void aServerReaderParsesOnlyWhatAClientSendsAndReadsPastTheRest() throws Exception {
+        byte[] hello = Bytes.frame(5, Bytes.jsonBody("{\"ID\":\"x\",\"HostName\":\"h\",\"ClientName\":\"c\",\"OS\":\"o\",\"Arch\":\"a\",\"Version\":\"1\","
+                + "\"MAC\":\"00:00:00:00:00:00\",\"Instance\":1,\"SnapStreamProtocolVersion\":2}"));
+        byte[] garbageSettings = Bytes.frame(3, Bytes.jsonBody("this is not json")); // a client never sends settings
+        byte[] time = SnapcastMessageCodec.encode(new TimeMessage(3, 4), 1, 0, 0, 0, 0, 0);
+        FrameReader reader = FrameReader.forServer(new ByteArrayInputStream(Bytes.concat(hello, garbageSettings, time)), new ManualClock(0),
+                10_000, null);
+
+        assertEquals("x", ((HelloMessage) reader.read().getMessage()).getId());
+        assertTrue("a frame of a type that only a server sends is read past, not parsed", reader.read().isSkipped());
+        assertEquals(new TimeMessage(3, 4), reader.read().getMessage());
+    }
+
+    @Test
+    public void aServerReaderRefusesAFrameAbove64KiBBeforeTheBody() throws Exception {
+        ScriptedStream stream = new ScriptedStream(null, 0)
+                .bytes(Bytes.concat(Bytes.header(5, 0, 0, 0, 0, 0, 0, 70_000), new byte[100]));
+        try {
+            FrameReader.forServer(stream, new ManualClock(0), 10_000, null).read();
+            fail();
+        } catch (SnapcastProtocolException e) {
+            assertEquals(SnapcastProtocolException.Kind.TOO_LARGE, e.getKind());
+        }
+        assertEquals(26, stream.consumed);
+    }
+
+    @Test
     public void aClientReaderRefusesAChunkAboveItsBudgetBeforeTheBody() throws Exception {
         ScriptedStream stream = new ScriptedStream(null, 0)
                 .bytes(Bytes.concat(Bytes.header(2, 0, 0, 0, 0, 0, 0, 20_000 + 12), new byte[100]));

@@ -51,6 +51,7 @@ public final class FrameReader {
     private final MicroClock clock;
     private final ReadTimeout timeout;
     private final boolean clientSide;
+    private final boolean serverSide;
     private final int maxChunkBody;
     private final long deadlineMicros;
     private final byte[] headerBuffer = new byte[SnapcastProtocolLimits.HEADER_SIZE];
@@ -72,12 +73,13 @@ public final class FrameReader {
      *                to wake up for a timer). The stall that exceeds it ends as TIMEOUT.
      */
     public FrameReader(InputStream in, MicroClock clock, long messageDeadlineMillis, ReadTimeout timeout) {
-        this(in, clock, messageDeadlineMillis, timeout, false, SnapcastProtocolLimits.MAX_BULK_BODY);
+        this(in, clock, messageDeadlineMillis, timeout, false, false, SnapcastProtocolLimits.MAX_BULK_BODY);
     }
 
     private FrameReader(InputStream in, MicroClock clock, long messageDeadlineMillis, ReadTimeout timeout,
-                        boolean clientSide, int maxChunkBody) {
+                        boolean clientSide, boolean serverSide, int maxChunkBody) {
         this.clientSide = clientSide;
+        this.serverSide = serverSide;
         this.maxChunkBody = maxChunkBody;
         this.in = in;
         this.clock = clock;
@@ -94,7 +96,16 @@ public final class FrameReader {
     public static FrameReader forClient(InputStream in, MicroClock clock, long messageDeadlineMillis, ReadTimeout timeout,
                                         int maxChunkBytes) {
         int cap = (int) Math.min(SnapcastProtocolLimits.MAX_BULK_BODY, Math.max(0L, (long) maxChunkBytes) + 12);
-        return new FrameReader(in, clock, messageDeadlineMillis, timeout, true, cap);
+        return new FrameReader(in, clock, messageDeadlineMillis, timeout, true, false, cap);
+    }
+
+    /**
+     * A reader for the server side of a connection (the built-in Snapcast server, issue #330). A client sends only Hello, Time and
+     * ClientInfo: a frame of any other type is read past by size and never parsed, and a frame above 64 KiB is refused before its body
+     * is read, so a client cannot make the server buffer a bulk message.
+     */
+    public static FrameReader forServer(InputStream in, MicroClock clock, long messageDeadlineMillis, ReadTimeout timeout) {
+        return new FrameReader(in, clock, messageDeadlineMillis, timeout, false, true, SnapcastProtocolLimits.MAX_SMALL_BODY);
     }
 
     /**
@@ -115,7 +126,8 @@ public final class FrameReader {
         MessageHeader header = MessageHeader.parse(headerBuffer, maxChunkBody);
         int size = header.getSize();
         MessageType type = MessageType.of(header.getType());
-        if (type == null || (clientSide && (type == MessageType.HELLO || type == MessageType.CLIENT_INFO))) {
+        if (type == null || (clientSide && (type == MessageType.HELLO || type == MessageType.CLIENT_INFO))
+                || (serverSide && type != MessageType.HELLO && type != MessageType.TIME && type != MessageType.CLIENT_INFO)) {
             skip(size);
             return new Frame(header, null);
         }
