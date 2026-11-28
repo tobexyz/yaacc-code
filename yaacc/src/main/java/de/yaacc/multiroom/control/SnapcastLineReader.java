@@ -28,7 +28,7 @@ import java.util.Arrays;
  * any length): a line is capped at {@code maxLineBytes} and must be finished within {@code lineDeadlineMillis} of its
  * first byte, so a server can neither fill the memory nor keep the reader busy with a line that never ends.
  */
-final class SnapcastLineReader {
+public final class SnapcastLineReader {
 
     private final InputStream in;
     private final int maxLineBytes;
@@ -41,7 +41,7 @@ final class SnapcastLineReader {
     private int lineLength;
     private long lineStart;
 
-    SnapcastLineReader(InputStream in, int maxLineBytes, long lineDeadlineMillis, MonotonicClock clock) {
+    public SnapcastLineReader(InputStream in, int maxLineBytes, long lineDeadlineMillis, MonotonicClock clock) {
         this.in = in;
         this.maxLineBytes = maxLineBytes;
         this.lineDeadlineMillis = lineDeadlineMillis;
@@ -56,7 +56,7 @@ final class SnapcastLineReader {
      *                                takes longer than the deadline
      * @throws IOException            the stream failed
      */
-    byte[] readLine() throws IOException, SnapcastException {
+    public byte[] readLine() throws IOException, SnapcastException {
         lineLength = 0;
         while (true) {
             if (position >= limit) {

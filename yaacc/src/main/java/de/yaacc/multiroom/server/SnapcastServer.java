@@ -49,7 +49,7 @@ public final class SnapcastServer implements StreamClientSession.Host, StreamPip
     private final MicroClock clock;
     private final Predicate<InetAddress> accept;
     private final int maxClients;
-    private final Consumer<List<JSONObject>> notifier;
+    private volatile Consumer<List<JSONObject>> notifier;
     private final Map<String, StreamClientSession> sessions = new LinkedHashMap<>();
     private final Map<String, StreamPipeline> pipelines = new LinkedHashMap<>();
     private final Map<String, java.io.Closeable> sources = new LinkedHashMap<>();
@@ -69,6 +69,11 @@ public final class SnapcastServer implements StreamClientSession.Host, StreamPip
         this.clock = clock;
         this.accept = accept;
         this.maxClients = maxClients;
+        this.notifier = notifier;
+    }
+
+    /** Where the notifications go (the control port); set once before the server runs. */
+    public void setNotifier(Consumer<List<JSONObject>> notifier) {
         this.notifier = notifier;
     }
 
