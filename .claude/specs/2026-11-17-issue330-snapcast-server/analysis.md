@@ -1,6 +1,6 @@
 # Issue #330: a Snapcast server in YAACC (coarse analysis)
 
-Status (2026-11-17): **analysis only**. No decision, no requirements, no design yet. This file is the feasibility answer the owner asked for at the end of issue #319 (also kept short in `.claude/specs/2026-11-09-issue319-snapcast/decisions.md`, section "Idea: a Snapcast SERVER in the app"). The next step, if the owner wants it, is a spec (requirements, design with security rules, tasks).
+Status (2026-11-28): the owner answered the questions at the end of this file (`decisions.md`); `requirements.md`, `design.md` and `tasks.md` are drafted. The text below is the analysis of 2026-11-17, unchanged. (Original status: **analysis only**. No decision, no requirements, no design yet.) This file is the feasibility answer the owner asked for at the end of issue #319 (also kept short in `.claude/specs/2026-11-09-issue319-snapcast/decisions.md`, section "Idea: a Snapcast SERVER in the app"). The next step, if the owner wants it, is a spec (requirements, design with security rules, tasks).
 
 ## Why
 
