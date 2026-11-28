@@ -21,9 +21,9 @@ Status 2026-11-28: spec approved by the owner ("go ahead"). Built and tested on 
 - [x] 3.3 `ServerStore` persistence (R8).
 
 ## Group 4: service, announcement, own use
-- [ ] 4.1 `SnapcastServerService` (foreground, locks while streaming, autostart and idle rules), `SnapcastServerAnnouncer` (R9).
-- [ ] 4.2 In-process transports (design, "Own feed") so that the app's UI and feed use the built-in server; the server in the lists; the phone's own client.
-- [ ] 4.3 Settings, card and status line; strings in 7 locales.
+- [x] 4.1 `SnapcastServerService` (foreground, locks while streaming, autostart and idle rules), `SnapcastServerAnnouncer` (R9).
+- [ ] 4.2 (**changed 2026-11-28, version 1 goes without it**: the listeners accept the phone's own address on the Wi-Fi like any local-network address, and the announcement lets the app's own pages find the server, so the app's UI and feed use the built-in server over the LAN address with no change in the seams; the in-process route stays an improvement for use without Wi-Fi) In-process transports (design, "Own feed") so that the app's UI and feed use the built-in server; the server in the lists; the phone's own client.
+- [x] 4.3 Settings, card and status line; strings in 7 locales.
 
 ## Group 5: FLAC
 - [ ] 5.1 Bring the FLAC encoder to this branch (see `design.md`, "FLAC"); `FlacChunkEncoder` and the stream parameter `codec=flac`.
