@@ -2,7 +2,7 @@
 
 Plan: `requirements.md`, `design.md`. Decisions: `decisions.md`. Rules as in the other specs of this repository: spec first, tests first for the pure parts, a general and a security review before it is called done, texts in 7 locales (values, de, es, fr, nl, pt, zh), docs and CHANGELOG updated with each group.
 
-Status 2026-11-28: spec written, waiting for the owner's approval. Nothing is built.
+Status 2026-11-28: spec approved by the owner ("go ahead"). Built and tested on the JVM: groups 1 to 3 (the stream port with clients, chunks and time sync, the tcp stream source, the state, the control port, persistence), all with tests, the stream port tested against the app's own binary client and the control port against the app's own control client. Not built yet: group 4 (service, announcement, in-process use by the app's own UI and feed, settings and card), group 5 (FLAC), group 6 (docs, reviews).
 
 ## Group 1: reading and seams
 - [x] 1.1 (closed 2026-11-28: the facts were already read for #319 and are in `docs/tech.md`, "Snapcast (issue #319): behavior notes from the Snapcast sources", written in our own words; the one correction to the design is the stamp rule in `design.md`) Read the snapserver source for the details marked (verify) in `design.md`: Hello and ServerSettings fields, the Time answer, the PCM and FLAC CodecHeader, the WireChunk fields, the stream parameters, the answers of `Server.GetStatus`. Write the facts into `docs/tech.md` (own words, no copied code). **Accept**: each (verify) of the design is closed or turned into a decision.
@@ -10,15 +10,15 @@ Status 2026-11-28: spec written, waiting for the owner's approval. Nothing is bu
 - [ ] 1.3 Check the Docker rig (`tools/snapcast-rig`) for a snapclient that joins an external server and what the owner needs to run it against a phone.
 
 ## Group 2: binary core (PCM, one stream)
-- [ ] 2.1 `ServerClock`, `Chunker` (pure, tests first: timeline, re-anchor after a gap, back pressure, chunk sizes for 44100 and 48000 Hz and other formats).
-- [ ] 2.2 `PcmEncoder` (RIFF WAVE header) and the server direction of the codec tests.
-- [ ] 2.3 `StreamListener` and `StreamClientSession`: Hello, ServerSettings, CodecHeader, chunks, Time, ClientInfo; limits and write queue (S3), write watchdog. Test against the app's own client engine over a socket.
-- [ ] 2.4 `StreamSource`: the tcp feeder on a port of the range; one producer; a stream with the default sample format. Test with the app's own feeder.
+- [x] 2.1 `ServerClock`, `Chunker` (pure, tests first: timeline, re-anchor after a gap, back pressure, chunk sizes for 44100 and 48000 Hz and other formats).
+- [x] 2.2 `PcmEncoder` (RIFF WAVE header) and the server direction of the codec tests.
+- [x] 2.3 `StreamListener` and `StreamClientSession`: Hello, ServerSettings, CodecHeader, chunks, Time, ClientInfo; limits and write queue (S3), write watchdog. Test against the app's own client engine over a socket.
+- [x] 2.4 `StreamSource`: the tcp feeder on a port of the range; one producer; a stream with the default sample format. Test with the app's own feeder.
 
 ## Group 3: control and state
-- [ ] 3.1 `ServerState` (clients, groups, streams; status JSON; events). Tests first, shapes checked with the app's own model parser.
-- [ ] 3.2 `ControlListener`, `ControlSession`, `RpcDispatcher`: the methods and notifications of R3, errors as snapserver gives them; `Stream.AddStream` tcp only (S4). Tests with the app's own control library.
-- [ ] 3.3 `ServerStore` persistence (R8).
+- [x] 3.1 `ServerState` (clients, groups, streams; status JSON; events). Tests first, shapes checked with the app's own model parser.
+- [x] 3.2 `ControlListener`, `ControlSession`, `RpcDispatcher`: the methods and notifications of R3, errors as snapserver gives them; `Stream.AddStream` tcp only (S4). Tests with the app's own control library.
+- [x] 3.3 `ServerStore` persistence (R8).
 
 ## Group 4: service, announcement, own use
 - [ ] 4.1 `SnapcastServerService` (foreground, locks while streaming, autostart and idle rules), `SnapcastServerAnnouncer` (R9).

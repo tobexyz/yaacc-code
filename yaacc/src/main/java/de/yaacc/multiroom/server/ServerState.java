@@ -500,6 +500,96 @@ public final class ServerState {
         return changed ? Collections.singletonList(update()) : Collections.<JSONObject>emptyList();
     }
 
+    // ------------------------------------------------------------------ persistence
+
+    /**
+     * What survives a restart (requirement R8): the clients with their settings and the groups with their members; not the streams (the
+     * app's feed makes them again) and not who is connected.
+     */
+    public synchronized JSONObject snapshot() {
+        List<JSONObject> clientList = new ArrayList<>();
+        for (ClientEntry c : clients.values()) {
+            JSONObject j = new JSONObject();
+            put(j, "id", c.id);
+            put(j, "name", c.name);
+            put(j, "host", c.hostName);
+            put(j, "volume", c.volume);
+            put(j, "muted", c.muted);
+            put(j, "latency", c.latencyMs);
+            put(j, "instance", c.instance);
+            clientList.add(j);
+        }
+        List<JSONObject> groupList = new ArrayList<>();
+        for (GroupEntry g : groups.values()) {
+            JSONObject j = new JSONObject();
+            put(j, "id", g.id);
+            put(j, "name", g.name);
+            put(j, "muted", g.muted);
+            put(j, "stream_id", g.streamId == null ? "" : g.streamId);
+            put(j, "clients", new org.json.JSONArray(g.clients));
+            groupList.add(j);
+        }
+        JSONObject snapshot = new JSONObject();
+        put(snapshot, "clients", new org.json.JSONArray(clientList));
+        put(snapshot, "groups", new org.json.JSONArray(groupList));
+        return snapshot;
+    }
+
+    /**
+     * Takes back a snapshot into an empty state. What is wrong with it is left out (a damaged store never stops the server): at most
+     * {@value #MAX_CLIENTS} clients and groups, names cut, volume and latency held to their range.
+     */
+    public synchronized void restore(JSONObject snapshot) {
+        if (snapshot == null || !clients.isEmpty() || !groups.isEmpty()) {
+            return;
+        }
+        org.json.JSONArray clientArray = snapshot.optJSONArray("clients");
+        if (clientArray != null) {
+            for (int i = 0; i < clientArray.length() && clients.size() < MAX_CLIENTS; i++) {
+                JSONObject j = clientArray.optJSONObject(i);
+                String id = j == null ? null : j.optString("id", null);
+                if (id == null || id.isEmpty() || id.length() > 128) {
+                    continue;
+                }
+                ClientEntry c = new ClientEntry(id);
+                c.name = clean(j.optString("name", ""));
+                c.hostName = clean(j.optString("host", ""));
+                c.volume = Math.max(0, Math.min(100, j.optInt("volume", 100)));
+                c.muted = j.optBoolean("muted", false);
+                c.latencyMs = Math.max(0, Math.min(MAX_LATENCY_MS, j.optInt("latency", 0)));
+                c.instance = Math.max(1, Math.min(1000, j.optInt("instance", 1)));
+                clients.put(id, c);
+            }
+        }
+        org.json.JSONArray groupArray = snapshot.optJSONArray("groups");
+        if (groupArray != null) {
+            for (int i = 0; i < groupArray.length() && groups.size() < MAX_CLIENTS; i++) {
+                JSONObject j = groupArray.optJSONObject(i);
+                String id = j == null ? null : j.optString("id", null);
+                if (id == null || id.isEmpty() || id.length() > 128 || groups.containsKey(id)) {
+                    continue;
+                }
+                GroupEntry g = new GroupEntry(id, clean(j.optString("stream_id", "")));
+                g.name = clean(j.optString("name", ""));
+                g.muted = j.optBoolean("muted", false);
+                org.json.JSONArray members = j.optJSONArray("clients");
+                for (int k = 0; members != null && k < members.length(); k++) {
+                    String member = members.optString(k, null);
+                    ClientEntry c = member == null ? null : clients.get(member);
+                    if (c != null && c.groupId == null) {
+                        g.clients.add(member);
+                        c.groupId = id;
+                    }
+                }
+                if (!g.clients.isEmpty()) {
+                    groups.put(id, g);
+                }
+            }
+        }
+        // a client that no group holds is no use without one (it gets its group when it connects); dropping it keeps the state consistent
+        clients.values().removeIf(c -> c.groupId == null);
+    }
+
     // ------------------------------------------------------------------ status
 
     /** The result of {@code Client.GetStatus}: {@code {"client": {...}}}. */
